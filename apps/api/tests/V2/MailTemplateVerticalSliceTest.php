@@ -45,12 +45,12 @@ final class MailTemplateVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_fixed_sixteen_templates_expose_all_variables_and_no_create_or_delete_routes(): void
+    public function test_fixed_seventeen_templates_expose_all_variables_and_no_create_or_delete_routes(): void
     {
         $service = app(V2MailTemplateService::class);
         $result = $service->templates($this->context(V2AdminRole::Admin));
 
-        self::assertCount(16, $result['items']);
+        self::assertCount(17, $result['items']);
         self::assertSame([
             'email_verification',
             'registration_completed',
@@ -59,6 +59,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'shipping_completed',
             'user_closed',
             'contact_received',
+            'contact_reply',
             'password_reset',
             'email_change_verification',
             'email_change_completed',
@@ -70,7 +71,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'agency_login_information_reissued',
         ], array_column($result['items'], 'key'));
         foreach ($result['items'] as $template) {
-            self::assertCount(23, $template['variables']);
+            self::assertCount(24, $template['variables']);
         }
         self::assertSame([
             'メールアドレス認証のお願い',
@@ -80,6 +81,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
             '景品の発送が完了しました',
             '退会手続きが完了しました',
             'お問い合わせを受け付けました',
+            'お問い合わせへのご返信',
             'パスワード再設定のご案内',
             'メールアドレス変更の確認',
             'メールアドレス変更完了のお知らせ',
@@ -102,6 +104,28 @@ final class MailTemplateVerticalSliceTest extends TestCase
         self::assertContains('POST admin/api/v2/mail-templates/{templateKey}/preview', $methods);
         self::assertFalse($methods->contains(fn (string $route): bool => str_starts_with($route, 'DELETE ')));
         self::assertFalse($methods->contains(fn (string $route): bool => $route === 'POST admin/api/v2/mail-templates'));
+    }
+
+    public function test_contact_reply_defaults_edit_and_preview_keep_multiline_plain_reply_content(): void
+    {
+        $service = app(V2MailTemplateService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $current = $service->template($context, 'contact_reply');
+        self::assertSame('お問い合わせへのご返信', $current['subject']);
+        self::assertSame('<p>{{full_name}} 様</p><p>お問い合わせいただきありがとうございます。</p><p>{{reply_content}}</p><p>その他ご不明点がございましたら、再度お問い合わせください。</p>', $current['body_html']);
+        config(['v2_mail_templates.preview_values.full_name' => 'Name & <tag>', 'v2_mail_templates.preview_values.reply_content' => "First line\n<script>alert(1)</script>"]);
+        $updated = $service->update($context, 'contact_reply', [
+            'subject' => '編集済み {{full_name}}',
+            'body_html' => '<p>{{full_name}}</p><p>{{reply_content}}</p><script>bad()</script>',
+            'expected_revision' => $current['revision'],
+        ], 'contact-template-'.Str::uuid7());
+        self::assertSame('編集済み {{full_name}}', $updated['subject']);
+        $preview = $service->preview($context, 'contact_reply', ['body_html' => $updated['body_html']]);
+        self::assertStringContainsString('Name &amp; &lt;tag&gt;', $preview['body_html']);
+        self::assertStringContainsString('First line<br', $preview['body_html']);
+        self::assertStringContainsString('&lt;script&gt;', $preview['body_html']);
+        self::assertStringNotContainsString('<script', $preview['body_html']);
+        self::assertStringNotContainsString('{{', $preview['body_html']);
     }
 
     public function test_update_sanitizes_rich_text_replays_and_rejects_semantic_empty_values(): void

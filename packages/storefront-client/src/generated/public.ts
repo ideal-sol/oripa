@@ -98,7 +98,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Anonymousまたは認証済みUserが問い合わせを送信する */
+        /**
+         * 認証済みUserが新規または本人の問い合わせへ追加投稿する
+         * @description 本人所有のinquiry_idだけ既存問い合わせへ追記する。不在・他人所有IDは自身の新規受付となり区別しない。不正形式は拒否する。同一操作の再試行は同じIdempotency-Keyを使用する。
+         */
         post: operations["createContactInquiry"];
         delete?: never;
         options?: never;
@@ -1552,6 +1555,7 @@ export interface components {
             items: components["schemas"]["ContentFooterPage"][];
         };
         CreateContactInquiryRequest: {
+            inquiry_id?: components["schemas"]["OpaqueId"];
             name: string;
             /** Format: email */
             email: string;
@@ -1560,6 +1564,7 @@ export interface components {
             body: string;
             website: string;
         };
+        /** @description 新規では新しい受付番号・日時、追記では元の受付番号・日時を返す。同一keyの再試行は元responseを返す。 */
         ContactInquiryReceipt: {
             receipt_code: string;
             /** @constant */
@@ -2608,6 +2613,7 @@ export interface operations {
             query?: never;
             header: {
                 "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;

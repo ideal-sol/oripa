@@ -344,6 +344,15 @@ export const PUBLIC_TOP_BANNERS_FIXTURE = Object.freeze({
 });
 
 export const PUBLIC_CONTACT_FIXTURE = Object.freeze({
+  idempotency_key: "contact-fixture-operation-0001",
+  follow_up_input: {
+    inquiry_id: "0198a001-0000-7000-8000-000000000315",
+    name: "Fixture User",
+    email: "fixture@example.test",
+    subject: "Fixture follow-up",
+    body: "Public-safe follow-up body.",
+    website: "",
+  },
   input: {
     name: "Fixture User",
     email: "fixture@example.test",
@@ -360,6 +369,8 @@ export const PUBLIC_CONTACT_FIXTURE = Object.freeze({
   },
 } as const satisfies {
   input: PublicComponents["schemas"]["CreateContactInquiryRequest"];
+  follow_up_input: PublicComponents["schemas"]["CreateContactInquiryRequest"];
+  idempotency_key: string;
   receipt: PublicComponents["schemas"]["ContactInquiryReceipt"];
 });
 

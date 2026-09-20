@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContactManagementWorkspace } from "@/components/contacts/contact-management-workspace";
@@ -82,7 +82,7 @@ describe("Contact management", () => {
       .mockResolvedValue({ id: "01910191-0191-7191-8191-019101910192", status: "queued" });
     render(<ContactManagementWorkspace contactId={contactId} mode="detail" />);
 
-    expect(await screen.findByText("お問い合わせ内容です。")).toBeVisible();
+    expect(await screen.findAllByText("お問い合わせ内容です。")).toHaveLength(2);
     expect(screen.getByText("お問い合わせ詳細・返信")).toBeVisible();
     fireEvent.change(screen.getByLabelText("返信内容"), { target: { value: "確認してご連絡します。" } });
     fireEvent.click(screen.getByRole("button", { name: "返信要求を保存" }));
@@ -94,6 +94,30 @@ describe("Contact management", () => {
     ));
     await waitFor(() => expect(get.mock.calls.length).toBeGreaterThanOrEqual(2));
     expect(await screen.findByText("返信要求を記録しました。")).toBeVisible();
+  });
+
+  it("distinguishes user follow-ups and admin replies in chronological history", async () => {
+    vi.spyOn(AdminApiClient.prototype, "getContactInquiry").mockResolvedValue({
+      ...detail(),
+      reply_requests: [
+        { id: "reply-two", message: "再返信", created_at: "2026-08-05T03:00:00Z" },
+        { id: "reply-one", message: "初回返信", created_at: "2026-08-05T10:00:00+09:00" },
+      ],
+      user_messages: [{ id: "follow-up", message: "追加本文", created_at: "2026-08-05T02:00:00Z" }],
+    });
+    render(<ContactManagementWorkspace contactId={contactId} mode="detail" />);
+    const history = await screen.findByRole("region", { name: "対応履歴" });
+    expect(within(history).getAllByRole("listitem").map((item) => item.querySelector("strong")?.textContent)).toEqual([
+      "ユーザー：初回問い合わせ", "未対応", "管理者：返信要求", "ユーザー：追加問い合わせ", "管理者：返信要求",
+    ]);
+    expect(within(history).getByText("追加本文")).toBeVisible();
+    const input = screen.getByLabelText<HTMLTextAreaElement>("返信内容");
+    for (const key of ["full_name", "phone_number", "email", "address", "inquiry_url"]) {
+      input.setSelectionRange(input.value.length, input.value.length);
+      fireEvent.change(screen.getByLabelText("返信内容へ変数を挿入"), { target: { value: `{{${key}}}` } });
+      expect(input.value).toContain(`{{${key}}}`);
+    }
+    expect(input.tagName).toBe("TEXTAREA");
   });
 
   it("keeps operator read-only and hides mutation controls", async () => {

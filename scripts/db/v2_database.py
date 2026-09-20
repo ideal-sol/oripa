@@ -79,6 +79,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.contact_internal_notes",
     "public.contact_reply_requests",
     "public.contact_status_histories",
+    "public.contact_user_messages",
     "public.content_banner_categories",
     "public.content_banners",
     "public.content_notices",

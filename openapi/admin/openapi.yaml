@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.31
+  version: 2.0.0-alpha.33
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -6741,7 +6741,7 @@ components:
       type: string
       enum:
         [email_verification, registration_completed, coin_purchase_completed,
-         shipping_requested, shipping_completed, user_closed, contact_received,
+         shipping_requested, shipping_completed, user_closed, contact_received, contact_reply,
          password_reset, email_change_verification, email_change_completed,
          password_changed, phone_changed, agency_account_created, agency_password_changed, agency_login_information_reissued, agency_email_changed]
     AdminMailTemplateVariable:
@@ -7033,6 +7033,14 @@ components:
         id: {$ref: '#/components/schemas/OpaqueId'}
         message: {type: string, maxLength: 5000}
         created_at: {type: string, format: date-time}
+    ContactUserMessage:
+      type: object
+      additionalProperties: false
+      required: [id, message, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        message: {type: string, maxLength: 5000}
+        created_at: {type: string, format: date-time}
     AdminContactDetail:
       allOf:
         - {$ref: '#/components/schemas/AdminContactSummary'}
@@ -7049,6 +7057,7 @@ components:
             status_history: {type: array, items: {$ref: '#/components/schemas/ContactStatusHistory'}}
             internal_notes: {type: array, items: {$ref: '#/components/schemas/ContactInternalNote'}}
             reply_requests: {type: array, items: {$ref: '#/components/schemas/ContactReplyRequest'}}
+            user_messages: {type: array, items: {$ref: '#/components/schemas/ContactUserMessage'}, description: 本人による追加問い合わせ。Admin返信とは別のappend-only履歴。}
             updated_at: {type: string, format: date-time}
     ContactStatusUpdate:
       type: object

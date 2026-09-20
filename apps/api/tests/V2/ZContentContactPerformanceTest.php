@@ -18,6 +18,7 @@ use Tests\TestCase;
 
 final class ZContentContactPerformanceTest extends TestCase
 {
+    use \Tests\Support\V2ContactFixture;
     public function test_content_contact_first_pages_and_concurrent_submission_meet_threshold(): void
     {
         if (getenv('V2_CONTENT_CONTACT_PERFORMANCE_TEST') !== '1') {
@@ -130,6 +131,7 @@ final class ZContentContactPerformanceTest extends TestCase
     {
         $directory = sys_get_temp_dir().'/mig056-contact-'.getmypid();
         mkdir($directory, 0700, true);
+        $user = $this->contactUser();
         $startAt = microtime(true) + 0.5;
         $children = [];
         foreach (range(1, $workers) as $worker) {
@@ -145,13 +147,13 @@ final class ZContentContactPerformanceTest extends TestCase
                 DB::reconnect();
                 $started = hrtime(true);
                 try {
-                    app(V2ContactService::class)->submit([
+                    $this->submitContact([
                         'name' => "Load {$worker}",
                         'email' => "load-{$worker}-".Str::uuid7().'@example.test',
                         'subject' => 'Concurrent contact',
                         'body' => 'Task-only performance fixture.',
                         'website' => '',
-                    ], null, "192.0.2.{$worker}", (string) Str::uuid7());
+                    ], $user, "192.0.2.{$worker}", (string) Str::uuid7());
                     $result = [
                         'ok' => true,
                         'duration_ms' => (hrtime(true) - $started) / 1_000_000,

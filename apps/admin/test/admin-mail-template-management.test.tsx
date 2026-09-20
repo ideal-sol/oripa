@@ -31,6 +31,7 @@ const variables: AdminMailTemplateVariable[] = [
   ["email_change_verification_url", "メールアドレス変更認証リンク"],
   ["expires_in_minutes", "有効期限（分）"],
   ["contact_body", "お問い合わせ内容"],
+  ["reply_content", "返信内容"],
 ].map(([key, label]) => ({ key, label, token: `{{${key}}}` }));
 
 const keys: MailTemplateKey[] = [
@@ -41,6 +42,7 @@ const keys: MailTemplateKey[] = [
   "shipping_completed",
   "user_closed",
   "contact_received",
+  "contact_reply",
   "password_reset",
   "email_change_verification",
   "email_change_completed",
@@ -48,6 +50,7 @@ const keys: MailTemplateKey[] = [
   "phone_changed",
   "agency_account_created",
   "agency_password_changed",
+  "agency_email_changed",
   "agency_login_information_reissued",
 ];
 
@@ -62,12 +65,12 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Mail Template management", () => {
-  it("shows exactly fifteen fixed templates without create or delete controls", async () => {
+  it("shows exactly seventeen fixed templates without create or delete controls", async () => {
     render(<MailTemplateWorkspace />);
 
     const table = await screen.findByRole("table");
-    expect(within(table).getAllByRole("row")).toHaveLength(16);
-    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(15);
+    expect(within(table).getAllByRole("row")).toHaveLength(18);
+    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(17);
     expect(screen.queryByRole("button", { name: /新規|追加|削除/u })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "メール設定" })).toBeVisible();
   });
@@ -125,6 +128,28 @@ describe("Mail Template management", () => {
       subject: "{{user_name}}発送依頼を受け付けました",
     });
     expect(update.mock.calls[0]?.[2]).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it("edits the Contact reply template and inserts reply_content through the shared picker", async () => {
+    vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue({
+      ...template("contact_reply", "お問い合わせ返信"),
+      subject: "お問い合わせへのご返信",
+      body_html: "<p>{{full_name}} 様</p><p>{{reply_content}}</p>",
+    });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateMailTemplate").mockImplementation(async (key, input) => ({
+      ...template(key, "お問い合わせ返信"), ...input, revision: 2, idempotent_replay: false,
+    }));
+    render(<MailTemplateWorkspace templateKey="contact_reply" />);
+    expect(await screen.findByLabelText("件名")).toHaveValue("お問い合わせへのご返信");
+    fireEvent.click(screen.getByRole("button", { name: "HTML" }));
+    const body = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "メール本文のHTMLソース" });
+    body.setSelectionRange(body.value.length, body.value.length);
+    fireEvent.change(screen.getByLabelText("本文へ変数を挿入"), { target: { value: "{{reply_content}}" } });
+    expect(body.value).toMatch(/\{\{reply_content\}\}$/u);
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("メールTemplateを保存しました。");
+    expect(update.mock.calls[0]?.[0]).toBe("contact_reply");
+    expect(update.mock.calls[0]?.[1].subject).toBe("お問い合わせへのご返信");
   });
 
   it("blocks semantic empty subject and body before saving", async () => {

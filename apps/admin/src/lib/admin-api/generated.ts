@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5ce6e04676c7f1b815de65cb83c1beb08c707baa8b449eefb17dd394f6d20e88
+// Contract SHA-256: 227141b3e21e1599f97207c26e35694c6ac0789f4bb4b1dc2f2a3774a22d24f4
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2093,6 +2093,7 @@ export type MailTemplateKey =
   | "shipping_completed"
   | "user_closed"
   | "contact_received"
+  | "contact_reply"
   | "password_reset"
   | "email_change_verification"
   | "email_change_completed"
@@ -2311,6 +2312,12 @@ export interface AdminContactInternalNote {
   created_at: string;
 }
 
+export interface AdminContactUserMessage {
+  id: string;
+  message: string;
+  created_at: string;
+}
+
 export interface AdminContactReplyRequest {
   id: string;
   message: string;
@@ -2328,6 +2335,7 @@ export interface AdminContactDetail extends AdminContactSummary {
   status_history: AdminContactStatusHistory[];
   internal_notes: AdminContactInternalNote[];
   reply_requests?: AdminContactReplyRequest[];
+  user_messages?: AdminContactUserMessage[];
 }
 
 export interface AdminContactStatusUpdate {

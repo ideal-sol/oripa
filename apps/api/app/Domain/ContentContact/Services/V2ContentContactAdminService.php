@@ -1202,6 +1202,18 @@ final class V2ContentContactAdminService
             throw $this->notFound('CONTACT_NOT_FOUND');
         }
         $this->auditContact('contact.viewed', $context, $admin, $publicId);
+        $messages = DB::table('contact_reply_requests')
+            ->where('contact_inquiry_id', $contact->id)
+            ->select('public_id', 'message_ciphertext', 'created_at')->selectRaw("'admin' AS actor")
+            ->unionAll(DB::table('contact_user_messages')
+                ->where('contact_inquiry_id', $contact->id)
+                ->select('public_id', 'message_ciphertext', 'created_at')->selectRaw("'user' AS actor"))
+            ->orderBy('created_at')->orderBy('public_id')->get();
+        $messageResult = static fn (object $row): array => [
+            'id' => $row->public_id,
+            'message' => Crypt::decryptString($row->message_ciphertext),
+            'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
+        ];
 
         return [
             'id' => $contact->public_id,
@@ -1236,14 +1248,8 @@ final class V2ContentContactAdminService
                     'note' => Crypt::decryptString($row->note_ciphertext),
                     'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
                 ])->all(),
-            'reply_requests' => DB::table('contact_reply_requests')
-                ->where('contact_inquiry_id', $contact->id)->orderBy('id')
-                ->get(['public_id', 'message_ciphertext', 'created_at'])
-                ->map(static fn (object $row): array => [
-                    'id' => $row->public_id,
-                    'message' => Crypt::decryptString($row->message_ciphertext),
-                    'created_at' => CarbonImmutable::parse($row->created_at)->toIso8601String(),
-                ])->all(),
+            'reply_requests' => $messages->where('actor', 'admin')->values()->map($messageResult)->all(),
+            'user_messages' => $messages->where('actor', 'user')->values()->map($messageResult)->all(),
         ];
     }
 
@@ -1416,12 +1422,12 @@ final class V2ContentContactAdminService
                 'contact.notification',
                 'contact_inquiry',
                 $publicId,
-                'contact.reply.requested',
+                'contact.reply.email.requested',
                 [
                     'contact_public_id' => $publicId,
                     'reply_public_id' => $replyPublicId,
                 ],
-                'contact.reply.requested:'.$replyPublicId
+                'contact.reply.email.requested:'.$replyPublicId
             );
             $this->auditContact('contact.reply_requested', $context, $admin, $publicId);
 

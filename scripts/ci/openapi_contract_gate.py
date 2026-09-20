@@ -69,6 +69,11 @@ MIG_099_CANONICAL_BREAK = {
     "scope": "rank-master-gacha-rank-clean-cutover",
 }
 MIG_099_CANONICAL_BREAK_SURFACES = {"public", "admin"}
+CONTACT_AUTHENTICATED_BREAK = {
+    "authority": "human_contact_reply_follow_up_2026-09-20",
+    "change_id": "CONTACT-20260920",
+    "scope": "authenticated-contact-submit-idempotency",
+}
 
 
 class ContractFailure(RuntimeError):
@@ -132,7 +137,9 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
     if document.get("x-oripa-surface") != surface:
         raise ContractFailure(f"{surface}: surface marker is invalid")
     canonical_break = document.get("x-oripa-breaking-change")
-    if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK:
+    if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK and not (
+        surface == "public" and canonical_break == CONTACT_AUTHENTICATED_BREAK
+    ):
         raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
         raise ContractFailure(f"{surface}: server namespace is invalid")
@@ -415,6 +422,25 @@ def is_authorized_mig_099_canonical_break(
     )
 
 
+def is_authorized_contact_authenticated_break(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    operation = current.get("paths", {}).get("/contact-inquiries", {}).get("post", {})
+    return (
+        surface == "public"
+        and current.get("x-oripa-breaking-change") == CONTACT_AUTHENTICATED_BREAK
+        and previous.get("info", {}).get("version") == "2.0.0-alpha.32"
+        and current.get("info", {}).get("version") == "2.0.0-alpha.33"
+        and operation.get("security") == [{"userSession": []}]
+        and operation.get("x-idempotency") == "required"
+        and {"$ref": "#/components/parameters/IdempotencyKey"} in operation.get("parameters", [])
+        and set(breaking_changes(previous, current)) == {
+            "POST /contact-inquiries: security changed",
+            "POST /contact-inquiries: idempotency changed",
+        }
+    )
+
+
 def generate_bundles(repository: Path, output_root: Path) -> dict[str, Path]:
     sources = [str(value["source"]) for value in SURFACES.values()]
     run(
@@ -488,7 +514,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

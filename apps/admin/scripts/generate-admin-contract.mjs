@@ -2710,6 +2710,7 @@ export type MailTemplateKey =
   | "shipping_completed"
   | "user_closed"
   | "contact_received"
+  | "contact_reply"
   | "password_reset"
   | "email_change_verification"
   | "email_change_completed"
@@ -2928,6 +2929,12 @@ export interface AdminContactInternalNote {
   created_at: string;
 }
 
+export interface AdminContactUserMessage {
+  id: string;
+  message: string;
+  created_at: string;
+}
+
 export interface AdminContactReplyRequest {
   id: string;
   message: string;
@@ -2945,6 +2952,7 @@ export interface AdminContactDetail extends AdminContactSummary {
   status_history: AdminContactStatusHistory[];
   internal_notes: AdminContactInternalNote[];
   reply_requests?: AdminContactReplyRequest[];
+  user_messages?: AdminContactUserMessage[];
 }
 
 export interface AdminContactStatusUpdate {

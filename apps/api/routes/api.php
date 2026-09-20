@@ -97,6 +97,7 @@ Route::prefix('v2')
         )
             ->name('v2.public.catalog.gachas.presentation');
         Route::post('/contact-inquiries', [V2ContentContactController::class, 'contact'])
+            ->middleware(['auth:v2_user', 'v2.realm:user'])
             ->name('v2.public.contacts.store');
         Route::post('/me/email-change-requests/{emailChangeRequestId}/complete', [
             V2PublicAuthController::class,

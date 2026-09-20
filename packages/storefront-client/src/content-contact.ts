@@ -12,12 +12,14 @@ export interface ContentListQuery {
 }
 
 export interface ContactSubmissionOptions {
+  idempotency_key: string;
   csrf_token: string;
   signal?: AbortSignal;
   timeout_ms?: number;
 }
 
 export interface BrowserContactSubmissionOptions {
+  idempotency_key: string;
   signal?: AbortSignal;
   timeout_ms?: number;
 }
@@ -54,7 +56,7 @@ export interface BrowserStorefrontContentContactClient {
   >;
   submitContact(
     input: Schemas["CreateContactInquiryRequest"],
-    options?: BrowserContactSubmissionOptions,
+    options: BrowserContactSubmissionOptions,
   ): Promise<StorefrontResponse<Schemas["ContactInquiryReceipt"]>>;
 }
 
@@ -109,6 +111,7 @@ export function createStorefrontContentContactClient(
         path: "/contact-inquiries",
         method: "POST",
         body: input,
+        idempotency_key: options.idempotency_key,
         headers: csrf(options.csrf_token),
         csrf: "required",
         signal: options.signal,
@@ -135,11 +138,12 @@ export function createCsrfManagedStorefrontContentContactClient(
       }),
     listFooterPages: () =>
       transport.request({ path: "/content/footer-pages" }),
-    submitContact: (input, options = {}) =>
+    submitContact: (input, options) =>
       transport.request({
         path: "/contact-inquiries",
         method: "POST",
         body: input,
+        idempotency_key: options.idempotency_key,
         csrf: "required",
         signal: options.signal,
         timeout_ms: options.timeout_ms,

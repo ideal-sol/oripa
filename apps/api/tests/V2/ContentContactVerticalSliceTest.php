@@ -27,6 +27,7 @@ use Tests\TestCase;
 
 final class ContentContactVerticalSliceTest extends TestCase
 {
+    use \Tests\Support\V2ContactFixture;
     protected function setUp(): void
     {
         parent::setUp();
@@ -356,7 +357,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         $requestId = (string) Str::uuid7();
         $input = $this->contactInput();
         $outboxBefore = DB::table('outbox_messages')->count();
-        $result = app(V2ContactService::class)->submit(
+        $result = $this->submitContact(
             $input,
             null,
             '192.0.2.10',
@@ -393,7 +394,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         ];
         try {
             DB::transaction(function () use ($input): never {
-                app(V2ContactService::class)->submit(
+                $this->submitContact(
                     [...$input, 'email' => 'rollback@example.test'],
                     null,
                     '192.0.2.11',
@@ -420,7 +421,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid password'),
             'state' => V2UserState::Active,
         ]);
-        $result = app(V2ContactService::class)->submit(
+        $result = $this->submitContact(
             [...$this->contactInput(), 'email' => $email],
             $user,
             '192.0.2.12',
@@ -437,7 +438,7 @@ final class ContentContactVerticalSliceTest extends TestCase
 
     public function test_contact_admin_workflow_separates_notes_and_keeps_history_append_only(): void
     {
-        $result = app(V2ContactService::class)->submit(
+        $result = $this->submitContact(
             $this->contactInput(),
             null,
             '192.0.2.20',
@@ -460,7 +461,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         self::assertDatabaseCount('contact_internal_notes', 1);
         self::assertDatabaseCount('contact_reply_requests', 1);
         self::assertDatabaseHas('outbox_messages', [
-            'event_type' => 'contact.reply.requested',
+            'event_type' => 'contact.reply.email.requested',
         ]);
         $service->updateContactStatus(
             $context,
@@ -500,7 +501,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         $service = app(V2ContactService::class);
         $receipts = [];
         for ($attempt = 1; $attempt <= 3; $attempt++) {
-            $receipts[] = $service->submit(
+            $receipts[] = $this->submitContact(
                 $this->contactInput(),
                 null,
                 '192.0.2.'.(30 + $attempt),
@@ -509,7 +510,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         }
         self::assertCount(3, array_unique($receipts));
         try {
-            $service->submit(
+            $this->submitContact(
                 $this->contactInput(),
                 null,
                 '192.0.2.40',
@@ -560,7 +561,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             'name' => "Cafe\u{0301}",
             'email' => 'unicode@example.test',
         ];
-        $result = app(V2ContactService::class)->submit(
+        $result = $this->submitContact(
             $input,
             null,
             '192.0.2.50',
@@ -576,7 +577,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             [...$this->contactInput(), 'website' => 'bot-value'],
         ] as $invalid) {
             try {
-                app(V2ContactService::class)->submit(
+                $this->submitContact(
                     $invalid,
                     null,
                     '192.0.2.51',
@@ -605,7 +606,7 @@ final class ContentContactVerticalSliceTest extends TestCase
             'v2_identity.origins.user' => 'https://storefront.example.test',
         ]);
         $csrf = str_repeat('a', 64);
-        $response = $this
+        $response = $this->actingAs($this->contactUser(), 'v2_user')
             ->withCredentials()
             ->withServerVariables(['HTTPS' => 'on'])
             ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
@@ -613,6 +614,7 @@ final class ContentContactVerticalSliceTest extends TestCase
                 'Origin' => 'https://storefront.example.test',
                 'Sec-Fetch-Site' => 'same-origin',
                 'X-XSRF-TOKEN' => $csrf,
+                'Idempotency-Key' => (string) Str::uuid7(),
             ])
             ->postJson('/api/v2/contact-inquiries', $this->contactInput())
             ->assertAccepted();

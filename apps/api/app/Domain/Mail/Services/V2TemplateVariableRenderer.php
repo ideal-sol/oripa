@@ -17,19 +17,25 @@ final class V2TemplateVariableRenderer
     }
 
     /** @param array<string, string|list<string>|null> $values */
-    public function html(string $template, array $values): string
+    public function html(string $template, array $values, array $multilineKeys = []): string
     {
         $sanitized = $this->sanitizer->sanitize($template);
 
-        return $this->sanitizer->sanitize($this->replace($sanitized, $values, true));
+        return $this->sanitizer->sanitize($this->replace($sanitized, $values, true, $multilineKeys));
+    }
+
+    public function plainText(string $template, array $values): string
+    {
+        return (string) preg_replace_callback('/\{\{\s*([^{}]+?)\s*\}\}/u',
+            static fn (array $matches): string => $values[trim($matches[1])] ?? '', $template);
     }
 
     /** @param array<string, string|list<string>|null> $values */
-    private function replace(string $template, array $values, bool $html): string
+    private function replace(string $template, array $values, bool $html, array $multilineKeys = []): string
     {
         return (string) preg_replace_callback(
             '/\{\{\s*([^{}]+?)\s*\}\}/u',
-            function (array $matches) use ($values, $html): string {
+            function (array $matches) use ($values, $html, $multilineKeys): string {
                 $key = trim($matches[1]);
                 $value = $values[$key] ?? '';
                 $items = is_array($value) ? $value : [$value ?? ''];
@@ -44,7 +50,8 @@ final class V2TemplateVariableRenderer
                     $items
                 );
 
-                return implode($html ? '<hr>' : ' / ', $rendered);
+                $result = implode($html ? '<hr>' : ' / ', $rendered);
+                return $html && in_array($key, $multilineKeys, true) ? nl2br($result, false) : $result;
             },
             $template
         );

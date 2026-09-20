@@ -1,3 +1,25 @@
+## CONTACT-20260920 — お問い合わせ返信メール＋継続問い合わせ（OLD / PLATFORM）
+
+- Humanの2026-09-20実装指示を正本とする。Issue none、Risk R4、Lane Strict Change、Activation deferred、通常worktree `/var/www/oripa`、Branch `feat/CONTACT-20260920-reply-followup`。開始時clean、Base／origin/main／live Remote mainは `a8e3079e2b7f9347c1932a7552016625db77a64d`。Source実装・Migration作成・focused検証・commit／push／単一PR／CIまで許可。merge、旧Test反映、Mail Worker activation、実メール、Browser Login、Production操作は禁止。
+- Public ContactをBackend User認証必須化。任意UUID Public IDの本人所有検索＋row lockにより、専用暗号化append-only `contact_user_messages`へ追記し全4状態からin_progressへ戻す。初回本文・owner・Public ID・受付日時は不変。不在／他人IDは同じ新規受付、他人へのmutationなし。malformed／認証／DB失敗の新規fallbackなし。既存User別Idempotency Recordをcontact.submit scopeで再利用し新規・追記とも通信再試行で重複しない。Public spam limiter、CSRF／Origin／Session、Auditを維持。
+- Migration Allocation Lock取得後、実際のlatest 000075に続けて000076を採番。専用履歴Tableと固定Mail Template行 `contact_reply`だけを追加。Update／Delete／Truncate拒否Trigger、FK、暗号化、UTC保存helperを維持。既存匿名データ・既存Outboxの移行／更新なし。適用はcanonical guard付き専用ephemeral project `mig076-v2-contact-20260920`のみ。MIG-076はguardのfixture namespaceであり別Task／PRではない。共有Test／Production適用0。
+- Adminの既存Reply Request／transaction／dedup／Auditを維持し、新規保存のみ `contact.reply.email.requested`へcutover。旧 `contact.reply.requested`、Receipt、Admin Notificationは専用Workerがtopic＋eventでclaim前に除外する。過去pending件数に依存せず既存行に触れない。Identity Workerへ混在させず、専用commandのみ追加してRuntime登録／起動はしない。
+- Consumer時点のUser登録Emailをrecipientとし、現在のdisplay_name／有効verified電話／最新非削除住所／canonical Public OriginのURLを解決する。Composerの5変数をplain textで一回展開し、reply_contentをouter contact_reply templateへ渡す。escapeはouterで一回、reply_contentの改行をbrに保持、既存sanitizerを前後に適用し任意式・HTML評価なし。未登録住所／電話は空文字。メール設定の件名・本文・Previewと既存変数pickerを再利用。初期件名・本文はHuman指定どおり。
+- Mailは最小fail-closedとし自動retryなし。Transport例外／送信後記録前クラッシュは不確実としてfailedまたは期限切れprocessingを再claim後failedにし、二回目は送信しない。Provider Exactly Onceは保証しない。pre-send crashも未送信のまま停止し得る。既存受付メール／Identityメールのretry仕様は変更しない。Admin返信保存のnew→in_progress、明示status更新によるrepliedは従来どおり。
+- Admin履歴は初回User／Admin返信要求／User追記／内部メモ／statusを区別し、時刻とUUID順で表示。Fresh Authentication／Password fallback／FreshMfaDialog／廃止済みAdmin業務Limiterは追加しない。Public／Admin／Webhook contractをcanonical breaking-candidate規約に従いalpha.33、Client／Testkitをalpha.37候補とする。Webhookはversionのみ。Schema alpha.23は参照のまま。immutable ledgerは保持、candidateのみ追加、Artifact発行とStorefront exact-pin変更は別Phase。
+- OpenAPI破壊検出の許可はHuman指定のContact認証＋idempotency変更2件、Public alpha.32→33、専用authorityへ限定。他の破壊的変更や匿名化は拒否するnegative testsを追加。Migration inventory／契約候補の既存fixtureを更新し、Required Checksを緩和しない。
+- Local: 関連Backend 77 tests／699 assertions PASS（Contact／Template／Account Security・Identity Mail／Audit Outbox／Timestamp／Admin Fresh廃止回帰）。追加idempotency scope／送信後lease失効testsを含む最終Contact corpusはPRへ確定。Client 34 testsとgenerate／type／lint／build PASS。Admin focused最終11 tests PASS、初回Build PASS、最終Build・Testkit・policy／security／Required CI結果はPRへ確定する。
+- 初回失敗はJSONB response key順、limiter監査のrollback、追加履歴によるquery数、初回本文の複数UI表示、template固定件数、release fixtureがpending candidateを履歴と混同、testkit必須website／非Problem401 metadata期待。response順の正規化、監査をtransaction失敗後に記録、User／Admin messageのUNIONでquery上限維持、仕様どおりのfixtureを補正して再検証。assertionやsecurityを弱めていない。
+- 実メール0、既存Outbox操作0、Provider実接続0、Runtime activation0、Production0、ENV変更0、Browser Login0。API buildは隔離test用1回、Admin Build回数・最終SHA・PR／CI時間・self-review証跡はPR closeoutで確定する。未mergeのbranchを保持し、次PhaseのRuntime／実受信／Storefront pin／Human最終受入は未実施とする。
+
+- 最終Local: Contact／Template 38 tests・338 assertions PASS、続く旧event＋新event混在／別topic除外追加後はContact 12 tests・126 assertions PASS（重複）。Admin focused11 tests／typecheck／lint／Build PASS、Admin Build計2回。Client34／Testkit47 PASS、Testkit exports／network boundary PASS。OpenAPI17／policy209／artifact25 PASS、exact-base breaking scope確認PASS、local policy／quality PASS、Secret candidates0／dangerous paths0。Policyの固定Admin file inventoryへ共有pickerを登録し、allowlistを拡大する汎用例外は作らない。最終PR／CI／self-reviewはcommit後に記録する。
+
+- PR #493作成後の最終reviewで、Client成功fixtureの旧anonymous sessionをログイン済みへ一致させ、Admin履歴fixtureへUTC／JST offset混在を追加した。Application Source変更なし。Local release全48 tests PASS。最終headへfocusedを再実行しRequired CIを取り直す。Merge／Runtime／Mailは引き続き禁止。
+
+- Contract reviewでIdempotency-Keyの独自文字種制約を除き、common Contractの16〜128 byte長と既存hash保存規約へ一致させた。Slashを含む正当なKeyでもUser scope／異なる本文の409を検証する。Public spam／認証／CSRF制御は変更しない。
+
+- 上記最終補正後、Contact12 tests／126 assertions、Client Contact3 tests、Admin Contact5 tests、PHP syntax、local policyがPASS。隔離DBを再作成して検証したため、API test image Build command計2回（後者cache使用）。共有Runtime変更なし。最終headを同じPRへpushしてCIを再取得する。
+
 ## DATETIME Phase 1 — 保存基盤とバナー先行分（2026-09-18）
 
 - Human承認は新Server PlatformのSource実装・隔離focused検証・local reviewまで。Issue `none`、Risk `R4`、Lane `Strict Change`、Activation `deferred`（今回Runtime反映なし）、通常checkout `/var/www/oripa`、Branch `fix/datetime-storage-phase1`。開始01:42:59 UTC時点でclean、実Remote mainはPhase 0と同じ `5c426715efa96d582511df1b22aa3891357fe26a`。既存認証でfetch後、local mainをfast-forwardし、このSHAをBaseに固定して通常branchを作成。commit／push／PR／merge／CIは未実施、成果は未commitのlocal diffとして保持する。

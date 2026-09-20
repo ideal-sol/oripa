@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { VariableSelect } from "./variable-select";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import {
   RichTextEditor,
@@ -16,7 +17,6 @@ import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminMailTemplate,
-  AdminMailTemplateVariable,
   MailTemplateKey,
 } from "@/lib/admin-api/generated";
 
@@ -32,6 +32,7 @@ const TEMPLATE_KEYS = new Set<MailTemplateKey>([
   "shipping_completed",
   "user_closed",
   "contact_received",
+  "contact_reply",
   "password_reset",
   "email_change_verification",
   "email_change_completed",
@@ -223,17 +224,6 @@ function MailTemplateEditor({ templateKey }: { templateKey: MailTemplateKey }) {
         </div>
       </form>
     </main>
-  );
-}
-
-function VariableSelect({ label, onSelect, variables }: { label: string; onSelect: (token: string) => void; variables: AdminMailTemplateVariable[] }) {
-  return (
-    <label className="mail-variable-select">{label}
-      <select aria-label={label} onChange={(event) => { onSelect(event.target.value); event.target.value = ""; }} defaultValue="">
-        <option disabled value="">変数を挿入 ▼</option>
-        {variables.map((variable) => <option key={variable.key} value={variable.token}>{variable.label}</option>)}
-      </select>
-    </label>
   );
 }
 
