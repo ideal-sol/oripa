@@ -122,12 +122,22 @@ test("mobile Test User settings remain within the gacha detail width", async ({ 
   expect((await qaSection.boundingBox())?.width).toBeLessThanOrEqual(362);
 });
 
-for (const viewportWidth of [1440, 390]) {
+for (const viewportWidth of [1440, 1366, 390]) {
   for (const media of ["portrait", "landscape", "image", "none"] as const) {
     test(`${viewportWidth}px rank preview contains ${media} media without stretching the prize section`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: viewportWidth, height: 900 });
       await page.goto("/login");
       const dimensions = media === "portrait" ? { width: 360, height: 640 } : { width: 640, height: 360 };
+      const imageData = await page.evaluate((size) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size.width;
+        canvas.height = size.height;
+        const context = canvas.getContext("2d")!;
+        context.fillStyle = "#465fff";
+        context.fillRect(0, 0, size.width, size.height);
+        return canvas.toDataURL("image/png").split(",")[1];
+      }, dimensions);
+      await page.route(`**/catalog/presentation-assets/${assetId}/content`, (route) => route.fulfill({ contentType: "image/png", body: Buffer.from(imageData, "base64") }));
       if (media === "portrait" || media === "landscape") {
         const bytes = await page.evaluate(async (size) => {
           const canvas = document.createElement("canvas");
@@ -165,6 +175,13 @@ for (const viewportWidth of [1440, 390]) {
       }] }));
       await page.route("**/catalog/rank-effects*", (route) => json(route, { items: [], next_cursor: null }));
       await page.route(`**/catalog/gachas/${gachaCode}/versions/${versionId}/prizes`, (route) => json(route, { items: [{ ...prize(), presentation_asset: media === "image" ? { ...gacha().current_version.presentation_asset, alt_text: "景品画像" } : null }], version_revision: 4 }));
+      await page.route("**/catalog/gachas?*", (route) => json(route, { items: [gacha()], next_cursor: null }));
+      await page.goto("/catalog/gachas");
+      const listImage = page.locator("table").getByRole("img", { name: "現在のサムネイル" });
+      await expect(listImage).toBeVisible();
+      await expect(listImage).toHaveCSS("object-fit", "contain");
+      expect((await listImage.boundingBox())!.height).toBe(84);
+      expect((await listImage.boundingBox())!.width).toBeGreaterThanOrEqual(100);
       await page.goto(`/catalog/gachas/${gachaCode}`);
       const section = page.getByRole("region", { name: "編集中のランク／景品", exact: true });
       const row = section.locator("tbody tr").first();
@@ -186,7 +203,10 @@ for (const viewportWidth of [1440, 390]) {
       if (media !== "none") {
         const thumbnail = row.getByRole("img", { name: "ランク画像" });
         await expect.poll(() => thumbnail.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
-        expect((await thumbnail.boundingBox())!.height).toBe(56);
+        await expect(thumbnail).toHaveCSS("object-fit", "contain");
+        expect(await thumbnail.evaluate((element: HTMLImageElement) => [element.naturalWidth, element.naturalHeight])).toEqual([dimensions.width, dimensions.height]);
+        expect((await thumbnail.boundingBox())!.height).toBe(144);
+        expect((await thumbnail.boundingBox())!.width).toBeGreaterThanOrEqual(120);
       }
       expect((await row.boundingBox())!.height).toBeLessThanOrEqual(220);
       const sectionBox = (await section.boundingBox())!;
@@ -195,7 +215,7 @@ for (const viewportWidth of [1440, 390]) {
       if (media === "image") {
         const prizeImage = section.getByRole("img", { name: "景品画像" });
         await expect(prizeImage).toHaveCSS("object-fit", "contain");
-        expect((await prizeImage.boundingBox())!.height).toBe(58);
+        expect((await prizeImage.boundingBox())!.height).toBe(108);
       }
       if (media === "none") await expect(section.getByRole("img", { name: "Previewなし" })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

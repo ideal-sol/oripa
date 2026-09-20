@@ -94,9 +94,10 @@
 
 .rank-effect-thumbnail {
   display: block;
-  height: 56px;
+  height: 84px;
+  max-width: 100%;
   object-fit: contain;
-  width: 88px;
+  width: 112px;
 }
 
 .rank-effect-rank-row {
@@ -120,7 +121,7 @@
 }
 
 .rank-effect-table-container table {
-  min-width: 980px;
+  min-width: 760px;
   width: 100%;
 }
 
@@ -3110,6 +3111,192 @@ label {
   overflow-wrap: anywhere;
 }
 
+.table-compact-id {
+  display: inline-block;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.catalog-taxonomy-table th:first-child,
+.catalog-taxonomy-table td:first-child {
+  width: 190px;
+}
+
+.catalog-taxonomy-table th {
+  position: relative;
+}
+
+.catalog-media-table th:first-child,
+.catalog-media-table td:first-child {
+  width: 140px;
+}
+
+.catalog-gacha-list-table th:nth-child(3) {
+  width: 140px;
+}
+
+.catalog-table .asset-preview,
+.catalog-table .asset-fallback {
+  height: 84px;
+  max-width: 100%;
+  object-fit: contain;
+  width: 112px;
+}
+
+.catalog-rank-image {
+  display: block;
+  height: 144px;
+  max-height: 144px;
+  max-width: 100%;
+  object-fit: contain;
+  width: 144px;
+}
+
+.catalog-rank-media-table {
+  min-width: 860px;
+}
+
+.catalog-rank-media-table th:first-child,
+.catalog-rank-media-table td:first-child {
+  width: 80px;
+}
+
+.catalog-rank-media-table th:nth-child(4) {
+  width: 268px;
+}
+
+.catalog-rank-media-table th:last-child,
+.catalog-rank-media-table td:last-child {
+  width: 140px;
+}
+
+.catalog-prize-media-table {
+  min-width: 920px;
+}
+
+.catalog-prize-media-table th:nth-child(3) {
+  width: 172px;
+}
+
+.catalog-prize-media-table .asset-preview,
+.catalog-prize-media-table .asset-fallback {
+  height: 108px;
+  width: 144px;
+}
+
+.announcement-list-table {
+  min-width: 1040px;
+}
+
+.announcement-list-table th,
+.announcement-list-table td:nth-child(2),
+.announcement-list-table td:nth-child(3),
+.announcement-list-table td:nth-child(5) {
+  white-space: nowrap;
+}
+
+.announcement-list-table td:nth-child(4) {
+  min-width: 150px;
+  overflow-wrap: anywhere;
+}
+
+.banner-list-table {
+  min-width: 1040px;
+}
+
+.banner-list-table th,
+.banner-list-table td:nth-child(n + 9) {
+  white-space: nowrap;
+}
+
+.banner-url-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.table-truncated-url {
+  display: block;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner-url-actions .icon-button {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .banner-list-table th:nth-last-child(-n + 3),
+  .banner-list-table td:nth-last-child(-n + 3) {
+    background: var(--surface);
+    position: sticky;
+    z-index: 1;
+  }
+
+  .banner-list-table th:nth-last-child(-n + 3) {
+    background: var(--surface-muted);
+  }
+
+  .banner-list-table th:last-child,
+  .banner-list-table td:last-child {
+    min-width: 88px;
+    right: 0;
+    width: 88px;
+  }
+
+  .banner-list-table th:nth-last-child(2),
+  .banner-list-table td:nth-last-child(2) {
+    min-width: 88px;
+    right: 88px;
+    width: 88px;
+  }
+
+  .banner-list-table th:nth-last-child(3),
+  .banner-list-table td:nth-last-child(3) {
+    border-left: 1px solid var(--line);
+    min-width: 148px;
+    right: 176px;
+    width: 148px;
+  }
+}
+
+.point-purchase-table table th,
+.point-purchase-table table td {
+  padding: 12px 10px;
+}
+
+.point-purchase-table th:first-child,
+.point-purchase-table td:first-child {
+  padding-left: 14px;
+}
+
+.point-purchase-table td:nth-child(2),
+.point-purchase-table td:nth-child(6),
+.point-purchase-table td:nth-child(9) {
+  max-width: 180px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.point-purchase-table th:last-child,
+.point-purchase-table td:last-child {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.point-purchase-table th:last-child {
+  background: var(--surface-muted);
+}
+
+.admin-user-prize-table.shipping-table {
+  min-width: 960px;
+}
+
 @media (max-width: 720px) {
   .catalog-rank-prize-heading,
   .catalog-prize-heading {
@@ -5846,8 +6033,8 @@ label {
 .contact-filter input, .contact-filter select, .contact-action-card select, .contact-action-card textarea { background: #fff; border: 1px solid #d0d5dd; border-radius: 6px; color: #101828; min-height: 42px; padding: 9px 11px; width: 100%; }
 .contact-table-section, .contact-detail-card, .contact-action-card, .contact-history { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; }
 .contact-table-section { overflow: hidden; }
-.contact-table { min-width: 1060px; }
-.contact-table td:first-child { min-width: 210px; }
+.contact-table { min-width: 960px; }
+.contact-table td:first-child { min-width: 180px; }
 .contact-table td:first-child code, .contact-table td:nth-child(2) small { color: #667085; display: block; font-size: 11px; margin-top: 5px; max-width: 220px; overflow-wrap: anywhere; }
 .contact-pagination { border-top: 1px solid #eaecf0; display: flex; justify-content: space-between; padding: 14px 16px; }
 .compact-button { min-height: 36px; padding: 7px 11px; }
@@ -5898,7 +6085,7 @@ label {
 
 .point-purchase-table table {
   border-collapse: collapse;
-  min-width: 1060px;
+  min-width: 960px;
   width: 100%;
 }
 

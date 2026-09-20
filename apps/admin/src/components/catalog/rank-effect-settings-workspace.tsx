@@ -145,8 +145,8 @@ function RankEffectList({
       <div className="rank-effect-section-heading">
         <div><span className="eyebrow">Asset Master</span><h2 id="rank-effect-list-heading">登録済み演出</h2></div>
       </div>
-      <div className="table-container rank-effect-table-container">
-        <table>
+      <div className="catalog-table-wrap rank-effect-table-container">
+        <table className="announcement-table">
           <thead><tr><th>種別</th><th>タイトル</th><th>プレビュー</th><th>状態</th><th>更新日時</th><th>操作</th></tr></thead>
           <tbody>{items.map((item) => (
             <tr key={item.id}>
@@ -160,7 +160,7 @@ function RankEffectList({
           ))}</tbody>
         </table>
       </div>
-      <div className="rank-effect-pagination">
+      <div className="announcement-pagination">
         <button className="secondary-button" disabled={!nextCursor} onClick={onNext} type="button">次へ</button>
         <button className="secondary-button" onClick={onReset} type="button"><RotateCcw aria-hidden="true" size={16} />先頭へ</button>
       </div>

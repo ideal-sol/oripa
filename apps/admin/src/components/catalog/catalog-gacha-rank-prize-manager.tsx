@@ -217,7 +217,7 @@ export function CatalogGachaRankPrizeManager({
       {loadState === "ready" && ranks.length === 0 ? <p className="catalog-version-empty">有効なRank Masterはありません。</p> : null}
       {ranks.length > 0 ? (
         <div className="catalog-table-wrap">
-          <table className="catalog-table">
+          <table className="catalog-table catalog-rank-media-table">
             <thead><tr><th>Rank</th><th>ラインナップ画像</th><th>抽選結果画像</th><th>抽選演出動画</th><th>景品登録</th></tr></thead>
             <tbody>{ranks.map((rank) => (
               <tr key={rank.rank.id}>
@@ -251,7 +251,7 @@ export function CatalogGachaRankPrizeManager({
       {loadState === "ready" && prizes.length === 0 ? <p className="catalog-version-empty">登録済み景品はありません。</p> : null}
       {prizes.length > 0 ? (
         <div className="catalog-table-wrap">
-          <table className="catalog-table">
+          <table className="catalog-table catalog-prize-media-table">
             <thead><tr><th>ランク</th><th>景品名</th><th>サムネイル</th><th>交換ポイント</th><th>状態</th><th>登録日</th><th>編集</th></tr></thead>
             <tbody>{prizes.map((prize) => (
               <tr key={prize.id}>
@@ -344,7 +344,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankNa
 }
 
 function RankImage({ asset }: { asset: AdminGachaRankListItem["rank"]["lineup_image"] }) {
-  return <Image alt={asset.alt_text ?? "Rank image"} height={56} src={assetContentPath(asset.id)} unoptimized width={96} />;
+  return <Image alt={asset.alt_text ?? "Rank image"} className="catalog-rank-image" height={144} src={assetContentPath(asset.id)} unoptimized width={144} />;
 }
 
 async function listAllRankEffects(client: AdminApiClient, signal?: AbortSignal): Promise<AdminRankEffect[]> {

@@ -51,11 +51,11 @@ describe("Announcement management", () => {
     render(<AnnouncementManagementWorkspace mode="list" />);
 
     expect(await screen.findByRole("heading", { name: "お知らせ一覧" })).toBeVisible();
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+    expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
       "ID", "サムネイル", "カテゴリ", "タイトル", "公開状態",
       "公開開始日時", "公開終了日時", "更新日時", "プレビュー", "編集",
     ]);
-    expect(screen.getByText(noticeId)).toBeVisible();
+    expect(screen.getByTitle(noticeId)).toHaveTextContent(`${noticeId.slice(0, 8)}…${noticeId.slice(-8)}`);
     expect(screen.getAllByText("公開")).toHaveLength(2);
     expect(screen.getByText("お知らせ")).toBeVisible();
     expect(screen.getByRole("link", { name: "運用のお知らせを編集" }))

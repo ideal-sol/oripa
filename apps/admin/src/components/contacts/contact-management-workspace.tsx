@@ -154,12 +154,12 @@ function ContactList({ initialStatus }: { initialStatus: AdminContactStatus | "a
         <section className="module-state"><h2>該当するお問い合わせはありません</h2><p>検索条件を変更して再確認してください。</p></section>
       ) : (
         <section aria-label="お問い合わせ一覧" className="contact-table-section">
-          <div className="table-container">
-            <table className="contact-table">
+          <div className="catalog-table-wrap">
+            <table className="announcement-table contact-table">
               <thead><tr><th>ID</th><th>氏名</th><th>メール</th><th>電話番号</th><th>状態</th><th>受付日時</th><th>詳細</th></tr></thead>
               <tbody>{items.map((item) => (
                 <tr key={item.id}>
-                  <td><strong>{item.receipt_code}</strong><code>{item.id}</code></td>
+                  <td><strong>{item.receipt_code}</strong><code className="table-compact-id" title={item.id}>{`${item.id.slice(0, 8)}…${item.id.slice(-8)}`}</code></td>
                   <td><strong>{item.name ?? "未設定"}</strong><small>{item.body_excerpt ?? ""}</small></td>
                   <td>{item.email ?? "未設定"}</td>
                   <td>{item.phone ?? "未設定"}</td>
@@ -170,7 +170,7 @@ function ContactList({ initialStatus }: { initialStatus: AdminContactStatus | "a
               ))}</tbody>
             </table>
           </div>
-          <div aria-label="ページ操作" className="contact-pagination">
+          <div aria-label="ページ操作" className="announcement-pagination">
             <button className="secondary-button" disabled={cursorStack.length === 0} onClick={() => { const previous = [...cursorStack]; setLoading(true); setError(null); setCursor(previous.pop()); setCursorStack(previous); }} type="button"><ChevronLeft aria-hidden="true" size={16} />前へ</button>
             <button className="secondary-button" disabled={!nextCursor} onClick={() => { setLoading(true); setError(null); setCursorStack((current) => [...current, cursor]); setCursor(nextCursor ?? undefined); }} type="button">次へ<ChevronRight aria-hidden="true" size={16} /></button>
           </div>

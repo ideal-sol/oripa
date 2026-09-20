@@ -100,6 +100,40 @@ const screens = [
   { path: `/agencies/${fixtureId}/edit`, title: "代理店編集", ready: "会社名", table: false },
 ];
 
+for (const width of [1440, 1366, 390]) {
+  for (const path of ["/catalog/categories", "/catalog/tags", "/purchase-plans", "/shipping"]) {
+    test(`UI display ${width}px ${path} compact IDs and actions`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await installLayoutApi(page);
+      await page.goto(path);
+      const table = page.locator(".workspace table").first();
+      await expect(table.locator("tbody tr")).toHaveCount(1);
+      const identifier = table.getByTitle(fixtureId, { exact: true });
+      await expect(identifier).toHaveText(`${fixtureId.slice(0, 8)}…${fixtureId.slice(-8)}`);
+      await expect(identifier).toHaveCSS("white-space", "nowrap");
+      expect((await table.locator("tbody tr").boundingBox())!.height).toBeLessThan(120);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const region = table.locator("..");
+      await expect(region).toHaveCSS("overflow-x", "auto");
+      if (width > 1000) {
+        const action = table.locator("tbody td:last-child a");
+        await expect(action).toBeInViewport();
+        const box = (await action.boundingBox())!;
+        expect(await action.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+        if (path === "/purchase-plans") {
+          await expect(action.locator("..")).toHaveCSS("position", "sticky");
+          await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+          expect((await action.boundingBox())!.x).toBeCloseTo(box.x, 0);
+          await expect(action.locator("..")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+        } else {
+          expect(await region.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+        }
+      }
+      await page.screenshot({ path: testInfo.outputPath("compact-table.png"), fullPage: true });
+    });
+  }
+}
+
 for (const width of [1440, 390]) {
   for (const screen of screens) {
     test(`${width}px ${screen.title} follows the Admin content boundaries`, async ({ page }, testInfo) => {
@@ -160,7 +194,9 @@ async function installLayoutApi(page: Page) {
     const data = (value: unknown) => json({ data: value, request_id: fixtureId });
     const collection = (items: unknown[]) => json({ items, next_cursor: null, request_id: fixtureId });
     if (path.endsWith("/auth/session")) return json({ admin: { id: fixtureId, mfa_verified: true, role: "admin", state: "active" }, authenticated: true, mfa_required: false, requires_mfa_enrollment: false });
-    if (path.endsWith("/auth/permissions")) return json({ role: "admin", request_id: fixtureId, permissions: ["payment.plan.read", "payment.plan.manage", "catalog.read", "catalog.manage", "referral.settings.read", "referral.settings.manage", "identity.line.read", "identity.line.manage", "agency.read", "agency.manage"] });
+    if (path.endsWith("/auth/permissions")) return json({ role: "admin", request_id: fixtureId, permissions: ["shipping.request.manage", "payment.plan.read", "payment.plan.manage", "catalog.read", "catalog.manage", "referral.settings.read", "referral.settings.manage", "identity.line.read", "identity.line.manage", "agency.read", "agency.manage"] });
+    if (path.endsWith("/catalog/categories") || path.endsWith("/catalog/tags")) return collection([{ id: fixtureId, code: "cards", name: "カード", slug: "cards", is_visible: true, is_archived: false, sort_order: 1, revision: 1, created_at: timestamp, updated_at: timestamp }]);
+    if (path.endsWith("/shipping-requests")) return collection([{ id: fixtureId, user_id: uuid("2"), prize_count: 1, status: "requested", created_at: timestamp, requested_at: timestamp, carrier_code: null }]);
     if (path.endsWith("/agencies")) return collection([agency]);
     if (path.endsWith(`/agencies/${fixtureId}`)) return data(agency);
     if (path.endsWith(`/catalog/presentation-assets/${fixtureId}/content`)) return route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") });

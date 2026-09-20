@@ -1,5 +1,45 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+for (const width of [1440, 1366, 390]) {
+  test(`UI display ${width}px /catalog/presentation-assets table geometry`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/catalog/presentation-assets");
+    const table = page.locator(".rank-effect-table-container table");
+    await expect(table.locator("tbody tr").first()).toBeVisible();
+    await expect(table.locator("..")).toHaveCSS("overflow-x", "auto");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const cells = await table.evaluate((element) => {
+      const headers = Array.from(element.querySelectorAll("thead th"));
+      return Array.from(element.querySelectorAll("tbody tr:first-child td")).map((cell, index) => {
+        const header = getComputedStyle(headers[index]);
+        const body = getComputedStyle(cell);
+        return { headerAlignment: header.textAlign, bodyAlignment: body.textAlign, headerPadding: header.padding, bodyPadding: body.padding, vertical: body.verticalAlign, border: body.borderBottomStyle, background: header.backgroundColor };
+      });
+    });
+    for (const cell of cells) {
+      expect(cell.headerAlignment).toBe(cell.bodyAlignment);
+      expect(cell.headerPadding).toBe(cell.bodyPadding);
+      expect(cell.vertical).toBe("middle");
+      expect(cell.border).toBe("solid");
+      expect(cell.background).not.toBe("rgba(0, 0, 0, 0)");
+    }
+    await expect(page.locator(".announcement-pagination")).toHaveCSS("justify-content", "flex-end");
+
+    await expect(table.locator("img")).toHaveCSS("object-fit", "contain");
+    expect((await table.locator("img").boundingBox())!.height).toBe(84);
+    if (width > 1000) {
+      const region = table.locator("..");
+      await region.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      const action = table.locator("tbody tr:first-child td:last-child").locator("button, a").last();
+      await expect(action).toBeInViewport();
+      const box = (await action.boundingBox())!;
+      expect(await action.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+    }
+    await page.screenshot({ path: testInfo.outputPath("table.png"), fullPage: true });
+  });
+}
+
 const rankId = uuid("1");
 const effectId = uuid("2");
 
@@ -27,7 +67,7 @@ test("desktop list and edit preserve the existing asset without relation input",
   expect((await page.goto("/catalog/presentation-assets"))?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "ランク演出" })).toBeVisible();
   await expect(page.getByRole("columnheader")).toHaveText([
-    "種別", "タイトル", "ランク", "プレビュー", "表示順", "状態", "更新日時", "操作",
+    "種別", "タイトル", "プレビュー", "状態", "更新日時", "操作",
   ]);
   await page.getByRole("link", { name: "当選演出を編集" }).click();
   await expect(page.getByRole("heading", { name: "ランク演出編集" })).toBeVisible();

@@ -35,7 +35,7 @@ export function CatalogDataTable({
 
     return (
       <div className="catalog-table-wrap">
-        <table className="catalog-table">
+        <table className="catalog-table catalog-taxonomy-table">
           <thead>
             <tr>
               <th scope="col">ID</th>
@@ -52,7 +52,7 @@ export function CatalogDataTable({
             {rows.map((row) => (
               <tr key={row.id}>
                 <td>
-                  <code>{row.id}</code>
+                  <code className="table-compact-id" title={row.id}>{`${row.id.slice(0, 8)}…${row.id.slice(-8)}`}</code>
                 </td>
                 <td>
                   <strong>{row.name}</strong>
@@ -81,7 +81,7 @@ export function CatalogDataTable({
 
   return (
     <div className="catalog-table-wrap">
-      <table className="catalog-table">
+      <table className="catalog-table catalog-media-table">
         <thead>
           <tr>
             <th scope="col">Preview</th>

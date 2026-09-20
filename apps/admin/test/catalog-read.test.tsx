@@ -120,6 +120,8 @@ describe("Admin Catalog read components", () => {
     expect(
       screen.getAllByRole("columnheader").map((cell) => cell.textContent),
     ).toEqual(["ID", "カテゴリ名", "Slug", "表示順", "状態", "編集"]);
+    expect(screen.getByTitle("01910191-0191-7191-8191-019101910196"))
+      .toHaveTextContent("01910191…01910196");
     expect(screen.getByRole("link", { name: "カードを編集" })).toHaveAttribute(
       "href",
       "/catalog/categories/01910191-0191-7191-8191-019101910196",
