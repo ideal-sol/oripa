@@ -137,7 +137,7 @@ export function PointPurchaseManagementWorkspace({ initialStatus = "all", mode, 
             title={mode === "list" ? "ポイント購入商品" : mode === "create" ? "ポイント商品登録" : "ポイント商品編集"}
           />
           {error ? <ErrorNotice error={error} onRetry={load} /> : null}
-          {mode === "list" ? <div className="catalog-filters"><label><span>状態</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursor(undefined); setCursorHistory([]); }}><option value="published">有効</option><option value="draft">無効</option><option value="all">すべて</option></select></label></div> : null}
+          {mode === "list" ? <div className="admin-payment-filters"><label><span>状態</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursor(undefined); setCursorHistory([]); }}><option value="published">有効</option><option value="draft">無効</option><option value="all">すべて</option></select></label></div> : null}
           {busy === "load" ? <Loading /> : mode === "list" ? (
             <PlanList canManage={canManage} plans={plans} />
           ) : (
@@ -163,6 +163,7 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
   const [campaigns, setCampaigns] = useState<AdminLimitedBonusCampaign[]>([]);
   const [draft, setDraft] = useState<CampaignDraft>(EMPTY_CAMPAIGN);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const feedback = useValidationFeedback();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AdminApiError | null>(null);
   const pendingKey = useRef<string | null>(null);
@@ -187,6 +188,7 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
 
   async function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    feedback.attempt();
     if (!canManage || invalidCampaign(draft)) return;
     setBusy(true);
     setError(null);
@@ -200,6 +202,7 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
       }
       pendingKey.current = null;
       setDraft(EMPTY_CAMPAIGN);
+      feedback.reset();
       setEditingId(null);
       await load();
     } catch (caught) {
@@ -212,13 +215,16 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
   }
 
   function edit(campaign: AdminLimitedBonusCampaign) {
+    feedback.reset();
     setEditingId(campaign.id);
-    setDraft({
+    const nextDraft = {
       isEnabled: campaign.is_enabled,
       startsAt: toJstInput(campaign.starts_at),
       endsAt: toJstInput(campaign.ends_at),
       bonusAmount: String(campaign.bonus_point_amount),
-    });
+    };
+    setDraft(nextDraft);
+    if (invalidCampaign(nextDraft)) feedback.attempt();
     setError(null);
   }
 
@@ -229,17 +235,18 @@ function CampaignManager({ canManage, client, plan }: { canManage: boolean; clie
     {busy && campaigns.length === 0 ? <Loading /> : campaigns.length === 0 ? <p>期間限定ボーナスコイン設定はありません。</p> : (
       <div className="table-scroll"><table><thead><tr>{["状態", "開始日時", "終了日時", "追加量", "編集"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{campaigns.map((campaign) => <tr key={campaign.id}><td><span className={`status-pill ${campaign.is_enabled ? "status-active" : "status-muted"}`}>{campaign.is_enabled ? "ON" : "OFF"}</span></td><td>{formatJst(campaign.starts_at)}</td><td>{formatJst(campaign.ends_at)}</td><td>{campaign.bonus_point_amount.toLocaleString("ja-JP")} コイン</td><td><button className="secondary-button compact-button" disabled={!canManage || busy} onClick={() => edit(campaign)} type="button">編集</button></td></tr>)}</tbody></table></div>
     )}
-    <form aria-label="期間限定ボーナスコイン設定" className="point-purchase-form" onSubmit={submit}>
+    <form aria-label="期間限定ボーナスコイン設定" className="point-purchase-form" onBlurCapture={feedback.touch} onChangeCapture={feedback.touch} onInvalidCapture={feedback.attempt} onSubmit={submit}>
       <h3>{editingId ? "設定を編集" : "設定を登録"}</h3>
       <div className="point-purchase-grid">
-        <label><span>期間限定ボーナスコイン開始日時</span><input required type="datetime-local" value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })} /></label>
-        <label><span>期間限定ボーナスコイン終了日時</span><input required type="datetime-local" value={draft.endsAt} onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })} /></label>
-        <label><span>追加ボーナスコイン量</span><input inputMode="numeric" min={1} required type="number" value={draft.bonusAmount} onChange={(event) => setDraft({ ...draft, bonusAmount: event.target.value })} /></label>
+        <label><span>期間限定ボーナスコイン開始日時</span><input aria-label="期間限定ボーナスコイン開始日時" name="startsAt" required type="datetime-local" value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })} />{feedback.error("startsAt", !draft.startsAt, "開始日時を入力してください。")}</label>
+        <label><span>期間限定ボーナスコイン終了日時</span><input aria-label="期間限定ボーナスコイン終了日時" name="endsAt" required type="datetime-local" value={draft.endsAt} onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })} />{feedback.error("endsAt", !draft.endsAt || draft.endsAt <= draft.startsAt, "終了日時は開始日時より後にしてください。")}</label>
+        <label><span>追加ボーナスコイン量</span><input aria-label="追加ボーナスコイン量" name="bonusAmount" inputMode="numeric" min={1} required type="number" value={draft.bonusAmount} onChange={(event) => setDraft({ ...draft, bonusAmount: event.target.value })} />{feedback.error("bonusAmount", !Number.isSafeInteger(int(draft.bonusAmount)) || int(draft.bonusAmount) < 1, "追加ボーナスコイン量は1以上の整数にしてください。")}</label>
       </div>
       <label className="check-row"><input checked={draft.isEnabled} onChange={(event) => setDraft({ ...draft, isEnabled: event.target.checked })} type="checkbox" /><span>期間限定ボーナスコインをONにする</span></label>
-      {invalidCampaign(draft) ? <p className="notice notice-error" role="alert">開始日時、終了日時、追加ボーナスコイン量を確認してください。</p> : null}
-      <button className="primary-button" disabled={!canManage || busy || invalidCampaign(draft)} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editingId ? "設定を更新" : "設定を登録"}</button>
-      {editingId ? <button className="secondary-button" disabled={busy} onClick={() => { setEditingId(null); setDraft(EMPTY_CAMPAIGN); }} type="button">登録へ戻す</button> : null}
+      <div className="announcement-form-actions">
+      <button className="primary-button" disabled={!canManage || busy} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editingId ? "設定を更新" : "設定を登録"}</button>
+      {editingId ? <button className="secondary-button" disabled={busy} onClick={() => { setEditingId(null); setDraft(EMPTY_CAMPAIGN); feedback.reset(); }} type="button">登録へ戻す</button> : null}
+      </div>
     </form>
   </section>;
 }
@@ -251,27 +258,46 @@ function PlanList({ canManage, plans }: { canManage: boolean; plans: AdminPointP
 
 function PlanForm({ draft, disabled, editing, onChange, onSubmit, tags }: { draft: FormDraft; disabled: boolean; editing: boolean; onChange: (next: FormDraft) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; tags: AdminUserTag[] }) {
   const invalidForm = invalid(draft, tags);
-  return <form className="point-purchase-form" onSubmit={onSubmit}>
+  const feedback = useValidationFeedback();
+  const [initialInvalid] = useState(editing && invalidForm);
+  return <form className="point-purchase-form" onBlurCapture={feedback.touch} onChangeCapture={feedback.touch} onInvalidCapture={feedback.attempt} onSubmit={(event) => { feedback.attempt(); onSubmit(event); }}>
     <section className="point-purchase-section"><h2>商品内容</h2><div className="point-purchase-grid">
-      <TextField label="商品名" value={draft.name} onChange={(name) => onChange({ ...draft, name })} />
-      <NumberField label="支払金額" min={1} value={draft.amount} onChange={(amount) => onChange({ ...draft, amount })} />
-      <NumberField label="付与有償ポイント" min={1} value={draft.paidPointAmount} onChange={(paidPointAmount) => onChange({ ...draft, paidPointAmount })} />
-      <NumberField label="付与無償ポイント" min={0} value={draft.freePointAmount} onChange={(freePointAmount) => onChange({ ...draft, freePointAmount })} />
-      <NumberField label="並び順" min={0} value={draft.sortOrder} onChange={(sortOrder) => onChange({ ...draft, sortOrder })} />
+      <TextField label="商品名" value={draft.name} onChange={(name) => onChange({ ...draft, name })}>{feedback.error("商品名", !draft.name.trim(), "商品名を入力してください。")}</TextField>
+      <NumberField label="支払金額" min={1} value={draft.amount} onChange={(amount) => onChange({ ...draft, amount })}>{feedback.error("支払金額", !draft.amount || !Number.isInteger(int(draft.amount)) || int(draft.amount) < 1 || int(draft.amount) > 1_000_000, "支払金額は1〜1,000,000の整数にしてください。")}</NumberField>
+      <NumberField label="付与有償ポイント" min={1} value={draft.paidPointAmount} onChange={(paidPointAmount) => onChange({ ...draft, paidPointAmount })}>{feedback.error("付与有償ポイント", !draft.paidPointAmount || !Number.isInteger(int(draft.paidPointAmount)) || int(draft.paidPointAmount) !== int(draft.amount), "有償ポイントは支払金額と同額にしてください。")}</NumberField>
+      <NumberField label="付与無償ポイント" min={0} value={draft.freePointAmount} onChange={(freePointAmount) => onChange({ ...draft, freePointAmount })}>{feedback.error("付与無償ポイント", !draft.freePointAmount || !Number.isInteger(int(draft.freePointAmount)) || int(draft.freePointAmount) < 0 || int(draft.freePointAmount) > 1_000_000, "無償ポイントは0〜1,000,000の整数にしてください。")}</NumberField>
+      <NumberField label="並び順" min={0} value={draft.sortOrder} onChange={(sortOrder) => onChange({ ...draft, sortOrder })}>{feedback.error("並び順", !draft.sortOrder || !Number.isInteger(int(draft.sortOrder)) || int(draft.sortOrder) < 0 || int(draft.sortOrder) > 1_000_000, "並び順は0〜1,000,000の整数にしてください。")}</NumberField>
       <label><span>対象カテゴリ</span><select value={draft.audienceCode} onChange={(event) => onChange({ ...draft, audienceCode: event.target.value as AdminPointPurchaseAudience })}><option value="all_users">すべてのユーザー</option><option value="first_purchase_users">初回ユーザー</option></select></label>
-      <label><span>対象タグ</span><select value={draft.targetUserTagId} onChange={(event) => onChange({ ...draft, targetUserTagId: event.target.value })}><option value="">指定なし</option>{tags.map((tag) => <option disabled={!tag.is_active} key={tag.id} value={tag.id}>{tag.name}{tag.is_active ? "" : "（無効）"}</option>)}</select></label>
+      <label><span>対象タグ</span><select aria-label="対象タグ" name="targetUserTagId" value={draft.targetUserTagId} onChange={(event) => onChange({ ...draft, targetUserTagId: event.target.value })}><option value="">指定なし</option>{tags.map((tag) => <option disabled={!tag.is_active} key={tag.id} value={tag.id}>{tag.name}{tag.is_active ? "" : "（無効）"}</option>)}</select>{feedback.error("targetUserTagId", !!draft.targetUserTagId && !tags.find((tag) => tag.id === draft.targetUserTagId)?.is_active, "有効な対象タグを選択してください。")}</label>
     </div></section>
     <section className="point-purchase-section"><h2>掲載設定</h2><div className="point-purchase-grid">
-      <label><span>販売開始日時</span><input type="datetime-local" value={draft.availableFrom} onChange={(event) => onChange({ ...draft, availableFrom: event.target.value })} /></label>
-      <label><span>販売終了日時</span><input type="datetime-local" value={draft.availableUntil} onChange={(event) => onChange({ ...draft, availableUntil: event.target.value })} /></label>
+      <label><span>販売開始日時</span><input name="availableFrom" type="datetime-local" value={draft.availableFrom} onChange={(event) => onChange({ ...draft, availableFrom: event.target.value })} /></label>
+      <label><span>販売終了日時</span><input aria-label="販売終了日時" name="availableUntil" type="datetime-local" value={draft.availableUntil} onChange={(event) => onChange({ ...draft, availableUntil: event.target.value })} />{feedback.error("availableUntil", !!draft.availableFrom && !!draft.availableUntil && draft.availableUntil <= draft.availableFrom, "販売終了日時は販売開始日時より後にしてください。")}</label>
     </div><label className="check-row"><input checked={draft.isActive} onChange={(event) => onChange({ ...draft, isActive: event.target.checked })} type="checkbox" /><span>有効</span></label></section>
-    {invalidForm ? <p className="notice notice-error" role="alert">必須項目、数値、販売期間を確認してください。有償ポイントは支払金額と同額にしてください。</p> : null}
-    <button className="primary-button" disabled={disabled || invalidForm} type="submit">{disabled ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editing ? "更新" : "登録"}</button>
+    {invalidForm && (feedback.attempted || initialInvalid) ? <p className="notice notice-error" role="alert">必須項目、数値、販売期間を確認してください。有償ポイントは支払金額と同額にしてください。</p> : null}
+    <div className="announcement-form-actions"><button className="primary-button" disabled={disabled} type="submit">{disabled ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Save aria-hidden="true" size={17} />}{editing ? "更新" : "登録"}</button></div>
   </form>;
 }
 
-function TextField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) { return <label><span>{label}</span><input maxLength={191} onChange={(event) => onChange(event.target.value)} required value={value} /></label>; }
-function NumberField({ label, min, onChange, value }: { label: string; min: number; onChange: (value: string) => void; value: string }) { return <label><span>{label}</span><input inputMode="numeric" max={1_000_000} min={min} onChange={(event) => onChange(event.target.value)} required type="number" value={value} /></label>; }
+function TextField({ children, label, onChange, value }: { children?: React.ReactNode; label: string; onChange: (value: string) => void; value: string }) { return <label><span>{label}</span><input aria-label={label} name={label} maxLength={191} onChange={(event) => onChange(event.target.value)} required value={value} />{children}</label>; }
+function NumberField({ children, label, min, onChange, value }: { children?: React.ReactNode; label: string; min: number; onChange: (value: string) => void; value: string }) { return <label><span>{label}</span><input aria-label={label} name={label} inputMode="numeric" max={1_000_000} min={min} onChange={(event) => onChange(event.target.value)} required type="number" value={value} />{children}</label>; }
+function useValidationFeedback() {
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const [attempted, setAttempted] = useState(false);
+  return {
+    attempted,
+    attempt: () => setAttempted(true),
+    reset: () => { setTouched(new Set()); setAttempted(false); },
+    touch: (event: React.SyntheticEvent<HTMLFormElement>) => {
+      const control = event.target;
+      if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+        setTouched((current) => new Set(current).add(control.name));
+      }
+    },
+    error: (field: string, invalidField: boolean, message: string) => invalidField && (attempted || touched.has(field))
+      ? <span className="form-field-error" role="alert">{message}</span> : null,
+  };
+}
 function Loading() { return <section className="module-state" role="status"><LoaderCircle aria-hidden="true" className="spin" size={24} /><h2>読み込んでいます</h2></section>; }
 function ErrorNotice({ error, onRetry }: { error: AdminApiError; onRetry: () => Promise<void> }) { return <div className="notice notice-error" role="alert"><p>{error.status === 409 ? "別の操作で更新されています。最新情報を取得してください。" : error.message}</p><button className="secondary-button" onClick={() => void onRetry()} type="button"><RotateCcw aria-hidden="true" size={17} />再読み込み</button></div>; }
 function asApiError(value: unknown): AdminApiError { return value instanceof AdminApiError ? value : new AdminApiError(0, "NETWORK_ERROR", null, null, true); }

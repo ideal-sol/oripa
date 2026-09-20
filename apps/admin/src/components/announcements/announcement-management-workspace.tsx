@@ -145,7 +145,7 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
         }
       />
 
-      <label className="announcement-filter">
+      <div className="admin-payment-filters"><label className="announcement-filter">
         公開状態
         <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>
           <option value="published,draft">公開 + 下書き</option>
@@ -154,7 +154,7 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
           <option value="archived">アーカイブ</option>
           <option value="all">すべて</option>
         </select>
-      </label>
+      </label></div>
 
       {error ? (
         <section className="module-state is-error" role="alert">

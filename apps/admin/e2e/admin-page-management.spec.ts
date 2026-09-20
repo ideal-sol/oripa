@@ -3,6 +3,21 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const categoryId = uuid("1");
 const pageId = uuid("2");
 
+for (const width of [1440, 1366, 390]) {
+  test(`Form batch ${width}px page filters and form card`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/settings/pages");
+    await expect(page.locator(".workspace-header").getByRole("link", { name: "新規追加" })).toBeVisible();
+    await expect(page.locator(".admin-payment-filters")).toHaveCSS("padding", "16px");
+    expect((await page.getByLabel("公開状態").boundingBox())!.height).toBeGreaterThanOrEqual(42);
+    await page.getByRole("link", { name: "ご利用ガイドを編集" }).click();
+    await expect(page.getByLabel("タイトル")).toHaveValue("ご利用ガイド");
+    expect((await page.locator("form.announcement-form").boundingBox())!.width).toBeLessThanOrEqual(860);
+    await expect(page.locator(".announcement-form-actions")).toHaveCSS("justify-content", "flex-end");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => { Object.defineProperty(Document.prototype, "cookie", { configurable: true, get: () => `__Host-oripa_admin_xsrf=${token}`, set: () => undefined }); }, "a".repeat(64));
   await installApi(page);

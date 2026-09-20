@@ -82,12 +82,12 @@ function PageList({ initialStatus }: { initialStatus: "draft" | "published" | "p
 
   return (
     <main className="workspace announcement-workspace">
-      <AdminPageHeader eyebrow="Settings" title="ページ設定" description="固定ページの本文、URL、カテゴリ、表示状態を管理します。" />
-      <section className="announcement-table-section" aria-label="ページ一覧">
-        <div className="announcement-form-actions">
+      <AdminPageHeader eyebrow="Settings" title="ページ設定" description="固定ページの本文、URL、カテゴリ、表示状態を管理します。" action={<div className="announcement-form-actions">
           {canManage ? <Link className="primary-button" href="/settings/pages/new"><FilePlus2 aria-hidden="true" size={17} />新規追加</Link> : null}
           <button aria-label="ページ一覧を再取得" className="icon-button" onClick={() => { setLoading(true); setReload((value) => value + 1); }} title="再取得" type="button"><RefreshCw aria-hidden="true" size={17} /></button>
-        </div>
+        </div>} />
+      <section className="announcement-table-section" aria-label="ページ一覧">
+        <div className="admin-payment-filters">
         <label className="announcement-filter">
           公開状態
           <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value as typeof status); setCursor(undefined); setCursorStack([]); }}>
@@ -96,6 +96,7 @@ function PageList({ initialStatus }: { initialStatus: "draft" | "published" | "p
             <option value="draft">下書き</option>
           </select>
         </label>
+        </div>
         {loading ? <State text="ページを読み込んでいます。" /> : error ? <State error text={error} /> : items.length === 0 ? <State text="登録済みのページはありません。" /> : (
           <div className="table-container">
             <table className="announcement-table">

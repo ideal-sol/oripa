@@ -43,6 +43,32 @@ for (const width of [1440, 1366, 390]) {
 const rankId = uuid("1");
 const effectId = uuid("2");
 
+for (const width of [1440, 1366, 390]) {
+  test(`Form batch ${width}px radio labels and disabled edit state`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/catalog/presentation-assets/new");
+    const image = page.getByRole("radio", { name: "画像", exact: true });
+    const video = page.getByRole("radio", { name: "動画", exact: true });
+    await expect(image).toBeChecked();
+    const box = (await image.boundingBox())!;
+    expect(box.width).toBe(18);
+    expect(box.height).toBe(18);
+    await expect(image.locator("..")).toHaveCSS("display", "flex");
+    await expect(image.locator("..")).toHaveCSS("align-items", "center");
+    await video.locator("..").click();
+    await expect(video).toBeChecked();
+    await expect(image).not.toBeChecked();
+    await video.focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(image).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.goto(`/catalog/presentation-assets/${effectId}/edit`);
+    await expect(image).toBeDisabled();
+    await expect(video).toBeDisabled();
+    await expect(image).toBeChecked();
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => {
     Object.defineProperty(Document.prototype, "cookie", {

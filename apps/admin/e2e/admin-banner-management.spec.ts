@@ -5,6 +5,12 @@ for (const width of [1440, 1366, 390]) {
     await page.setViewportSize({ width, height: 900 });
 
     await page.goto("/banners");
+    const filter = page.locator(".admin-payment-filters");
+    await expect(filter).toHaveCSS("padding", "16px");
+    await expect(filter.locator("select")).toHaveCount(2);
+    for (const select of await filter.locator("select").all()) {
+      expect((await select.boundingBox())!.height).toBeGreaterThanOrEqual(42);
+    }
     const table = page.locator(".banner-list-table");
     await expect(table.locator("tbody tr").first()).toBeVisible();
     await expect(table.locator("..")).toHaveCSS("overflow-x", "auto");

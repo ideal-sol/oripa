@@ -67,6 +67,13 @@ describe("Agency management", () => {
     const create = vi.spyOn(AdminApiClient.prototype, "createAgency").mockResolvedValue(result);
     render(<AgencyWorkspace mode="new" />);
     await waitFor(() => expect(screen.getByLabelText("Login ID（自動生成）")).toHaveValue("000012"));
+    for (const label of ["会社名", "担当者名", "電話番号", "担当者メールアドレス", "住所", "初期PW"]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toBeRequired();
+      expect(input.closest("label")).toHaveTextContent("（必須）");
+    }
+    expect(screen.getByLabelText("メモ")).not.toBeRequired();
+    expect(screen.getByLabelText("メモ").closest("label")).toHaveTextContent("（任意）");
     fillCompany();
     const password = screen.getByLabelText("初期PW");
     fireEvent.change(password, { target: { value: "Initial123" } });

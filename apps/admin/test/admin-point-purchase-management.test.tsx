@@ -39,6 +39,73 @@ afterEach(() => {
 });
 
 describe("Point purchase management", () => {
+  it("shows validation only for touched fields or a submit attempt and blocks invalid saves", async () => {
+    const create = vi.spyOn(AdminApiClient.prototype, "createPointPurchasePlan");
+    render(<PointPurchaseManagementWorkspace mode="create" />);
+    const name = await screen.findByLabelText("商品名");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.blur(name);
+    expect(screen.getByText("商品名を入力してください。")).toBeVisible();
+    expect(screen.queryByText("支払金額は1〜1,000,000の整数にしてください。")).not.toBeInTheDocument();
+    fireEvent.change(name, { target: { value: "Valid plan" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.submit(name.closest("form")!);
+    expect(screen.getByText("支払金額は1〜1,000,000の整数にしてください。")).toBeVisible();
+    expect(create).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("支払金額"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("付与有償ポイント"), { target: { value: "999" } });
+    expect(screen.getByText("有償ポイントは支払金額と同額にしてください。")).toBeVisible();
+    fireEvent.submit(name.closest("form")!);
+    expect(create).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("付与有償ポイント"), { target: { value: "1000" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const free = screen.getByLabelText("付与無償ポイント");
+    fireEvent.change(free, { target: { value: "" } });
+    expect(screen.getByText("無償ポイントは0〜1,000,000の整数にしてください。")).toBeVisible();
+    expect(free).toBeInvalid();
+    fireEvent.change(free, { target: { value: "0" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps edit and bonus registration initially quiet and resets bonus feedback", async () => {
+    const create = vi.spyOn(AdminApiClient.prototype, "createLimitedBonusCampaign");
+    render(<PointPurchaseManagementWorkspace mode="edit" planId={plan().id} />);
+    await screen.findByText("300 コイン");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "期間限定ボーナスコイン設定" });
+    fireEvent.submit(form);
+    expect(screen.getByText("開始日時を入力してください。")).toBeVisible();
+    expect(screen.getByText("追加ボーナスコイン量は1以上の整数にしてください。")).toBeVisible();
+    expect(create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "登録へ戻す" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("retains warnings for genuinely invalid saved products", async () => {
+    vi.spyOn(AdminApiClient.prototype, "getPointPurchasePlan").mockResolvedValue({ data: { ...plan(), paid_point_amount: 999 }, request_id: uuid("9") });
+    render(<PointPurchaseManagementWorkspace mode="edit" planId={plan().id} />);
+    await screen.findByLabelText("商品名");
+    expect(screen.getByText(/必須項目、数値、販売期間を確認してください/)).toBeVisible();
+  });
+
+  it("shows an invalid saved bonus when selected and keeps reversed periods unsavable", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listLimitedBonusCampaigns").mockResolvedValue({ items: [{ ...campaign(), bonus_point_amount: 0 }], request_id: uuid("9") });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateLimitedBonusCampaign");
+    render(<PointPurchaseManagementWorkspace mode="edit" planId={plan().id} />);
+    await screen.findByText("0 コイン");
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    expect(screen.getByText("追加ボーナスコイン量は1以上の整数にしてください。")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("追加ボーナスコイン量"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("期間限定ボーナスコイン終了日時"), { target: { value: "2026-08-19T09:00" } });
+    expect(screen.getByText("終了日時は開始日時より後にしてください。")).toBeVisible();
+    fireEvent.submit(screen.getByRole("form", { name: "期間限定ボーナスコイン設定" }));
+    expect(update).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("期間限定ボーナスコイン終了日時"), { target: { value: "2026-08-21T09:00" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it.each([undefined, "all", "published", "draft", ["draft", "published"]])("honors the page status query %j", async (status) => {
     const list = vi.spyOn(AdminApiClient.prototype, "listPointPurchasePlans");
     render(await PurchasePlansPage({ searchParams: Promise.resolve({ status }) }));

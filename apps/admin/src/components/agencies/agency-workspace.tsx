@@ -146,14 +146,14 @@ function AgencyForm({ client, current, onSaved }: {
 
   return <form className="catalog-core-form-card catalog-mutation-form" onSubmit={(event) => void submit(event)}>
     {error ? <p className="error-alert" role="alert">{error}</p> : null}
-    {fields.map(([field, label, maxLength]) => <label key={field}>{label}<input defaultValue={current?.[field] ?? ""} disabled={busy} maxLength={maxLength} name={field} required type={field === "email" ? "email" : field === "phone" ? "tel" : "text"} /></label>)}
-    <label>メモ<textarea defaultValue={current?.memo ?? ""} disabled={busy} maxLength={5000} name="memo" /></label>
-    {current ? <label>Login ID<input defaultValue={current.login_id} disabled={busy} inputMode="numeric" maxLength={6} minLength={6} name="login_id" pattern="[0-9]{6}" required /></label>
+    {fields.map(([field, label, maxLength]) => <label key={field}><span>{label}（必須）</span><input aria-label={label} defaultValue={current?.[field] ?? ""} disabled={busy} maxLength={maxLength} name={field} required type={field === "email" ? "email" : field === "phone" ? "tel" : "text"} /></label>)}
+    <label>メモ（任意）<textarea aria-label="メモ" defaultValue={current?.memo ?? ""} disabled={busy} maxLength={5000} name="memo" /></label>
+    {current ? <label>Login ID（必須）<input aria-label="Login ID" defaultValue={current.login_id} disabled={busy} inputMode="numeric" maxLength={6} minLength={6} name="login_id" pattern="[0-9]{6}" required /></label>
       : <label>Login ID（自動生成）<input readOnly value={draft?.login_id ?? ""} /></label>}
     <label>Advertising Code<input readOnly value={current?.advertising_code ?? (issued ? draft?.advertising_code ?? "" : "")} /></label>
     {current ? <p>広告コードは変更できません。</p> : <>
       <button className="secondary-button" disabled={busy || issued} onClick={() => void issue()} type="button">広告コード発行</button>
-      <label>初期PW<input autoComplete="new-password" disabled={busy} maxLength={20} minLength={6} name="password" pattern="[A-Za-z0-9]{6,20}" ref={passwordInput} required type="password" /></label>
+      <label>初期PW（必須）<input aria-label="初期PW" autoComplete="new-password" disabled={busy} maxLength={20} minLength={6} name="password" pattern="[A-Za-z0-9]{6,20}" ref={passwordInput} required type="password" /></label>
       <small>半角英数字6〜20文字。登録メールアドレスへ初期ログイン情報を通知します。</small>
     </>}
     <div className="catalog-dialog-actions"><Link className="secondary-button" href={current ? `/agencies/${current.id}` : "/agencies"}>キャンセル</Link><button className="primary-button" disabled={busy} type="submit">{busy ? "保存中" : "保存"}</button></div>
