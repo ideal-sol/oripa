@@ -6135,6 +6135,11 @@ label {
 .contact-action-card h2, .contact-history h2 { font-size: 16px; margin: 0; }
 .contact-action-card p { color: #667085; font-size: 13px; margin: 0; }
 .contact-history { padding: 18px; }
+.contact-status-history { border-top: 1px solid #eaecf0; display: grid; gap: 14px; padding-top: 16px; }
+.contact-status-history h3 { font-size: 14px; margin: 0; }
+.contact-status-history-list { display: grid; gap: 16px; list-style: none; margin: 0; padding: 0; }
+.contact-status-history-list li { display: grid; gap: 4px; }
+.contact-status-history-list time { color: #667085; font-size: 12px; }
 .contact-history ol { list-style: none; margin: 16px 0 0; padding: 0; }
 .contact-history li { border-left: 2px solid #d0d5dd; display: grid; gap: 4px; margin-left: 6px; padding: 0 0 18px 18px; }
 .contact-history li:last-child { padding-bottom: 0; }
