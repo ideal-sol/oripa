@@ -75,9 +75,9 @@ test("mobile contact detail queues a reply and stays within the viewport", async
   await page.setViewportSize({ height: 844, width: 390 });
   const errors = observeErrors(page);
   await page.goto(`/contacts/${contactId}`);
-  await expect(page.getByText("お問い合わせ内容です。")).toBeVisible();
+  await expect(page.getByRole("region", { name: "対応履歴", exact: true }).getByText("お問い合わせ内容です。")).toBeVisible();
   await expect(page.getByRole("heading", { name: "対応履歴" })).toBeVisible();
-  await page.getByLabel("返信内容").fill("確認してご連絡します。");
+  await page.getByRole("textbox", { name: "返信内容", exact: true }).fill("確認してご連絡します。");
   await page.getByRole("button", { name: "返信要求を保存" }).click();
   await expect(page.getByText("返信要求を記録しました。")).toBeVisible();
   await expect(page.getByText("確認してご連絡します。")).toBeVisible();
@@ -85,6 +85,56 @@ test("mobile contact detail queues a reply and stays within the viewport", async
     .toBe(true);
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
+
+for (const width of [1440, 390]) {
+  test(`contact history separation and status dialog ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const errors = observeErrors(page);
+    await page.goto(`/contacts/${contactId}`);
+    const history = page.getByRole("region", { name: "対応履歴", exact: true });
+    await expect(history.locator("li strong")).toHaveText(["ユーザー：初回問い合わせ", "管理者：返信要求", "ユーザー：追加問い合わせ"]);
+    await expect(history.getByText("お問い合わせリンク", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "内部メモ", exact: true }).getByText("内部確認メモ {{inquiry_url}}", { exact: true })).toBeVisible();
+    const statuses = page.getByRole("region", { name: "対応状況履歴", exact: true });
+    await expect(statuses.locator("li strong")).toHaveText(["完了", "返信済み", "対応中"]);
+    const more = page.getByRole("button", { name: "さらに表示" });
+    await more.click();
+    const dialog = page.getByRole("dialog", { name: "対応状況履歴" });
+    await expect(dialog.locator("li strong")).toHaveText(["完了", "返信済み", "対応中", "未対応"]);
+    const close = dialog.getByRole("button", { name: "対応状況履歴を閉じる" });
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(close).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("status-history-dialog.png"), fullPage: true });
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(more).toBeFocused();
+    await more.click();
+    await close.click();
+    await expect(dialog).not.toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("contact-history.png"), fullPage: true });
+    expect(errors()).toEqual({ console: [], gateway: [], page: [] });
+  });
+  test(`long status history remains scrollable ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 600 });
+    await page.route(`**/admin/api/v2/contact-inquiries/${contactId}`, (route) => json(route, {
+      ...detail(false),
+      status_history: Array.from({ length: 30 }, (_, index) => ({ from_status: "in_progress", to_status: "in_progress", occurred_at: new Date(Date.UTC(2026, 7, 5, index)).toISOString(), reason_code: "follow_up" })),
+    }));
+    await page.goto(`/contacts/${contactId}`);
+    await page.getByRole("button", { name: "さらに表示" }).click();
+    const dialog = page.getByRole("dialog", { name: "対応状況履歴" });
+    await expect(dialog.getByRole("listitem")).toHaveCount(30);
+    expect(await dialog.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await dialog.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect(dialog.getByRole("listitem").last()).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+  });
+}
 
 async function installApi(page: Page): Promise<void> {
   let replied = false;
@@ -146,18 +196,22 @@ function detail(replied: boolean) {
     ...summary(),
     body: "お問い合わせ内容です。",
     closed_at: null,
-    internal_notes: [],
-    reply_requests: replied ? [{
+    internal_notes: [{ created_at: "2026-08-05T00:30:00Z", note: "内部確認メモ {{inquiry_url}}" }],
+    user_messages: [{ id: "01910191-0191-7191-8191-019101910193", created_at: "2026-08-05T02:00:00Z", message: "ユーザー追加本文" }],
+    reply_requests: [{
       created_at: "2026-08-05T01:00:00Z",
       id: replyId,
-      message: "確認してご連絡します。",
-    }] : [],
+      message: replied ? "確認してご連絡します。" : "{{ inquiry_url }}",
+    }],
     status_history: [{
       from_status: null,
       occurred_at: "2026-08-05T00:00:00Z",
       reason_code: "contact_received",
       to_status: "new",
-    }],
+    },
+    { from_status: "new", to_status: "in_progress", occurred_at: "2026-08-05T01:00:00Z", reason_code: "progress" },
+    { from_status: "in_progress", to_status: "replied", occurred_at: "2026-08-05T02:00:00Z", reason_code: "replied" },
+    { from_status: "replied", to_status: "closed", occurred_at: "2026-08-05T03:00:00Z", reason_code: "closed" }],
     subject: "お問い合わせ件名",
   };
 }

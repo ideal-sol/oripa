@@ -1,3 +1,14 @@
+## CONTACT-HISTORY-20260921 — Admin Contact History UI Refinement（2026-09-21）
+
+- 最新Human確定：対応履歴は初回User／追加User／Admin返信のみ、内部メモは同一詳細画面の別セクション、statusは対応状態カードの対応状況履歴へ分離。内部メモの保存・暗号化・audit・権限・時系列・既存追加機能は変更しない。既存「管理者：返信要求」とstatus日本語labelを維持。
+- Base `fda73b02ffa5dfe6b532d51effdacf6211ba85aa`、Issue none、Risk R4、Lane Strict Change、Activation immediate。元checkoutの既存Worklog dirtyを保持し、隔離したclean worktree／単一branchを使用。ScopeはAdmin UI・focused component/browser tests・本Worklogのみ。Privileged Test activation向けexact-path App policyを使用、Source/Migration lock不要。
+- 既存Admin APIはstatus_history全件・internal_notes・reply_requests・user_messagesを返すためAPI／Contract／Migration変更0。statusは日時最新順、同時刻はAPIのID順を反転して新しい履歴を優先、最新3件と4件以上の全件Dialog。既存Admin Dialog/CSS/focus-return/Escape規約を再利用し、Tab閉じ込めと長い履歴のscrollを確認。contact.readのみの利用者も履歴参照を維持し、管理操作は従来権限のまま。
+- Reply pickerの5変数catalogをhistory表示にも共有し、rendererと同じtoken構造＋trimでHuman labelへ変換。未知変数・User本文・内部メモは原文保持、React text escaping。DB保存原文／composer送信／二段階Mail render／template／Worker変更0。日時は既存formatJstのまま。
+- Focused Contact＋Mail template components 18件PASS、Admin typecheck／lint／production build PASS。最初のtypecheckは追加mockの必須updated_at不足を検出しfixture修正後PASS。最初のE2E起動は並列検証負荷によるbuild待機120秒超過、次は一時config配置のNode制約により起動前終了。build単独PASS後、同じbuildをlocal専用configから起動してmocked Chromiumを実施。既存reply locatorのpickerとの曖昧一致をtextbox exactへ修正、assertion弱化なし。最終Browser結果はPR closeoutへ記録。
+- Old Testでは現在稼働するAdmin UIをrollback authorityとして記録し、merge後にcanonical Preview artifactを検証してAdminのみno-build/no-depsで切替予定。既存workflowはnormal bundleとしてAPIもbuildするが、API imageはactivation対象外。Public/Admin API・Storefront・稼働Contact Reply Worker・Mail ENV・Nginx・DB・Migration・Productionには変更しない。
+- 最終local mocked Chromium 9/9 PASS（1440/1366/390px一覧、通常mock返信、1440/390px履歴分類・Modal・30件scroll）。画像のgeometry確認済み。ローカルBrowserに日本語fontがなく画像の日本語字形は確認対象外、DOMの日本語label・内容assertionsはPASS。Human環境の最終表示確認は別工程。
+- Required 5 Checks／fresh exact-head self-review／squash merge／tree一致／artifact／activation／cleanupはそれぞれ別gateとしてPRへ最終結果を追記。Human Login・実返信保存・Mail送信テスト・Human最終受入は未実施。API／DB／auth／point／payment／drawのdomain影響0。
+
 ## REL-037 — Contact Finalize / Merge / Immutable alpha.37（2026-09-20）
 
 - 最新Human指示でPR #493 mergeとcanonical alpha.37発行を許可。前Phaseのmerge/publish禁止をこの範囲だけ更新し、共有Test Migration／API／Admin／Worker activation、Provider実送信、Browser Login、Storefront Source、Productionは引き続き0。

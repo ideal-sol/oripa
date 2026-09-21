@@ -9,9 +9,10 @@ import {
   RefreshCw,
   Save,
   Search,
+  X,
 } from "lucide-react";
 import Link from "next/link";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { VariableSelect } from "@/components/mail/variable-select";
@@ -29,8 +30,10 @@ type Mode = "list" | "detail";
 
 const REPLY_VARIABLES = [
   ["full_name", "氏名"], ["phone_number", "電話番号"], ["email", "メールアドレス"],
-  ["address", "住所"], ["inquiry_url", "問い合わせリンク"],
+  ["address", "住所"], ["inquiry_url", "お問い合わせリンク"],
 ].map(([key, label]) => ({ key, label, token: `{{${key}}}` }));
+
+const REPLY_VARIABLE_LABELS = new Map(REPLY_VARIABLES.map(({ key, label }) => [key, label]));
 
 const STATUS_OPTIONS: Array<{ label: string; value: AdminContactStatus | "all" }> = [
   { label: "すべて", value: "all" },
@@ -299,8 +302,8 @@ function ContactDetail({ contactId }: { contactId: string }) {
         <div className="contact-message-box"><h3>お問い合わせ内容</h3><p>{contact.body}</p></div>
       </section>
 
-      {canManage ? (
-        <div className="contact-actions-grid">
+      <div className="contact-actions-grid">
+        {canManage ? (
           <form className="contact-action-card" onSubmit={submitReply}>
             <div><Mail aria-hidden="true" size={20} /><h2>返信内容</h2></div>
             <p>返信要求を保存します。メールの送信完了を示すものではありません。</p>
@@ -313,21 +316,26 @@ function ContactDetail({ contactId }: { contactId: string }) {
             <label><span>返信内容</span><textarea ref={replyInput} maxLength={5000} required rows={7} value={reply} onChange={(event) => setReply(event.target.value)} /></label>
             <button className="primary-button" disabled={saving} type="submit">{saving ? <LoaderCircle className="spin" aria-hidden="true" size={17} /> : <Mail aria-hidden="true" size={17} />}返信要求を保存</button>
           </form>
+        ) : <section className="module-state compact"><p>このアカウントは参照のみです。</p></section>}
           <form className="contact-action-card" onSubmit={submitStatus}>
             <div><Save aria-hidden="true" size={20} /><h2>対応状態</h2></div>
-            {NEXT_STATUS[contact.status].length ? (
+            {canManage ? NEXT_STATUS[contact.status].length ? (
               <>
                 <label><span>次の状態</span><select value={nextStatus} onChange={(event) => setNextStatus(event.target.value as AdminContactStatus)}>{NEXT_STATUS[contact.status].map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}</select></label>
                 <button className="secondary-button" disabled={saving || !nextStatus} type="submit"><Save aria-hidden="true" size={17} />状態を更新</button>
               </>
-            ) : <p className="muted-text">完了済みのため変更できません。</p>}
+            ) : <p className="muted-text">完了済みのため変更できません。</p> : null}
+            <ContactStatusHistory history={contact.status_history} />
           </form>
-        </div>
-      ) : <section className="module-state compact"><p>このアカウントは参照のみです。</p></section>}
+      </div>
 
       <section className="contact-history" aria-labelledby="contact-history-title">
         <h2 id="contact-history-title">対応履歴</h2>
         {history.length ? <ol>{history.map((item) => <li key={item.key}><span>{formatJst(item.at)}</span><strong>{item.title}</strong><p>{item.detail}</p></li>)}</ol> : <div className="module-state compact"><p>対応履歴はありません。</p></div>}
+      </section>
+      <section className="contact-history" aria-labelledby="contact-notes-title">
+        <h2 id="contact-notes-title">内部メモ</h2>
+        {contact.internal_notes.length ? <ol>{[...contact.internal_notes].sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at)).map((item, index) => <li key={index}><span>{formatJst(item.created_at)}</span><strong>管理者：内部メモ</strong><p>{item.note}</p></li>)}</ol> : <div className="module-state compact"><p>内部メモはありません。</p></div>}
       </section>
     </main>
   );
@@ -336,23 +344,60 @@ function ContactDetail({ contactId }: { contactId: string }) {
 function buildHistory(contact: AdminContactDetail) {
   return [
     { at: contact.received_at, detail: contact.body, key: `initial-${contact.id}`, order: "", title: "ユーザー：初回問い合わせ" },
-    ...contact.status_history.map((item, index) => ({
-      at: item.occurred_at,
-      detail: item.from_status ? `${statusLabel(item.from_status)}から${statusLabel(item.to_status)}へ変更` : "お問い合わせを受け付けました。",
-      key: `status-${index}-${item.occurred_at}`,
-      order: "",
-      title: statusLabel(item.to_status),
-    })),
     ...(contact.reply_requests ?? []).map((item) => ({
       at: item.created_at,
-      detail: item.message,
+      detail: item.message.replace(/\{\{\s*([^{}]+?)\s*\}\}/gu, (token, key: string) => REPLY_VARIABLE_LABELS.get(key.trim()) ?? token),
       key: `reply-${item.id}`,
       order: item.id,
       title: "管理者：返信要求",
     })),
     ...(contact.user_messages ?? []).map((item) => ({ at: item.created_at, detail: item.message, key: `user-${item.id}`, order: item.id, title: "ユーザー：追加問い合わせ" })),
-    ...contact.internal_notes.map((item, index) => ({ at: item.created_at, detail: item.note, key: `note-${index}`, order: "", title: "管理者：内部メモ" })),
   ].sort((left, right) => Date.parse(left.at) - Date.parse(right.at) || left.order.localeCompare(right.order));
+}
+
+function ContactStatusHistory({ history }: { history: AdminContactDetail["status_history"] }) {
+  const [expanded, setExpanded] = useState(false);
+  const latest = [...history].reverse().sort((left, right) => Date.parse(right.occurred_at) - Date.parse(left.occurred_at));
+  return (
+    <section className="contact-status-history" aria-labelledby="contact-status-history-title">
+      <h3 id="contact-status-history-title">対応状況履歴</h3>
+      <StatusHistoryList history={latest.slice(0, 3)} />
+      {latest.length > 3 ? <button className="secondary-button" type="button" onClick={() => setExpanded(true)}>さらに表示</button> : null}
+      {expanded ? <StatusHistoryDialog history={latest} onClose={() => setExpanded(false)} /> : null}
+    </section>
+  );
+}
+
+function StatusHistoryList({ history }: { history: AdminContactDetail["status_history"] }) {
+  return history.length ? <ol className="contact-status-history-list">{history.map((item, index) => <li key={index}><time dateTime={item.occurred_at}>{formatJst(item.occurred_at)}</time><strong>{statusLabel(item.to_status)}</strong></li>)}</ol> : <p>対応状況履歴はありません。</p>;
+}
+
+function StatusHistoryDialog({ history, onClose }: { history: AdminContactDetail["status_history"]; onClose: () => void }) {
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    close.current?.focus();
+    return () => previous?.focus();
+  }, []);
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "Tab") {
+        event.preventDefault();
+        close.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section aria-labelledby="contact-status-dialog-title" aria-modal="true" className="dialog-panel catalog-mutation-panel" role="dialog">
+        <header className="dialog-header"><h2 id="contact-status-dialog-title">対応状況履歴</h2><button aria-label="対応状況履歴を閉じる" className="icon-button" type="button" ref={close} onClick={onClose}><X aria-hidden="true" size={18} /></button></header>
+        <StatusHistoryList history={history} />
+      </section>
+    </div>
+  );
 }
 
 function ContactStatusBadge({ status }: { status: AdminContactStatus }) {
