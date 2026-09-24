@@ -39,7 +39,7 @@ schema transactions. Thus the ordinary Laravel PostgreSQL migration path wraps
 all DDL, template DML and guard replacement in one transaction. Directly calling
 `up()` outside the Migrator is not that contract and is not the deployment plan.
 
-Up creates `contact_user_messages`: bigint identity/primary key, unique UUID,
+Up creates `contact_user_messages`: bigserial primary key, unique UUID,
 restrict-on-delete FKs to `contact_inquiries` and `users`, ciphertext body,
 request UUID, timestamp, and `(contact_inquiry_id, id)` index. It installs two
 append-only triggers rejecting UPDATE/DELETE and TRUNCATE through the existing
@@ -115,7 +115,7 @@ image/source and matching config before activation GO.
 | --- | --- |
 | 000076 -> old API | SAFE for existing behavior after commit: additive table/template; no existing column, constraint or function removed. Operational lock window remains. |
 | new API -> old Storefront | UNSAFE for guaranteed submission: old phone input is optional and sends null/empty; new API requires a nonempty string (1..32 chars), returning 422 otherwise. Pre-follow-up clients also lack the new authenticated/idempotent contract. |
-| new API -> old Admin | Existing requests/session remain compatible; Admin session implementation unchanged, user session additions are in a separate realm. Contact detail adds optional user_messages and mail template enum gains contact_reply. The runtime client casts JSON, not strict schema parsing. Old UI omits new history, so it is not full feature acceptance. |
+| new API -> old Admin | Existing requests/session remain compatible; Admin session implementation unchanged, user session additions are in a separate realm. Contact detail adds optional user_messages and mail template enum gains contact_reply. The runtime client casts JSON, not strict schema parsing. Old UI omits new history and its TEMPLATE_KEYS guard rejects editing the newly listed contact_reply template. SAFE for existing operations only; UNSAFE as full new-feature acceptance. |
 | new Storefront -> pre-000076 API | Ordinary inquiry fields including phone are accepted, but UNSAFE for full semantics: inquiry_id and Idempotency-Key are ignored, causing a new inquiry instead of follow-up and no replay guarantee. Login-session missing prefill fields fall back to manual input; SMS lookup failure is handled. |
 | new Storefront -> alpha.37 API | SAFE for Contact source contract: authenticated follow-up/idempotency already exist; required phone is accepted by the older optional field. Current-user prefill can fall back to manual input. |
 | new Storefront -> new API | SAFE for the approved Contact contract: required name/email/phone, canonical client, inquiry_id ownership/fallback, authenticated session/CSRF and stable Idempotency-Key all align. |
