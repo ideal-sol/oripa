@@ -277,6 +277,35 @@ final class GachaLifecyclePresentationTest extends TestCase
             $restored['current_version']['id']
         );
         self::assertSame('draft', $restored['current_version']['status']);
+        $edit = $this->getJson('/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'])
+            ->assertOk()->json('data');
+        self::assertSame($restored['current_version']['id'], $edit['current_version']['id']);
+        self::assertSame($restored['current_version']['revision'], $edit['current_version']['revision']);
+        self::assertSame('draft', $edit['current_version']['status']);
+        $editedInput = [...$prepared['input'], 'title' => 'Restored Draft edited title'];
+        $saved = $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'],
+            [
+                ...$editedInput,
+                'expected_revision' => $edit['revision'],
+                'expected_version_revision' => $edit['current_version']['revision'],
+            ],
+            'lifecycle-restored-edit'
+        )->assertOk()->assertJsonPath('data.current_version.title', $editedInput['title'])
+            ->json('data');
+        $this->mutate(
+            $token,
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'],
+            [
+                ...$editedInput,
+                'expected_revision' => $saved['revision'],
+                'expected_version_revision' => $edit['current_version']['revision'],
+            ],
+            'lifecycle-restored-stale-edit'
+        )->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
         $immutableInput = $prepared['input'];
         $immutableInput['price_points']++;
         $this->updateGacha(
@@ -304,11 +333,20 @@ final class GachaLifecyclePresentationTest extends TestCase
             );
         }
 
-        $this->updateGacha(
+        $edit = $this->getJson('/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'])
+            ->assertOk()->json('data');
+        self::assertSame($saved['current_version']['revision'], $edit['current_version']['revision']);
+        self::assertSame($editedInput['title'], $edit['current_version']['title']);
+        $this->mutate(
             $token,
-            $prepared['gacha_id'],
-            $prepared['input'],
-            'published',
+            'PUT',
+            '/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'],
+            [
+                ...$editedInput,
+                'management_status' => 'published',
+                'expected_revision' => $edit['revision'],
+                'expected_version_revision' => $edit['current_version']['revision'],
+            ],
             'lifecycle-restore-republish'
         )->assertOk()->assertJsonPath('data.publication_status', 'published');
         $this->assertActivationConstraintIsValid();
