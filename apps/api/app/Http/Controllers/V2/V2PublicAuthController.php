@@ -597,6 +597,8 @@ final class V2PublicAuthController
                 'id' => $user->public_id,
                 'state' => $user->state->value,
                 'email_verified' => $user->email_verified_at !== null,
+                'display_name' => $user->display_name,
+                'email' => $user->email_display,
             ],
         ]));
         $this->csrf->rotate($response, V2Realm::User);

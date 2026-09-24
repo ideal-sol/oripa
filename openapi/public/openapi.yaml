@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.33
+  version: 2.0.0-alpha.34
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -10,9 +10,9 @@ info:
   x-status: alpha
 x-oripa-surface: public
 x-oripa-breaking-change:
-  authority: human_contact_reply_follow_up_2026-09-20
-  change_id: CONTACT-20260920
-  scope: authenticated-contact-submit-idempotency
+  authority: human_contact_prefill_required_2026-09-24
+  change_id: CONTACT-PREFILL-20260924
+  scope: contact-phone-required
 servers:
   - url: /api/v2
 paths:
@@ -2616,7 +2616,7 @@ components:
     CreateContactInquiryRequest:
       type: object
       additionalProperties: false
-      required: [name, email, subject, body, website]
+      required: [name, email, phone, subject, body, website]
       properties:
         inquiry_id:
           $ref: '#/components/schemas/OpaqueId'
@@ -2629,7 +2629,8 @@ components:
           format: email
           maxLength: 320
         phone:
-          type: [string, 'null']
+          type: string
+          minLength: 1
           maxLength: 32
         subject:
           type: string
@@ -4443,6 +4444,13 @@ components:
         state:
           type: string
           enum: [active, restricted]
+        display_name:
+          type: [string, 'null']
+          description: Current authenticated User registration name, returned by getCurrentSession.
+        email:
+          type: string
+          format: email
+          description: Current authenticated User registered email, returned by getCurrentSession.
         email_verified:
           type: boolean
           const: true

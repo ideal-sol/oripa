@@ -67,7 +67,7 @@ final class V2ContactService
             if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
                 throw $this->invalid();
             }
-            $phone = $this->nullableText($input, 'phone', 32);
+            $phone = $this->text($input, 'phone', 1, 32);
             $subject = $this->text($input, 'subject', 1, 191);
             $body = $this->text($input, 'body', 1, 5000);
             if (strlen($body) > (int) config(
@@ -250,17 +250,6 @@ final class V2ContactService
         }
 
         return $value;
-    }
-
-    /** @param array<string, mixed> $input */
-    private function nullableText(array $input, string $field, int $maximum): ?string
-    {
-        $value = $input[$field] ?? null;
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return $this->text($input, $field, 1, $maximum);
     }
 
     private function normalize(string $value): string

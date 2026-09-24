@@ -25,6 +25,8 @@ def fixture(group, name):
 class OpenApiContractGateTest(unittest.TestCase):
     def test_contact_authority_is_limited_to_login_and_idempotency_cutover(self):
         current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        current["info"]["version"] = "2.0.0-alpha.33"
+        current["x-oripa-breaking-change"] = openapi_contract_gate.CONTACT_AUTHENTICATED_BREAK
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.32"
         previous["paths"]["/contact-inquiries"]["post"]["security"] = [{}, {"userSession": []}]
@@ -47,9 +49,37 @@ class OpenApiContractGateTest(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assertFalse(authorize("public", previous, altered))
 
+    def test_contact_phone_authority_rejects_unrelated_changes(self):
+        current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        previous["info"]["version"] = "2.0.0-alpha.33"
+        previous["x-oripa-breaking-change"] = openapi_contract_gate.CONTACT_AUTHENTICATED_BREAK
+        for field in ("display_name", "email"):
+            previous["components"]["schemas"]["PublicUser"]["properties"].pop(field)
+        schema = previous["components"]["schemas"]["CreateContactInquiryRequest"]
+        schema["required"].remove("phone")
+        schema["properties"]["phone"] = {"type": ["string", "null"], "maxLength": 32}
+        authorize = openapi_contract_gate.is_authorized_contact_phone_required_break
+        self.assertTrue(authorize("public", previous, current))
+        self.assertFalse(authorize("admin", previous, current))
+        for mutation in ("auth", "idempotency", "constraint", "version", "authority"):
+            altered = copy.deepcopy(current)
+            if mutation == "auth":
+                altered["paths"]["/contact-inquiries"]["post"]["security"] = [{}]
+            elif mutation == "idempotency":
+                altered["paths"]["/contact-inquiries"]["post"]["x-idempotency"] = "not-supported"
+            elif mutation == "constraint":
+                altered["components"]["schemas"]["CreateContactInquiryRequest"]["properties"]["phone"]["maxLength"] = 33
+            elif mutation == "version":
+                altered["info"]["version"] = "2.0.0-alpha.35"
+            else:
+                altered.pop("x-oripa-breaking-change")
+            with self.subTest(mutation=mutation):
+                self.assertFalse(authorize("public", previous, altered))
+
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.33", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.34", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

@@ -1559,7 +1559,7 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            phone?: string | null;
+            phone: string;
             subject: string;
             body: string;
             website: string;
@@ -2286,6 +2286,13 @@ export interface components {
             id: string;
             /** @enum {string} */
             state: "active" | "restricted";
+            /** @description Current authenticated User registration name, returned by getCurrentSession. */
+            display_name?: string | null;
+            /**
+             * Format: email
+             * @description Current authenticated User registered email, returned by getCurrentSession.
+             */
+            email?: string;
             /** @constant */
             email_verified: true;
         };
