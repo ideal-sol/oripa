@@ -10,10 +10,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "be1a8f3f822d23f3251d32e616fb0b2fe422714e"
-PROTECTED = "80776f36305fade6ae43eea6fe96db942890eda6"
-SOURCE_CHANGE = "PRIZEIMAGE-20260924"
-SOURCE_PR = 500
+APPROVED = "e3121034c5dc7b9184673b1be64bb5076e9d3a90"
+PROTECTED = subprocess.check_output(
+    ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
+).strip()
+SOURCE_CHANGE = "CATALOG-20260924"
+SOURCE_PR = 503
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -114,7 +116,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(self.authorize()["source_sha"], self.source)
 
     def test_previous_approval_and_metadata_pull_cannot_authorize_source(self):
-        for change_id, pr_number in [("PREFILL-20260924", 496), ("REL-039", 501)]:
+        for change_id, pr_number in [("PRIZEIMAGE-20260924", 500), ("PRODAUTH-20260924", 502)]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
             ):
@@ -183,7 +185,10 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             return real_git(repository, *arguments)
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
-            for unapproved in [PROTECTED, "e16f65504dc5286de2fcd70988b770d1a16d1eaf"]:
+            for unapproved in [
+                "be1a8f3f822d23f3251d32e616fb0b2fe422714e",
+                "69d58449c9524a018b372e39a6a4efbe0cace48d",
+            ]:
                 with self.subTest(unapproved=unapproved), self.assertRaisesRegex(
                     ValueError, "Human-approved source authority mismatch"
                 ):
