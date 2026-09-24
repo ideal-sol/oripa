@@ -1,3 +1,12 @@
+## PRODAUTH-20260924 — Production Release Authority Update（2026-09-24）
+
+- Issue none、Risk R4、Lane Strict Change、Application Runtime Activation none。Base／開始時protected main `80776f36305fade6ae43eea6fe96db942890eda6`をGitHub live確認。Human承認により専用branch `chore/PRODAUTH-20260924`／Worktreeを使用し、元branch・未commit Worklog・既存contact-prefill Worktreeを変更せず保持。exact-path transient App policyを使用、Source／Migration／Artifact lock不要。
+- Human承認Runtime Targetは `be1a8f3f822d23f3251d32e616fb0b2fe422714e`。Source PR #500／Change PRIZEIMAGE-20260924、PR #499をancestorとして含む。PR #501以降のrelease metadataをRuntime Sourceへ昇格しない。approved-source manifest・関連regression tests・runbook・本Worklogの4ファイルだけを変更。canonical ARM64 workflow／authority helper／OCI revision／exact source／ancestor／arbitrary SHA拒否／fail-closedは不変。
+- Runtime Targetから開始mainへの差分はrelease metadata・tests・docs・Worklogのみ。今回もApplication Runtime code／Migration作成・適用／ENV／Secret／API・DB・Auth・Point・Payment・Draw変更0。Storefront Repository、新サーバー、Production接続・activation・service restart・Nginx・traffic・DB mutationは実行しない。
+- Canonical alpha.39 Run `35981484873` attempt1 successとArtifact `10800178238`をlive確認し、既存readback helperで実download／outer digest／5-file inventory／source／manifest／packageを検証PASS。再発行0。SourceはRuntime Targetと一致。Manifest `888f90b53caa20e5920f23705f69510fe73b689223c8915503915aaa83432668`、Client `ebae587d09f6f03a2d6234bf91e495dbc8634f34d7ec8c63608f5cae34345b15`、Testkit `57def53c2353d55fea9aee73caba1e688646be49eb876e3f26dac90f2e3a214a`、Public OpenAPI `ab7d2c51f99e3634aaf499effd61212e1e9156a572c56363cd8c0b16abae7140`。
+- Local source-authority／image pipeline／contract artifact／publication tests計105件PASS。旧source・metadata main・誤Source PR／Change ID・arbitrary SHA・非ancestor・check failure拒否を検証。Security／ESLint baseline正本の期限は両方2026-09-24、UTC作業日内は有効。Required CIでfresh audit／ESLint照合を実施し、期限超過時は根拠付きcanonical refreshを必要とする。
+- Required5／Security／Dependency Review／CodeQL／CI ARM64 candidate build／fixed-head self-review／squash merge／post-merge live readiness／cleanupの最終結果は本ChangeのPR closeoutへ記録。追加dispatch build0、Runtime activation0。Browser／実Runtime E2Eは対象外で未実施。Rollbackは承認済みsourceを固定した新規review済PRによるauthority変更とし、tag・Artifact・Runtimeを変更しない。
+
 ## CONTACTHISTORY-20260921 — Admin Contact History UI Refinement（2026-09-21）
 
 - 最新Human確定：対応履歴は初回User／追加User／Admin返信のみ、内部メモは同一詳細画面の別セクション、statusは対応状態カードの対応状況履歴へ分離。内部メモの保存・暗号化・audit・権限・時系列・既存追加機能は変更しない。既存「管理者：返信要求」とstatus日本語labelを維持。
