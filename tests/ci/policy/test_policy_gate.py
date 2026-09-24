@@ -3084,7 +3084,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.38",
+                    "version": "2.0.0-alpha.39",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3122,7 +3122,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.34",
+                        "minimumPublicApiContract": "2.0.0-alpha.35",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
