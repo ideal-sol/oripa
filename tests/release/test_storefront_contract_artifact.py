@@ -149,11 +149,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.39')
-        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.38')
-        self.assertEqual(value['candidate']['release_mode'], 'contract-additive')
-        self.assertFalse(value['candidate']['breaking_change'])
-        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.38')
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.39')
         alpha_37 = next(item for item in value['immutable_history'] if item['bundle_version'] == '2.0.0-alpha.37')
         self.assertEqual(alpha_37["bundle_version"], "2.0.0-alpha.37")
         self.assertEqual(alpha_37["release_mode"], "contract-breaking")
@@ -198,6 +195,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def test_released_alpha_37_has_no_republish_candidate(self):
         value = self.governance()
         value["candidate"] = None
+        while value['immutable_history'][-1]['bundle_version'] != '2.0.0-alpha.37':
+            value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertTrue(artifact.verification_target(value)['breaking_change'])
         released = next(item for item in value['immutable_history'] if item['bundle_version'] == '2.0.0-alpha.37')
         self.assertEqual(released['manifest_sha256'], '064b178c9781ef706855baaedeaa8aa7836214a36c9f8ecd78b1044551d5c293')
