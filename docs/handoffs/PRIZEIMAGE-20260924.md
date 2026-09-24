@@ -96,16 +96,27 @@ Rank images use the existing catalog presentation resolver and its revision
 reference, public, non-archived, and checksum checks. No storage route, permission,
 Admin URL, or secret is added to the new presentation data.
 
-Public OpenAPI is `2.0.0-alpha.35`; Client/Testkit candidate is
+Public OpenAPI is `2.0.0-alpha.35`; immutable Client/Testkit is
 `2.0.0-alpha.39`. The new properties are optional additions for compatibility.
 Site Schema remains the existing immutable `2.0.0-alpha.23`. Generated types
 come only from the bundled canonical Public OpenAPI. No migration is created.
 
-Do not pin the candidate until canonical post-merge publication and readback
-succeed. Exact package Artifact ID, merged source, digests, CI, self-review,
-activation, and closeout evidence will be recorded in the Change PR. The
-publication workflow is `storefront-contract-artifact-publish.yml`; the release
-ledger currently declares the next candidate, not a completed publication.
+Canonical publication and independent readback passed for immutable
+`@oripa/storefront-client@2.0.0-alpha.39` and matching Testkit. Artifact
+`10800178238`, `oripa-storefront-contract-2.0.0-alpha.39`, is published by
+[Run 35981484873](https://github.com/ideal-sol/oripa/actions/runs/35981484873).
+Exact Platform Source is `be1a8f3f822d23f3251d32e616fb0b2fe422714e`, from
+[PR #500](https://github.com/ideal-sol/oripa/pull/500). REL-039 records verified
+digests in the immutable release ledger and clears the candidate; no package is
+rebuilt or overwritten. Storefront's next exact pin is `2.0.0-alpha.39` once
+its target API activation is verified. OLD Test Public API now runs that exact
+Source (reviewed OCI revision `ec17f06ed71d90e9b7c9f0b1ae302271cefb4cef`).
+[OLD Test technical evidence](https://github.com/ideal-sol/oripa/pull/500#issuecomment-5811726678)
+confirms HTTP 200, three actual Prize thumbnails, two Rank lineup images,
+true/false stock flags, relation/order, and the activated image's 50 isolated
+tests / 607 assertions. Draw confirmation uses synthetic HTTP fixtures, not
+real-user credentials or shared-DB writes. Publication alone is not activation
+for any other environment. Production and new-server operations remain NOT RUN.
 
 Rollback uses the retained prior OLD Test API image and prior Client pin; no
 database rollback or correction is required. Browser/visual verification and
