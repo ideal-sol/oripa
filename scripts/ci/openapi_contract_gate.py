@@ -458,6 +458,10 @@ def is_authorized_contact_phone_required_break(
     schema = expected.get("components", {}).get("schemas", {}).get("CreateContactInquiryRequest", {})
     schema["required"] = ["name", "email", "phone", "subject", "body", "website"]
     schema.setdefault("properties", {})["phone"] = {"type": "string", "minLength": 1, "maxLength": 32}
+    expected["components"]["schemas"]["PublicUser"]["properties"].update({
+        "display_name": {"type": ["string", "null"], "description": "Current authenticated User registration name, returned by getCurrentSession."},
+        "email": {"type": "string", "format": "email", "description": "Current authenticated User registered email, returned by getCurrentSession."},
+    })
     return (
         surface == "public"
         and previous.get("info", {}).get("version") == "2.0.0-alpha.33"

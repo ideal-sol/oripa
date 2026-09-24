@@ -4444,6 +4444,13 @@ components:
         state:
           type: string
           enum: [active, restricted]
+        display_name:
+          type: [string, 'null']
+          description: Current authenticated User registration name, returned by getCurrentSession.
+        email:
+          type: string
+          format: email
+          description: Current authenticated User registered email, returned by getCurrentSession.
         email_verified:
           type: boolean
           const: true

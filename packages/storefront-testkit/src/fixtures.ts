@@ -1557,6 +1557,8 @@ export const PUBLIC_AUTH_FIXTURE = Object.freeze({
       id: "0198a001-0000-7000-8000-000000000501",
       state: "active",
       email_verified: true,
+      display_name: "Fixture User",
+      email: "fixture@example.test",
     },
   },
   pending_registration: {

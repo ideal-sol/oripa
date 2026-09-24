@@ -82,6 +82,21 @@ final class ContactReplyFollowUpTest extends TestCase
         $this->withHeader('Origin', 'https://attacker.example.test')->postJson('/api/v2/contact-inquiries', $this->input())->assertForbidden();
     }
 
+    public function test_current_session_exposes_only_own_current_registration_defaults(): void
+    {
+        $this->getJson('/api/v2/auth/session')->assertOk()->assertJsonPath('user', null);
+        $user = $this->contactUser();
+        $other = $this->contactUser();
+        $this->actingAs($user, 'v2_user')->getJson('/api/v2/auth/session?user_id='.$other->public_id)
+            ->assertOk()->assertJsonPath('user.id', $user->public_id)
+            ->assertJsonPath('user.display_name', $user->display_name)
+            ->assertJsonPath('user.email', $user->email_display)
+            ->assertHeader('Cache-Control', 'no-store, private');
+        $user->forceFill(['display_name' => null, 'email_display' => 'updated@example.test', 'email_normalized' => 'updated@example.test'])->save();
+        $this->getJson('/api/v2/auth/session')->assertOk()
+            ->assertJsonPath('user.display_name', null)->assertJsonPath('user.email', 'updated@example.test');
+    }
+
     public function test_http_requires_all_contact_fields_for_new_and_follow_up(): void
     {
         $user = $this->contactUser();

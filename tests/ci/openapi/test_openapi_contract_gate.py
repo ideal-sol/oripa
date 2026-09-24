@@ -54,6 +54,8 @@ class OpenApiContractGateTest(unittest.TestCase):
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.33"
         previous["x-oripa-breaking-change"] = openapi_contract_gate.CONTACT_AUTHENTICATED_BREAK
+        for field in ("display_name", "email"):
+            previous["components"]["schemas"]["PublicUser"]["properties"].pop(field)
         schema = previous["components"]["schemas"]["CreateContactInquiryRequest"]
         schema["required"].remove("phone")
         schema["properties"]["phone"] = {"type": ["string", "null"], "maxLength": 32}
