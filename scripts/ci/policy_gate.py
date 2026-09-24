@@ -221,6 +221,8 @@ STOREFRONT_CONTRACT_PUBLICATION_REQUIRED_FILES = {
     "docs/operations/releases/release-process.md",
 }
 PREVIEW_IMAGE_PIPELINE_REQUIRED_FILES = {
+    "scripts/ops/production_source_authority.py",
+    "manifests/platform-production-approved-source.json",
     ".github/workflows/platform-ci.yml",
     ".github/workflows/platform-production-arm64-artifact.yml",
     ".github/workflows/preview-image-build.yml",
@@ -1496,9 +1498,12 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     ).read_text(encoding="utf-8")
     for required in (
         "runs-on: ubuntu-24.04-arm",
-        "source SHA is not current protected main",
-        "merged pull request authority mismatch",
-        "required checks not successful",
+        "ref: ${{ github.sha }}",
+        "path: build-authority",
+        "path: runtime",
+        "production_source_authority.py --repository .",
+        "--scan-source",
+        "ref: ${{ steps.authority.outputs.source_sha }}",
         "--target production",
         "--artifact-kind production-candidate",
         "--architecture arm64",
@@ -1509,6 +1514,20 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
             raise PolicyFailure(
                 f"Production ARM64 artifact workflow boundary missing: {required}"
             )
+    source_authority = (repository / "scripts/ops/production_source_authority.py").read_text(encoding="utf-8")
+    for required in (
+        "Human-approved source authority mismatch",
+        "workflow SHA is not current protected main",
+        '"merge-base", "--is-ancestor", source_sha, workflow_sha',
+        "merged pull request authority mismatch",
+        "reviewed source tree mismatch",
+        "required checks not successful",
+        "evaluate_required_check_runs",
+        "checks_for(get, workflow_sha)",
+        "checks_for(get, reviewed_sha)",
+    ):
+        if required not in source_authority:
+            raise PolicyFailure(f"Production source authority boundary missing: {required}")
     wrapper = (
         repository / "infrastructure/github-app/oripa-github-app-api"
     ).read_text(encoding="utf-8")

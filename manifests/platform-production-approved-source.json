@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "repository": "ideal-sol/oripa",
+  "source_sha": "e16f65504dc5286de2fcd70988b770d1a16d1eaf",
+  "change_id": "PREFILL-20260924",
+  "pr_number": 496,
+  "authority": "Human-approved exact Runtime Source: Contact Production Preparation",
+  "activation_authorized": false
+}

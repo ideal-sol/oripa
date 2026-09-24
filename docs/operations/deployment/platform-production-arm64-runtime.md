@@ -15,12 +15,28 @@ native `ubuntu-24.04-arm` runner and uploads a one-day verification artifact.
 That parallel PR artifact is test evidence, not Runtime Activation Authority.
 
 After merge, `.github/workflows/platform-production-arm64-artifact.yml` may
-build the deployable candidate from exact current protected `main`. It requires
-the merged internal PR identity and all five Required Checks on the merge SHA,
+build the deployable candidate from the explicit `source_sha` recorded in
+`manifests/platform-production-approved-source.json`. The workflow and approval
+metadata come from exact current protected `main`; the Runtime Source remains
+the requested approved commit, which must exist and be an ancestor of that main.
+Changing the approved target requires a protected PR and explicit Human authority.
+The gate requires the merged internal source PR identity, reviewed/merged tree
+equality, all five Required Checks on the reviewed source, and all five current
+workflow-authority checks. It also runs current policy validation and scans the
+exact Runtime Source using the current secret/path security checks. It
 then packages, verifies, loads, and uploads a seven-day artifact named
-`oripa-platform-production-candidate-<MERGE_SHA>-linux-arm64`. This is a
+`oripa-platform-production-candidate-<APPROVED_SOURCE_SHA>-linux-arm64`. This is a
 merge-first Build; it does not deploy. CI emulation is not used and the
 Production host must not use QEMU.
+
+The source checkout is separate from the workflow-authority checkout. The
+manifest, OCI revision, image labels and readiness evidence retain the exact
+requested source SHA. `production-source-authority.json` records that source,
+its tree, reviewed head, workflow SHA and check evidence. A main advance never
+substitutes a new Runtime Source; a stale dispatch, missing approval, arbitrary
+ancestor, malformed/missing commit, tree mismatch or failed check is rejected.
+Contact preparation does not dispatch this workflow; see
+[the preparation review](contact-production-preparation.md).
 
 ## Immutable Artifact Identity
 
