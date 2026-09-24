@@ -161,7 +161,7 @@ final class ContactReplyFollowUpTest extends TestCase
             self::assertSame($response, $this->submit($user, $input, $key));
             self::assertSame($count, ContactInquiry::query()->count());
             self::assertEquals($original, $contact->refresh()->only(array_keys($original)));
-            self::assertSame('in_progress', $contact->status);
+            self::assertSame('new', $contact->status);
             self::assertNull($contact->closed_at);
             $messages = DB::table('contact_user_messages')->where('contact_inquiry_id', $contact->id)->get();
             self::assertCount(1, $messages);
@@ -169,7 +169,8 @@ final class ContactReplyFollowUpTest extends TestCase
             self::assertNotSame($input['body'], $messages[0]->message_ciphertext);
             self::assertSame($input['body'], Crypt::decryptString($messages[0]->message_ciphertext));
             self::assertSame(now()->utc()->format('Y-m-d H:i:s'), CarbonImmutable::parse($messages[0]->created_at)->utc()->format('Y-m-d H:i:s'));
-            self::assertDatabaseHas('contact_status_histories', ['contact_inquiry_id' => $contact->id, 'from_status' => $status, 'to_status' => 'in_progress', 'reason_code' => 'user_follow_up']);
+            self::assertDatabaseHas('contact_status_histories', ['contact_inquiry_id' => $contact->id, 'from_status' => $status, 'to_status' => 'new', 'reason_code' => 'user_follow_up']);
+            self::assertDatabaseMissing('contact_status_histories', ['contact_inquiry_id' => $contact->id, 'to_status' => 'in_progress', 'reason_code' => 'user_follow_up']);
             self::assertDatabaseHas('audit_logs', ['action_code' => 'contact.user_follow_up', 'actor_public_id' => $user->public_id, 'target_public_id' => $contact->public_id]);
             self::assertSame($contact->received_at->toIso8601String(), $response['received_at']);
         }

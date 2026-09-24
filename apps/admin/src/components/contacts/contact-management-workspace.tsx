@@ -37,14 +37,14 @@ const REPLY_VARIABLE_LABELS = new Map(REPLY_VARIABLES.map(({ key, label }) => [k
 
 const STATUS_OPTIONS: Array<{ label: string; value: AdminContactStatus | "all" }> = [
   { label: "すべて", value: "all" },
-  { label: "未対応", value: "new" },
-  { label: "対応中", value: "in_progress" },
-  { label: "返信済み", value: "replied" },
-  { label: "完了", value: "closed" },
+  { label: statusLabel("new"), value: "new" },
+  { label: statusLabel("in_progress"), value: "in_progress" },
+  { label: statusLabel("replied"), value: "replied" },
+  { label: statusLabel("closed"), value: "closed" },
 ];
 
 const NEXT_STATUS: Record<AdminContactStatus, AdminContactStatus[]> = {
-  new: ["in_progress", "replied", "closed"],
+  new: ["replied", "closed"],
   in_progress: ["replied", "closed"],
   replied: ["closed"],
   closed: [],
@@ -406,7 +406,7 @@ function ContactStatusBadge({ status }: { status: AdminContactStatus }) {
 }
 
 function statusLabel(status: AdminContactStatus): string {
-  return { closed: "完了", in_progress: "対応中", new: "未対応", replied: "返信済み" }[status];
+  return { closed: "完了", in_progress: "対応中", new: "未返信", replied: "返信済み" }[status];
 }
 
 function formatJst(value?: string | null): string {
