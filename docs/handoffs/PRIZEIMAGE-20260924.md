@@ -96,7 +96,7 @@ Rank images use the existing catalog presentation resolver and its revision
 reference, public, non-archived, and checksum checks. No storage route, permission,
 Admin URL, or secret is added to the new presentation data.
 
-Public OpenAPI is `2.0.0-alpha.35`; Client/Testkit candidate is
+Public OpenAPI is `2.0.0-alpha.35`; immutable Client/Testkit is
 `2.0.0-alpha.39`. The new properties are optional additions for compatibility.
 Site Schema remains the existing immutable `2.0.0-alpha.23`. Generated types
 come only from the bundled canonical Public OpenAPI. No migration is created.
@@ -109,8 +109,14 @@ Exact Platform Source is `be1a8f3f822d23f3251d32e616fb0b2fe422714e`, from
 [PR #500](https://github.com/ideal-sol/oripa/pull/500). REL-039 records verified
 digests in the immutable release ledger and clears the candidate; no package is
 rebuilt or overwritten. Storefront's next exact pin is `2.0.0-alpha.39` once
-its target API activation is verified. OLD Test activation and technical
-evidence are recorded separately in PR #500; publication alone is not activation.
+its target API activation is verified. OLD Test Public API now runs that exact
+Source (reviewed OCI revision `ec17f06ed71d90e9b7c9f0b1ae302271cefb4cef`).
+[OLD Test technical evidence](https://github.com/ideal-sol/oripa/pull/500#issuecomment-5811726678)
+confirms HTTP 200, three actual Prize thumbnails, two Rank lineup images,
+true/false stock flags, relation/order, and the activated image's 50 isolated
+tests / 607 assertions. Draw confirmation uses synthetic HTTP fixtures, not
+real-user credentials or shared-DB writes. Publication alone is not activation
+for any other environment. Production and new-server operations remain NOT RUN.
 
 Rollback uses the retained prior OLD Test API image and prior Client pin; no
 database rollback or correction is required. Browser/visual verification and
