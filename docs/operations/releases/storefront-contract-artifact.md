@@ -537,3 +537,19 @@ API/Admin/Contact Mail Worker activation, shared Test migrations, Provider mail,
 Browser Login, Storefront Source edits, and all Production operations remain
 unperformed. In particular, publishing this Artifact does not activate the new
 `contact.reply.email.requested` consumer or touch legacy Outbox records.
+
+
+## Released Contact Prefill And Required Phone Contract
+
+PREFILL-20260924 PR [496](https://github.com/ideal-sol/oripa/pull/496) was squash merged as `e16f65504dc5286de2fcd70988b770d1a16d1eaf` after fixed-head review and all Required Checks passed. Canonical contract-only Run [35946192378](https://github.com/ideal-sol/oripa/actions/runs/35946192378) published and read back immutable Artifact `10786577343`.
+
+REL-038 preserves all immutable predecessors, records alpha.38 as latest immutable and clears the candidate. Client and Testkit are alpha.38; contracts are alpha.34; Site Schema remains the existing immutable alpha.23. Phone is required for new and follow-up Contact requests. Current User session adds display_name and registered email; current verified active phone uses the existing SMS status operation. No Account/SMS mutation or reply-recipient change.
+
+- Manifest SHA-256: `585cb98b83f7396b2f1a214c24c039dfadedc6f29667b471aa5902951045ddd1`.
+- Client SHA-256: `caf546a8797d844dbd4661ae5e5a30ac9ddf86c4d0f946bd8fffa144e3d215b1`.
+- Testkit SHA-256: `8b7d75a8d0c64f841709a852a5b71235f2e6cf3342175d134fc9b758b861e7fc`.
+- Public OpenAPI SHA-256: `ded40adeae1998ed26169c469c8c40492a6ff677b0e6777d904221f326fa0077`.
+- Outer Artifact digest: `sha256:2d2e041eb1e1aefee44ebe2a1dcd4395c66f26dd078d92bffa2785862dddc067`.
+- SHA256SUMS SHA-256: `e7724d0d0814cd7f135139870c44f2c31ed7bffbd3a46b0e2e1ce4089785c770`.
+
+This metadata task performs no Runtime Activation. OLD Test adoption and acceptance belong to the authorized Contact prefill task; the required-phone Storefront precedes the API tightening. No Production activation or real Admin reply mail is authorized here.
