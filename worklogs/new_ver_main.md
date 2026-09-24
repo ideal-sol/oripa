@@ -10119,3 +10119,10 @@ PHP構文137 files／diff whitespace／Source scope review PASS。helper／新�
 - Final added session verification: Contact 15 tests / 173 assertions PASS; Authentication session regression 7 tests / 62 assertions PASS. CI found stale alpha.37 fixture metadata in policy tests; update only fixture version/contract and candidate expectation, preserving production policy enforcement.
 
 - CI transport Task ID: PREFILL-20260924 (canonical policy requires a single alphabetic prefix plus number); the existing contact-prefill branch and one PR are retained. PR template headings corrected; no source gate is weakened. Final Client/Testkit checks and 209 policy tests PASS.
+
+
+## REL-038 — Immutable Contact prefill artifact reconciliation
+
+- Lane: Strict Change; Application Runtime Activation: none. Issue: none. Base: e16f65504dc5286de2fcd70988b770d1a16d1eaf.
+- Canonical workflow and exact Artifact readback PASS; alpha.38 Manifest/Client/Testkit/Public OpenAPI digests recorded from immutable bytes. All predecessor records unchanged, alpha.23 Site Schema retained, candidate cleared.
+- No application source, generated package, runtime, DB, Mail ENV, Worker, or Production changes. Local artifact/policy tests and exact-head CI/self-review required before merge.

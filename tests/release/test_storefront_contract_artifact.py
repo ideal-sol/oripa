@@ -149,13 +149,15 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.38')
-        self.assertEqual(value["latest_immutable"]["bundle_version"], "2.0.0-alpha.37")
-        self.assertEqual(value["latest_immutable"]["release_mode"], "contract-breaking")
-        self.assertTrue(value["latest_immutable"]["breaking_change"])
-        self.assertEqual(value['latest_immutable']['source_commit'], 'b63c37edac755f782f09ca5b18255fb71cee300b')
-        self.assertEqual(value['latest_immutable']['contract_versions'], dict.fromkeys(['public', 'admin', 'webhook'], '2.0.0-alpha.33'))
-        self.assertEqual(value['latest_immutable']['public_openapi']['operation_count'], 76)
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.38')
+        alpha_37 = next(item for item in value['immutable_history'] if item['bundle_version'] == '2.0.0-alpha.37')
+        self.assertEqual(alpha_37["bundle_version"], "2.0.0-alpha.37")
+        self.assertEqual(alpha_37["release_mode"], "contract-breaking")
+        self.assertTrue(alpha_37["breaking_change"])
+        self.assertEqual(alpha_37['source_commit'], 'b63c37edac755f782f09ca5b18255fb71cee300b')
+        self.assertEqual(alpha_37['contract_versions'], dict.fromkeys(['public', 'admin', 'webhook'], '2.0.0-alpha.33'))
+        self.assertEqual(alpha_37['public_openapi']['operation_count'], 76)
         self.assertEqual(latest["source_commit"], "576c35137946e5effcda63d6bf750d5ecc41150f")
         self.assertEqual(latest["manifest_sha256"], "42f4bee68b787dac16d07accee1c6154c7cea392c521c41b14461d6b56221464")
         self.assertEqual(latest["release_mode"], "contract-breaking")
@@ -194,7 +196,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         value = self.governance()
         value["candidate"] = None
         self.assertTrue(artifact.verification_target(value)['breaking_change'])
-        released = value['latest_immutable']
+        released = next(item for item in value['immutable_history'] if item['bundle_version'] == '2.0.0-alpha.37')
         self.assertEqual(released['manifest_sha256'], '064b178c9781ef706855baaedeaa8aa7836214a36c9f8ecd78b1044551d5c293')
         self.assertEqual(released['publication']['artifact_id'], 10606100530)
         self.assertEqual(released['publication']['github_digest'], 'sha256:a196e21b61cef71329312cc057b4376fd6919c2a877492f6852f09006a0ac611')
@@ -381,7 +383,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def test_alpha_36_settled_ledger_rejects_republication(self):
         value = self.governance()
         value['candidate'] = None
-        value['immutable_history'].pop()
+        while value['immutable_history'][-1]['bundle_version'] != '2.0.0-alpha.36':
+            value['immutable_history'].pop()
         value['latest_immutable'] = value['immutable_history'][-1]
         with mock.patch.object(artifact, 'governance', return_value=value):
             with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
