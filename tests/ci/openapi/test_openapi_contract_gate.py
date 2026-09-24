@@ -51,6 +51,8 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_contact_phone_authority_rejects_unrelated_changes(self):
         current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        current["info"]["version"] = "2.0.0-alpha.34"
+        current["x-oripa-breaking-change"] = openapi_contract_gate.CONTACT_PHONE_REQUIRED_BREAK
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.33"
         previous["x-oripa-breaking-change"] = openapi_contract_gate.CONTACT_AUTHENTICATED_BREAK

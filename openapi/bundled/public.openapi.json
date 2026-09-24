@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.34",
+    "version": "2.0.0-alpha.35",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -5880,6 +5880,44 @@
           }
         }
       },
+      "GachaLineupPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "rank_id",
+          "presentation_asset",
+          "total_inventory",
+          "display_order"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "presentation_asset": {
+            "$ref": "#/components/schemas/NullablePresentationAsset",
+            "description": "公開Gacha Versionの景品snapshotに固定された画像。公開画像resolverを使用し、非公開・無効な画像はnull。"
+          },
+          "total_inventory": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "景品自身のprize_inventories.total_quantity。残数・Rank合計ではなく、show_total_stockにかかわらず返す。"
+          },
+          "display_order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "catalog_gacha_version_prizes.sort_order。Collectionは既存Version順（sort_order、relation ID）で返す。"
+          }
+        }
+      },
       "GachaDetail": {
         "type": "object",
         "additionalProperties": false,
@@ -5965,6 +6003,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GachaRankPresentation"
+            }
+          },
+          "prizes": {
+            "type": "array",
+            "description": "公開Versionの全景品。rank_idでranksへ関連付け、Collectionの順序を維持する。",
+            "items": {
+              "$ref": "#/components/schemas/GachaLineupPrize"
             }
           },
           "probability_stages": {
@@ -6741,6 +6786,10 @@
           "rank": {
             "$ref": "#/components/schemas/RankReference"
           },
+          "rank_lineup_image": {
+            "$ref": "#/components/schemas/NullablePresentationAsset",
+            "description": "Draw GETで返す当選時Rank revisionのlineup image。景品画像はprize.presentation_assetを使用する。"
+          },
           "count": {
             "type": "integer",
             "minimum": 1
@@ -6813,6 +6862,10 @@
           },
           "result_image_snapshot": {
             "$ref": "#/components/schemas/NullablePresentationAsset"
+          },
+          "rank_lineup_image": {
+            "$ref": "#/components/schemas/NullablePresentationAsset",
+            "description": "Draw GETで返す当選時Rank revisionのlineup image。result imageとは別用途で、未設定はnull。"
           },
           "video_snapshot": {
             "$ref": "#/components/schemas/NullablePresentationAsset"

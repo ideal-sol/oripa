@@ -1908,6 +1908,17 @@ export interface components {
             point_back_total_ppm: number;
             minimum_guarantee: components["schemas"]["MinimumGuarantee"];
         };
+        GachaLineupPrize: {
+            id: components["schemas"]["OpaqueId"];
+            name: string;
+            rank_id: components["schemas"]["OpaqueId"];
+            /** @description 公開Gacha Versionの景品snapshotに固定された画像。公開画像resolverを使用し、非公開・無効な画像はnull。 */
+            presentation_asset: components["schemas"]["NullablePresentationAsset"];
+            /** @description 景品自身のprize_inventories.total_quantity。残数・Rank合計ではなく、show_total_stockにかかわらず返す。 */
+            total_inventory: number;
+            /** @description catalog_gacha_version_prizes.sort_order。Collectionは既存Version順（sort_order、relation ID）で返す。 */
+            display_order: number;
+        };
         GachaDetail: {
             id: components["schemas"]["GachaPublicId"];
             slug: string;
@@ -1923,6 +1934,8 @@ export interface components {
             description: string | null;
             notices: string | null;
             ranks: components["schemas"]["GachaRankPresentation"][];
+            /** @description 公開Versionの全景品。rank_idでranksへ関連付け、Collectionの順序を維持する。 */
+            prizes?: components["schemas"]["GachaLineupPrize"][];
             probability_stages: components["schemas"]["ProbabilityStage"][];
             sale_state?: components["schemas"]["GachaSaleState"];
         };
@@ -2109,6 +2122,8 @@ export interface components {
         DrawPrizeCount: {
             prize: components["schemas"]["DrawPrizeReference"];
             rank: components["schemas"]["RankReference"];
+            /** @description Draw GETで返す当選時Rank revisionのlineup image。景品画像はprize.presentation_assetを使用する。 */
+            rank_lineup_image?: components["schemas"]["NullablePresentationAsset"];
             count: number;
         };
         DrawPointBack: {
@@ -2124,6 +2139,8 @@ export interface components {
             rank: components["schemas"]["RankReference"] | null;
             rank_name_snapshot: string | null;
             result_image_snapshot: components["schemas"]["NullablePresentationAsset"];
+            /** @description Draw GETで返す当選時Rank revisionのlineup image。result imageとは別用途で、未設定はnull。 */
+            rank_lineup_image?: components["schemas"]["NullablePresentationAsset"];
             video_snapshot: components["schemas"]["NullablePresentationAsset"];
             prize: components["schemas"]["DrawPrizeReference"] | null;
             point_back: components["schemas"]["DrawPointBack"] | null;

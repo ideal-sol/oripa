@@ -70,6 +70,28 @@ import {
   createMockFetch,
 } from "../dist/index.js";
 
+test("景品Lineupは同Rankの全景品画像と個別総在庫を公開する", () => {
+  const { ranks } = PUBLIC_CATALOG_FIXTURE.data;
+  const prizes = PUBLIC_CATALOG_FIXTURE.data.prizes.filter((prize) => prize.rank_id === ranks[0].rank_id);
+  assert.equal(ranks[0].show_total_stock, true);
+  assert.deepEqual(prizes.map((prize) => prize.total_inventory), [3, 5, 2]);
+  assert.deepEqual(prizes.map((prize) => prize.display_order), [10, 20, 30]);
+  assert.equal(new Set(prizes.map((prize) => prize.presentation_asset.id)).size, 3);
+  for (const prize of prizes) {
+    assert.equal(prize.rank_id, ranks[0].rank_id);
+    assert.match(prize.presentation_asset.path, /^\/api\/v2\/content\/assets\//);
+  }
+  const hiddenStock = PUBLIC_CATALOG_FIXTURE.data.prizes.filter((prize) => prize.rank_id === ranks[1].rank_id);
+  assert.equal(ranks[1].show_total_stock, false);
+  assert.equal(hiddenStock.length, 1);
+  assert.equal(hiddenStock[0].total_inventory, 4);
+  assert.equal(hiddenStock[0].presentation_asset, null);
+  const award = PUBLIC_DRAW_FIXTURE.prize_counts[0];
+  assert.deepEqual(award.rank_lineup_image, ranks[0].lineup_image);
+  assert.notEqual(award.prize.presentation_asset.id, award.rank_lineup_image.id);
+  assert.equal("total_inventory" in award, false);
+});
+
 test("Testkit VersionとClient bundle metadataを一致させる", async () => {
   const packageManifest = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -1014,7 +1036,7 @@ test("Public Catalog Fixtureは集約確率だけを持ち内部情報を公開�
   assert.equal(PUBLIC_CATALOG_FIXTURE.data.probability_stages.length, 1);
   assert.equal(rank.rank_name, "Sランク");
   assert.equal(rank.show_total_stock, true);
-  assert.equal(rank.total_stock, 100);
+  assert.equal(rank.total_stock, 10);
   assert.equal(rank.current_video.media_type, "video");
   assert.equal("prizes" in rank, false);
   assert.equal("code" in rank, false);
