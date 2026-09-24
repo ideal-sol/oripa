@@ -68,6 +68,36 @@ Production connection. This update authorizes no activation, server operation,
 service restart, traffic change, or database mutation. A future rollback of
 source approval requires a new reviewed PR and explicit Human source authority.
 
+## Approved Source Update — PRODAUTH-20260925
+
+PR #503 implementation, OLD Test Technical verification, and Human Browser
+acceptance approve Runtime Target `e3121034c5dc7b9184673b1be64bb5076e9d3a90`.
+Its dispatch identity is `change_id=CATALOG-20260924`, `pr_number=503`.
+The authority-only merge must not replace that Runtime Target with its own SHA.
+Deployable Production Build, activation, and NEW server operations are not
+authorized. Human permits only the mandatory CI verification-image builds.
+
+Relative to the reported current Production source
+`be1a8f3f822d23f3251d32e616fb0b2fe422714e`, the only application changes are
+PR #503's Admin Catalog Read selection and Admin revision-conflict message.
+Other changes are tests, docs, contract release metadata, and source approval.
+Contact Reply Mail, Identity Mail, and SMS workers require no update for this
+delta: worker code, dependencies, configuration, schemas, and Outbox contracts
+are unchanged; the changed service belongs only to the Admin HTTP read path.
+
+The existing immutable Contract bundle remains `2.0.0-alpha.39`, sourced from
+`be1a8f3f822d23f3251d32e616fb0b2fe422714e`: Public API `2.0.0-alpha.35`,
+Admin/Webhook `2.0.0-alpha.34`, Client/Testkit `2.0.0-alpha.39`, and Site Schema
+`2.0.0-alpha.23`. Contract/package sources are byte-identical at the new Target;
+the existing ledger and verified immutable Artifact remain its provenance.
+
+For assessment on **2026-09-25**, both dependency-security and frontend ESLint
+baselines require refresh. Their `AGENCYREADY-20260917` management authority
+expires on `2026-09-24`; earlier CI PASS does not extend that expiry. This
+metadata update does not refresh either baseline or establish Production build
+readiness. Current path policy classifies source approval as Strict Change;
+there is no separate Authority-only CI lane or permission to bypass its checks.
+
 ## Immutable Artifact Identity
 
 The architecture-aware manifest binds:
