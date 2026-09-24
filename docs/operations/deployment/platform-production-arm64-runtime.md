@@ -38,6 +38,36 @@ ancestor, malformed/missing commit, tree mismatch or failed check is rejected.
 Contact preparation does not dispatch this workflow; see
 [the preparation review](contact-production-preparation.md).
 
+## Approved Source Update — PRODAUTH-20260924
+
+Human acceptance approves Runtime Source
+`be1a8f3f822d23f3251d32e616fb0b2fe422714e`, including PR #499 and PR #500.
+The canonical dispatch identity is `change_id=PRIZEIMAGE-20260924`,
+`pr_number=500`, and that exact `source_sha`. The authority-update PR is not
+the source PR. Starting protected main
+`80776f36305fade6ae43eea6fe96db942890eda6` includes PR #501 release metadata;
+neither it nor a later metadata merge becomes an approved Runtime Source.
+
+This update changes only the approved-source manifest, regression tests, this
+runbook, and the Worklog. Application Runtime code, migrations, ENV, and secrets
+remain identical to the approved target. Exact source, ancestor, merged source
+PR, reviewed-tree, current checks, native ARM64, and OCI revision constraints
+remain enforced by the unchanged canonical workflow and authority helper.
+The previous source and unapproved main commits remain rejected.
+
+Immutable contract `2.0.0-alpha.39` is already published from the same Runtime
+Source. The canonical release ledger records Artifact `10800178238` from Run
+`35981484873`; fresh canonical readback verifies its manifest and all package
+and Public OpenAPI digests. No contract is republished. Storefront handoff uses
+the exact ledger values and the verified Artifact, without a repository change
+in this task.
+
+Required CI candidate builds are permitted. Post-merge readiness invokes the
+canonical authorization and source scans without an additional build or any
+Production connection. This update authorizes no activation, server operation,
+service restart, traffic change, or database mutation. A future rollback of
+source approval requires a new reviewed PR and explicit Human source authority.
+
 ## Immutable Artifact Identity
 
 The architecture-aware manifest binds:

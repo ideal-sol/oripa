@@ -10,8 +10,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "e16f65504dc5286de2fcd70988b770d1a16d1eaf"
-PROTECTED = "369d6670f40d28419ad22a4b93cacc44a11a6ff0"
+APPROVED = "be1a8f3f822d23f3251d32e616fb0b2fe422714e"
+PROTECTED = "80776f36305fade6ae43eea6fe96db942890eda6"
+SOURCE_CHANGE = "PRIZEIMAGE-20260924"
+SOURCE_PR = 500
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -35,7 +37,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.workflow = self.git("rev-parse", "HEAD")
         self.reviewed = "a" * 40
         self.pull = {
-            "merged": True, "merge_commit_sha": self.source, "title": "PREFILL-20260924",
+            "merged": True, "merge_commit_sha": self.source, "title": SOURCE_CHANGE,
             "base": {"ref": "main"},
             "head": {"sha": self.reviewed, "repo": {"full_name": MODULE["REPOSITORY"]}},
         }
@@ -51,7 +53,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def get(self, path):
         if path.endswith("/branches/main"):
             return {"protected": self.protected, "commit": {"sha": self.workflow}}
-        if path.endswith("/pulls/496"):
+        if path.endswith(f"/pulls/{SOURCE_PR}"):
             return self.pull
         if path.endswith("/git/commits/" + self.reviewed):
             return {"tree": {"sha": self.tree}}
@@ -70,7 +72,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def authorize(self, source=None):
         return AUTHORIZE(self.repository, source or self.source, self.workflow,
-                         "PREFILL-20260924", 496, self.get)
+                         SOURCE_CHANGE, SOURCE_PR, self.get)
 
     def test_exact_approved_ancestor_preserves_runtime_source(self):
         result = self.authorize()
@@ -110,6 +112,13 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_uncommitted_authority_cannot_authorize_source(self):
         (self.repository / MODULE["AUTHORITY_PATH"]).write_text("{}")
         self.assertEqual(self.authorize()["source_sha"], self.source)
+
+    def test_previous_approval_and_metadata_pull_cannot_authorize_source(self):
+        for change_id, pr_number in [("PREFILL-20260924", 496), ("REL-039", 501)]:
+            with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
+                ValueError, "Human-approved source authority mismatch"
+            ):
+                AUTHORIZE(self.repository, self.source, self.workflow, change_id, pr_number, self.get)
 
     def test_unprotected_main_fails(self):
         self.protected = False
@@ -152,13 +161,15 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                     result["commit"]["sha"] = "b" * 40
             return result
         with self.assertRaisesRegex(ValueError, "protected main moved"):
-            AUTHORIZE(self.repository, self.source, self.workflow, "PREFILL-20260924", 496, get)
+            AUTHORIZE(self.repository, self.source, self.workflow, SOURCE_CHANGE, SOURCE_PR, get)
 
     def test_human_approved_real_source_and_base_lineage(self):
         subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", APPROVED, PROTECTED], check=True)
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertEqual(authority["source_sha"], APPROVED)
-        self.assertEqual(authority["pr_number"], 496)
+        self.assertEqual(authority["change_id"], SOURCE_CHANGE)
+        self.assertEqual(authority["pr_number"], SOURCE_PR)
+        self.assertIs(authority["activation_authorized"], False)
         real_git = MODULE["git"]
         self.source = APPROVED
         self.workflow = PROTECTED
@@ -171,7 +182,12 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                 return json.dumps(authority)
             return real_git(repository, *arguments)
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
-            result = AUTHORIZE(ROOT, APPROVED, PROTECTED, "PREFILL-20260924", 496, self.get)
+            result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+            for unapproved in [PROTECTED, "e16f65504dc5286de2fcd70988b770d1a16d1eaf"]:
+                with self.subTest(unapproved=unapproved), self.assertRaisesRegex(
+                    ValueError, "Human-approved source authority mismatch"
+                ):
+                    AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
