@@ -111,6 +111,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
           python3 -m unittest tests.ops.test_preview_image_pipeline
+          python3 -m unittest tests.ops.test_production_source_authority
           python3 scripts/ci/quality_gate.py --repository .
 
       - name: Validate OpenAPI contracts and committed bundles
