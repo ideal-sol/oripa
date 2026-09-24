@@ -10104,3 +10104,14 @@ PHP構文137 files／diff whitespace／Source scope review PASS。helper／新�
 - 最終component corpusは12 files／91件PASS、続く既存bonus不正値警告・required数値空欄の回帰追加後はPoint focused14件PASS（unique合計92件）。不正な既存bonusを選択した場合も警告を保持。Browser追加fixtureのURLをAdmin API pathに限定し、カテゴリModalの既存「取り消し」文言へlocatorを修正した。景品編集の1440／1366／390は3件PASS。
 - 関連範囲を広げたBrowserで既存ページ編集2件のconsole-clean assertionがFAIL。今回変更前の旧Test（#491／Base image）に同じ2 testsを実行し、同一の `style-src 'self'` によるTiptap inline stylesheet拒否を再現した。Editor／dependency／CSP sourceはBaseと差分0、pageerror・500系0、編集とPreview操作は到達する。SEV-3の既存表示制限としてPRに追跡し、Security/CSP緩和・Mail/Editor修正・assertion除外は行わない。この2件をPASSへ算入しない。今回のページfilter／form幅／操作位置は別の3 viewport focused casesで検証する。
 - 最終Browser corpusは97件中93 PASS、追加assertionのバナーSelect複数件locator 3件と決済testのviewport復元1件がFAIL。2つのSelectを両方検証し、Mobile寸法確認後に既存Desktop操作のviewportを復元するtest-only補正後、バナー3件／決済2件がPASS（unique最終97件PASS、上記既存CSPの2件は別途FAIL）。Admin lint／typecheck PASS、Local Admin Buildは4回PASS。最終Application Sourceの追加変更なし。旧Test artifact上のtechnical結果はmerge後PR closeoutへ記録する。
+
+
+## CONTACT-PREFILL-20260924 — Contact identity defaults and required phone
+
+- Human authority: editable, required name/email/phone; current session name/email and existing verified active SMS phone status; no Account or SMS writes; current registered email remains reply recipient.
+- Lane: Strict Change; Application Runtime Activation: immediate (OLD Test only, after Platform artifact and Storefront adoption). Production is excluded. Issue: none. Dedicated worktree isolates existing dirty and runtime checkouts. Base: df2c67449ec4a885a5e41fcec8128145c0eb9ee9.
+- Contact service uses the existing required normalized text validator for phone. Existing name/email validation, byte bounds, spam protection, CSRF, idempotency and follow-up ownership/fallback remain unchanged. No migration, Mail Worker/resolver, Admin UI, timestamp, shipping or account implementation changes.
+- Existing getSmsVerificationStatus returns only the current authenticated User's verified, non-revoked phone. No new API is necessary.
+- Human-authorized request tightening is contract-breaking: Client/Testkit alpha.38 candidate follows immutable alpha.37; contracts alpha.34 follow the canonical breaking release rule; Site Schema remains immutable alpha.23. Generated Admin diff is contract version metadata only.
+- Old clients can omit phone and receive 422 from the new API; activate the exact-pinned required-phone Storefront before the API validation change. Existing OLD Test API accepts the new complete request. Keep existing rollback runtime and mail configuration.
+- Validation: OpenAPI bundle and base compatibility PASS; Client and Testkit generation/typecheck/lint/build/unit/exports/network checks PASS; OpenAPI policy regression 18 PASS; artifact validation regression 26 PASS. Backend focused results and exact-head CI/self-review are recorded in the PR before merge. Human browser login and final acceptance remain pending.

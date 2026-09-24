@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
@@ -75,6 +76,12 @@ CONTACT_AUTHENTICATED_BREAK = {
     "scope": "authenticated-contact-submit-idempotency",
 }
 
+CONTACT_PHONE_REQUIRED_BREAK = {
+    "authority": "human_contact_prefill_required_2026-09-24",
+    "change_id": "CONTACT-PREFILL-20260924",
+    "scope": "contact-phone-required",
+}
+
 
 class ContractFailure(RuntimeError):
     """A deterministic OpenAPI contract violation."""
@@ -138,7 +145,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
         raise ContractFailure(f"{surface}: surface marker is invalid")
     canonical_break = document.get("x-oripa-breaking-change")
     if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK and not (
-        surface == "public" and canonical_break == CONTACT_AUTHENTICATED_BREAK
+        surface == "public" and canonical_break in (CONTACT_AUTHENTICATED_BREAK, CONTACT_PHONE_REQUIRED_BREAK)
     ):
         raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
@@ -441,6 +448,23 @@ def is_authorized_contact_authenticated_break(
     )
 
 
+def is_authorized_contact_phone_required_break(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    # Authorize only the Human-approved phone constraint; reject every other diff.
+    expected = copy.deepcopy(previous)
+    expected["info"]["version"] = "2.0.0-alpha.34"
+    expected["x-oripa-breaking-change"] = CONTACT_PHONE_REQUIRED_BREAK
+    schema = expected.get("components", {}).get("schemas", {}).get("CreateContactInquiryRequest", {})
+    schema["required"] = ["name", "email", "phone", "subject", "body", "website"]
+    schema.setdefault("properties", {})["phone"] = {"type": "string", "minLength": 1, "maxLength": 32}
+    return (
+        surface == "public"
+        and previous.get("info", {}).get("version") == "2.0.0-alpha.33"
+        and current == expected
+    )
+
+
 def generate_bundles(repository: Path, output_root: Path) -> dict[str, Path]:
     sources = [str(value["source"]) for value in SURFACES.values()]
     run(
@@ -514,7 +538,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

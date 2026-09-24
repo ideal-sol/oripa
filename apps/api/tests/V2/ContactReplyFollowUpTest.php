@@ -54,7 +54,7 @@ final class ContactReplyFollowUpTest extends TestCase
 
     private function input(array $extra = []): array
     {
-        return [...['name' => 'Input Name', 'email' => 'input@example.test', 'subject' => 'Question', 'body' => 'Initial body', 'website' => ''], ...$extra];
+        return [...['name' => 'Input Name', 'email' => 'input@example.test', 'phone' => '09000000000', 'subject' => 'Question', 'body' => 'Initial body', 'website' => ''], ...$extra];
     }
 
     private function submit(User $user, array $extra = [], ?string $key = null): array
@@ -80,6 +80,55 @@ final class ContactReplyFollowUpTest extends TestCase
         self::assertDatabaseHas('contact_inquiries', ['user_id' => $user->id, 'status' => 'new']);
         $this->withHeader('Idempotency-Key', '')->postJson('/api/v2/contact-inquiries', $this->input())->assertUnprocessable();
         $this->withHeader('Origin', 'https://attacker.example.test')->postJson('/api/v2/contact-inquiries', $this->input())->assertForbidden();
+    }
+
+    public function test_http_requires_all_contact_fields_for_new_and_follow_up(): void
+    {
+        $user = $this->contactUser();
+        $contact = $this->inquiry($user);
+        $csrf = str_repeat('a', 64);
+        $this->actingAs($user, 'v2_user')->withCredentials()->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)
+            ->withHeaders(['Origin' => 'https://storefront.example.test', 'X-XSRF-TOKEN' => $csrf]);
+        foreach ([[], ['inquiry_id' => $contact->public_id]] as $extra) {
+            foreach (['name', 'email', 'phone'] as $field) {
+                foreach (['missing', null, '', '   '] as $invalid) {
+                    $input = $this->input($extra);
+                    if ($invalid === 'missing') unset($input[$field]);
+                    else $input[$field] = $invalid;
+                    $this->withHeader('Idempotency-Key', (string) Str::uuid7())
+                        ->postJson('/api/v2/contact-inquiries', $input)->assertUnprocessable();
+                }
+            }
+            $this->withHeader('Idempotency-Key', (string) Str::uuid7())
+                ->postJson('/api/v2/contact-inquiries', $this->input($extra))->assertAccepted();
+        }
+        self::assertDatabaseCount('contact_inquiries', 2);
+        self::assertDatabaseCount('contact_user_messages', 1);
+    }
+
+    public function test_contact_edits_never_update_account_phone_sms_or_shipping_and_reply_uses_registered_email(): void
+    {
+        $user = $this->contactUser();
+        DB::table('user_phone_numbers')->insert([
+            'public_id' => (string) Str::uuid7(), 'user_id' => $user->id,
+            'phone_ciphertext' => Crypt::encryptString('+819000000001'),
+            'phone_hmac' => hash('sha256', '+819000000001'), 'verified_at' => V2DatabaseTimestamp::format(now()),
+        ]);
+        $account = $user->refresh()->getAttributes();
+        $tables = ['user_phone_numbers', 'sms_verification_challenges', 'shipping_addresses'];
+        $before = [];
+        foreach ($tables as $table) $before[$table] = DB::table($table)->orderBy('id')->get()->toJson();
+        $contact = $this->inquiry($user);
+        $this->submit($user, ['inquiry_id' => $contact->public_id, 'name' => 'Edited Name',
+            'email' => 'edited@example.test', 'phone' => '0312345678']);
+        self::assertSame($account, $user->refresh()->getAttributes());
+        foreach ($tables as $table) self::assertSame($before[$table], DB::table($table)->orderBy('id')->get()->toJson());
+        self::assertSame('input@example.test', Crypt::decryptString($contact->email_ciphertext));
+        $mail = app(V2ContactReplyMailService::class)->render($contact->public_id, $this->reply($contact, 'Reply'));
+        self::assertSame($user->email_display, $mail['recipient']);
+        self::assertNotSame('input@example.test', $mail['recipient']);
+        self::assertNotSame('edited@example.test', $mail['recipient']);
     }
 
     public function test_owner_follow_up_reopens_every_state_without_changing_initial_data(): void

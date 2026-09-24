@@ -150,6 +150,7 @@ final class ZContentContactPerformanceTest extends TestCase
                     $this->submitContact([
                         'name' => "Load {$worker}",
                         'email' => "load-{$worker}-".Str::uuid7().'@example.test',
+                        'phone' => '09000000000',
                         'subject' => 'Concurrent contact',
                         'body' => 'Task-only performance fixture.',
                         'website' => '',

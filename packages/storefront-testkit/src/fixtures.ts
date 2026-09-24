@@ -349,6 +349,7 @@ export const PUBLIC_CONTACT_FIXTURE = Object.freeze({
     inquiry_id: "0198a001-0000-7000-8000-000000000315",
     name: "Fixture User",
     email: "fixture@example.test",
+    phone: "09000000000",
     subject: "Fixture follow-up",
     body: "Public-safe follow-up body.",
     website: "",
@@ -356,7 +357,7 @@ export const PUBLIC_CONTACT_FIXTURE = Object.freeze({
   input: {
     name: "Fixture User",
     email: "fixture@example.test",
-    phone: null,
+    phone: "09000000000",
     subject: "Fixture inquiry",
     body: "Public-safe fixture body.",
     website: "",

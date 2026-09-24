@@ -1559,7 +1559,7 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
-            phone?: string | null;
+            phone: string;
             subject: string;
             body: string;
             website: string;

@@ -479,6 +479,21 @@ function browserContactClient(mock, authenticated, csrf = "a".repeat(64)) {
   });
 }
 
+test("Contact fixtures match required editable identity fields for new and follow-up submissions", async () => {
+  const contract = JSON.parse(await readFile(new URL("../../../openapi/bundled/public.openapi.json", import.meta.url), "utf8"));
+  const schema = contract.components.schemas.CreateContactInquiryRequest;
+  for (const field of ["name", "email", "phone"]) {
+    assert.ok(schema.required.includes(field));
+    assert.equal(schema.properties[field].type, "string");
+    for (const input of [PUBLIC_CONTACT_FIXTURE.input, PUBLIC_CONTACT_FIXTURE.follow_up_input]) {
+      assert.equal(typeof input[field], "string");
+      assert.ok(input[field].length > 0);
+    }
+  }
+  assert.equal(schema.properties.phone.minLength, 1);
+  assert.equal(schema.properties.phone.maxLength, 32);
+});
+
 test("Contact Testkitはログイン済みfirst submit／bootstrap／202を固定する", async () => {
   const mock = createMockFetch();
   const client = browserContactClient(mock, true);
