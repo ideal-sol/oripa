@@ -150,30 +150,77 @@ final class AdminContactManagementTest extends TestCase
         self::assertSame($reply['id'], $replay['id']);
         self::assertDatabaseCount('contact_reply_requests', 1);
         self::assertSame($outboxBefore + 1, DB::table('outbox_messages')->count());
+        self::assertSame('replied', $service->contactDetail($context, $publicId)['status']);
 
         $statusKey = 'contact-status-'.Str::uuid7();
         $updated = $service->updateContactStatus(
             $context,
             $publicId,
-            'replied',
-            'admin_marked_replied',
+            'closed',
+            'admin_marked_closed',
             $statusKey
         );
         self::assertFalse($updated['idempotent_replay']);
         $statusReplay = $service->updateContactStatus(
             $context,
             $publicId,
-            'replied',
-            'admin_marked_replied',
+            'closed',
+            'admin_marked_closed',
             $statusKey
         );
         self::assertTrue($statusReplay['idempotent_replay']);
-        self::assertSame('replied', $statusReplay['status']);
+        self::assertSame('closed', $statusReplay['status']);
 
         $detail = $service->contactDetail($context, $publicId);
         self::assertCount(1, $detail['reply_requests']);
         self::assertSame('確認してご連絡します。', $detail['reply_requests'][0]['message']);
         self::assertCount(3, $detail['status_history']);
+    }
+
+    public function test_replies_mark_new_legacy_and_replied_inquiries_as_replied(): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        foreach (['new', 'in_progress', 'replied'] as $status) {
+            $publicId = $this->submit('reply-'.$status.'@example.test', 'Reply target');
+            DB::table('contact_inquiries')->where('public_id', $publicId)->update(['status' => $status]);
+            $before = $service->contactDetail($context, $publicId)['status_history'];
+            $service->requestReply($context, $publicId, 'Saved reply', 'reply-'.Str::uuid7());
+            $detail = $service->contactDetail($context, $publicId);
+            self::assertSame('replied', $detail['status']);
+            self::assertCount(count($before) + ($status === 'replied' ? 0 : 1), $detail['status_history']);
+            if ($status !== 'replied') {
+                self::assertSame($status, $detail['status_history'][count($before)]['from_status']);
+                self::assertSame('replied', $detail['status_history'][count($before)]['to_status']);
+            }
+        }
+    }
+
+    public function test_in_progress_cannot_be_selected_but_legacy_records_remain_readable_and_closable(): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $publicId = $this->submit('legacy@example.test', 'Legacy inquiry');
+        try {
+            $service->updateContactStatus($context, $publicId, 'in_progress', 'manual_progress');
+            self::fail('New use of in_progress must be rejected.');
+        } catch (V2ContentContactException $exception) {
+            self::assertSame(409, $exception->status);
+        }
+        self::assertSame('new', $service->contactDetail($context, $publicId)['status']);
+        DB::table('contact_inquiries')->where('public_id', $publicId)->update(['status' => 'in_progress']);
+        self::assertSame('in_progress', $service->contactDetail($context, $publicId)['status']);
+        self::assertSame([$publicId], array_column($service->contactList($context, null, 20, 'in_progress')['items'], 'id'));
+        $service->updateContactStatus($context, $publicId, 'closed', 'resolved');
+        $closed = $service->contactDetail($context, $publicId);
+        self::assertSame('closed', $closed['status']);
+        self::assertNotNull($closed['closed_at']);
+        try {
+            $service->requestReply($context, $publicId, 'Late reply');
+            self::fail('Closed inquiries must continue to reject replies.');
+        } catch (V2ContentContactException $exception) {
+            self::assertSame('CONTACT_CLOSED', $exception->errorCode);
+        }
     }
 
     public function test_key_conflict_validation_and_operator_mutation_fail_closed(): void

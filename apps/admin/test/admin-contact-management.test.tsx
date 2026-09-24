@@ -38,7 +38,8 @@ describe("Contact management", () => {
       "ID", "氏名", "メール", "電話番号", "状態", "受付日時", "詳細",
     ]);
     expect(screen.getByText("CNT-ABCDEFGHIJKLMNOPQRST")).toBeVisible();
-    expect(screen.getByLabelText("状態: 未対応")).toBeVisible();
+    expect(screen.getByLabelText("状態: 未返信")).toBeVisible();
+    expect(screen.getByRole("option", { name: "未返信" })).toHaveValue("new");
     expect(screen.getByRole("link", { name: "詳細" }))
       .toHaveAttribute("href", `/contacts/${contactId}`);
     expect(screen.getByLabelText("状態")).toHaveValue("new");
@@ -166,7 +167,7 @@ describe("Contact management", () => {
     fireEvent.click(more);
     const dialog = screen.getByRole("dialog", { name: "対応状況履歴" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(within(dialog).getAllByRole("listitem").map((item) => item.querySelector("strong")?.textContent)).toEqual(["完了", "返信済み", "対応中", "未対応"]);
+    expect(within(dialog).getAllByRole("listitem").map((item) => item.querySelector("strong")?.textContent)).toEqual(["完了", "返信済み", "対応中", "未返信"]);
     const close = within(dialog).getByRole("button", { name: "対応状況履歴を閉じる" });
     expect(close).toHaveFocus();
     fireEvent.keyDown(close, { key: "Tab" });
@@ -188,6 +189,29 @@ describe("Contact management", () => {
     fireEvent.click(screen.getByRole("button", { name: "状態を更新" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith(contactId, { reason_code: "admin_marked_replied", status: "replied" }, expect.any(String)));
     expect(await screen.findByText("対応状態を更新しました。")).toBeVisible();
+  });
+
+  it.each(["new", "in_progress"] as const)("keeps %s readable without offering in_progress as a new status", async (status) => {
+    vi.spyOn(AdminApiClient.prototype, "getContactInquiry").mockResolvedValue({ ...detail(), status });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateContactInquiryStatus").mockResolvedValue({ id: contactId, status: "closed", updated_at: "2026-08-05T02:00:00Z" });
+    render(<ContactManagementWorkspace contactId={contactId} mode="detail" />);
+    const select = await screen.findByLabelText("次の状態");
+    expect(screen.getByLabelText(`状態: ${status === "new" ? "未返信" : "対応中"}`)).toBeVisible();
+    expect(within(select).queryByRole("option", { name: "対応中" })).not.toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "返信済み" })).toHaveValue("replied");
+    expect(within(select).getByRole("option", { name: "完了" })).toHaveValue("closed");
+    fireEvent.change(select, { target: { value: "closed" } });
+    fireEvent.click(screen.getByRole("button", { name: "状態を更新" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(contactId, { reason_code: "admin_marked_closed", status: "closed" }, expect.any(String)));
+  });
+
+  it("keeps historical in_progress inquiries visible through the status filter", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listContactInquiries")
+      .mockResolvedValue({ items: [{ ...summary(), status: "in_progress" }], next_cursor: null });
+    render(<ContactManagementWorkspace initialStatus="in_progress" mode="list" />);
+    expect(await screen.findByLabelText("状態: 対応中")).toBeVisible();
+    expect(screen.getByRole("option", { name: "対応中" })).toHaveValue("in_progress");
+    expect(list).toHaveBeenCalledWith({ cursor: undefined, email: undefined, status: "in_progress" }, expect.any(AbortSignal));
   });
 
   it("keeps operator read-only and hides mutation controls", async () => {

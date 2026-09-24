@@ -32,7 +32,7 @@ final class V2ContentContactAdminService
     ];
 
     private const CONTACT_TRANSITIONS = [
-        'new' => ['in_progress', 'replied', 'closed'],
+        'new' => ['replied', 'closed'],
         'in_progress' => ['replied', 'closed'],
         'replied' => ['closed'],
         'closed' => [],
@@ -1402,16 +1402,16 @@ final class V2ContentContactAdminService
                 'request_id' => $context->requestId,
                 'created_at' => V2DatabaseTimestamp::format($now),
             ]);
-            if ($contact->status === 'new') {
+            if ($contact->status !== 'replied') {
                 DB::table('contact_inquiries')->where('id', $contact->id)->update([
-                    'status' => 'in_progress',
+                    'status' => 'replied',
                     'assigned_admin_id' => $admin->id,
                     'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $this->contactHistory(
                     (int) $contact->id,
                     $contact->status,
-                    'in_progress',
+                    'replied',
                     $admin,
                     'reply_requested',
                     $context->requestId,

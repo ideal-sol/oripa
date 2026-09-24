@@ -456,7 +456,7 @@ final class ContentContactVerticalSliceTest extends TestCase
         self::assertSame('queued', $reply['status']);
         self::assertDatabaseHas('contact_inquiries', [
             'public_id' => $publicId,
-            'status' => 'in_progress',
+            'status' => 'replied',
         ]);
         self::assertDatabaseCount('contact_internal_notes', 1);
         self::assertDatabaseCount('contact_reply_requests', 1);

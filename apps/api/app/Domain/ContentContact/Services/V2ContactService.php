@@ -151,7 +151,7 @@ final class V2ContactService
         DB::table('contact_status_histories')->insert([
             'contact_inquiry_id' => $inquiry->id,
             'from_status' => $inquiry->status,
-            'to_status' => 'in_progress',
+            'to_status' => 'new',
             'actor_admin_id' => null,
             'reason_code' => 'user_follow_up',
             'request_id' => $requestId,
@@ -159,7 +159,7 @@ final class V2ContactService
             'created_at' => V2DatabaseTimestamp::format($now),
             'updated_at' => V2DatabaseTimestamp::format($now),
         ]);
-        $inquiry->forceFill(['status' => 'in_progress', 'closed_at' => null, 'updated_at' => $now])->save();
+        $inquiry->forceFill(['status' => 'new', 'closed_at' => null, 'updated_at' => $now])->save();
         $this->audit->record('contact.user_follow_up', [
             'request_id' => $requestId,
             'actor_type' => 'user',
