@@ -46,6 +46,25 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Gacha lifecycle editing", () => {
+  it("shows the canonical revision conflict guidance when saving a restored Draft", async () => {
+    const error = new AdminApiError(409, "CATALOG_REVISION_CONFLICT", "request-id", null, false);
+    const submit = vi.fn().mockRejectedValue(error);
+    render(
+      <CatalogGachaCoreForm
+        current={{ ...gacha("draft", "2026-08-01T00:00:00Z"), first_published_at: "2026-08-01T00:00:00Z" }}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+
+    expect(await screen.findByText(error.message)).toBeVisible();
+    expect(screen.queryByText("時間をおいて再度お試しください。")).not.toBeInTheDocument();
+  });
+
   it("limits an already-published Gacha to current presentation fields", async () => {
     renderForm(gacha("published", "2026-08-01T00:00:00Z"));
 

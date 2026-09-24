@@ -1897,7 +1897,7 @@ final class V2AdminCatalogReadService
             && in_array((string) ($row->management_status ?? 'draft'), [
                 'draft', 'scheduled',
             ], true);
-        $currentVersion = $beforeFirstPublication
+        $currentVersion = ($beforeFirstPublication || $row->management_status === 'draft')
             ? DB::table('catalog_gacha_versions')
                 ->where('gacha_id', $row->id)
                 ->where('status', 'draft')

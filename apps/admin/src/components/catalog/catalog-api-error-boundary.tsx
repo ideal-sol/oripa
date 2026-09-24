@@ -40,6 +40,8 @@ export function CatalogApiErrorBoundary({
 
 export function catalogProblemMessage(error: AdminApiError): string {
   switch (error.code) {
+    case "CATALOG_REVISION_CONFLICT":
+      return error.message;
     case "CATALOG_GACHA_PUBLISH_INPUT_REQUIRED":
       return "公開に必要な項目が入力されていません。入力内容を確認してください。";
     case "CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT":
