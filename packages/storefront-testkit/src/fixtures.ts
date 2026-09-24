@@ -718,6 +718,15 @@ export const PUBLIC_POINT_READ_PROBLEM_FIXTURES = Object.freeze({
   PublicComponents["schemas"]["PointReadProblemDetails"]
 >);
 
+const lineupPrizeAsset = (number: number) => ({
+  id: `0198a001-0000-7000-8000-${String(number).padStart(12, "0")}`,
+  path: `/api/v2/content/assets/0198a001-0000-7000-8000-${String(number).padStart(12, "0")}`,
+  checksum_sha256: "80f38f7f099ab5850aa3b947684603909409e61c2a193c672cab1c170e6621b0",
+  media_type: "image" as const,
+  mime_type: "image/png",
+  alt_text: `Fixture景品${number}`,
+});
+
 export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
   data: {
     id: "0198a001-0000-7000-8000-000000000011",
@@ -766,7 +775,7 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
           alt_text: "Sランク景品ラインナップ",
         },
         show_total_stock: true,
-        total_stock: 100,
+        total_stock: 10,
         display_order: 10,
         current_video: {
           id: "0198a001-0000-7000-8000-000000000006",
@@ -777,6 +786,40 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
           mime_type: "video/mp4",
           alt_text: "Sランク抽選演出",
         },
+      },
+      {
+        rank_id: "0198a001-0000-7000-8000-000000000004",
+        rank_name: "Aランク",
+        lineup_image: lineupPrizeAsset(10),
+        show_total_stock: false,
+        total_stock: null,
+        display_order: 20,
+        current_video: {
+          id: "0198a001-0000-7000-8000-000000000006",
+          path: "/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000006/content",
+          checksum_sha256: "8d719a8e24354d042de0b73ee5cc4e145da4ac9c00cd0474d16386e1244ba7d1",
+          media_type: "video",
+          mime_type: "video/mp4",
+          alt_text: "Aランク抽選演出",
+        },
+      },
+    ],
+    prizes: [
+      ...[3, 5, 2].map((quantity, index) => ({
+        id: `0198a001-0000-7000-8000-${String(20 + index).padStart(12, "0")}`,
+        name: `Fixture景品${index + 1}`,
+        rank_id: "0198a001-0000-7000-8000-000000000003",
+        presentation_asset: lineupPrizeAsset(7 + index),
+        total_inventory: quantity,
+        display_order: (index + 1) * 10,
+      })),
+      {
+        id: "0198a001-0000-7000-8000-000000000023",
+        name: "画像未設定の景品",
+        rank_id: "0198a001-0000-7000-8000-000000000004",
+        presentation_asset: null,
+        total_inventory: 4,
+        display_order: 40,
       },
     ],
     probability_stages: [
@@ -1077,12 +1120,13 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
       prize: {
         id: "0198a001-0000-7000-8000-000000000009",
         name: "Fixture S景品",
-        presentation_asset: null,
+        presentation_asset: lineupPrizeAsset(7),
       },
       rank: {
         id: "0198a001-0000-7000-8000-000000000003",
         name: "Sランク",
       },
+      rank_lineup_image: PUBLIC_CATALOG_FIXTURE.data.ranks[0].lineup_image,
       count: 100,
     },
   ],

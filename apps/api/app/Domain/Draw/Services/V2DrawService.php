@@ -483,7 +483,77 @@ final class V2DrawService
             );
         }
 
-        return $this->canonicalResponse($request);
+        return $this->readPresentation($request, $this->canonicalResponse($request));
+    }
+
+    private function readPresentation(DrawRequest $request, array $response): array
+    {
+        $rows = DB::table('draw_results as result')
+            ->leftJoin('catalog_rank_master_revisions as revision', 'revision.id', '=', 'result.rank_master_revision_id')
+            ->leftJoin('catalog_presentation_assets as lineup', function (JoinClause $join): void {
+                $join->on('lineup.id', '=', 'revision.lineup_image_asset_id')
+                    ->where('lineup.is_public', true)
+                    ->where('lineup.media_type', 'image')
+                    ->whereNull('lineup.archived_at');
+            })
+            ->leftJoin('catalog_gacha_version_prizes as relation', 'relation.id', '=', 'result.gacha_version_prize_id')
+            ->leftJoin('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('result.draw_request_id', $request->id)
+            ->orderBy('result.request_sequence')
+            ->get([
+                'result.public_id', 'prize.public_id as prize_public_id',
+                'lineup.public_id as lineup_public_id',
+                'lineup.checksum_sha256 as lineup_checksum',
+                'lineup.media_type as lineup_media_type', 'lineup.mime_type as lineup_mime_type',
+                'lineup.alt_text as lineup_alt_text',
+            ]);
+        $lineupsByResult = [];
+        $lineupsByPrize = [];
+        foreach ($rows as $row) {
+            $row->lineup_path = '/api/v2/catalog/presentation-assets/'.$row->lineup_public_id.'/content';
+            $lineup = $row->lineup_public_id === null ? null : $this->prefixedAsset($row, 'lineup');
+            $lineupsByResult[$row->public_id] = $lineup;
+            if ($row->prize_public_id !== null) {
+                $lineupsByPrize[$row->prize_public_id] = $lineup;
+            }
+        }
+        $assetIds = [];
+        foreach (['results', 'high_rank_results', 'prize_counts'] as $collection) {
+            foreach ($response[$collection] ?? [] as $item) {
+                $publicId = $item['prize']['presentation_asset']['id'] ?? null;
+                if (is_string($publicId)) {
+                    $assetIds[] = $publicId;
+                }
+            }
+        }
+        $publicImages = DB::table('catalog_presentation_assets')
+            ->whereIn('public_id', array_unique($assetIds))
+            ->where('is_public', true)
+            ->where('media_type', 'image')
+            ->whereNull('archived_at')
+            ->pluck('public_id')->flip();
+        foreach (['results', 'high_rank_results', 'prize_counts'] as $collection) {
+            if (! isset($response[$collection])) {
+                continue;
+            }
+            foreach ($response[$collection] as &$item) {
+                $item['rank_lineup_image'] = $collection === 'prize_counts'
+                    ? ($lineupsByPrize[$item['prize']['id']] ?? null)
+                    : ($lineupsByResult[$item['id']] ?? null);
+                if (is_array($item['prize'] ?? null)) {
+                    $asset = $item['prize']['presentation_asset'] ?? null;
+                    if (is_array($asset) && $publicImages->has($asset['id'])) {
+                        $asset['path'] = '/api/v2/content/assets/'.$asset['id'];
+                    } else {
+                        $asset = null;
+                    }
+                    $item['prize']['presentation_asset'] = $asset;
+                }
+            }
+            unset($item);
+        }
+
+        return $response;
     }
 
     /** @return array{items: list<array<string, mixed>>, next_cursor: string|null} */

@@ -488,6 +488,7 @@ final class V2CatalogReadService
         $result['description'] = $row->description;
         $result['notices'] = $row->notices;
         $result['ranks'] = $this->ranks((int) $row->version_internal_id);
+        $result['prizes'] = $this->prizes((int) $row->version_internal_id);
         $result['probability_stages'] = $this->stages(
             (int) $row->published_probability_version_id,
             (int) $row->sold_count
@@ -570,6 +571,40 @@ final class V2CatalogReadService
     /**
      * @return list<array<string, mixed>>
      */
+    private function prizes(int $gachaVersionId): array
+    {
+        return DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->join('catalog_gacha_ranks as gacha_rank', 'gacha_rank.id', '=', 'relation.gacha_rank_id')
+            ->join('catalog_rank_masters as master', 'master.id', '=', 'gacha_rank.rank_master_id')
+            ->join('prize_inventories as inventory', 'inventory.gacha_version_prize_id', '=', 'relation.id')
+            ->leftJoin('catalog_presentation_assets as asset', function ($join): void {
+                $join->on('asset.id', '=', 'relation.presentation_asset_id')
+                    ->where('asset.is_public', true)
+                    ->where('asset.media_type', 'image')
+                    ->whereNull('asset.archived_at');
+            })
+            ->where('relation.gacha_version_id', $gachaVersionId)
+            ->where('master.status', 'active')
+            ->orderBy('relation.sort_order')
+            ->orderBy('relation.id')
+            ->get([
+                'prize.public_id', 'relation.display_name', 'master.public_id as rank_public_id',
+                'relation.sort_order', 'inventory.total_quantity',
+                'asset.public_id as asset_public_id', 'asset.is_public as asset_is_public',
+                'asset.checksum_sha256 as asset_checksum_sha256',
+                'asset.media_type as asset_media_type', 'asset.mime_type as asset_mime_type',
+                'asset.alt_text as asset_alt_text',
+            ])->map(fn (object $prize): array => [
+                'id' => $prize->public_id,
+                'name' => $prize->display_name,
+                'rank_id' => $prize->rank_public_id,
+                'presentation_asset' => $this->asset($prize),
+                'total_inventory' => (int) $prize->total_quantity,
+                'display_order' => (int) $prize->sort_order,
+            ])->all();
+    }
+
     private function ranks(int $gachaVersionId): array
     {
         return DB::table('catalog_gacha_version_prizes as gvp')
