@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "security-owners",
-    "reason": "Fresh locked dependency audits completed on 2026-09-17 in AGENCYREADY-20260917 against protected main@a3a38c0a334028ad943da90e7d968250dd5ae42f: Composer, workspace pnpm, and legacy pnpm findings are all zero and exactly match the approved empty baseline. Failure was expiry only. No dependency, finding, severity, or gate change. Retains the established seven-day review window used by SEC-011, SEC-013, GOV-029, and SEC-020.",
+    "reason": "Fresh locked dependency audits completed on 2026-09-25 JST (2026-09-24T23:33:23Z) in BASELINE-20260925 against protected main@07d091e27ef05a1b766a6f2b2052e9a880f02d95: Composer, workspace pnpm, and legacy pnpm findings are all zero and exactly match the approved empty baseline. No new regression, dependency, finding, severity, or gate change. Retains the established seven-day review window used by SEC-011, SEC-013, GOV-029, SEC-020, and AGENCYREADY-20260917.",
     "removal_condition": "Keep the Composer and pnpm baseline arrays empty; any future finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
-    "expires_at": "2026-09-24",
-    "tracking_task": "AGENCYREADY-20260917"
+    "expires_at": "2026-10-02",
+    "tracking_task": "BASELINE-20260925"
   },
   "composer": [],
   "pnpm": []

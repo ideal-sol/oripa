@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "management": {
     "owner": "platform-maintainers",
-    "reason": "Fresh ESLint review completed on 2026-09-17 in AGENCYREADY-20260917 against protected main@a3a38c0a334028ad943da90e7d968250dd5ae42f: all 9 approved findings (8 errors and 1 warning) match exactly, with no new, changed, missing, or suppressed fingerprint. Failure was expiry only. Existing rules and findings are unchanged. Retains the established seven-day review window used by GOV-029 and SEC-020; V1 application fixes remain outside this Change.",
+    "reason": "Fresh ESLint review completed on 2026-09-25 JST (2026-09-24T23:33:23Z) in BASELINE-20260925 against protected main@07d091e27ef05a1b766a6f2b2052e9a880f02d95: all 9 approved findings (8 errors and 1 warning) match exactly, with no new, changed, missing, or suppressed fingerprint. Existing rules and findings are unchanged. Retains the established seven-day review window used by GOV-029, SEC-020, and AGENCYREADY-20260917; V1 application fixes remain outside this Change.",
     "removal_condition": "Remove each fingerprint only with the approved application fix that makes the finding disappear.",
-    "expires_at": "2026-09-24",
-    "tracking_task": "AGENCYREADY-20260917"
+    "expires_at": "2026-10-02",
+    "tracking_task": "BASELINE-20260925"
   },
   "findings": [
     {
