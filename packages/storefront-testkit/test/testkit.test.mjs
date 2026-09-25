@@ -229,12 +229,43 @@ test("LINE Friend State Fixtureは連携・友だち確認・LINEユーザー判
   );
 });
 
-test("Draw FixtureはBulk集計だけを公開し個別ppmと内部IDを含まない", () => {
+test("Draw Fixtureは全1000結果と代表演出1件を公開し個別ppmと内部IDを含まない", () => {
   assert.equal(PUBLIC_DRAW_FIXTURE.requested_count, 1000);
   assert.equal(PUBLIC_DRAW_FIXTURE.executed_count, 1000);
-  assert.equal("results" in PUBLIC_DRAW_FIXTURE, false);
+  assert.equal(PUBLIC_DRAW_FIXTURE.results.length, 1000);
+  assert.equal(new Set(PUBLIC_DRAW_FIXTURE.results.map((result) => result.id)).size, 1000);
+  assert.deepEqual(PUBLIC_DRAW_FIXTURE.results.map((result) => result.sequence_number), Array.from({ length: 1000 }, (_, index) => index + 1));
+  assert.deepEqual(PUBLIC_DRAW_FIXTURE.presentation, {
+    rank: PUBLIC_DRAW_FIXTURE.results[0].rank,
+    video_snapshot: PUBLIC_DRAW_FIXTURE.results[0].video_snapshot,
+  });
+  assert.equal(PUBLIC_DRAW_FIXTURE.high_rank_results.length, 20);
   const serialized = JSON.stringify(PUBLIC_DRAW_FIXTURE);
   assert.doesNotMatch(serialized, /individual_ppm|internal_id|cost_price|secret/i);
+});
+
+test("Draw全件Contractは100/1000件、null演出、旧field省略を区別する", async () => {
+  const contract = JSON.parse(await readFile(new URL("../../../openapi/bundled/public.openapi.json", import.meta.url), "utf8"));
+  const schema = contract.components.schemas.DrawResponse;
+  assert.equal(schema.properties.results.maxItems, 1000);
+  assert.equal(schema.properties.high_rank_results.maxItems, 20);
+  assert.equal(schema.required.includes("results"), false);
+  assert.equal(schema.required.includes("presentation"), false);
+  for (const count of [100, 1000]) {
+    const response = JSON.parse(JSON.stringify({
+      ...PUBLIC_DRAW_FIXTURE, requested_count: count, executed_count: count,
+      results: PUBLIC_DRAW_FIXTURE.results.slice(0, count),
+    }));
+    assert.equal(response.results.length, count);
+    assert.equal(new Set(response.results.map((result) => result.id)).size, count);
+    assert.deepEqual(response.presentation, PUBLIC_DRAW_FIXTURE.presentation);
+  }
+  const unavailable = { ...PUBLIC_DRAW_FIXTURE, presentation: null };
+  assert.equal(JSON.parse(JSON.stringify(unavailable)).presentation, null);
+  const legacy = { ...PUBLIC_DRAW_FIXTURE };
+  delete legacy.results;
+  delete legacy.presentation;
+  assert.equal("presentation" in JSON.parse(JSON.stringify(legacy)), false);
 });
 
 test("Draw History FixtureはPresentation、Stable Ordering、Cursor、Typed Errorを固定する", () => {

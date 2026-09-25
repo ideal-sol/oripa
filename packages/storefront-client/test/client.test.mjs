@@ -883,6 +883,27 @@ test("Draw Facadeは単一Bulk Requestと同じIdempotency-KeyをTransportへ渡
   );
 });
 
+test("Draw Facadeは100/1000結果と代表演出のobject/null/absentを変更しない", async () => {
+  for (const count of [100, 1000]) {
+    for (const presentation of [undefined, null, {
+      rank: { id: "rank-public", name: "Awarded Rank" },
+      video_snapshot: { id: "video-public", path: "/assets/snapshot.mp4" },
+    }]) {
+      const data = {
+        results: Array.from({ length: count }, (_, index) => ({ id: `result-${index}`, sequence_number: index + 1 })),
+        high_rank_results: [],
+        ...(presentation === undefined ? {} : { presentation }),
+      };
+      const draw = createStorefrontDrawClient({ request: async () => ({ data, metadata: { status: 200 } }) });
+      const post = await draw.createDraw("gacha-public", count, { idempotency_key: "full-results-key", csrf_token: "a".repeat(64) });
+      const read = await draw.getDrawRequest("draw-public");
+      assert.deepEqual(post.data, data);
+      assert.deepEqual(read.data, data);
+      assert.equal(read.data.results.length, count);
+    }
+  }
+});
+
 test("Draw FacadeはCurrent User履歴Read PathとOpaque Cursorだけを呼ぶ", async () => {
   const paths = [];
   const draw = createStorefrontDrawClient({

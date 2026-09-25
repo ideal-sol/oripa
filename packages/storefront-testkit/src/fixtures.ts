@@ -1090,6 +1090,23 @@ export const PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES = Object.freeze({
   PublicComponents["schemas"]["DrawHistoryReadProblemDetails"]
 >);
 
+const fullDrawResults = Array.from({ length: 1000 }, (_, index) => ({
+  id: `0198a002-0000-7000-8000-${String(index + 1).padStart(12, "0")}`,
+  sequence_number: index + 1,
+  result_type: "prize",
+  rank: { id: "0198a001-0000-7000-8000-000000000003", name: "Sランク" },
+  rank_name_snapshot: "Sランク",
+  rank_lineup_image: PUBLIC_CATALOG_FIXTURE.data.ranks[0].lineup_image,
+  result_image_snapshot: lineupPrizeAsset(7),
+  video_snapshot: PUBLIC_CATALOG_FIXTURE.data.ranks[0].current_video,
+  prize: {
+    id: "0198a001-0000-7000-8000-000000000009",
+    name: "Fixture S景品",
+    presentation_asset: lineupPrizeAsset(7),
+  },
+  point_back: null,
+} satisfies PublicComponents["schemas"]["DrawResult"]));
+
 export const PUBLIC_DRAW_FIXTURE = Object.freeze({
   id: "0198a001-0000-7000-8000-000000000099",
   gacha_id: "0198a001-0000-7000-8000-000000000011",
@@ -1112,7 +1129,7 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
         id: "0198a001-0000-7000-8000-000000000003",
         name: "Sランク",
       },
-      count: 100,
+      count: 1000,
     },
   ],
   prize_counts: [
@@ -1127,11 +1144,16 @@ export const PUBLIC_DRAW_FIXTURE = Object.freeze({
         name: "Sランク",
       },
       rank_lineup_image: PUBLIC_CATALOG_FIXTURE.data.ranks[0].lineup_image,
-      count: 100,
+      count: 1000,
     },
   ],
-  point_back_total: 90000,
-  high_rank_results: [],
+  point_back_total: 0,
+  presentation: {
+    rank: fullDrawResults[0].rank,
+    video_snapshot: fullDrawResults[0].video_snapshot,
+  },
+  results: fullDrawResults,
+  high_rank_results: fullDrawResults.slice(0, 20),
   high_rank_results_truncated: true,
   probability_version: {
     id: "0198a001-0000-7000-8000-000000000013",
@@ -1156,6 +1178,7 @@ export const PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE = Object.freeze({
     requested_count: 1000,
     executed_count: 900,
     point_cost_total: 90000,
+    results: fullDrawResults.slice(0, 900),
   },
   final_sale_state: "sold_out",
   replay: {

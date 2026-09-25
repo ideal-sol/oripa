@@ -4949,7 +4949,7 @@ def validate_v2_draw_boundary(repository: Path, paths: Iterable[str]) -> None:
         repository / "apps/api/tests/V2/DrawVerticalSliceTest.php"
     ).read_text(encoding="utf-8")
     for required in (
-        "test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response",
+        "test_all_allowed_counts_persist_ordered_full_results",
         "test_locked_remaining_inventory_is_the_dynamic_integer_weight",
         "test_probability_stage_guarantee_and_point_back_do_not_select_results",
         "test_idempotent_replay_returns_canonical_result_and_conflict_is_rejected",

@@ -2149,6 +2149,10 @@ export interface components {
             id: components["schemas"]["OpaqueId"];
             version: number;
         };
+        DrawPresentation: {
+            rank: components["schemas"]["RankReference"];
+            video_snapshot: components["schemas"]["PresentationAsset"];
+        };
         DrawResponse: {
             id: components["schemas"]["OpaqueId"];
             gacha_id: components["schemas"]["OpaqueId"];
@@ -2165,11 +2169,14 @@ export interface components {
             point_back_total: number;
             high_rank_results: components["schemas"]["DrawResult"][];
             high_rank_results_truncated: boolean;
+            /** @description Fixed at new Draw creation from all persisted results using draw-time Rank revisions and the selected video snapshot. At most one video; null when safe projection is unavailable. Absent in historical responses; never backfilled on read. No fallback video selection. */
+            presentation?: components["schemas"]["DrawPresentation"] | null;
             probability_version: components["schemas"]["ProbabilityVersionReference"];
             idempotent_replay: boolean;
             request_id: components["schemas"]["OpaqueId"];
             processing_duration_ms: number;
             created_at: components["schemas"]["UtcDateTime"];
+            /** @description All results for newly created Draw requests in canonical request_sequence order, including 100 and 1000 draws. Saved unchanged for replay and detail reads. Optional only for historical compact responses; no backfill. */
             results?: components["schemas"]["DrawResult"][];
         };
         AdvertisingCodeValidity: {

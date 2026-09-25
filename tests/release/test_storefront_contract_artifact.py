@@ -149,7 +149,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(latest["bundle_version"], "2.0.0-alpha.34")
         self.assertEqual(value["immutable_history"][-1], value["latest_immutable"])
         self.assertEqual(latest["handoff_status"], "released")
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.40')
+        self.assertEqual(value['candidate']['release_mode'], 'contract-additive')
+        self.assertFalse(value['candidate']['breaking_change'])
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.39')
         alpha_37 = next(item for item in value['immutable_history'] if item['bundle_version'] == '2.0.0-alpha.37')
         self.assertEqual(alpha_37["bundle_version"], "2.0.0-alpha.37")
@@ -342,7 +344,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.39",
+            "2.0.0-alpha.40",
         )
         with mock.patch.object(
             artifact,
