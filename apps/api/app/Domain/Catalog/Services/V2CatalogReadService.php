@@ -842,7 +842,7 @@ final class V2CatalogReadService
     {
         return [
             'id' => $row->{$prefix.'_public_id'},
-            'path' => $row->{$prefix.'_path'},
+            'path' => '/api/v2/catalog/presentation-assets/'.$row->{$prefix.'_public_id'}.'/content',
             'checksum_sha256' => $row->{$prefix.'_checksum'},
             'media_type' => $row->{$prefix.'_media_type'},
             'mime_type' => $row->{$prefix.'_mime_type'},

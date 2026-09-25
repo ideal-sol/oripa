@@ -193,8 +193,8 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame($newRankRevisionId, (int) $afterResult->rank_master_revision_id);
         self::assertSame($newVideoRevisionId, (int) $afterResult->gacha_rank_video_revision_id);
         self::assertSame('Updated Rank Snapshot', $afterSnapshot['rank_name_snapshot']);
-        self::assertStringStartsWith(
-            '/assets/tests/',
+        self::assertSame(
+            '/api/v2/catalog/presentation-assets/'.$afterSnapshot['video_snapshot']['id'].'/content',
             $afterSnapshot['video_snapshot']['path']
         );
         self::assertSame($inventoryAfterFirstDraw + 1, (int) DB::table('prize_inventories')->sum('awarded_count'));

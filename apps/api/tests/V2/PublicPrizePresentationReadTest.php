@@ -134,6 +134,85 @@ final class PublicPrizePresentationReadTest extends TestCase
         self::assertEquals($created['results'][0]['result_image_snapshot'], $result['result_image_snapshot']);
     }
 
+    public function test_public_rank_video_paths_deliver_content_without_admin_authentication(): void
+    {
+        [$user, $gachaId, $fixture] = $this->fixture();
+        $storedPaths = DB::table('catalog_presentation_assets')->orderBy('id')->pluck('public_path')->all();
+        $detail = $this->getJson('/api/v2/gachas/'.$gachaId)->assertOk()->json('data');
+        $created = $this->draw($user, $gachaId, 5);
+        foreach ([$detail, $created] as $response) {
+            self::assertStringNotContainsString('/admin', json_encode($response, JSON_THROW_ON_ERROR));
+        }
+        $video = $fixture['assets'][1];
+        $path = '/api/v2/catalog/presentation-assets/'.$video['public_id'].'/content';
+        self::assertSame($path, $detail['ranks'][0]['current_video']['path']);
+        self::assertSame($path, $created['presentation']['video_snapshot']['path']);
+        foreach ($created['results'] as $result) {
+            self::assertSame($path, $result['video_snapshot']['path']);
+            $this->get($result['result_image_snapshot']['path'])->assertOk();
+        }
+        foreach ([[], ['Range' => 'bytes=0-3']] as $headers) {
+            $response = $this->get($path, $headers)->assertOk()
+                ->assertHeader('Content-Type', 'video/mp4')
+                ->assertHeader('ETag', '"'.$video['checksum_sha256'].'"')
+                ->assertHeader('X-Content-Type-Options', 'nosniff');
+            self::assertSame(base64_decode($video['fixture_content_base64']), $response->getContent());
+            self::assertStringContainsString('immutable', $response->headers->get('Cache-Control'));
+        }
+        $this->getJson('/admin/api/v2/catalog/presentation-assets/'.$video['public_id'].'/content')
+            ->assertUnauthorized();
+        self::assertSame($storedPaths, DB::table('catalog_presentation_assets')->orderBy('id')->pluck('public_path')->all());
+        $saved = DB::table('draw_requests')->where('public_id', $created['id'])->value('response_data');
+        self::assertEquals($created, json_decode($saved, true, flags: JSON_THROW_ON_ERROR));
+        Auth::guard('v2_user')->setUser($user);
+        $read = $this->getJson('/api/v2/draw-requests/'.$created['id'])->assertOk()->json();
+        self::assertEquals($created['presentation'], $read['presentation']);
+        self::assertEquals($created['results'], $read['results']);
+        self::assertSame($saved, DB::table('draw_requests')->where('public_id', $created['id'])->value('response_data'));
+    }
+
+    public function test_saved_admin_video_path_is_not_rewritten_on_read_or_replay(): void
+    {
+        [$user, $gachaId] = $this->fixture();
+        $legacy = $this->draw($user, $gachaId, 1);
+        $path = '/admin/api/v2/catalog/presentation-assets/'.$legacy['presentation']['video_snapshot']['id'].'/content';
+        $legacy['presentation']['video_snapshot']['path'] = $path;
+        $legacy['results'][0]['video_snapshot']['path'] = $path;
+        DB::table('draw_requests')->where('public_id', $legacy['id'])->update([
+            'response_data' => json_encode($legacy, JSON_THROW_ON_ERROR),
+        ]);
+        $before = $this->drawState();
+        Auth::guard('v2_user')->setUser($user);
+        $read = $this->getJson('/api/v2/draw-requests/'.$legacy['id'])->assertOk()->json();
+        $replay = $this->draw($user, $gachaId, 1);
+        foreach ([$read, $replay] as $response) {
+            self::assertEquals($legacy['presentation'], $response['presentation']);
+            self::assertEquals($legacy['results'], $response['results']);
+        }
+        self::assertSame($before, $this->drawState());
+    }
+
+    public function test_public_presentation_route_keeps_unreferenced_private_and_archived_assets_unavailable(): void
+    {
+        [, , $fixture] = $this->fixture();
+        $asset = (array) DB::table('catalog_presentation_assets')
+            ->where('public_id', $fixture['assets'][1]['public_id'])->first();
+        unset($asset['id']);
+        $asset['public_id'] = (string) Str::uuid7();
+        $asset['storage_identifier'] = 'fixture/unreferenced-video.mp4';
+        $asset['public_path'] = '/admin/api/v2/catalog/presentation-assets/'.$asset['public_id'].'/content';
+        DB::table('catalog_presentation_assets')->insert($asset);
+        Storage::disk('local')->put($asset['storage_identifier'], base64_decode($fixture['assets'][1]['fixture_content_base64']));
+        $path = '/api/v2/catalog/presentation-assets/'.$asset['public_id'].'/content';
+        $this->get($path)->assertNotFound();
+        DB::table('catalog_presentation_assets')->where('public_id', $asset['public_id'])
+            ->update(['is_public' => false, 'revision' => DB::raw('revision + 1')]);
+        $this->get($path)->assertNotFound();
+        DB::table('catalog_presentation_assets')->where('public_id', $asset['public_id'])
+            ->update(['archived_at' => now(), 'revision' => DB::raw('revision + 1')]);
+        $this->get($path)->assertNotFound();
+    }
+
     public function test_multiple_awards_in_same_rank_keep_distinct_thumbnails_and_read_order(): void
     {
         [$user, $gachaId, $fixture] = $this->fixture();
@@ -192,13 +271,13 @@ final class PublicPrizePresentationReadTest extends TestCase
         }
         $fixture['expected_record_count'] += 6;
         foreach ($fixture['assets'] as $index => &$asset) {
+            $asset['public_path'] = '/admin/api/v2/catalog/presentation-assets/'.$asset['public_id'].'/content';
             if ($asset['media_type'] !== 'image') {
                 continue;
             }
             $content = $this->png($index === 4 ? 2 : 1, $index === 4 ? 1 : 2);
             $asset['checksum_sha256'] = hash('sha256', $content);
             $asset['fixture_content_base64'] = base64_encode($content);
-            $asset['public_path'] = '/admin/api/v2/catalog/presentation-assets/'.$asset['public_id'].'/content';
         }
         unset($asset);
         app(V2CatalogFixtureImporter::class)->import($fixture);
