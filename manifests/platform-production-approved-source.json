@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
-  "change_id": "CATALOG-20260924",
-  "pr_number": 503,
-  "authority": "Human-approved exact Runtime Source: PR #503 implementation, OLD Test Technical and Human Browser accepted; deployable Production Build and activation remain unauthorized",
+  "source_sha": "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
+  "change_id": "ASSETURL-20260925",
+  "pr_number": 508,
+  "authority": "Human-approved exact Runtime Source: PR #506 implementation, PR #507 alpha.40 release metadata and PR #508 Public presentation asset URL fix; OLD Test Technical and Human Browser accepted; deployable Production Build and activation remain unauthorized",
   "activation_authorized": false
 }
