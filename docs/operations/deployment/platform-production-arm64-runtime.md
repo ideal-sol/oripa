@@ -98,6 +98,45 @@ metadata update does not refresh either baseline or establish Production build
 readiness. Current path policy classifies source approval as Strict Change;
 there is no separate Authority-only CI lane or permission to bypass its checks.
 
+## Approved Source Update — PRODAUTH-20260925-A40
+
+The latest Human acceptance fixes Runtime Target
+`e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29`, including PR #506 representative
+presentation/full-results implementation, PR #507 alpha.40 release metadata,
+and PR #508 Public presentation asset URL correction. Dispatch identity is
+`change_id=ASSETURL-20260925`, `pr_number=508`, and that exact `source_sha`.
+The later authority merge is Workflow Authority only, never Runtime Source.
+
+`e3121034c5dc7b9184673b1be64bb5076e9d3a90` is a Git comparison base supplied
+by the Human, not an independently verified live Production revision. It is
+an ancestor of the Target. The only application changes are three API service
+paths under Catalog/Draw, all from #506/#508. PR #507 has no application change.
+The other intervening commits are #504 source approval and #505 reviewed
+Security/ESLint baselines. No unapproved application delta was found. The only
+lockfile change is the exact workspace Client alpha.39-to-alpha.40 reference;
+no external dependency, workflow, migration, ENV or runtime config changed.
+
+Contract Artifact Source remains
+`dadf79f3b0b2409a57e41b10a83c7b6570ea3507`, an ancestor of the Runtime Target.
+OpenAPI, package sources and lockfile are byte-identical between those commits.
+Canonical exact-ID readback of Artifact `10845475225`, Run `36089413205`,
+matches the immutable alpha.40 release ledger, including outer, Manifest,
+Client, Testkit, Public OpenAPI and SHA256SUMS digests. The release ledger is
+the digest authority; do not replace its Source with the Runtime Target.
+
+The current Security and ESLint authority is `BASELINE-20260925`, merged in
+PR #505 at `032aa4acd4af3f87428145afa044252e534b5e07`, expiring `2026-10-02`.
+It supersedes the expired readiness assessment in the preceding historical
+update. No baseline refresh or manual expiry extension is needed on September 25.
+
+Future activation scope for this delta is API only. Admin, Contact Reply,
+Identity, SMS, Agency and Scheduler updates are not required. This authority
+sync changes no application code and authorizes no deployable Production
+Artifact Build, activation, new-server operation, DB mutation or ENV change.
+Readiness is the canonical source authorization, current policy and source
+scan evaluated read-only; it is not a successful Production Artifact Build.
+Rollback of approval requires a reviewed metadata PR and Human source authority.
+
 ## Immutable Artifact Identity
 
 The architecture-aware manifest binds:

@@ -10,12 +10,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "e3121034c5dc7b9184673b1be64bb5076e9d3a90"
+APPROVED = "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "CATALOG-20260924"
-SOURCE_PR = 503
+SOURCE_CHANGE = "ASSETURL-20260925"
+SOURCE_PR = 508
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -116,7 +116,10 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(self.authorize()["source_sha"], self.source)
 
     def test_previous_approval_and_metadata_pull_cannot_authorize_source(self):
-        for change_id, pr_number in [("PRIZEIMAGE-20260924", 500), ("PRODAUTH-20260924", 502)]:
+        for change_id, pr_number in [
+            ("PRIZEIMAGE-20260924", 500), ("PRODAUTH-20260924", 502),
+            ("CATALOG-20260924", 503), ("REL-040", 507),
+        ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
             ):
@@ -186,6 +189,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
+                "706849a57b9919bb3f01cc630ac90a3efdf5a61c",
                 "be1a8f3f822d23f3251d32e616fb0b2fe422714e",
                 "69d58449c9524a018b372e39a6a4efbe0cace48d",
             ]:
@@ -195,6 +200,22 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                     AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
+
+    def test_contract_artifact_source_remains_distinct_from_runtime_target(self):
+        ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
+        contract = ledger["latest_immutable"]
+        artifact_source = "dadf79f3b0b2409a57e41b10a83c7b6570ea3507"
+        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.40")
+        self.assertEqual(contract["source_commit"], artifact_source)
+        self.assertEqual(contract["publication"]["artifact_id"], 10845475225)
+        self.assertNotEqual(artifact_source, APPROVED)
+        subprocess.run([
+            "git", "-C", str(ROOT), "merge-base", "--is-ancestor", artifact_source, APPROVED,
+        ], check=True)
+        subprocess.run([
+            "git", "-C", str(ROOT), "diff", "--exit-code", artifact_source, APPROVED,
+            "--", "openapi", "packages", "pnpm-lock.yaml",
+        ], check=True)
 
     def test_workflow_exact_source_labels_and_manifest(self):
         workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
