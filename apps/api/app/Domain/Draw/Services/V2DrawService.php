@@ -1881,7 +1881,7 @@ final class V2DrawService
 
         return [
             'id' => $publicId,
-            'path' => $row->{$prefix.'_path'},
+            'path' => '/api/v2/catalog/presentation-assets/'.$publicId.'/content',
             'checksum_sha256' => $row->{$prefix.'_checksum'},
             'media_type' => $row->{$prefix.'_media_type'},
             'mime_type' => $row->{$prefix.'_mime_type'},

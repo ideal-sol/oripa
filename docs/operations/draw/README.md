@@ -18,6 +18,20 @@ Lock順は`Idempotency Record／Draw Request`、`Gacha Mutable State`、`Wallet`
 
 ## Representative Presentation And Full Results
 
+Public Gacha Rank assets and newly created Draw presentation snapshots use
+`/api/v2/catalog/presentation-assets/{assetId}/content`, never the stored Admin
+management path. Admin upload/content routes remain separate and authenticated.
+The existing Public route retains its public/non-archived/revision-reference
+checks, checksum verification, MIME type, ETag and immutable caching. Range
+requests retain the existing full-content HTTP 200 behavior; no new streaming
+or partial-content implementation is introduced.
+
+Existing Draw responses, including already saved Admin paths, are not rewritten
+on GET/replay or backfilled. After API activation, create a new Draw for browser
+acceptance; Storefront must not rewrite or infer asset URLs. This is an
+implementation correction to the existing Public contract, not a schema/package
+change; Contract/Client/Testkit alpha.40 remains unchanged.
+
 新規Drawでは全`draw_results`の`rank_master_revision_id`が指すimmutable revisionの
 `display_order`最小値を最高Rankとする。異なるRankが最小順位で重複した場合は
 `presentation: null`。同一最高Rank内だけで`request_sequence ASC`の先頭を選び、
