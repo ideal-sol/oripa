@@ -36,7 +36,8 @@ final class V2DrawService
         private readonly V2AuditLogService $audit,
         private readonly V2OutboxService $outbox,
         private readonly V2QaDrawResolver $qaDraw,
-        private readonly V2DrawEligibilityService $eligibility
+        private readonly V2DrawEligibilityService $eligibility,
+        private readonly V2DrawPresentationResolver $presentation
     ) {
     }
 
@@ -350,6 +351,7 @@ final class V2DrawService
                     $requestId,
                     $occurredAt
                 );
+                $response = $this->readPresentation($drawRequest, $response);
                 $drawRequest->forceFill([
                     'executed_count' => $executedCount,
                     'consumed_paid_points' => $pointConsumption['paid'],
@@ -483,7 +485,11 @@ final class V2DrawService
             );
         }
 
-        return $this->readPresentation($request, $this->canonicalResponse($request));
+        $response = $this->canonicalResponse($request);
+
+        return array_key_exists('presentation', $response)
+            ? $response
+            : $this->readPresentation($request, $response);
     }
 
     private function readPresentation(DrawRequest $request, array $response): array
@@ -1577,9 +1583,7 @@ final class V2DrawService
                 'prize' => $row['display_snapshot']['prize'] ?? null,
                 'point_back' => $row['display_snapshot']['point_back'] ?? null,
             ];
-            if (count($rows) < (int) config('v2_draw.bulk_threshold', 100)) {
-                $individual[] = $publicResult;
-            }
+            $individual[] = $publicResult;
             if ($row['result_type'] !== 'prize') {
                 continue;
             }
@@ -1654,6 +1658,8 @@ final class V2DrawService
             'rank_counts' => $rankCounts,
             'prize_counts' => $prizeCounts,
             'point_back_total' => $pointBack['total'],
+            'presentation' => $this->presentation->resolve($results),
+            'results' => $individual,
             'high_rank_results' => $highRank,
             'high_rank_results_truncated' => $highRankTotal > count($highRank),
             'probability_version' => [
@@ -1665,10 +1671,6 @@ final class V2DrawService
             'processing_duration_ms' => $duration,
             'created_at' => $occurredAt->utc()->toIso8601String(),
         ];
-        if ($individual !== []) {
-            $response['results'] = $individual;
-        }
-
         return $response;
     }
 
@@ -1758,6 +1760,10 @@ final class V2DrawService
                 500,
                 'The canonical Draw response is unavailable.'
             );
+        }
+
+        if (array_key_exists('presentation', $response)) {
+            return $response;
         }
 
         foreach (['rank_counts', 'prize_counts'] as $collection) {

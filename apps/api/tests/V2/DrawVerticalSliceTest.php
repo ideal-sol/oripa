@@ -208,7 +208,7 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertEquals($beforeSnapshot['video_snapshot'], $persisted['results'][0]['video_snapshot']);
     }
 
-    public function test_all_allowed_counts_persist_ordered_results_and_compact_bulk_response(): void
+    public function test_all_allowed_counts_persist_ordered_full_results(): void
     {
         [$user] = $this->fixture(
             [5_000, 50_000, 150_000, 999_999],
@@ -222,7 +222,9 @@ final class DrawVerticalSliceTest extends TestCase
             self::assertSame($count, $response['requested_count']);
             self::assertSame($count, $response['executed_count']);
             self::assertSame(100 * $count, $response['point_cost_total']);
-            self::assertSame($count < 100, array_key_exists('results', $response));
+            self::assertCount($count, $response['results']);
+            self::assertCount($count, array_unique(array_column($response['results'], 'id')));
+            self::assertSame(range($expected - $count + 1, $expected), array_column($response['results'], 'sequence_number'));
             self::assertLessThanOrEqual(20, count($response['high_rank_results']));
             self::assertSame(
                 $count,
@@ -940,7 +942,7 @@ final class DrawVerticalSliceTest extends TestCase
             $evidence['100']['query_types']['SELECT'],
             $evidence['1000']['query_types']['SELECT']
         );
-        self::assertLessThan(100_000, $evidence['1000']['response_size_max']);
+        self::assertLessThan(4_000_000, $evidence['1000']['response_size_max']);
     }
 
     public function test_gacha_disabled_count_is_rejected_before_draw_mutation(): void

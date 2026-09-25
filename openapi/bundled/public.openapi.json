@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.35",
+    "version": "2.0.0-alpha.36",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -6909,6 +6909,22 @@
           }
         }
       },
+      "DrawPresentation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "video_snapshot"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/RankReference"
+          },
+          "video_snapshot": {
+            "$ref": "#/components/schemas/PresentationAsset"
+          }
+        }
+      },
       "DrawResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6994,6 +7010,17 @@
           "high_rank_results_truncated": {
             "type": "boolean"
           },
+          "presentation": {
+            "description": "Fixed at new Draw creation from all persisted results using draw-time Rank revisions and the selected video snapshot. At most one video; null when safe projection is unavailable. Absent in historical responses; never backfilled on read. No fallback video selection.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DrawPresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "probability_version": {
             "$ref": "#/components/schemas/ProbabilityVersionReference"
           },
@@ -7012,7 +7039,8 @@
           },
           "results": {
             "type": "array",
-            "maxItems": 10,
+            "description": "All results for newly created Draw requests in canonical request_sequence order, including 100 and 1000 draws. Saved unchanged for replay and detail reads. Optional only for historical compact responses; no backfill.",
+            "maxItems": 1000,
             "items": {
               "$ref": "#/components/schemas/DrawResult"
             }
