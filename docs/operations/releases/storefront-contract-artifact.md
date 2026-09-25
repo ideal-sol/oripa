@@ -553,3 +553,31 @@ REL-038 preserves all immutable predecessors, records alpha.38 as latest immutab
 - SHA256SUMS SHA-256: `e7724d0d0814cd7f135139870c44f2c31ed7bffbd3a46b0e2e1ce4089785c770`.
 
 This metadata task performs no Runtime Activation. OLD Test adoption and acceptance belong to the authorized Contact prefill task; the required-phone Storefront precedes the API tightening. No Production activation or real Admin reply mail is authorized here.
+
+## Draw Representative Presentation and Full Results Release
+
+DRAW-20260925 (PR #506) publishes additive bundle `2.0.0-alpha.40` from
+exact protected-main Source `dadf79f3b0b2409a57e41b10a83c7b6570ea3507`. Public OpenAPI alpha.36 retains
+76 operations; Client/Testkit are alpha.40; Site Schema remains referenced
+alpha.23. Admin/Webhook remain alpha.34. New Draw responses persist one
+optional nullable `presentation` and all ordered `results` (up to 1000).
+Existing video prerequisites and the high-Rank filtered/capped summary stay
+unchanged. Legacy responses are not backfilled. See the Draw operations
+README for the Storefront state machine and no-fallback requirements.
+
+Canonical workflow `36089413205` and Artifact
+`10845475225` passed upload/readback and independent readback:
+
+- GitHub outer Artifact: `3c5b35542cdaf7ed636aa0e7376e39d96463115ea14600c293d30d011e70b0e9`
+- Manifest: `5fba7399e21cff0226e9ae43a9a3fa73dc7c61a0716ce00787b0f4b931778a59`
+- Client: `724ff53616a5c05fd73a0570fd2c1455fc762a64bfa9936e61b73131ed5d2d99`
+- Testkit: `555705b61664116144da8b7ea3a87dca1ff0066e4b027bdbba87e2e7750b052e`
+- Public OpenAPI: `b469064b322d99b125995031aadfe765907651e014c003ccc82997a91843cd23`
+- `SHA256SUMS`: `0388b497e2f5e559de599949996cb1b1f1a22fb35e8f39f8e5fbf7a9ecce398b`
+
+REL-040 records these exact immutable bytes, preserves every predecessor, and
+clears the candidate. No registry publication or same-version rebuild occurs.
+Storefront exact-pin implementation may proceed. OLD Test API activation is
+deferred and required before integrated browser acceptance of this behavior;
+artifact handoff does not require changing the shared runtime. Production,
+ENV/Secret/Nginx, schema and migrations remain untouched.
