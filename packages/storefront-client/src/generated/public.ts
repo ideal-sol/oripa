@@ -1579,7 +1579,7 @@ export interface components {
         /** @enum {string} */
         UserPrizeStatus: "stored" | "exchange_processing" | "converted" | "shipping_requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "expired" | "canceled";
         /** @enum {string} */
-        UserPrizeActionUnavailableReason: "payment_hold" | "status_not_actionable" | "storage_expired" | "exchange_points_unavailable";
+        UserPrizeActionUnavailableReason: "payment_hold" | "status_not_actionable" | "storage_expired" | "exchange_points_unavailable" | "shipping_only";
         UserPrizeActionState: {
             allowed: boolean;
             unavailable_reason: components["schemas"]["UserPrizeActionUnavailableReason"] | null;
@@ -1597,6 +1597,8 @@ export interface components {
             rank: components["schemas"]["RankReference"];
         };
         UserPrize: {
+            /** @description 当選時に固定された配送専用条件。trueはポイント交換不可。自動発送や配送条件の免除を意味しない。 */
+            shipping_only?: boolean;
             id: components["schemas"]["OpaqueId"];
             presentation?: components["schemas"]["UserPrizePresentation"];
             status: components["schemas"]["UserPrizeStatus"];
@@ -1909,6 +1911,8 @@ export interface components {
             minimum_guarantee: components["schemas"]["MinimumGuarantee"];
         };
         GachaLineupPrize: {
+            /** @description 現在の公開Versionに固定された配送専用条件。trueは配送のみ・ポイント交換不可。自動発送ではない。 */
+            shipping_only?: boolean;
             id: components["schemas"]["OpaqueId"];
             name: string;
             rank_id: components["schemas"]["OpaqueId"];

@@ -16,12 +16,24 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Throwable;
 
 final class PrizeShippingConcurrencyTest extends TestCase
 {
-    public function test_exchange_and_shipping_of_same_prize_are_serialized(): void
+    public static function competingOperations(): array
+    {
+        return [
+            'normal exchange and shipping' => [['exchange', 'shipping'], false],
+            'shipping-only expiration and shipping' => [['expiration', 'shipping'], true],
+            'shipping-only expiration and exchange' => [['expiration', 'exchange'], true],
+            'shipping-only concurrent expiration' => [['expiration', 'expiration'], true],
+        ];
+    }
+
+    #[DataProvider('competingOperations')]
+    public function test_prize_mutations_of_same_prize_are_serialized(array $operations, bool $shippingOnly): void
     {
         CarbonImmutable::setTestNow('2026-07-30T00:00:00Z');
         config([
@@ -33,7 +45,12 @@ final class PrizeShippingConcurrencyTest extends TestCase
             'v2_prize_shipping.address_hmac_key' => 'base64:'.
                 base64_encode(str_repeat('p', 32)),
         ]);
-        [$userId, $prizeId, $addressId] = $this->fixture();
+        [$userId, $prizeId, $addressId] = $this->fixture($shippingOnly);
+        $inventory = DB::table('prize_inventories')->orderBy('id')->get()->toJson();
+        $balance = DB::table('wallets')->where('user_id', $userId)->value('free_balance');
+        if ($shippingOnly) {
+            CarbonImmutable::setTestNow(CarbonImmutable::parse(DB::table('user_prizes')->where('public_id', $prizeId)->value('storage_expires_at')));
+        }
         $token = (string) Str::uuid();
         $startPath = "/tmp/mig052-concurrency-{$token}.start";
         $resultPaths = [
@@ -44,7 +61,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
 
         try {
             $children = [];
-            foreach (['exchange', 'shipping'] as $index => $operation) {
+            foreach ($operations as $index => $operation) {
                 $pid = pcntl_fork();
                 if ($pid === -1) {
                     self::fail('Unable to start the concurrency process.');
@@ -76,7 +93,8 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 ),
                 $resultPaths
             );
-            self::assertCount(1, array_filter(
+            $successCount = $operations === ['expiration', 'expiration'] ? 2 : 1;
+            self::assertCount($successCount, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
             ));
@@ -84,22 +102,27 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 $results,
                 static fn (array $result): bool => $result['result'] === 'failure'
             ));
-            self::assertCount(1, $failure);
-            self::assertContains(
-                $failure[0]['code'],
-                ['PRIZE_NOT_EXCHANGEABLE', 'PRIZE_NOT_SHIPPABLE']
-            );
+            self::assertCount(2 - $successCount, $failure);
+            foreach ($failure as $result) {
+                self::assertContains($result['code'], ['PRIZE_NOT_EXCHANGEABLE', 'PRIZE_NOT_SHIPPABLE']);
+            }
 
             DB::reconnect();
             self::assertSame(
-                1,
+                $shippingOnly ? 0 : 1,
                 DB::table('prize_exchange_requests')->count()
                     + DB::table('shipping_requests')->count()
             );
             self::assertContains(
                 DB::table('user_prizes')->where('public_id', $prizeId)->value('status'),
-                ['converted', 'shipping_requested']
+                $shippingOnly ? ['expired'] : ['converted', 'shipping_requested']
             );
+            if ($shippingOnly) {
+                self::assertDatabaseHas('user_prizes', ['public_id' => $prizeId, 'status' => 'expired']);
+                self::assertSame(1, DB::table('user_prize_status_histories')->where('to_status', 'expired')->count());
+                self::assertSame($inventory, DB::table('prize_inventories')->orderBy('id')->get()->toJson());
+                self::assertSame($balance, DB::table('wallets')->where('user_id', $userId)->value('free_balance'));
+            }
         } finally {
             DB::reconnect();
             Artisan::call('migrate:fresh', [
@@ -131,7 +154,9 @@ final class PrizeShippingConcurrencyTest extends TestCase
         try {
             $user = User::query()->findOrFail($userId);
             $service = app(V2PrizeShippingService::class);
-            if ($operation === 'exchange') {
+            if ($operation === 'expiration') {
+                $service->expireShippingOnly();
+            } elseif ($operation === 'exchange') {
                 $service->exchange(
                     $user,
                     [$prizeId],
@@ -159,13 +184,17 @@ final class PrizeShippingConcurrencyTest extends TestCase
     }
 
     /** @return array{int, string, string} */
-    private function fixture(): array
+    private function fixture(bool $shippingOnly): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
             true,
             flags: JSON_THROW_ON_ERROR
         );
+        foreach ($fixture['prizes'] as &$prize) {
+            $prize['shipping_only'] = $shippingOnly;
+        }
+        unset($prize);
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $user = User::query()->create([
             'email_display' => 'concurrency@example.test',

@@ -318,6 +318,51 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         ]);
     }
 
+    public function test_shipping_only_create_draft_edit_and_revision_guards(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->createGacha($owner, 'Shipping Only Draft');
+        $rank = $this->createRankMaster($owner, 'Shipping Rank');
+        $this->setRankVideo($owner, $gacha['id'], $rank['id']);
+        $uri = $this->rankPrizeUri($gacha['id'], $gacha['current_version']['id'], $rank['id']);
+        $prize = $this->mutate($owner, 'POST', $uri, [
+            ...$this->prizeInput(1), 'shipping_only' => true,
+        ])->assertCreated()->assertJsonPath('data.shipping_only', true)->json('data');
+        $prizeId = DB::table('catalog_prizes')->where('public_id', $prize['id'])->value('id');
+        self::assertDatabaseHas('catalog_gacha_version_prizes', ['prize_id' => $prizeId, 'shipping_only' => true]);
+        $edit = [...$this->prizeInput(2), 'expected_revision' => 1, 'shipping_only' => false];
+        $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], [...$edit, 'expected_version_revision' => 1])
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], [...$edit, 'unknown_shipping_only' => true])
+            ->assertUnprocessable();
+        $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], $edit)
+            ->assertOk()->assertJsonPath('data.shipping_only', false);
+        self::assertDatabaseHas('catalog_gacha_version_prizes', ['prize_id' => $prizeId, 'shipping_only' => false]);
+    }
+
+    public function test_published_shipping_only_condition_is_immutable(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = DB::table('catalog_gachas')->where('public_id', self::PUBLISHED_GACHA_ID)->firstOrFail();
+        $version = DB::table('catalog_gacha_versions')->where('id', $gacha->published_version_id)->firstOrFail();
+        $relation = DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)->firstOrFail();
+        $prize = DB::table('catalog_prizes')->where('id', $relation->prize_id)->firstOrFail();
+        $rank = DB::table('catalog_gacha_ranks as gr')->join('catalog_rank_masters as rm', 'rm.id', '=', 'gr.rank_master_id')
+            ->where('gr.id', $relation->gacha_rank_id)->value('rm.public_id');
+        $uri = $this->rankPrizeUri($gacha->public_id, $version->public_id, $rank).'/'.$prize->public_id;
+        $this->mutate($owner, 'PUT', $uri, [
+            ...$this->prizeInput((int) $version->revision),
+            'expected_revision' => (int) $prize->revision,
+            'exchange_points' => (int) $relation->exchange_points,
+            'cost_price' => (int) $relation->cost_price,
+            'is_active' => (bool) $relation->is_visible,
+            'shipping_only' => true,
+        ])->assertConflict();
+        self::assertDatabaseHas('catalog_prizes', ['id' => $prize->id, 'shipping_only' => false]);
+        $this->expectException(QueryException::class);
+        DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->update(['shipping_only' => true]);
+    }
+
     public function test_rank_usage_prevents_inactive_after_prize_or_publication_forever(): void
     {
         $owner = $this->createAdminSession(V2AdminRole::Owner);

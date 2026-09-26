@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.34
+  version: 2.0.0-alpha.35
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -5205,6 +5205,10 @@ components:
       additionalProperties: false
       required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_version_revision]
       properties:
+        shipping_only:
+          type: boolean
+          default: false
+          description: 配送のみ・ポイント交換不可。自動発送ではなく、既存の配送条件・保管期限が適用される。公開後変更不可。
         presentation_asset_id:
           oneOf:
             - {$ref: '#/components/schemas/OpaqueId'}
@@ -5220,6 +5224,9 @@ components:
       additionalProperties: false
       required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
       properties:
+        shipping_only:
+          type: boolean
+          description: 配送のみ・ポイント交換不可。省略時は現在値を維持する。公開後変更不可。
         presentation_asset_id:
           oneOf:
             - {$ref: '#/components/schemas/OpaqueId'}
@@ -5357,6 +5364,7 @@ components:
       additionalProperties: false
       required: [id, code, name, description, display_price, exchange_points, is_visible, rank, presentation_asset, created_at, updated_at]
       properties:
+        shipping_only: {type: boolean}
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
         name: {type: string, maxLength: 191}
@@ -5465,6 +5473,7 @@ components:
       additionalProperties: false
       required: [id, code, name, exchange_points, cost_price, is_visible, rank, presentation_asset, total_inventory, available_inventory, version_sort_order, revision, created_at, updated_at]
       properties:
+        shipping_only: {type: boolean}
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
         name: {type: string, maxLength: 191}
@@ -7832,7 +7841,7 @@ components:
         allowed: {type: boolean}
         unavailable_reason:
           type: [string, 'null']
-          enum: [payment_hold, status_not_actionable, storage_expired, exchange_points_unavailable, null]
+          enum: [payment_hold, status_not_actionable, storage_expired, exchange_points_unavailable, shipping_only, null]
     AdminUserPrizeAllowedActions:
       type: object
       additionalProperties: false
@@ -7857,6 +7866,7 @@ components:
       additionalProperties: false
       required: [id, user, prize, gacha, status, fulfillment, exchange_points, exchanged_points, acquired_at, storage_expires_at, terminal_at, status_updated_at, allowed_actions]
       properties:
+        shipping_only: {type: boolean, description: 当選時に固定された配送専用条件。}
         id: {$ref: '#/components/schemas/OpaqueId'}
         user: {$ref: '#/components/schemas/AdminUserPrizeUser'}
         prize: {$ref: '#/components/schemas/AdminUserPrizePresentation'}

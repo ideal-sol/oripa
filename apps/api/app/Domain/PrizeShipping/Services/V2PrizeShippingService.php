@@ -55,6 +55,65 @@ final class V2PrizeShippingService
     ) {
     }
 
+    public function expireShippingOnly(int $limit = 1000): int
+    {
+        if ($limit < 1 || $limit > 1000) {
+            throw new \InvalidArgumentException('Expiration limit must be between 1 and 1000.');
+        }
+        $candidates = DB::table('user_prizes')
+            ->where('shipping_only_snapshot', true)
+            ->where('status', 'stored')
+            ->where('storage_expires_at', '<=', V2DatabaseTimestamp::format(now()->startOfSecond()))
+            ->whereNotIn('id', $this->activePaymentHoldQuery())
+            ->orderBy('storage_expires_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get(['id', 'user_id']);
+        $expired = 0;
+        foreach ($candidates as $candidate) {
+            $expired += $this->transaction(function () use ($candidate): int {
+                DB::table('users')->where('id', $candidate->user_id)->lockForUpdate()->firstOrFail();
+                DB::table('wallets')->where('user_id', $candidate->user_id)->lockForUpdate()->firstOrFail();
+                $prize = DB::table('user_prizes')->where('id', $candidate->id)->lockForUpdate()->firstOrFail();
+                $occurredAt = CarbonImmutable::parse(now())->startOfSecond();
+                if (! $prize->shipping_only_snapshot
+                    || $prize->status !== 'stored'
+                    || CarbonImmutable::parse($prize->storage_expires_at)->greaterThan($occurredAt)
+                    || DB::query()->fromSub($this->activePaymentHoldQuery(), 'active_payment_hold')
+                        ->where('user_prize_id', $prize->id)->exists()) {
+                    return 0;
+                }
+                $requestId = (string) Str::uuid();
+                $this->changePrizeStatus(
+                    $prize,
+                    'expired',
+                    'system',
+                    null,
+                    null,
+                    'shipping_only_storage_expired',
+                    $requestId,
+                    $occurredAt,
+                    ['terminal_at' => $occurredAt]
+                );
+                $this->audit->record('prize.shipping_only_expired', [
+                    'actor_type' => 'system',
+                    'auth_realm' => 'system',
+                    'request_id' => $requestId,
+                    'target_type' => 'user_prize',
+                    'target_public_id' => $prize->public_id,
+                    'reason_code' => 'shipping_only_storage_expired',
+                    'occurred_at' => $occurredAt,
+                    'before' => ['status' => 'stored'],
+                    'after' => ['status' => 'expired'],
+                ]);
+
+                return 1;
+            });
+        }
+
+        return $expired;
+    }
+
     /** @return array<string, mixed> */
     public function prizes(User $user, ?string $cursor, int $limit): array
     {
@@ -869,6 +928,7 @@ final class V2PrizeShippingService
                 'up.public_id',
                 'up.status',
                 'up.exchange_point_snapshot',
+                'up.shipping_only_snapshot',
                 'up.exchanged_point_amount',
                 'up.acquired_at',
                 'up.storage_expires_at',
@@ -914,6 +974,7 @@ final class V2PrizeShippingService
             ],
             'status' => $row->status,
             'exchange_points' => (int) $row->exchange_point_snapshot,
+            'shipping_only' => (bool) $row->shipping_only_snapshot,
             'acquired_at' => CarbonImmutable::parse($row->acquired_at)->toIso8601String(),
             'storage_expires_at' => CarbonImmutable::parse(
                 $row->storage_expires_at
@@ -940,9 +1001,11 @@ final class V2PrizeShippingService
         };
         $shipping = $this->actionState($commonReason);
         $pointExchange = $this->actionState(
-            $commonReason ?? ((int) $prize->exchange_point_snapshot <= 0
-                ? 'exchange_points_unavailable'
-                : null)
+            $commonReason ?? match (true) {
+                (bool) $prize->shipping_only_snapshot => 'shipping_only',
+                (int) $prize->exchange_point_snapshot <= 0 => 'exchange_points_unavailable',
+                default => null,
+            }
         );
 
         return [
@@ -1258,7 +1321,7 @@ final class V2PrizeShippingService
         object $prize,
         string $to,
         string $actorType,
-        string $actorPublicId,
+        ?string $actorPublicId,
         ?string $actorRole,
         string $reason,
         string $requestId,

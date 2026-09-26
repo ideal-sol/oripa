@@ -3,6 +3,7 @@
 namespace Tests\V2;
 
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
+use App\Domain\Catalog\Services\V2CatalogReadService;
 use App\Domain\Draw\Services\V2CryptographicRandomSource;
 use App\Domain\Draw\Services\V2DrawService;
 use App\Domain\Identity\Enums\V2AdminRole;
@@ -72,6 +73,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         [$user, $prizes] = $this->fixture(1);
         $row = DB::table('user_prizes')->where('public_id', $prizes[0])->first();
         self::assertSame(8000, (int) $row->exchange_point_snapshot);
+        self::assertFalse((bool) $row->shipping_only_snapshot);
         self::assertSame(
             '2026-09-28 09:00:00+09:00',
             CarbonImmutable::parse($row->storage_expires_at)->setTimezone('Asia/Tokyo')->format('Y-m-d H:i:sP')
@@ -253,6 +255,124 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertTrue($item['allowed_actions']['selection']['allowed']);
     }
 
+    public function test_shipping_only_snapshot_blocks_direct_and_mixed_exchange_without_side_effects(): void
+    {
+        [$user, $prizes] = $this->fixture(1, 8000, true);
+        $service = app(V2PrizeShippingService::class);
+        $owned = DB::table('user_prizes')->where('public_id', $prizes[0])->first();
+        self::assertTrue((bool) $owned->shipping_only_snapshot);
+        DB::table('catalog_prizes')->update(['shipping_only' => false, 'revision' => DB::raw('revision + 1')]);
+        $catalog = app(V2CatalogReadService::class)->getByPublicId(DB::table('catalog_gachas')->value('public_id'));
+        self::assertTrue($catalog['prizes'][0]['shipping_only']);
+        $item = $service->prizeDetail($user, $prizes[0]);
+        self::assertTrue($item['shipping_only']);
+        self::assertTrue($item['allowed_actions']['shipping']['allowed']);
+        self::assertTrue($item['allowed_actions']['selection']['allowed']);
+        self::assertSame(['allowed' => false, 'unavailable_reason' => 'shipping_only'], $item['allowed_actions']['point_exchange']);
+        self::assertSame(8000, $item['exchange_points']);
+        self::assertSame(60, (int) CarbonImmutable::parse($owned->acquired_at)->diffInDays(CarbonImmutable::parse($owned->storage_expires_at)));
+        $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(
+            static fn (int $minimum, int $maximum): int => $maximum
+        ));
+        app(V2DrawService::class)->create($user, DB::table('catalog_gachas')->value('public_id'), 1, 'shipping-only-normal-draw', (string) Str::uuid7());
+        $normal = DB::table('user_prizes')->where('user_id', $user->id)->where('shipping_only_snapshot', false)->firstOrFail();
+        $before = DB::table('wallets')->where('user_id', $user->id)->value('free_balance');
+        $this->withoutMiddleware();
+        Auth::guard('v2_user')->setUser($user);
+        foreach ([[$prizes[0]], [$normal->public_id, $prizes[0]]] as $ids) {
+            $this->postJson('/api/v2/me/prizes/exchange', ['prize_ids' => $ids], [
+                'Idempotency-Key' => (string) Str::uuid(),
+            ])->assertStatus(409)->assertJsonPath('code', 'PRIZE_NOT_EXCHANGEABLE');
+        }
+        self::assertSame($before, DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame(0, DB::table('prize_exchange_requests')->count());
+        self::assertSame(0, DB::table('point_operations')->where('source_type', 'prize_exchange')->count());
+        self::assertSame(0, DB::table('outbox_messages')->where('event_type', 'prize.exchange.completed')->count());
+        self::assertSame(0, DB::table('user_prizes')->where('status', '!=', 'stored')->count());
+        self::assertSame(0, DB::table('user_prize_status_histories')->whereIn('to_status', ['exchange_processing', 'converted'])->count());
+        self::assertFalse($service->prizeDetail($user, $normal->public_id)['shipping_only']);
+        $service->exchange($user, [$normal->public_id], 'normal-only-after-rejection', (string) Str::uuid7());
+        self::assertDatabaseHas('user_prizes', ['id' => $normal->id, 'status' => 'converted']);
+    }
+
+    public function test_shipping_only_expiration_is_boundary_exact_idempotent_and_preserves_hold_and_inventory(): void
+    {
+        [$user, $prizes] = $this->fixture(5, 8000, true);
+        $service = app(V2PrizeShippingService::class);
+        $this->placePaymentHold($user, $prizes[1]);
+        DB::table('user_prizes')->where('public_id', $prizes[2])->update(['status' => 'hold']);
+        DB::table('user_prizes')->where('public_id', $prizes[3])->update(['status' => 'shipping_requested']);
+        $holds = DB::table('payment_adjustment_prize_actions')->get()->toJson();
+        $inventory = DB::table('prize_inventories')->orderBy('id')->get()->toJson();
+        $points = DB::table('wallets')->where('user_id', $user->id)->first();
+        $expires = CarbonImmutable::parse(DB::table('user_prizes')->where('public_id', $prizes[0])->value('storage_expires_at'));
+        CarbonImmutable::setTestNow($expires->subSecond());
+        self::assertSame(0, $service->expireShippingOnly());
+        CarbonImmutable::setTestNow($expires);
+        $this->artisan('v2:prizes:expire-shipping-only', ['--limit' => 1])->expectsOutput('Expired shipping-only prizes: 1')->assertSuccessful();
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[0], 'status' => 'expired']);
+        self::assertNotNull(DB::table('user_prizes')->where('public_id', $prizes[0])->value('terminal_at'));
+        CarbonImmutable::setTestNow($expires->addSecond());
+        self::assertSame(1, $service->expireShippingOnly());
+        self::assertSame(0, $service->expireShippingOnly());
+        self::assertSame(2, DB::table('audit_logs')->where('action_code', 'prize.shipping_only_expired')->count());
+        self::assertSame(2, DB::table('user_prize_status_histories')->where('to_status', 'expired')->count());
+        self::assertSame($holds, DB::table('payment_adjustment_prize_actions')->get()->toJson());
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[1], 'status' => 'stored']);
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[2], 'status' => 'hold']);
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[3], 'status' => 'shipping_requested']);
+        foreach ($service->prizeDetail($user, $prizes[1])['allowed_actions'] as $action) {
+            self::assertFalse($action['allowed']);
+        }
+        DB::table('user_prizes')->where('public_id', $prizes[2])->update(['status' => 'stored']);
+        self::assertSame(1, $service->expireShippingOnly());
+        self::assertEquals($points, DB::table('wallets')->where('user_id', $user->id)->first());
+        self::assertSame($inventory, DB::table('prize_inventories')->orderBy('id')->get()->toJson());
+        self::assertSame(0, DB::table('prize_exchange_requests')->count());
+        self::assertSame(0, DB::table('point_operations')->where('source_type', 'prize_exchange')->count());
+        self::assertSame(0, DB::table('shipping_requests')->count());
+    }
+
+    public function test_shipping_only_snapshot_is_immutable(): void
+    {
+        [, $prizes] = $this->fixture(1, 8000, true);
+        $this->expectException(QueryException::class);
+        DB::table('user_prizes')->where('public_id', $prizes[0])->update(['shipping_only_snapshot' => false]);
+    }
+
+    public function test_shipping_only_still_requires_verified_phone_and_address_then_allows_shipping(): void
+    {
+        [$user, $prizes] = $this->fixture(1, 8000, true);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        try {
+            $service->createShippingRequest($user, (string) Str::uuid7(), $prizes, 'shipping-only-invalid-address', (string) Str::uuid7());
+            self::fail('Shipping-only prizes must require an owned address.');
+        } catch (V2PrizeShippingException $exception) {
+            self::assertSame('SHIPPING_ADDRESS_NOT_FOUND', $exception->errorCode);
+        }
+        UserPhoneNumber::query()->where('user_id', $user->id)->update(['revoked_at' => now()]);
+        try {
+            $service->createShippingRequest($user, $address['id'], $prizes, 'shipping-only-invalid-phone', (string) Str::uuid7());
+            self::fail('Shipping-only prizes must require SMS verification.');
+        } catch (V2PrizeShippingException $exception) {
+            self::assertSame('SMS_VERIFICATION_REQUIRED', $exception->errorCode);
+        }
+        UserPhoneNumber::query()->where('user_id', $user->id)->update(['revoked_at' => null]);
+        $response = $service->createShippingRequest($user, $address['id'], $prizes, 'shipping-only-delivery', (string) Str::uuid7());
+        self::assertSame('requested', $response['status']);
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[0], 'status' => 'shipping_requested']);
+        self::assertSame(0, DB::table('prize_exchange_requests')->count());
+        self::assertSame(0, $service->expireShippingOnly());
+    }
+
+    public function test_shipping_only_cannot_enter_exchange_state_even_without_application_guard(): void
+    {
+        [, $prizes] = $this->fixture(1, 8000, true);
+        $this->expectException(QueryException::class);
+        DB::table('user_prizes')->where('public_id', $prizes[0])->update(['status' => 'exchange_processing']);
+    }
+
     public function test_storage_expiry_boundary_disallows_all_actions(): void
     {
         [$user, $prizes] = $this->fixture(1);
@@ -260,6 +380,9 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             ->where('public_id', $prizes[0])
             ->value('storage_expires_at');
         CarbonImmutable::setTestNow(CarbonImmutable::parse($expiresAt));
+
+        self::assertSame(0, app(V2PrizeShippingService::class)->expireShippingOnly());
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[0], 'status' => 'stored']);
 
         $item = app(V2PrizeShippingService::class)->prizeDetail($user, $prizes[0]);
         foreach ($item['allowed_actions'] as $action) {
@@ -867,7 +990,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
     }
 
     /** @return array{User, list<string>} */
-    private function fixture(int $prizeCount, int $exchangePoints = 8000): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -879,6 +1002,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $fixture['versions'][0]['total_count'] = $inventoryTotal;
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         $fixture['prizes'][0]['exchange_points'] = $exchangePoints;
+        $fixture['prizes'][0]['shipping_only'] = $shippingOnly;
         foreach ($fixture['gacha_prizes'] as $index => &$relation) {
             $relation['initial_inventory'] = $index === 0
                 ? intdiv($inventoryTotal, 10)

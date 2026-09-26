@@ -858,7 +858,8 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(value['latest_immutable']['manifest_sha256'], '5fba7399e21cff0226e9ae43a9a3fa73dc7c61a0716ce00787b0f4b931778a59')
         self.assertEqual(value['latest_immutable']['release_mode'], 'contract-additive')
         self.assertFalse(value['latest_immutable']['breaking_change'])
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.41')
+        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.40')
         self.assertEqual(value['immutable_history'][-2]['bundle_version'], '2.0.0-alpha.39')
         self.assertEqual(value['immutable_history'][-2]['source_commit'], 'be1a8f3f822d23f3251d32e616fb0b2fe422714e')
         self.assertEqual(value['immutable_history'][-2]['manifest_sha256'], '888f90b53caa20e5920f23705f69510fe73b689223c8915503915aaa83432668')
@@ -3090,7 +3091,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.40",
+                    "version": "2.0.0-alpha.41",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3128,7 +3129,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.36",
+                        "minimumPublicApiContract": "2.0.0-alpha.37",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

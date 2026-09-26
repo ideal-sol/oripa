@@ -590,7 +590,7 @@ final class V2CatalogReadService
             ->orderBy('relation.id')
             ->get([
                 'prize.public_id', 'relation.display_name', 'master.public_id as rank_public_id',
-                'relation.sort_order', 'inventory.total_quantity',
+                'relation.sort_order', 'relation.shipping_only', 'inventory.total_quantity',
                 'asset.public_id as asset_public_id', 'asset.is_public as asset_is_public',
                 'asset.checksum_sha256 as asset_checksum_sha256',
                 'asset.media_type as asset_media_type', 'asset.mime_type as asset_mime_type',
@@ -602,6 +602,7 @@ final class V2CatalogReadService
                 'presentation_asset' => $this->asset($prize),
                 'total_inventory' => (int) $prize->total_quantity,
                 'display_order' => (int) $prize->sort_order,
+                'shipping_only' => (bool) $prize->shipping_only,
             ])->all();
     }
 
