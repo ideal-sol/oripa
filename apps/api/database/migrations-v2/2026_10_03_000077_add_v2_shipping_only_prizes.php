@@ -20,7 +20,7 @@ return new class extends Migration
         DB::statement(
             "ALTER TABLE user_prizes ADD CONSTRAINT user_prize_shipping_only_exchange_check ".
             "CHECK (NOT shipping_only_snapshot OR ".
-            "(status NOT IN ('exchange_processing', 'converted') AND exchanged_point_amount IS NULL))"
+            "(status::text NOT IN ('exchange_processing', 'converted') AND exchanged_point_amount IS NULL))"
         );
         DB::statement(
             'CREATE INDEX user_prizes_shipping_only_expiration_index '.

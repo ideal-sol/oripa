@@ -569,7 +569,6 @@ def rollback_and_reapply_latest(
         capture=False,
     )
 
-
     return "PASS"
 
 
