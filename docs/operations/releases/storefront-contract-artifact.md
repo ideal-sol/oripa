@@ -581,3 +581,29 @@ Storefront exact-pin implementation may proceed. OLD Test API activation is
 deferred and required before integrated browser acceptance of this behavior;
 artifact handoff does not require changing the shared runtime. Production,
 ENV/Secret/Nginx, schema and migrations remain untouched.
+
+## Shipping-only Prize Rights Release
+
+SHIPONLY-20260926 PR #510 publishes additive bundle/client/testkit alpha.41 from
+protected-main Source `e2b30805704ed5b9c3fd54492fb86f8b8549bde5`. Public alpha.37 retains 76 operations;
+Admin alpha.35 adds the setting to create/update/read, Webhook remains alpha.34,
+and immutable Site Schema alpha.23 is referenced unchanged.
+
+Canonical workflow `36223277643`, Artifact `10900150259`
+and independent exact-byte readback PASS. No existing Artifact is overwritten.
+
+- GitHub outer digest: `6d4cf321249d46145f22ce9551ba709a51dd59453ccbe0bd5004d0782d2dfb50`
+- Manifest: `b3c7d2a28c0c8332eeea90ac43876245baf4a1e4ce6b7d4f646124212d99f7ee`
+- Client: `3565505ed851df91a1ee4b9eeef1a94caae706a6b47725ef1472e5d5048f6f72`
+- Testkit: `56892eafca206e8f504144937169a7ed2974da6f14082347616abafda013bd59`
+- Public OpenAPI: `2ef9d4d085ad29e4073f6e963d93b68b9e1ecfd8000dc84a330a8a016f30be4b`
+- SHA256SUMS: `fd6601d8e73abda53188d198f5a1a200bc545ca9143b67510f8bdef37a817c81`
+
+Storefront uses `GachaDetail.prizes[].shipping_only` from Published Version
+before Draw and `UserPrize.shipping_only` from acquired Snapshot afterward.
+Exchange UI follows `allowed_actions.point_exchange`; the added
+`unavailable_reason=shipping_only` never replaces existing higher-priority reasons.
+Shipping/selection still require existing conditions. Do not infer the flag
+from exchange points. Exact-pin this Artifact; Storefront UI and Human browser
+acceptance remain separate. OLD Test activation/migration is independently
+verified; release metadata alone is not runtime activation evidence.
