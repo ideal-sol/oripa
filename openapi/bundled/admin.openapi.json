@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.34",
+    "version": "2.0.0-alpha.35",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -12323,6 +12323,11 @@
           "expected_version_revision"
         ],
         "properties": {
+          "shipping_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "配送のみ・ポイント交換不可。自動発送ではなく、既存の配送条件・保管期限が適用される。公開後変更不可。"
+          },
           "presentation_asset_id": {
             "oneOf": [
               {
@@ -12373,6 +12378,10 @@
           "expected_version_revision"
         ],
         "properties": {
+          "shipping_only": {
+            "type": "boolean",
+            "description": "配送のみ・ポイント交換不可。省略時は現在値を維持する。公開後変更不可。"
+          },
           "presentation_asset_id": {
             "oneOf": [
               {
@@ -12807,6 +12816,9 @@
           "updated_at"
         ],
         "properties": {
+          "shipping_only": {
+            "type": "boolean"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -13168,6 +13180,9 @@
           "updated_at"
         ],
         "properties": {
+          "shipping_only": {
+            "type": "boolean"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -20120,6 +20135,7 @@
               "status_not_actionable",
               "storage_expired",
               "exchange_points_unavailable",
+              "shipping_only",
               null
             ]
           }
@@ -20202,6 +20218,10 @@
           "allowed_actions"
         ],
         "properties": {
+          "shipping_only": {
+            "type": "boolean",
+            "description": "当選時に固定された配送専用条件。"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },

@@ -21,6 +21,7 @@ final class CatalogPrize extends Model
         'description',
         'display_price',
         'exchange_points',
+        'shipping_only',
         'is_visible',
     ];
 
@@ -36,6 +37,7 @@ final class CatalogPrize extends Model
         return [
             'display_price' => 'integer',
             'exchange_points' => 'integer',
+            'shipping_only' => 'boolean',
             'is_visible' => 'boolean',
         ];
     }

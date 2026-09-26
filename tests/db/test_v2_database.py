@@ -19,6 +19,28 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_shipping_only_forward_migration_refuses_rollback_without_schema_or_ledger_change(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_03_000077_add_v2_shipping_only_prizes.php"
+        migration.touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"77"), mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            command = run.call_args.args[0]
+            self.assertIn("--no-deps", command)
+            self.assertIn("$migration->down()", command[-1])
+            self.assertNotIn("migrate:rollback", command)
+
+    def test_shipping_only_rollback_verification_rejects_unexpected_result_or_mutation(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_03_000077_add_v2_shipping_only_prizes.php"
+        migration.touch()
+        for result, rows in [(b"unexpected", [b"77", b"77"]), (b"FORWARD_ONLY_REJECTION_PASS", [b"77", b"76"])]:
+            with self.subTest(result=result, rows=rows), mock.patch.object(v2_database, "migration_rows", side_effect=rows), mock.patch.object(
+                v2_database, "schema_dump", return_value=b"schema"
+            ), mock.patch.object(v2_database, "run", return_value=result):
+                with self.assertRaises(v2_database.GuardFailure):
+                    v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, False)
+
     def test_agency_task_marker_keeps_existing_isolation_checks(self):
         self.assertEqual(v2_database.task_marker("AGENCY-001"), "agency001")
         self.assertEqual(v2_database.task_marker("AGENCY-002"), "agency002")

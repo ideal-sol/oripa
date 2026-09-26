@@ -55,6 +55,7 @@ import {
   PUBLIC_FULFILLMENT_PROBLEM_FIXTURES,
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
+  PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
   PUBLIC_RESPONSE_METADATA_FIXTURE,
   TestkitAssertionError,
@@ -75,6 +76,7 @@ test("景品Lineupは同Rankの全景品画像と個別総在庫を公開する"
   const prizes = PUBLIC_CATALOG_FIXTURE.data.prizes.filter((prize) => prize.rank_id === ranks[0].rank_id);
   assert.equal(ranks[0].show_total_stock, true);
   assert.deepEqual(prizes.map((prize) => prize.total_inventory), [3, 5, 2]);
+  assert.deepEqual(prizes.map((prize) => prize.shipping_only), [true, false, false]);
   assert.deepEqual(prizes.map((prize) => prize.display_order), [10, 20, 30]);
   assert.equal(new Set(prizes.map((prize) => prize.presentation_asset.id)).size, 3);
   for (const prize of prizes) {
@@ -405,6 +407,13 @@ test("Fulfillment Problem FixtureはGenerated Codeと型付きAssertionを同期
 
 test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開する", () => {
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.status, "stored");
+  assert.equal(PUBLIC_USER_PRIZE_FIXTURE.shipping_only, false);
+  assert.equal(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.shipping_only, true);
+  assert.deepEqual(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.allowed_actions.point_exchange, {
+    allowed: false, unavailable_reason: "shipping_only",
+  });
+  assert.equal(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
+  assert.equal(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.allowed_actions.selection.allowed, true);
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.presentation.rank.name, "Sランク");
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
   assert.equal(
@@ -1208,6 +1217,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_POINT_PRODUCT_FIXTURES",
     "PUBLIC_POINT_READ_PROBLEM_FIXTURES",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
+    "PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",
     "PUBLIC_SMS_VERIFICATION_FIXTURES",
     "PUBLIC_TOP_BANNERS_FIXTURE",

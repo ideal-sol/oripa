@@ -286,6 +286,7 @@ ACCT_001_V2_IDENTITY_FILES = {
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     "apps/api/database/migrations-v2/2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
+    "apps/api/database/migrations-v2/2026_10_03_000077_add_v2_shipping_only_prizes.php",
     "apps/api/database/migrations-v2/2026_09_30_000074_add_v2_agency_realm.php",
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -3041,6 +3042,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_09_30_000074_add_v2_agency_realm.php",
         "2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
         "2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
+        "2026_10_03_000077_add_v2_shipping_only_prizes.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

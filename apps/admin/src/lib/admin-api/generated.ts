@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: d47eb944d9bbbce7a281301a57c8f9396126499f03f45328ffa16b5d6d410a1a
+// Contract SHA-256: e72e63d565187ec9ea71ed6291772d76e03865c11bcfafd5e8538c67c63eddba
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -447,6 +447,7 @@ export interface AdminUserPrizeActionState {
     | "status_not_actionable"
     | "storage_expired"
     | "exchange_points_unavailable"
+    | "shipping_only"
     | null;
 }
 
@@ -467,6 +468,7 @@ export interface AdminUserPrizeSummary {
   };
   exchange_points: number;
   exchanged_points: number | null;
+  shipping_only?: boolean;
   acquired_at: string;
   storage_expires_at: string;
   terminal_at: string | null;
@@ -1263,6 +1265,7 @@ export interface AdminCatalogPrize {
   description: string | null;
   display_price: number;
   exchange_points: number;
+  shipping_only?: boolean;
   cost_price: number;
   is_visible: boolean;
   rank: AdminCatalogRankReference;
@@ -1434,6 +1437,7 @@ export interface AdminGachaVersionPrizeCreate {
   name: string;
   total_inventory: number;
   exchange_points: number;
+  shipping_only?: boolean;
   cost_price: number;
   is_active: boolean;
   expected_version_revision: number;

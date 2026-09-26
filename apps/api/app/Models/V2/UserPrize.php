@@ -26,6 +26,7 @@ final class UserPrize extends Model
     protected function casts(): array
     {
         return [
+            'shipping_only_snapshot' => 'boolean',
             'acquired_at' => 'immutable_datetime',
             'storage_expires_at' => 'immutable_datetime',
             'terminal_at' => 'immutable_datetime',

@@ -520,8 +520,25 @@ def migration_status(base: list[str], repository: Path, one_shot: bool) -> None:
 
 def rollback_and_reapply_latest(
     base: list[str], repository: Path, one_shot: bool
-) -> None:
+) -> str:
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
+    latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
+    if latest == "2026_10_03_000077_add_v2_shipping_only_prizes.php":
+        before = migration_rows(base, repository)
+        schema_before = normalize_schema_dump(schema_dump(base, repository))
+        verification = (
+            "$migration = require 'database/migrations-v2/" + latest + "'; "
+            "try { $migration->down(); exit(1); } "
+            "catch (LogicException $error) { "
+            "if ($error->getMessage() !== 'Shipping-only prize rights require a forward correction migration.') { exit(2); } "
+            "echo 'FORWARD_ONLY_REJECTION_PASS'; }"
+        )
+        output = run(base + prefix + ["api", "php", "-r", "require 'vendor/autoload.php'; " + verification], cwd=repository)
+        if output.strip() != b"FORWARD_ONLY_REJECTION_PASS":
+            raise GuardFailure("Forward-only migration rollback rejection failed")
+        if before != migration_rows(base, repository) or schema_before != normalize_schema_dump(schema_dump(base, repository)):
+            raise GuardFailure("Forward-only migration verification changed the database")
+        return "FORWARD_ONLY_REJECTION_PASS"
     run(
         base
         + prefix
@@ -551,6 +568,8 @@ def rollback_and_reapply_latest(
         cwd=repository,
         capture=False,
     )
+
+    return "PASS"
 
 
 def schema_inventory(base: list[str], repository: Path) -> list[str]:
@@ -959,7 +978,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
         assert_database_target(
             base, repository, values, args.task_id, args.purpose, "repository"
         )
-    rollback_and_reapply_latest(base, repository, one_shot=True)
+    rollback_verification = rollback_and_reapply_latest(base, repository, one_shot=True)
     migration_status(base, repository, one_shot=True)
     run_identity_tests(base, repository, one_shot=True)
     inventory = schema_inventory(base, repository)
@@ -974,7 +993,7 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
         "migration_file_count": migration_count,
         "migration_set_sha256": migration_set,
         "migrate_fresh_runs": 2,
-        "latest_migration_rollback_reapply": "PASS",
+        "latest_migration_rollback_reapply": rollback_verification,
         "migration_status": "PASS",
         "identity_tests": "PASS",
         "schema_inventory": inventory,
@@ -1061,7 +1080,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     "repository",
                 )
             migrate_fresh(source_base, repository, one_shot=False)
-            rollback_and_reapply_latest(
+            rollback_verification = rollback_and_reapply_latest(
                 source_base, repository, one_shot=False
             )
             migration_status(source_base, repository, one_shot=False)
@@ -1150,7 +1169,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "migration_file_count": migration_count,
                 "migration_set_sha256": migration_set,
                 "migrate_fresh_runs": 2,
-                "latest_migration_rollback_reapply": "PASS",
+                "latest_migration_rollback_reapply": rollback_verification,
                 "migration_status": "PASS",
                 "identity_tests": "PASS",
                 "draw_load_tests": "PASS",

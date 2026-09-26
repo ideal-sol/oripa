@@ -35,7 +35,7 @@ devices, and Admin MFA credential storage.
 ## Status
 
 This append-only root contains the current V2 migration source through
-`2026_09_30_000074_add_v2_agency_realm.php`. Runtime applied/pending state
+`2026_10_03_000077_add_v2_shipping_only_prizes.php`. Runtime applied/pending state
 must always be read from the guarded environment migration ledger; source
 presence alone is not evidence that a migration was applied. Production
 application remains a separate Human-authorized Release Gate action.

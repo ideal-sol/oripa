@@ -209,6 +209,9 @@ describe("Canonical Gacha Rank and Prize manager", () => {
     fireEvent.change(within(dialog).getByLabelText("原価"), {
       target: { value: "5000" },
     });
+    const shippingOnly = within(dialog).getByRole("checkbox", { name: /配送のみ・ポイント交換不可/u });
+    expect(shippingOnly).not.toBeChecked();
+    fireEvent.click(shippingOnly);
     fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
 
     await waitFor(() => expect(create).toHaveBeenCalledOnce());
@@ -219,6 +222,7 @@ describe("Canonical Gacha Rank and Prize manager", () => {
       expect.objectContaining({
         cost_price: 5000,
         exchange_points: 8000,
+        shipping_only: true,
         expected_version_revision: 3,
         name: "Canonical Prize",
         total_inventory: 10,
@@ -226,6 +230,18 @@ describe("Canonical Gacha Rank and Prize manager", () => {
       expect.any(String),
     );
     expect(create.mock.calls[0][3]).not.toHaveProperty("rank_id");
+  });
+
+  it("keeps published shipping-only conditions visible and immutable", async () => {
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({
+      items: [{ ...gachaPrize(), shipping_only: true }], version_revision: 3,
+    });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version("published")} />);
+    fireEvent.click(await screen.findByRole("button", { name: "SS景品を編集" }));
+    const checkbox = screen.getByRole("checkbox", { name: /配送のみ・ポイント交換不可/u });
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText(/自動発送ではありません/u)).toBeVisible();
   });
 
   it("keeps Prize mutations hidden for read-only users", async () => {

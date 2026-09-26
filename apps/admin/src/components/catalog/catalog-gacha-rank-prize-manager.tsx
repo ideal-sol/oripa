@@ -162,6 +162,7 @@ export function CatalogGachaRankPrizeManager({
       name: String(data.get("name") ?? "").trim(),
       total_inventory: Number(data.get("total_inventory")),
       exchange_points: Number(data.get("exchange_points")),
+      shipping_only: version?.status === "published" ? (prizeEditing?.shipping_only ?? false) : data.get("shipping_only") === "on",
       cost_price: Number(data.get("cost_price")),
       is_active: data.get("is_active") === "true",
       expected_version_revision: versionRevision,
@@ -278,6 +279,7 @@ export function CatalogGachaRankPrizeManager({
             onCancel={() => { setPrizeDialog(false); setPrizeEditing(null); setPrizeRank(null); }}
             onSubmit={submitPrize}
             prizes={prizes}
+            published={version.status === "published"}
             rankName={prizeRank.rank.rank_name}
             totalCount={version.total_count}
           />
@@ -301,7 +303,7 @@ function Dialog({ children, onClose, title }: { children: React.ReactNode; onClo
   </div>;
 }
 
-function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankName, totalCount }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; prizes: AdminGachaVersionPrize[]; rankName: string; totalCount: number }) {
+function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, published, rankName, totalCount }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; prizes: AdminGachaVersionPrize[]; published: boolean; rankName: string; totalCount: number }) {
   const [presentationAssetId, setPresentationAssetId] = useState(current?.presentation_asset?.id ?? null);
   const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
   const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
@@ -335,6 +337,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, rankNa
       <label>総在庫数<input aria-label="総在庫数" min={0} name="total_inventory" onChange={(event) => setTotalInventory(Number(event.target.value))} required type="number" value={totalInventory} /><span className="field-hint">（総口数残り{remainingTotalCount.toLocaleString()}）</span></label>
       {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
       <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" required type="number" /></label>
+      <label><input defaultChecked={current?.shipping_only ?? false} disabled={busy || published} name="shipping_only" type="checkbox" />配送のみ・ポイント交換不可<span className="field-hint">自動発送ではありません。通常の配送条件・保管期限が適用され、期限後はポイント化せず失効します。公開後は変更できません。</span></label>
       <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" required type="number" /></label>
       <label>状態<select defaultValue={String(current?.is_visible ?? true)} name="is_active"><option value="true">有効</option><option value="false">無効</option></select></label>
     </div>

@@ -1642,6 +1642,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => 1,
@@ -1665,6 +1666,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
@@ -1773,6 +1775,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => 1,
@@ -1797,6 +1800,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
@@ -1941,6 +1945,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => (int) $prize->revision + 1,
@@ -1954,6 +1959,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'initial_inventory' => $payload['total_inventory'],
@@ -2055,10 +2061,16 @@ final class V2CatalogMasterMutationService
                         $version->status !== 'published'
                         || (int) ($gacha->published_version_id ?? 0) !== (int) $version->id
                         || $payload['exchange_points'] !== (int) $relation->exchange_points
+                        || ($payload['shipping_only'] ?? (bool) $relation->shipping_only)
+                            !== (bool) $relation->shipping_only
                         || $payload['cost_price'] !== (int) $relation->cost_price
                         || $payload['is_active'] !== (bool) $relation->is_visible
                     ) {
-                        throw $this->immutableException();
+                        throw new V2CatalogException(
+                            'CATALOG_GACHA_POST_PUBLISH_FIELD_IMMUTABLE',
+                            409,
+                            'Published Prize economic fields are immutable.'
+                        );
                     }
                 }
                 $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
@@ -2091,6 +2103,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
                     'revision' => (int) $prize->revision + 1,
@@ -2101,6 +2114,7 @@ final class V2CatalogMasterMutationService
                         'presentation_asset_id' => $asset?->id,
                         'display_name' => $payload['name'],
                         'exchange_points' => $payload['exchange_points'],
+                        'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                         'cost_price' => $payload['cost_price'],
                         'is_visible' => $payload['is_active'],
                         'initial_inventory' => $payload['total_inventory'],
@@ -5211,6 +5225,8 @@ final class V2CatalogMasterMutationService
         if (
             (int) $rank->id !== (int) $relation->rank_id
             || $payload['exchange_points'] !== (int) $relation->exchange_points
+            || ($payload['shipping_only'] ?? (bool) $relation->shipping_only)
+                !== (bool) $relation->shipping_only
             || $payload['cost_price'] !== (int) $relation->cost_price
             || $payload['is_active'] !== (bool) $relation->is_visible
         ) {
@@ -5478,7 +5494,7 @@ final class V2CatalogMasterMutationService
             'cost_price',
             'is_active',
         ];
-        $allowed = $required;
+        $allowed = [...$required, 'shipping_only'];
         $adjustInventory = false;
         if ($updating) {
             $required[] = 'expected_revision';
@@ -5517,6 +5533,9 @@ final class V2CatalogMasterMutationService
             'name' => $this->plainText($input['name'], 1, 191),
             'total_inventory' => $this->nonNegativeInteger($input['total_inventory']),
             'adjust_inventory' => $adjustInventory,
+            ...(array_key_exists('shipping_only', $input) ? [
+                'shipping_only' => $this->boolean($input['shipping_only']),
+            ] : []),
             ...($adjustInventory ? [
                 'available_inventory' => $this->nonNegativeInteger(
                     $input['available_inventory']
@@ -6061,6 +6080,7 @@ final class V2CatalogMasterMutationService
                 'description' => $snapshot->description,
                 'display_price' => (int) $snapshot->display_price,
                 'exchange_points' => (int) $snapshot->exchange_points,
+                'shipping_only' => (bool) $snapshot->shipping_only,
                 'cost_price' => (int) $snapshot->cost_price,
                 'is_visible' => (bool) $snapshot->is_visible,
                 'initial_inventory' => $relation['initial_inventory'],
@@ -9201,6 +9221,7 @@ final class V2CatalogMasterMutationService
             'description' => $row->description,
             'display_price' => (int) $row->display_price,
             'exchange_points' => (int) $row->exchange_points,
+            'shipping_only' => (bool) $row->shipping_only,
             'cost_price' => (int) $row->cost_price,
             'is_visible' => (bool) $row->is_visible,
             'rank' => [

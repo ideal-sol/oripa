@@ -811,6 +811,7 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
         rank_id: "0198a001-0000-7000-8000-000000000003",
         presentation_asset: lineupPrizeAsset(7 + index),
         total_inventory: quantity,
+        shipping_only: index === 0,
         display_order: (index + 1) * 10,
       })),
       {
@@ -819,6 +820,7 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
         rank_id: "0198a001-0000-7000-8000-000000000004",
         presentation_asset: null,
         total_inventory: 4,
+        shipping_only: false,
         display_order: 40,
       },
     ],
@@ -1254,6 +1256,7 @@ export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
     },
   },
   status: "stored",
+  shipping_only: false,
   exchange_points: 8000,
   acquired_at: "2026-07-30T00:00:00Z",
   storage_expires_at: "2026-09-28T00:00:00Z",
@@ -1271,6 +1274,16 @@ export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   rank: {
     id: "0198a001-0000-7000-8000-000000000003",
     name: "Sランク",
+  },
+} as const satisfies PublicComponents["schemas"]["UserPrize"]);
+
+export const PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE = Object.freeze({
+  ...PUBLIC_USER_PRIZE_FIXTURE,
+  shipping_only: true,
+  allowed_actions: {
+    shipping: { allowed: true, unavailable_reason: null },
+    point_exchange: { allowed: false, unavailable_reason: "shipping_only" },
+    selection: { allowed: true, unavailable_reason: null },
   },
 } as const satisfies PublicComponents["schemas"]["UserPrize"]);
 

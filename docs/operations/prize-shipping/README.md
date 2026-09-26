@@ -46,6 +46,45 @@ Activeな`hold`／`return_request` Actionは交換とShipping Requestを拒否�
 
 Address詳細、作成、更新、削除、Shipping Request作成、Admin Address参照、Tracking登録、状態変更、Point交換、Hold拒否を、Actor、Permission、Target Public ID、Action、Outcome、Reason、Request ID、Timestampだけで記録する。
 
-## Production
+## Shipping-only Rights (SHIPONLY-20260926)
+
+Adminの「配送のみ・ポイント交換不可」は`catalog_prizes.shipping_only`を現在値、
+`catalog_gacha_version_prizes.shipping_only`を公開条件、
+`user_prizes.shipping_only_snapshot`を当選時権利として保存する。
+すべてNOT NULL/default false。既存当選データのMaster再計算・業務backfillは行わない。
+公開Versionの条件変更は不可。所有Snapshot変更はDB Triggerで拒否する。
+
+Public `GachaDetail.prizes[].shipping_only`はPublished Version、
+`UserPrize.shipping_only`は所有Snapshotを正本とする。交換ポイント0から推測しない。
+`prizeAllowedActions()`は共通理由の優先順位を維持した後、配送専用の
+`point_exchange`を`unavailable_reason=shipping_only`で拒否する。
+shipping/selectionは既存配送条件を維持する。個別・一括交換とも同一Guardを使い、
+混在requestは全件rollbackする。DB CHECKも配送専用のexchange_processing/convertedを拒否する。
+
+期限は既存`acquired_at`から60日の`storage_expires_at`のみを使用する。
+`php artisan v2:prizes:expire-shipping-only --limit=1000`は、配送専用・stored・
+期限到達済みだけを選び、users → wallets → user_prizesをlockして条件を再確認する。
+expired/terminal_at、append-only状態履歴、system Auditを同一Transactionで記録する。
+Point、Exchange Request、Inventory、配送への副作用はない。重複実行は無操作。
+通常景品は対象外。配送依頼済み景品も失効対象外とする。
+
+status=holdまたはActive Payment Holdは安全のためスキップする。
+hold履歴・状態を変更しない。期限到達後は既存allowed_actionsで操作不可、
+正規のhold解除でstoredへ戻った後の次回実行でexpiredへ収束する。
+
+実行経路は対象限定Commandで、既存Schedulerへの登録や停止中Workerの起動は含まない。
+継続運用にはOLD Testの承認済み実行主体から本Commandを定期実行する必要がある。
+1回の上限を超える場合は次回実行で処理を継続する。Scheduler全体の起動で代替しない。
+
+Migration 000077はforward-only。追加前の行は通常景品のまま互換性を維持する。
+配送専用設定・発行後は古いAPIへの単純rollbackを禁止する。DB CHECKは旧APIの交換を
+fail-closedにするが、旧DrawはSnapshotを保存できず、旧Adminは条件を理解できない。
+修正済みImageへのforward recoveryを使う。Human受入まで旧Imageは保持する。
+
+Contract candidate: bundle/client/testkit alpha.41、Public alpha.37、Admin alpha.35。
+Storefrontは正式immutable Artifactのexact version/digest確定後に導入し、抽選前と
+所有景品に配送専用を表示、交換UIはallowed_actionsに従う。
+
+## Production Scope
 
 このAlpha Vertical SliceはProduction Deployment対象外である。Frontend UI、Admin UI、Carrier連携、QA Modeは後続Taskに残す。
