@@ -203,7 +203,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_contract_artifact_source_remains_distinct_from_runtime_target(self):
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
-        contract = ledger["latest_immutable"]
+        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.40"]
+        self.assertEqual(len(contracts), 1)
+        contract = contracts[0]
         artifact_source = "dadf79f3b0b2409a57e41b10a83c7b6570ea3507"
         self.assertEqual(contract["bundle_version"], "2.0.0-alpha.40")
         self.assertEqual(contract["source_commit"], artifact_source)
