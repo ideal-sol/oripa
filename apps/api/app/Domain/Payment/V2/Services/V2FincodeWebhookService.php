@@ -263,13 +263,13 @@ final class V2FincodeWebhookService
         $clientField = $payload['client_field_1'] ?? null;
         $errorCode = $payload['error_code'] ?? null;
         $cardStatus = $payload['card_status'] ?? null;
-        $tds2Status = $payload['status'] ?? null;
+        $webhookStatus = $payload['status'] ?? null;
         if (
             ($payload['pay_type'] ?? null) !== 'Card'
             || ($customerId !== null && ! $this->providerReference($customerId, 64))
             || ($cardId !== null && ! $this->providerReference($cardId, 64))
             || ! $this->providerReference($accessId, 128)
-            || ! $this->providerReference($transactionId, 128)
+            || ($transactionId !== null && ! $this->providerReference($transactionId, 128))
             || ! is_string($cardStatus)
             || ! in_array($cardStatus, [
                 'INACTIVATED',
@@ -277,8 +277,8 @@ final class V2FincodeWebhookService
                 'ACTIVATED',
                 'FAILED',
             ], true)
-            || ! is_string($tds2Status)
-            || ! in_array($tds2Status, ['AUTHENTICATING', 'CHALLENGE', 'AUTHENTICATED'], true)
+            || ! is_string($webhookStatus)
+            || ! in_array($webhookStatus, ['AUTHENTICATING', 'CHALLENGE', 'AUTHENTICATED', 'CHECK'], true)
             || ($clientField !== null
                 && (! is_string($clientField) || ! Str::isUuid($clientField)))
             || ($errorCode !== null

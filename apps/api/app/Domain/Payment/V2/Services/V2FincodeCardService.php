@@ -333,7 +333,7 @@ final class V2FincodeCardService
                 );
             }
             $updates = [
-                'provider_transaction_id' => $payload['transaction_id'],
+                'provider_transaction_id' => $payload['transaction_id'] ?? $locked->provider_transaction_id,
                 'webhook_received_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                 'last_error_code' => $this->safeProviderErrorCode($payload['error_code']),
                 'updated_at' => V2DatabaseTimestamp::format(now()),
@@ -642,6 +642,13 @@ final class V2FincodeCardService
                 (string) $intent->provider_payment_method_id,
                 (string) $intent->provider_customer_id
             );
+            if ($provider['access_id'] !== $intent->provider_access_id) {
+                throw new V2FincodeException(
+                    'CARD_REGISTRATION_OWNERSHIP_INVALID',
+                    422,
+                    'The card registration ownership is invalid.'
+                );
+            }
         } catch (V2FincodeException $exception) {
             if ($exception->errorCode === 'CARD_REGISTRATION_3DS_NOT_VERIFIED') {
                 $this->failRegistration((int) $intent->id, $exception->errorCode);
@@ -667,24 +674,24 @@ final class V2FincodeCardService
             return $this->registrationWithCustomer($intentId);
         }
 
-        $intent = $this->registrationWithCustomer($intentId);
-        if (! is_string($intent->provider_card_id) || $intent->provider_card_id === '') {
-            DB::table('fincode_card_registration_intents')->where('id', $intent->id)->update([
-                'status' => 'pending',
-                'updated_at' => V2DatabaseTimestamp::format(now()),
-            ]);
-
-            return $this->registrationWithCustomer($intentId);
-        }
-
         try {
+            if (! preg_match('/^cs_[A-Za-z0-9_-]{22}$/', $provider['id'])) {
+                throw $this->registrationUnavailable();
+            }
+            if ($intent->provider_card_id !== null && $intent->provider_card_id !== $provider['id']) {
+                throw new V2FincodeException(
+                    'CARD_REGISTRATION_OWNERSHIP_INVALID',
+                    422,
+                    'The card registration ownership is invalid.'
+                );
+            }
             $providerCard = $this->client->retrieveCard(
                 (string) $intent->provider_customer_id,
-                (string) $intent->provider_card_id
+                $provider['id']
             );
             $safeCard = $this->safeCard(
                 $providerCard,
-                (string) $intent->provider_card_id,
+                $provider['id'],
                 (string) $intent->provider_customer_id
             );
         } catch (V2FincodeException $exception) {
@@ -759,11 +766,18 @@ final class V2FincodeCardService
             }
             if (
                 $locked->flow_type !== 'three_d_secure_2'
+                || $locked->user_id !== $intent->user_id
+                || $locked->fincode_customer_id !== $intent->fincode_customer_id
+                || ! DB::table('fincode_customers')
+                    ->where('id', $locked->fincode_customer_id)
+                    ->where('user_id', $locked->user_id)
+                    ->where('provider_customer_id', $provider['customer_id'])
+                    ->exists()
                 || $locked->provider_payment_method_id !== $provider['id']
                 || $locked->provider_access_id !== $provider['access_id']
                 || $locked->provider_status !== 'ACTIVATED'
                 || $locked->provider_tds2_status !== 'AUTHENTICATED'
-                || $locked->provider_card_id === null
+                || ($locked->provider_card_id !== null && $locked->provider_card_id !== $provider['id'])
             ) {
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                     'status' => 'failed',
@@ -790,7 +804,7 @@ final class V2FincodeCardService
             }
             $providerCardConflict = DB::table('fincode_cards')
                 ->where('fincode_customer_id', $locked->fincode_customer_id)
-                ->where('provider_card_id', $locked->provider_card_id)
+                ->where('provider_card_id', $provider['id'])
                 ->exists();
             if ($providerCardConflict || $this->verifiedCardCount((int) $locked->user_id) >= self::MAX_CARDS) {
                 DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
@@ -812,7 +826,7 @@ final class V2FincodeCardService
                 'user_id' => $locked->user_id,
                 'fincode_customer_id' => $locked->fincode_customer_id,
                 'registration_intent_id' => $locked->id,
-                'provider_card_id' => $locked->provider_card_id,
+                'provider_card_id' => $provider['id'],
                 'provider_payment_method_id' => $locked->provider_payment_method_id,
                 'registration_assurance' => 'three_d_secure_2',
                 'registration_verified_at' => V2DatabaseTimestamp::format($verifiedAt),
@@ -825,6 +839,7 @@ final class V2FincodeCardService
             ]);
             DB::table('fincode_card_registration_intents')->where('id', $locked->id)->update([
                 'status' => 'completed',
+                'provider_card_id' => $provider['id'],
                 'provider_reconciled_at' => V2DatabaseTimestamp::format($verifiedAt),
                 'completed_at' => V2DatabaseTimestamp::format($verifiedAt),
                 'redirect_url_ciphertext' => null,

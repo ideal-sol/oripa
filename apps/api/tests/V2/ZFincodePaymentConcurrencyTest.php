@@ -6,6 +6,7 @@ use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
+use App\Domain\Payment\V2\Services\V2FincodeReconciliationService;
 use App\Domain\Payment\V2\Services\V2FincodeWebhookService;
 use App\Models\V2\User;
 use Illuminate\Http\Client\Factory;
@@ -38,6 +39,8 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
         try {
             $this->assertConcurrentFourthCardRejected();
             $this->assertConcurrentRegistrationReconcileExactlyOnce();
+            $this->assertRegistrationRecoveryRaces();
+            $this->assertTerminalStateWinsDuringProviderCommunication();
             $this->assertConcurrentKonbiniCreationRejected();
             $this->assertConcurrentWebhookExactlyOnce();
         } finally {
@@ -56,8 +59,7 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
         foreach (range(1, 2) as $index) {
             $this->completeCanonicalRegistration(
                 $user,
-                'existing-card-'.$index,
-                'existing_card_'.$index
+                'existing-card-'.$index
             );
         }
         $userId = $user->id;
@@ -96,7 +98,7 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
             'tok_concurrent_registration_reconcile',
             'concurrent-registration-reconcile'
         );
-        $raw = $this->registrationWebhook($registration['id'], 'concurrent_registration_card');
+        $raw = $this->registrationWebhook($registration['id']);
         $registrationId = DB::table('fincode_card_registration_intents')
             ->where('public_id', $registration['id'])
             ->value('id');
@@ -117,6 +119,114 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
             ->where('action_code', 'payment.card_registration.completed')
             ->where('target_public_id', $registration['id'])
             ->count());
+    }
+
+    private function assertRegistrationRecoveryRaces(): void
+    {
+        foreach (['return-return', 'webhook-return', 'webhook-worker', 'reconcile-reconcile'] as $scenario) {
+            $this->fakeFincode();
+            $user = $this->user($scenario);
+            $registration = app(V2FincodeCardService::class)->startRegistration($user, 'tok_'.$scenario, $scenario);
+            $publicId = $registration['id'];
+            $intentId = DB::table('fincode_card_registration_intents')->where('public_id', $publicId)->value('id');
+            $raw = $this->registrationWebhook($publicId);
+            $return = static fn (): array => app(V2FincodeCardService::class)->reconcileFromReturn($publicId);
+            $webhook = static fn (): array => app(V2FincodeWebhookService::class)->process($raw, 'test-webhook-signature');
+            $reconcile = static fn (): array => app(V2FincodeCardService::class)->reconcilePending((int) $intentId);
+            $workers = match ($scenario) {
+                'return-return' => ['return-a' => $return, 'return-b' => $return],
+                'webhook-return' => ['webhook' => $webhook, 'return' => $return],
+                'webhook-worker' => [
+                    'webhook' => $webhook,
+                    'worker' => static fn (): array => app(V2FincodeReconciliationService::class)->reconcileCardRegistrations(100),
+                ],
+                default => ['reconcile-a' => $reconcile, 'reconcile-b' => $reconcile],
+            };
+            self::assertSame(['success', 'success'], $this->outcomes($this->parallel($workers)), $scenario);
+            $return();
+            $reconcile();
+            $webhook();
+            self::assertSame(1, DB::table('fincode_cards')->where('registration_intent_id', $intentId)->count());
+            self::assertSame(1, DB::table('fincode_cards')->where('registration_intent_id', $intentId)
+                ->where('registration_assurance', 'three_d_secure_2')->whereNotNull('registration_verified_at')->count());
+            self::assertSame(1, DB::table('audit_logs')->where('target_public_id', $publicId)
+                ->where('action_code', 'payment.card_registration.completed')->count());
+            self::assertSame(2, app(V2FincodeCardService::class)->cards($user)['limits']['registration_remaining']);
+        }
+    }
+
+    private function assertTerminalStateWinsDuringProviderCommunication(): void
+    {
+        foreach (['cancel', 'expiry', 'conflicting-webhook'] as $scenario) {
+            $this->fakeFincode();
+            $user = $this->user('inflight-'.$scenario);
+            $userId = $user->id;
+            $registration = app(V2FincodeCardService::class)->startRegistration($user, 'tok_'.$scenario, 'inflight-'.$scenario);
+            $publicId = $registration['id'];
+            $intentId = DB::table('fincode_card_registration_intents')->where('public_id', $publicId)->value('id');
+            $signal = sys_get_temp_dir().'/save-card-race-'.Str::uuid();
+            $release = $signal.'-release';
+            $this->fakeFincode(beforeCardGet: function () use ($signal, $release): void {
+                file_put_contents($signal, 'ready');
+                $this->waitForSignal($release);
+            });
+            try {
+                $results = $this->parallel([
+                    'recovery' => static fn (): array => app(V2FincodeCardService::class)->reconcilePending((int) $intentId),
+                    'interleaving' => function () use ($scenario, $publicId, $userId, $intentId, $signal, $release): array {
+                        $this->waitForSignal($signal);
+                        try {
+                            if ($scenario === 'cancel') {
+                                app(V2FincodeCardService::class)->cancelRegistration(User::query()->findOrFail($userId), $publicId);
+                            } elseif ($scenario === 'expiry') {
+                                DB::table('fincode_card_registration_intents')->where('id', $intentId)
+                                    ->update(['expires_at' => now()->subMinute()]);
+                                app(V2FincodeCardService::class)->expireDue(100);
+                            } else {
+                                $payload = json_decode($this->registrationWebhook($publicId), true);
+                                $payload['card_id'] = 'cs_'.str_repeat('z', 22);
+                                app(V2FincodeWebhookService::class)->process(json_encode($payload, JSON_THROW_ON_ERROR), 'test-webhook-signature');
+                            }
+
+                            return [];
+                        } finally {
+                            file_put_contents($release, 'done');
+                        }
+                    },
+                ]);
+                $expected = match ($scenario) {
+                    'cancel' => ['CARD_REGISTRATION_CANCELED', 'success'],
+                    'expiry' => ['CARD_INTENT_EXPIRED', 'success'],
+                    default => ['CARD_REGISTRATION_FAILED', 'CARD_REGISTRATION_OWNERSHIP_INVALID'],
+                };
+                self::assertSame($expected, $this->outcomes($results), $scenario);
+            } finally {
+                @unlink($signal);
+                @unlink($release);
+            }
+            $this->fakeFincode();
+            app(V2FincodeCardService::class)->reconcilePending((int) $intentId);
+            Http::assertNothingSent();
+            self::assertSame(match ($scenario) {
+                'cancel' => 'canceled',
+                'expiry' => 'expired',
+                default => 'failed',
+            }, DB::table('fincode_card_registration_intents')->where('id', $intentId)->value('status'));
+            self::assertSame(0, DB::table('fincode_cards')->where('registration_intent_id', $intentId)->count());
+            self::assertSame(0, DB::table('audit_logs')->where('target_public_id', $publicId)
+                ->where('action_code', 'payment.card_registration.completed')->count());
+            self::assertSame(3, app(V2FincodeCardService::class)->cards($user)['limits']['registration_remaining']);
+        }
+    }
+
+    private function waitForSignal(string $path): void
+    {
+        $deadline = microtime(true) + 10;
+        while (! is_file($path) && microtime(true) < $deadline) {
+            usleep(1_000);
+            clearstatcache(true, $path);
+        }
+        self::assertFileExists($path, 'Concurrent operation did not reach its barrier.');
     }
 
     private function assertConcurrentKonbiniCreationRejected(): void
@@ -335,10 +445,10 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
         self::assertNull($card->registration_verified_at);
     }
 
-    private function fakeFincode(string $retrievedStatus = 'AWAITING_CUSTOMER_PAYMENT'): void
+    private function fakeFincode(string $retrievedStatus = 'AWAITING_CUSTOMER_PAYMENT', ?\Closure $beforeCardGet = null): void
     {
         Http::swap(new Factory());
-        Http::fake(function (Request $request) use ($retrievedStatus) {
+        Http::fake(function (Request $request) use ($retrievedStatus, $beforeCardGet) {
             $url = $request->url();
             if ($request->method() === 'POST' && str_ends_with($url, '/v1/customers')) {
                 return Http::response(['id' => $request->data()['id']], 200);
@@ -348,7 +458,7 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
                 $suffix = substr(hash('sha256', (string) $request->data()['client_field_1']), 0, 22);
 
                 return Http::response([
-                    'id' => 'pm_'.$suffix,
+                    'id' => 'cs_'.$suffix,
                     'pay_type' => 'Card',
                     'customer_id' => $customerId,
                     'status' => 'AWAITING_CUSTOMER_ACTION',
@@ -382,6 +492,9 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
                 ], 200);
             }
             if ($request->method() === 'GET' && str_contains($url, '/cards/')) {
+                if ($beforeCardGet !== null) {
+                    $beforeCardGet();
+                }
                 $path = (string) parse_url($url, PHP_URL_PATH);
 
                 return Http::response([
@@ -418,20 +531,19 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
     /** @return array<string, mixed> */
     private function completeCanonicalRegistration(
         User $user,
-        string $idempotencyKey,
-        string $providerCardId
+        string $idempotencyKey
     ): array {
         $cards = app(V2FincodeCardService::class);
         $started = $cards->startRegistration($user, 'tok_'.$idempotencyKey, $idempotencyKey);
         app(V2FincodeWebhookService::class)->process(
-            $this->registrationWebhook($started['id'], $providerCardId),
+            $this->registrationWebhook($started['id']),
             'test-webhook-signature'
         );
 
         return $cards->registration($user, $started['id']);
     }
 
-    private function registrationWebhook(string $registrationPublicId, string $providerCardId): string
+    private function registrationWebhook(string $registrationPublicId): string
     {
         $intent = DB::table('fincode_card_registration_intents as intent')
             ->join('fincode_customers as customer', 'customer.id', '=', 'intent.fincode_customer_id')
@@ -443,7 +555,7 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
             'event' => 'customers.payment_methods.updated',
             'pay_type' => 'Card',
             'customer_id' => $intent->provider_customer_id,
-            'card_id' => $providerCardId,
+            'card_id' => $intent->provider_payment_method_id,
             'card_status' => 'ACTIVATED',
             'status' => 'AUTHENTICATED',
             'access_id' => $intent->provider_access_id,

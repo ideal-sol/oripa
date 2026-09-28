@@ -183,7 +183,7 @@ components:
     FincodeCardRegistrationWebhook:
       type: object
       additionalProperties: true
-      required: [event, pay_type, card_status, status, access_id, transaction_id]
+      required: [event, pay_type, card_status, status, access_id]
       properties:
         event:
           const: customers.payment_methods.updated
@@ -204,15 +204,18 @@ components:
         process_type:
           enum: [I, U]
         status:
-          enum: [AUTHENTICATING, CHALLENGE, AUTHENTICATED]
+          enum: [AUTHENTICATING, CHALLENGE, AUTHENTICATED, CHECK]
+          description: Provider notification only; registration proof requires canonical Method and Card exact GETs.
         access_id:
           type: string
           minLength: 1
           maxLength: 128
         transaction_id:
-          type: string
+          type: [string, 'null']
           minLength: 1
           maxLength: 128
+          pattern: '^[A-Za-z0-9_-]+$'
+          description: Optional metadata, not correlation authority. Missing or null does not erase a stored transaction reference.
         client_field_1:
           description: Platform Public Opaque Card Registration.id。nullable時はaccess_idで相関する。
           oneOf:

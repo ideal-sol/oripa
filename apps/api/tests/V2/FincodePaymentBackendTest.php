@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\V2TimestampFixture;
 use Tests\TestCase;
 
@@ -1621,6 +1622,7 @@ final class FincodePaymentBackendTest extends TestCase
                 ];
         });
 
+        $this->fakeFincode(registration: ['canonical_tds2_status' => 'AUTHENTICATING']);
         $browserReturn = $this->post(
             '/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id'],
             ['provider_card_id' => 'browser_supplied_card_must_be_ignored']
@@ -1636,7 +1638,8 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertNull(DB::table('fincode_card_registration_intents')
             ->where('public_id', $started['id'])->value('provider_card_id'));
 
-        $webhook = $this->registrationWebhook($started['id'], 'card_canonical');
+        $this->fakeFincode();
+        $webhook = $this->registrationWebhook($started['id']);
         self::assertSame(
             ['status' => 'processed'],
             app(V2FincodeWebhookService::class)->process($webhook, 'test-webhook-signature')
@@ -1661,11 +1664,312 @@ final class FincodePaymentBackendTest extends TestCase
             ->count());
     }
 
+    #[DataProvider('registrationTransactionReferences')]
+    public function test_registration_webhook_transaction_reference_is_optional_nullable_metadata(
+        mixed $transactionId,
+        bool $missing,
+        bool $valid
+    ): void {
+        $this->fakeFincode();
+        $user = $this->user('transaction-metadata');
+        $started = app(V2FincodeCardService::class)->startRegistration($user, 'tok_metadata', 'metadata');
+        $payload = json_decode($this->registrationWebhook($started['id']), true, flags: JSON_THROW_ON_ERROR);
+        $payload['transaction_id'] = $transactionId;
+        if ($missing) {
+            unset($payload['transaction_id']);
+        }
+        $response = $this->withHeader('Fincode-Signature', 'test-webhook-signature')
+            ->postJson('/webhooks/v2/fincode', $payload);
+        if (! $valid) {
+            $response->assertStatus(422)->assertJsonPath('code', 'FINCODE_WEBHOOK_INVALID');
+            self::assertSame(0, DB::table('fincode_cards')->count());
+            self::assertNull(DB::table('fincode_card_registration_intents')->value('webhook_received_at'));
+
+            return;
+        }
+        $response->assertOk();
+        self::assertSame(1, DB::table('fincode_cards')->count());
+        self::assertSame($missing ? null : $transactionId, DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started['id'])->value('provider_transaction_id'));
+    }
+
+    public static function registrationTransactionReferences(): array
+    {
+        return [
+            'string' => ['txn_valid_123', false, true],
+            'null' => [null, false, true],
+            'missing' => [null, true, true],
+            'empty' => ['', false, false],
+            'integer' => [123, false, false],
+            'boolean' => [false, false, false],
+            'float' => [1.5, false, false],
+            'array' => [['txn'], false, false],
+            'object' => [(object) ['id' => 'txn'], false, false],
+            'format' => ['txn invalid!', false, false],
+            'length' => [str_repeat('x', 129), false, false],
+        ];
+    }
+
+    public function test_registration_null_or_missing_redelivery_preserves_transaction_metadata(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('metadata-retained');
+        $started = app(V2FincodeCardService::class)->startRegistration($user, 'tok_retained', 'retained');
+        $payload = json_decode($this->registrationWebhook($started['id']), true, flags: JSON_THROW_ON_ERROR);
+        $transactionId = $payload['transaction_id'];
+        $webhooks = app(V2FincodeWebhookService::class);
+        $webhooks->process(json_encode($payload, JSON_THROW_ON_ERROR), 'test-webhook-signature');
+        $payload['transaction_id'] = null;
+        $webhooks->process(json_encode($payload, JSON_THROW_ON_ERROR), 'test-webhook-signature');
+        unset($payload['transaction_id']);
+        $webhooks->process(json_encode($payload, JSON_THROW_ON_ERROR), 'test-webhook-signature');
+        self::assertSame($transactionId, DB::table('fincode_card_registration_intents')
+            ->where('public_id', $started['id'])->value('provider_transaction_id'));
+        $this->assertRegistrationCompletedOnce($started['id']);
+    }
+
+    #[DataProvider('registrationWebhookStatuses')]
+    public function test_registration_webhook_status_is_only_a_reconciliation_trigger(mixed $status, bool $valid): void
+    {
+        $this->fakeFincode(registration: ['canonical_tds2_status' => 'AUTHENTICATING']);
+        $user = $this->user('webhook-status');
+        $started = app(V2FincodeCardService::class)->startRegistration($user, 'tok_status', 'status');
+        $payload = json_decode($this->registrationWebhook($started['id'], ['status' => $status]), true);
+        $response = $this->withHeader('Fincode-Signature', 'test-webhook-signature')
+            ->postJson('/webhooks/v2/fincode', $payload);
+        $response->assertStatus($valid ? 200 : 422);
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/cards/'));
+        if ($valid) {
+            $this->fakeFincode();
+            app(V2FincodeCardService::class)->reconcileRegistration($user, $started['id']);
+            $this->assertRegistrationCompletedOnce($started['id']);
+        }
+    }
+
+    public static function registrationWebhookStatuses(): array
+    {
+        return [
+            'authenticated' => ['AUTHENTICATED', true],
+            'check' => ['CHECK', true],
+            'historical-authenticating' => ['AUTHENTICATING', true],
+            'historical-challenge' => ['CHALLENGE', true],
+            'unknown' => ['UNKNOWN', false],
+            'null' => [null, false],
+            'integer' => [1, false],
+            'array' => [[], false],
+        ];
+    }
+
+    #[DataProvider('registrationWebhookCorrelations')]
+    public function test_registration_webhook_security_boundaries_are_preserved(
+        array $overrides,
+        string $signature,
+        int $httpStatus
+    ): void {
+        $this->fakeFincode();
+        $user = $this->user('webhook-correlation');
+        $started = app(V2FincodeCardService::class)->startRegistration($user, 'tok_correlation', 'correlation');
+        $payload = json_decode($this->registrationWebhook($started['id'], $overrides), true);
+        $this->withHeader('Fincode-Signature', $signature)->postJson('/webhooks/v2/fincode', $payload)
+            ->assertStatus($httpStatus);
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertNull(DB::table('fincode_card_registration_intents')->value('webhook_received_at'));
+        Http::assertNotSent(fn (Request $request): bool => $request->method() === 'GET');
+    }
+
+    public static function registrationWebhookCorrelations(): array
+    {
+        return [
+            'signature' => [[], 'invalid-signature', 401],
+            'unsupported-event' => [['event' => 'customers.unknown'], 'test-webhook-signature', 200],
+            'access' => [['access_id' => 'a_foreign'], 'test-webhook-signature', 422],
+            'customer' => [['customer_id' => 'c_foreign'], 'test-webhook-signature', 422],
+            'client' => [['client_field_1' => '00000000-0000-4000-8000-000000000001'], 'test-webhook-signature', 422],
+        ];
+    }
+
+    #[DataProvider('registrationRecoveryTriggers')]
+    public function test_registration_recovers_without_webhook_authority_and_handles_late_notification(string $trigger): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('canonical-recovery');
+        $cards = app(V2FincodeCardService::class);
+        $started = $cards->startRegistration($user, 'tok_recovery', 'recovery');
+        if ($trigger === 'return') {
+            $this->post('/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id'], [
+                'provider_card_id' => 'untrusted_browser_reference',
+            ])->assertStatus(303);
+        } elseif ($trigger === 'worker') {
+            self::assertSame(1, app(V2FincodeReconciliationService::class)->reconcileCardRegistrations(10)['processed']);
+        } elseif (in_array($trigger, ['webhook-without-card', 'webhook-missing-card'], true)) {
+            $payload = json_decode($this->registrationWebhook($started['id'], [
+                'card_id' => null, 'transaction_id' => null, 'status' => 'CHECK',
+            ]), true, flags: JSON_THROW_ON_ERROR);
+            if ($trigger === 'webhook-missing-card') {
+                unset($payload['card_id']);
+            }
+            app(V2FincodeWebhookService::class)->process(
+                json_encode($payload, JSON_THROW_ON_ERROR),
+                'test-webhook-signature'
+            );
+        } else {
+            $cards->reconcileRegistration($user, $started['id']);
+        }
+        $intent = DB::table('fincode_card_registration_intents')->where('public_id', $started['id'])->firstOrFail();
+        self::assertSame($intent->provider_payment_method_id, $intent->provider_card_id);
+        if (! str_starts_with($trigger, 'webhook-')) {
+            self::assertNull($intent->webhook_received_at);
+        }
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && str_ends_with($request->url(), '/cards/'.$intent->provider_card_id));
+        $calls = Http::recorded()->count();
+        $cards->reconcileRegistration($user, $started['id']);
+        $this->post('/api/v2/payment-card-registration-returns/fincode/normal?rid='.$started['id'])->assertStatus(303);
+        app(V2FincodeWebhookService::class)->process($this->registrationWebhook($started['id']), 'test-webhook-signature');
+        self::assertSame($calls, Http::recorded()->count());
+        $this->assertRegistrationCompletedOnce($started['id']);
+        try {
+            app(V2FincodeWebhookService::class)->process(
+                $this->registrationWebhook($started['id'], ['card_id' => 'cs_'.str_repeat('z', 22)]),
+                'test-webhook-signature'
+            );
+            self::fail('Conflicting late webhook must not overwrite the canonical card.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_OWNERSHIP_INVALID', $exception->errorCode);
+        }
+        self::assertSame($intent->provider_card_id, DB::table('fincode_card_registration_intents')
+            ->where('id', $intent->id)->value('provider_card_id'));
+        self::assertSame(2, $cards->cards($user)['limits']['registration_remaining']);
+    }
+
+    public static function registrationRecoveryTriggers(): array
+    {
+        return array_map(static fn (string $trigger): array => [$trigger], [
+            'return', 'worker', 'reconcile', 'webhook-without-card', 'webhook-missing-card',
+        ]);
+    }
+
+    #[DataProvider('registrationRecoveryFailures')]
+    public function test_registration_recovery_fails_closed_and_network_errors_remain_retryable(
+        array $providerOverrides,
+        string $errorCode,
+        string $state
+    ): void {
+        $this->fakeFincode(registration: $providerOverrides);
+        $user = $this->user('recovery-failure');
+        $cards = app(V2FincodeCardService::class);
+        $started = $cards->startRegistration($user, 'tok_failure', 'failure');
+        try {
+            $cards->reconcileRegistration($user, $started['id']);
+            self::assertSame('', $errorCode, 'Expected canonical validation to fail.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame($errorCode, $exception->errorCode);
+        }
+        $intent = DB::table('fincode_card_registration_intents')->where('public_id', $started['id'])->firstOrFail();
+        self::assertSame($state, $intent->status);
+        self::assertNull($intent->provider_card_id);
+        self::assertNull($intent->webhook_received_at);
+        self::assertNull($intent->completed_at);
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        if ($state === 'pending' || $state === 'requires_action') {
+            $this->fakeFincode();
+            $cards->reconcileRegistration($user, $started['id']);
+            $this->assertRegistrationCompletedOnce($started['id']);
+        } else {
+            self::assertSame(3, $cards->cards($user)['limits']['registration_remaining']);
+            $this->fakeFincode();
+            $cards->reconcileRegistration($user, $started['id']);
+            Http::assertNothingSent();
+            self::assertSame(0, DB::table('fincode_cards')->count());
+        }
+    }
+
+    public static function registrationRecoveryFailures(): array
+    {
+        return [
+            'method-timeout' => [['canonical_timeout' => true], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'method-error' => [['canonical_http_status' => 503], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'card-timeout' => [['card_timeout' => true], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'card-error' => [['card_http_status' => 503], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'card-not-found' => [['card_http_status' => 404], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'method-id' => [['canonical_payment_method_id' => 'cs_'.str_repeat('z', 22)], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'method-format' => [['canonical_payment_method_id' => 'invalid/reference'], 'CARD_REGISTRATION_UNAVAILABLE', 'pending'],
+            'customer' => [['canonical_customer_id' => 'c_foreign'], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'access' => [['canonical_access_id' => 'a_foreign'], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'pay-type' => [['canonical_pay_type' => 'Directdebit'], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'card-id' => [['card_id' => 'cs_'.str_repeat('z', 22)], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'card-customer' => [['card_customer_id' => 'c_foreign'], 'CARD_REGISTRATION_OWNERSHIP_INVALID', 'failed'],
+            'tds-type' => [['canonical_tds_type' => '1'], 'CARD_REGISTRATION_FAILED', 'failed'],
+            'tds2-type' => [['canonical_tds2_type' => '3'], 'CARD_REGISTRATION_FAILED', 'failed'],
+            'method-failed' => [['canonical_status' => 'FAILED'], 'CARD_REGISTRATION_FAILED', 'failed'],
+            'method-incomplete' => [['canonical_status' => 'AWAITING_CUSTOMER_ACTION'], '', 'requires_action'],
+            '3ds-incomplete' => [['canonical_tds2_status' => 'CHALLENGE'], '', 'pending'],
+        ];
+    }
+
+    public function test_conflicting_webhook_card_reference_never_becomes_verified(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('conflicting-card');
+        $started = app(V2FincodeCardService::class)->startRegistration($user, 'tok_conflict', 'conflict');
+        $conflict = 'cs_'.str_repeat('z', 22);
+        try {
+            app(V2FincodeWebhookService::class)->process(
+                $this->registrationWebhook($started['id'], ['card_id' => $conflict]),
+                'test-webhook-signature'
+            );
+            self::fail('Conflicting webhook card must fail closed.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_REGISTRATION_OWNERSHIP_INVALID', $exception->errorCode);
+        }
+        self::assertSame($conflict, DB::table('fincode_card_registration_intents')->value('provider_card_id'));
+        self::assertSame('failed', DB::table('fincode_card_registration_intents')->value('status'));
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/cards/'));
+    }
+
+    public function test_non_card_method_identifier_is_not_guessed_or_transformed_into_a_card_reference(): void
+    {
+        foreach (['pm_'.str_repeat('a', 22), 'cs_short'] as $reference) {
+            $this->fakeFincode();
+            $user = $this->user('ambiguous-reference');
+            $cards = app(V2FincodeCardService::class);
+            $started = $cards->startRegistration($user, 'tok_ambiguous', 'ambiguous-'.$reference);
+            $intent = DB::table('fincode_card_registration_intents')->where('public_id', $started['id'])->firstOrFail();
+            DB::table('fincode_card_registration_intents')->where('id', $intent->id)
+                ->update(['provider_payment_method_id' => $reference]);
+            $this->fakeFincode(registration: ['canonical_access_id' => $intent->provider_access_id]);
+            try {
+                $cards->reconcileRegistration($user, $started['id']);
+                self::fail('An ambiguous Card identifier must not be transformed.');
+            } catch (V2FincodeException $exception) {
+                self::assertSame('CARD_REGISTRATION_UNAVAILABLE', $exception->errorCode);
+            }
+            Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/cards/'));
+            self::assertNull(DB::table('fincode_card_registration_intents')->where('id', $intent->id)->value('provider_card_id'));
+            self::assertSame(0, DB::table('fincode_cards')->where('registration_intent_id', $intent->id)->count());
+        }
+    }
+
+    private function assertRegistrationCompletedOnce(string $publicId): void
+    {
+        $intent = DB::table('fincode_card_registration_intents')->where('public_id', $publicId)->firstOrFail();
+        self::assertSame('completed', $intent->status);
+        self::assertSame(1, DB::table('fincode_cards')->where('registration_intent_id', $intent->id)->count());
+        self::assertSame(1, DB::table('fincode_cards')->where('registration_intent_id', $intent->id)
+            ->where('registration_assurance', 'three_d_secure_2')->whereNotNull('registration_verified_at')->count());
+        self::assertSame(1, DB::table('audit_logs')->where('target_public_id', $publicId)
+            ->where('action_code', 'payment.card_registration.completed')->count());
+        self::assertSame(0, DB::table('payments')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+    }
+
     public function test_card_registration_marks_only_the_first_saved_card_as_provider_default(): void
     {
         $this->fakeFincode();
         $user = $this->user('card-default-contract');
-        $this->completeCanonicalRegistration($user, 'card-default-first', 'card_default_first');
+        $this->completeCanonicalRegistration($user, 'card-default-first');
 
         $second = app(V2FincodeCardService::class)->startRegistration(
             $user,
@@ -1805,7 +2109,7 @@ final class FincodePaymentBackendTest extends TestCase
         $this->fakeFincode(registration: ['canonical_status' => 'FAILED']);
         try {
             app(V2FincodeWebhookService::class)->process(
-                $this->registrationWebhook($started[1]['id'], 'card_failed', [
+                $this->registrationWebhook($started[1]['id'], [
                     'customer_id' => null,
                     'card_id' => null,
                 ]),
@@ -1869,7 +2173,7 @@ final class FincodePaymentBackendTest extends TestCase
             );
             try {
                 app(V2FincodeWebhookService::class)->process(
-                    $this->registrationWebhook($started['id'], 'card_'.$name),
+                    $this->registrationWebhook($started['id']),
                     'test-webhook-signature'
                 );
                 self::fail('A non-authoritative Provider outcome must not create a card.');
@@ -1893,7 +2197,7 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame(
             ['status' => 'processed'],
             app(V2FincodeWebhookService::class)->process(
-                $this->registrationWebhook($started['id'], 'card_assurance_pending'),
+                $this->registrationWebhook($started['id']),
                 'test-webhook-signature'
             )
         );
@@ -1921,7 +2225,7 @@ final class FincodePaymentBackendTest extends TestCase
             );
             try {
                 app(V2FincodeWebhookService::class)->process(
-                    $this->registrationWebhook($started['id'], 'card_ownership_'.$name),
+                    $this->registrationWebhook($started['id']),
                     'test-webhook-signature'
                 );
                 self::fail('Provider ownership mismatch must fail closed.');
@@ -2036,8 +2340,7 @@ final class FincodePaymentBackendTest extends TestCase
         foreach (range(1, 3) as $index) {
             $registered[] = $this->completeCanonicalRegistration(
                 $user,
-                'card-intent-'.$index,
-                'card_'.$index
+                'card-intent-'.$index
             );
         }
         $collection = $cards->cards($user);
@@ -2074,7 +2377,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $this->fakeFincode();
         $user = $this->user('saved-card');
-        $card = $this->completeCanonicalRegistration($user, 'saved-card-intent', 'card_saved');
+        $card = $this->completeCanonicalRegistration($user, 'saved-card-intent');
         $payment = app(V2FincodePaymentService::class)->start(
             $user,
             $this->plan()->public_id,
@@ -2182,12 +2485,11 @@ final class FincodePaymentBackendTest extends TestCase
     /** @return array<string, mixed> */
     private function completeCanonicalRegistration(
         User $user,
-        string $idempotencyKey,
-        string $providerCardId
+        string $idempotencyKey
     ): array {
         $cards = app(V2FincodeCardService::class);
         $started = $cards->startRegistration($user, 'tok_'.$idempotencyKey, $idempotencyKey);
-        $payload = $this->registrationWebhook($started['id'], $providerCardId);
+        $payload = $this->registrationWebhook($started['id']);
         app(V2FincodeWebhookService::class)->process($payload, 'test-webhook-signature');
 
         return $cards->registration($user, $started['id']);
@@ -2196,7 +2498,6 @@ final class FincodePaymentBackendTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function registrationWebhook(
         string $registrationPublicId,
-        string $providerCardId,
         array $overrides = []
     ): string {
         $intent = DB::table('fincode_card_registration_intents as intent')
@@ -2209,7 +2510,7 @@ final class FincodePaymentBackendTest extends TestCase
             'event' => 'customers.payment_methods.updated',
             'pay_type' => 'Card',
             'customer_id' => $intent->provider_customer_id,
-            'card_id' => $providerCardId,
+            'card_id' => $intent->provider_payment_method_id,
             'card_status' => 'ACTIVATED',
             'status' => 'AUTHENTICATED',
             'access_id' => $intent->provider_access_id,
@@ -2266,7 +2567,7 @@ final class FincodePaymentBackendTest extends TestCase
                 $suffix = substr(hash('sha256', (string) $request->data()['client_field_1']), 0, 22);
 
                 return Http::response([
-                    'id' => 'pm_'.$suffix,
+                    'id' => 'cs_'.$suffix,
                     'pay_type' => 'Card',
                     'customer_id' => $customerId,
                     'status' => $registration['create_status'],
@@ -2282,19 +2583,22 @@ final class FincodePaymentBackendTest extends TestCase
                 ], 200);
             }
             if ($request->method() === 'GET' && str_contains($url, '/payment_methods/')) {
+                if ($registration['canonical_timeout'] ?? false) {
+                    return Http::failedConnection();
+                }
                 if ($registration['canonical_http_status'] !== 200) {
                     return Http::response([], $registration['canonical_http_status']);
                 }
                 $path = (string) parse_url($url, PHP_URL_PATH);
                 $paymentMethodId = basename($path);
                 $customerId = basename(dirname(dirname($path)));
-                $suffix = str_starts_with($paymentMethodId, 'pm_')
+                $suffix = str_starts_with($paymentMethodId, 'cs_')
                     ? substr($paymentMethodId, 3)
                     : substr(hash('sha256', $paymentMethodId), 0, 22);
 
                 return Http::response([
                     'id' => $registration['canonical_payment_method_id'] ?? $paymentMethodId,
-                    'pay_type' => 'Card',
+                    'pay_type' => $registration['canonical_pay_type'] ?? 'Card',
                     'customer_id' => $registration['canonical_customer_id'] ?? $customerId,
                     'status' => $registration['canonical_status'],
                     'redirect_url' => $registration['canonical_status'] === 'AWAITING_CUSTOMER_ACTION'
@@ -2307,16 +2611,22 @@ final class FincodePaymentBackendTest extends TestCase
                         'tds_type' => $registration['canonical_tds_type'],
                         'tds2_type' => $registration['canonical_tds2_type'],
                         'tds2_status' => $registration['canonical_tds2_status'],
-                        'access_id' => 'a_'.$suffix,
+                        'access_id' => $registration['canonical_access_id'] ?? 'a_'.$suffix,
                     ],
                 ], 200);
             }
             if ($request->method() === 'GET' && str_contains($url, '/cards/')) {
+                if ($registration['card_timeout'] ?? false) {
+                    return Http::failedConnection();
+                }
+                if (($registration['card_http_status'] ?? 200) !== 200) {
+                    return Http::response([], $registration['card_http_status']);
+                }
                 $cardId = basename(parse_url($url, PHP_URL_PATH));
                 $customerId = basename(dirname(dirname(parse_url($url, PHP_URL_PATH))));
 
                 return Http::response([
-                    'id' => $cardId,
+                    'id' => $registration['card_id'] ?? $cardId,
                     'brand' => 'VISA',
                     'customer_id' => $registration['card_customer_id'] ?? $customerId,
                     'card_no' => '************4242',

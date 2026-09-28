@@ -168,7 +168,8 @@ startPaymentCardRegistration(card_token, Idempotency-Key)
 → Registration next_actionでProvider 3DS2
 → normal／failure Browser Return（non-authoritative）
 → Payment Method exact GET
-→ signed customers.payment_methods.updatedで相関したCard IDをCard exact GET
+→ Card系Methodのcanonical idを、Webhook card_idがあれば一致確認
+→ 同CustomerのCard exact GETでCard ID／ownership／表示属性を確認
 → ACTIVATED + AUTHENTICATED + ownership一致
 → Platform Cardをexactly onceで作成
 → completed + saved_card_id
@@ -176,6 +177,26 @@ startPaymentCardRegistration(card_token, Idempotency-Key)
 
 Browser Return payloadやBrowserから渡された`provider_card_id`はAuthorityにしない。Webhookは署名済みの
 reconciliation trigger／Card ID相関に限り、成功判定はPayment Method exact GETとCard exact GETで行う。
+`customers.payment_methods.updated`の`transaction_id`はoptionalかつnullableのmetadataであり相関Authorityではない。
+欠落／NULLは受理し、保存済みnon-null値を消さない。値が存在する場合は従来の文字列形式検証を維持する。
+Webhook `status`は現行公式`AUTHENTICATED`／`CHECK`と、旧公式資料互換の`AUTHENTICATING`／`CHALLENGE`を
+受理するが、いずれも成功proofではない。`card_status=FAILED`を含む通知もcanonical再照会へ進め、
+Method `status=FAILED`は従来どおりfailedへ収束する。Methodの`card.tds2_status`とは別のfieldとして扱う。
+
+現行[公式OpenAPI](https://docs.fincode.jp/assets/api/fincode-openapi.yml?date=20250108)
+（2026-09-28確認）ではCard系Payment Methodのtop-level `id`は`cs_`で始まるCard識別子であり、
+`GET /v1/customers/{customer_id}/cards/{id}`へ渡す。保存済みMethod／Customer参照でMethod exact GETを行い、
+`pay_type=Card`、Method ID、Customer、`card.access_id`、`tds_type=2`、`tds2_type=2`、
+`status=ACTIVATED`、`card.tds2_status=AUTHENTICATED`を検証してからCard候補として使用する。
+Webhook card_idがあればcanonical候補との一致を要求し、不一致は上書きせずFail Closedする。
+Webhookなしでもreturn／reconcile API／workerが同じ再照会経路を起動できる。Card exact GET成功後にのみ、
+User→Intent lock下でownership、保存済み参照、terminal／expiry、上限3枚を再検証し、NULLのCard参照を
+Card／registration proof／completed／Auditと同一transactionで補完する。
+Provider通信はDB lock外で行い、Webhook未受信時の`webhook_received_at`はNULLのままとする。
+
+Historical 2026-08-30 root cause remains UNKNOWN.
+今回のSource/spec mismatch修正は、失われた歴史Webhookの送信・到達・拒否理由を確定するものではない。
+
 Provider不明／unavailableはCardを作らずretryable pending、failure／unsupported 3DSはfailed、明示cancelは
 canceled、TTL超過はexpiredとし、いずれもPayment、Coin、Mailを作らない。duplicate Return、Webhook、
 reconcile、並行reconcileでもCardは最大1件である。
