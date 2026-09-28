@@ -23,6 +23,47 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_fincode_webhook_alignment_is_exact_and_does_not_relax_other_contract_guards(self):
+        current = json.loads((ROOT / "openapi/bundled/webhook.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        schema = previous["components"]["schemas"]["FincodeCardRegistrationWebhook"]
+        schema["required"].append("transaction_id")
+        schema["properties"]["transaction_id"] = {"type": "string", "minLength": 1, "maxLength": 128}
+        schema["properties"]["status"] = {"enum": ["AUTHENTICATING", "CHALLENGE", "AUTHENTICATED"]}
+        authorize = openapi_contract_gate.is_authorized_fincode_registration_webhook_alignment
+        self.assertEqual(
+            ["components.schemas.FincodeCardRegistrationWebhook.transaction_id: type changed"],
+            openapi_contract_gate.breaking_changes(previous, current),
+        )
+        self.assertTrue(authorize("webhook", previous, current))
+        for surface in ("public", "admin", "agency"):
+            self.assertFalse(authorize(surface, previous, current))
+        for mutation in ("signature", "event", "access", "customer", "status", "type", "pattern", "length", "version"):
+            altered = copy.deepcopy(current)
+            changed = altered["components"]["schemas"]["FincodeCardRegistrationWebhook"]
+            if mutation == "signature":
+                altered["components"]["parameters"]["FincodeSignature"]["required"] = False
+            elif mutation == "event":
+                changed["properties"]["event"]["const"] = "customers.other"
+            elif mutation == "access":
+                changed["required"].remove("access_id")
+            elif mutation == "customer":
+                del changed["properties"]["customer_id"]
+            elif mutation == "status":
+                changed["properties"]["status"]["enum"].append("UNKNOWN")
+            elif mutation == "type":
+                changed["properties"]["transaction_id"]["type"].append("integer")
+            elif mutation == "pattern":
+                del changed["properties"]["transaction_id"]["pattern"]
+            elif mutation == "length":
+                changed["properties"]["transaction_id"]["minLength"] = 0
+            else:
+                altered["info"]["version"] = "2.0.0-alpha.99"
+            with self.subTest(mutation=mutation):
+                self.assertFalse(authorize("webhook", previous, altered))
+        self.assertFalse(authorize("webhook", {}, current))
+        self.assertFalse(authorize("webhook", current, current))
+
     def test_contact_authority_is_limited_to_login_and_idempotency_cutover(self):
         current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
         current["info"]["version"] = "2.0.0-alpha.33"
