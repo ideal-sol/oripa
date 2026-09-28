@@ -469,6 +469,33 @@ def is_authorized_contact_phone_required_break(
     )
 
 
+def is_authorized_fincode_registration_webhook_alignment(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    if surface != "webhook":
+        return False
+    expected = copy.deepcopy(previous)
+    schema = expected.get("components", {}).get("schemas", {}).get("FincodeCardRegistrationWebhook", {})
+    properties = schema.get("properties", {})
+    if (
+        schema.get("required") != ["event", "pay_type", "card_status", "status", "access_id", "transaction_id"]
+        or properties.get("transaction_id") != {"type": "string", "minLength": 1, "maxLength": 128}
+        or properties.get("status") != {"enum": ["AUTHENTICATING", "CHALLENGE", "AUTHENTICATED"]}
+    ):
+        return False
+    schema["required"].remove("transaction_id")
+    properties["transaction_id"].update({
+        "type": ["string", "null"],
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "description": "Optional metadata, not correlation authority. Missing or null does not erase a stored transaction reference.",
+    })
+    properties["status"] = {
+        "enum": ["AUTHENTICATING", "CHALLENGE", "AUTHENTICATED", "CHECK"],
+        "description": "Provider notification only; registration proof requires canonical Method and Card exact GETs.",
+    }
+    return current == expected
+
+
 def generate_bundles(repository: Path, output_root: Path) -> dict[str, Path]:
     sources = [str(value["source"]) for value in SURFACES.values()]
     run(
@@ -538,7 +565,9 @@ def validate_generated(
             previous = previous_bundle(repository, base_sha, relative)
             if previous is not None:
                 findings = breaking_changes(previous, document)
-                if findings and not is_authorized_mig_099_canonical_break(
+                if findings and not is_authorized_fincode_registration_webhook_alignment(
+                    surface, previous, document,
+                ) and not is_authorized_mig_099_canonical_break(
                     surface,
                     previous,
                     document,
