@@ -2386,6 +2386,7 @@ final class FincodePaymentBackendTest extends TestCase
             ['source' => 'saved', 'card_id' => $card['saved_card_id']]
         );
         self::assertSame('three_d_secure', $payment['next_action']['type']);
+        self::assertSame('https://pay.test.fincode.jp/redirect', $payment['next_action']['url']);
         Http::assertSent(function (Request $request): bool {
             if ($request->method() !== 'POST' || ! str_ends_with($request->url(), '/v1/payments')) {
                 return false;
@@ -2405,9 +2406,87 @@ final class FincodePaymentBackendTest extends TestCase
 
             return ($data['customer_id'] ?? null) !== null
                 && ($data['card_id'] ?? null) !== null
+                && isset($data['return_url'], $data['return_url_on_failure'])
+                && ! array_key_exists('tds2_ret_url', $data)
                 && ! array_key_exists('card_no', $data)
                 && ! array_key_exists('security_code', $data);
         });
+    }
+
+    #[DataProvider('savedCardRedirectResponses')]
+    public function test_saved_card_automatic_three_d_secure_uses_only_valid_redirect_url(
+        array $executionResponse,
+        ?string $expectedUrl
+    ): void {
+        $this->fakeFincode(paymentExecution: $executionResponse);
+        $user = $this->user('automatic-redirect');
+        $card = $this->completeCanonicalRegistration($user, 'automatic-redirect-card');
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user,
+            $this->plan()->public_id,
+            'credit_card',
+            'automatic-redirect-payment',
+            ['source' => 'saved', 'card_id' => $card['saved_card_id']]
+        );
+        $stored = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $attempt = DB::table('fincode_payment_attempts')->where('payment_id', $stored->id)->firstOrFail();
+        self::assertSame('requires_action', $payment['status']);
+        self::assertSame('requires_action', $attempt->status);
+        if ($expectedUrl === null) {
+            self::assertNull($payment['next_action']);
+            self::assertNull($attempt->redirect_url_ciphertext);
+        } else {
+            self::assertSame(['type' => 'three_d_secure', 'url' => $expectedUrl], $payment['next_action']);
+            self::assertSame($expectedUrl, Crypt::decryptString($attempt->redirect_url_ciphertext));
+        }
+        self::assertNull($stored->succeeded_at);
+        self::assertNull($stored->points_granted_at);
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $stored->id)->count());
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/secure2/'));
+    }
+
+    public static function savedCardRedirectResponses(): array
+    {
+        $redirectUrl = 'https://pay.test.fincode.jp/redirect';
+        $acsUrl = 'https://acs.example.test/manual';
+
+        return [
+            'automatic URL' => [['redirect_url' => $redirectUrl], $redirectUrl],
+            'automatic URL wins over manual URL' => [['redirect_url' => $redirectUrl, 'acs_url' => $acsUrl], $redirectUrl],
+            'missing' => [[], null],
+            'manual URL is not a fallback' => [['acs_url' => $acsUrl], null],
+            'null' => [['redirect_url' => null, 'acs_url' => $acsUrl], null],
+            'empty' => [['redirect_url' => '', 'acs_url' => $acsUrl], null],
+            'malformed' => [['redirect_url' => 'not-a-url', 'acs_url' => $acsUrl], null],
+            'relative' => [['redirect_url' => '/redirect'], null],
+            'http' => [['redirect_url' => 'http://pay.test.fincode.jp/redirect', 'acs_url' => $acsUrl], null],
+            'javascript' => [['redirect_url' => 'javascript:alert(1)'], null],
+            'integer' => [['redirect_url' => 123], null],
+            'boolean' => [['redirect_url' => true], null],
+            'array' => [['redirect_url' => [$redirectUrl]], null],
+            'object' => [['redirect_url' => (object) ['url' => $redirectUrl]], null],
+        ];
+    }
+
+    public function test_unsaved_card_payment_keeps_component_three_d_secure_without_registration(): void
+    {
+        $this->fakeFincode();
+        $payment = app(V2FincodePaymentService::class)->start(
+            $this->user('unsaved-redirect-regression'),
+            $this->plan()->public_id,
+            'credit_card',
+            'unsaved-redirect-payment',
+            ['source' => 'new', 'save' => false]
+        );
+        self::assertSame('requires_action', $payment['status']);
+        self::assertSame('fincode_card_component', $payment['next_action']['type']);
+        self::assertSame('2', $payment['next_action']['tds_type']);
+        self::assertSame(0, DB::table('fincode_card_registration_intents')->count());
+        self::assertSame(0, DB::table('fincode_cards')->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/customers')
+            || str_contains($request->url(), '/secure2/'));
     }
 
     public function test_timeout_is_uncertain_and_never_grants_coin(): void
@@ -2525,7 +2604,8 @@ final class FincodePaymentBackendTest extends TestCase
         string $retrievedStatus = 'AWAITING_CUSTOMER_PAYMENT',
         string $retrievedAmount = '1000',
         ?string $retrievedErrorCode = null,
-        array $registration = []
+        array $registration = [],
+        ?array $paymentExecution = null
     ): void
     {
         $registration = [
@@ -2550,7 +2630,8 @@ final class FincodePaymentBackendTest extends TestCase
             $retrievedStatus,
             $retrievedAmount,
             $retrievedErrorCode,
-            $registration
+            $registration,
+            $paymentExecution
         ) {
             $url = $request->url();
             if ($request->method() === 'POST' && str_ends_with($url, '/v1/customers')) {
@@ -2646,7 +2727,7 @@ final class FincodePaymentBackendTest extends TestCase
             if ($request->method() === 'PUT' && str_contains($url, '/v1/payments/')) {
                 return Http::response([
                     'status' => 'AUTHENTICATED',
-                    'acs_url' => 'https://acs.example.test/challenge',
+                    ...($paymentExecution ?? ['redirect_url' => 'https://pay.test.fincode.jp/redirect']),
                 ], 200);
             }
             if ($request->method() === 'POST' && str_ends_with($url, '/v1/sessions')) {
