@@ -107,7 +107,7 @@ final class V2FincodePaymentService
                         $failureReturnUrl,
                         $attempt->provider_execute_idempotency_key
                     );
-                    $nextUrl = $this->optionalActionUrl($executed['acs_url'] ?? null);
+                    $nextUrl = $this->optionalActionUrl($executed['redirect_url'] ?? null);
                     DB::table('fincode_cards')->where('id', $ownedCard->id)->update([
                         'last_used_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         'updated_at' => V2DatabaseTimestamp::format(now()),
