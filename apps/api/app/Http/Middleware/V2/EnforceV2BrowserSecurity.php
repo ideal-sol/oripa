@@ -28,6 +28,7 @@ final class EnforceV2BrowserSecurity
             }
             if (
                 ! $this->isBodylessPublicLogout($request)
+                && ! $this->isBodylessPublicDelete($request, $resolvedRealm)
                 && ! str_starts_with((string) $request->headers->get('Content-Type'), 'application/json')
             ) {
                 throw new V2AuthenticationException(
@@ -47,6 +48,15 @@ final class EnforceV2BrowserSecurity
     {
         return $request->route()?->getName() === 'v2.public.auth.logout'
             && $request->getContent() === '';
+    }
+
+    private function isBodylessPublicDelete(Request $request, V2Realm $realm): bool
+    {
+        return $realm === V2Realm::User
+            && $request->routeIs('v2.public.*')
+            && $request->isMethod('DELETE')
+            && $request->getContent() === ''
+            && ! $request->headers->has('Content-Type');
     }
 
     private function assertOrigin(Request $request, V2Realm $realm): void

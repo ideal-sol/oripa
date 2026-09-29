@@ -2413,6 +2413,113 @@ final class FincodePaymentBackendTest extends TestCase
         });
     }
 
+    public function test_bodyless_card_delete_http_soft_deletes_only_owned_card_and_is_idempotent(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('delete-http');
+        $card = $this->completeCanonicalRegistration($owner, 'delete-http-card');
+        $otherCard = $this->completeCanonicalRegistration($owner, 'delete-http-other');
+        $otherBefore = DB::table('fincode_cards')->where('public_id', $otherCard['saved_card_id'])->first();
+        Auth::guard('v2_user')->setUser($owner);
+
+        $this->bodylessCardDelete($card['saved_card_id'])->assertNoContent();
+        self::assertNotNull(DB::table('fincode_cards')->where('public_id', $card['saved_card_id'])->value('deleted_at'));
+        self::assertEquals($otherBefore, DB::table('fincode_cards')->where('public_id', $otherCard['saved_card_id'])->first());
+        $remaining = app(V2FincodeCardService::class)->cards($owner)['data'];
+        self::assertCount(1, $remaining);
+        self::assertSame($otherCard['saved_card_id'], $remaining[0]['id']);
+        try {
+            app(V2FincodeCardService::class)->ownedUsableCard($owner, $card['saved_card_id']);
+            self::fail('Deleted card must not remain selectable.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('CARD_NOT_FOUND', $exception->errorCode);
+        }
+        $this->bodylessCardDelete($card['saved_card_id'])->assertNoContent();
+        self::assertCount(1, Http::recorded(fn (Request $request): bool => $request->method() === 'DELETE'));
+    }
+
+    public function test_bodyless_card_delete_http_keeps_authentication_ownership_and_missing_card_rejections(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('delete-owner');
+        $card = $this->completeCanonicalRegistration($owner, 'delete-owner-card');
+        $before = DB::table('fincode_cards')->get()->all();
+        Auth::forgetGuards();
+        $this->bodylessCardDelete($card['saved_card_id'])->assertStatus(401);
+        Auth::guard('v2_user')->setUser($this->user('delete-other'));
+        $this->bodylessCardDelete($card['saved_card_id'])
+            ->assertStatus(404)->assertJsonPath('code', 'CARD_NOT_FOUND');
+        Auth::guard('v2_user')->setUser($owner);
+        $this->bodylessCardDelete((string) Str::uuid())
+            ->assertStatus(404)->assertJsonPath('code', 'CARD_NOT_FOUND');
+        self::assertCount(0, Http::recorded(fn (Request $request): bool => $request->method() === 'DELETE'));
+        self::assertEquals($before, DB::table('fincode_cards')->get()->all());
+    }
+
+    public function test_bodyless_card_delete_http_security_rejection_does_not_call_provider_or_change_card(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('delete-security');
+        $card = $this->completeCanonicalRegistration($owner, 'delete-security-card');
+        Auth::guard('v2_user')->setUser($owner);
+        $before = DB::table('fincode_cards')->get()->all();
+        $providerCalls = Http::recorded()->count();
+        foreach ([
+            ['HTTP_ORIGIN' => 'https://attacker.example.test'],
+            ['HTTP_ORIGIN' => ''],
+            ['HTTP_SEC_FETCH_SITE' => 'cross-site'],
+            ['HTTP_X_XSRF_TOKEN' => ''],
+            ['HTTP_X_XSRF_TOKEN' => str_repeat('b', 64)],
+        ] as $headers) {
+            $this->bodylessCardDelete($card['saved_card_id'], $headers)
+                ->assertStatus(403)->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
+        }
+        self::assertSame($providerCalls, Http::recorded()->count());
+        self::assertEquals($before, DB::table('fincode_cards')->get()->all());
+    }
+
+    public function test_bodyless_card_delete_http_provider_failure_preserves_local_card(): void
+    {
+        $this->fakeFincode();
+        $owner = $this->user('delete-failure');
+        $card = $this->completeCanonicalRegistration($owner, 'delete-failure-card');
+        Auth::guard('v2_user')->setUser($owner);
+        $before = DB::table('fincode_cards')->get()->all();
+        Http::swap(new Factory());
+        Http::fake(fn (Request $request) => Http::response([], 500));
+
+        $this->bodylessCardDelete($card['saved_card_id'])
+            ->assertStatus(503)->assertJsonPath('code', 'FINCODE_PROVIDER_UNAVAILABLE');
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE');
+        self::assertEquals($before, DB::table('fincode_cards')->get()->all());
+    }
+
+    private function bodylessCardDelete(string $cardId, array $headers = []): \Illuminate\Testing\TestResponse
+    {
+        config(['v2_identity.origins.user' => 'https://storefront.example.test']);
+        $csrf = str_repeat('a', 64);
+        $request = \Illuminate\Http\Request::create('/api/v2/me/payment-cards/'.$cardId, 'DELETE', [], [
+            '__Host-oripa_user_xsrf' => $csrf,
+        ], [], [
+            'HTTPS' => 'on',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_ORIGIN' => 'https://storefront.example.test',
+            'HTTP_SEC_FETCH_SITE' => 'same-origin',
+            'HTTP_X_XSRF_TOKEN' => $csrf,
+            ...$headers,
+        ], '');
+        $request->headers->remove('Content-Type');
+        $request->server->remove('CONTENT_TYPE');
+        self::assertFalse($request->headers->has('Content-Type'));
+        self::assertSame('', $request->getContent());
+        $kernel = app(\Illuminate\Contracts\Http\Kernel::class);
+        $response = $kernel->handle($request);
+        $kernel->terminate($request, $response);
+
+        return $this->createTestResponse($response, $request);
+    }
+
     #[DataProvider('savedCardRedirectResponses')]
     public function test_saved_card_automatic_three_d_secure_uses_only_valid_redirect_url(
         array $executionResponse,
