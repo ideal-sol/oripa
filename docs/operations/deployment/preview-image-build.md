@@ -173,6 +173,13 @@ and builds only the payload directory. OCI revision is the payload SHA, never th
 control SHA. The validator is `authorize_old_test_source` in the source-controlled
 GitHub App artifact wrapper, also called by `old_test_source_authority.py` in CI.
 
+Ancestor comparison uses the structured `api_compare` operation: only the fixed
+Repository and two complete hexadecimal commit SHAs are accepted. The wrapper
+internally constructs the SHA-to-SHA compare endpoint with a fixed query. Generic
+raw-path reads still reject dot-dot, including repeatedly encoded traversal, and
+cannot opt into comparison with a skip flag or caller-supplied URL. Transport-level
+tests exercise both guards without substituting the higher-level `api_get` helper.
+
 After the infrastructure PR and control-main checks pass, provision only the
 reviewed `infrastructure/github-app/oripa-github-app-api` to the existing installed
 wrapper path. Preserve its owner/mode and an external byte-exact rollback copy.
