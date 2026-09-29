@@ -1472,7 +1472,9 @@ def validate_preview_image_pipeline(repository: Path, paths: Iterable[str]) -> N
     for required in (
         'TARGET_ARCHITECTURE = "amd64"',
         'SUPPORTED_ARCHITECTURES = ("amd64", "arm64")',
-        'ARTIFACT_KINDS = ("preview", "production-candidate")',
+        'ARTIFACT_KINDS = ("preview", "production-candidate", "old-test")',
+        'if artifact_kind == "old-test" and architecture != "amd64":',
+        'fail("old_test_architecture_invalid")',
         'SCHEMA_VERSION = "oripa.platform-images.v2"',
         'LEGACY_SCHEMA_VERSION = "oripa.preview-images.v1"',
     ):

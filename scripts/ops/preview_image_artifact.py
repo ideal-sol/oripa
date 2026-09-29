@@ -35,7 +35,7 @@ TARGET_OS = "linux"
 TARGET_ARCHITECTURE = "amd64"
 TARGET_PLATFORM = f"{TARGET_OS}/{TARGET_ARCHITECTURE}"
 SUPPORTED_ARCHITECTURES = ("amd64", "arm64")
-ARTIFACT_KINDS = ("preview", "production-candidate")
+ARTIFACT_KINDS = ("preview", "production-candidate", "old-test")
 ARCHIVE_NAMES = {
     "api": "oripa-v2-api-linux-amd64.docker.tar.zst",
     "admin": "oripa-v2-admin-linux-amd64.docker.tar.zst",
@@ -102,6 +102,8 @@ def validate_target(artifact_kind: str, architecture: str) -> None:
         fail("architecture_invalid")
     if artifact_kind == "preview" and architecture != TARGET_ARCHITECTURE:
         fail("preview_architecture_invalid")
+    if artifact_kind == "old-test" and architecture != "amd64":
+        fail("old_test_architecture_invalid")
 
 
 def target_platform(architecture: str) -> str:
@@ -126,8 +128,8 @@ def image_identity(
     source_sha: str,
 ) -> tuple[str, str]:
     version = f"{artifact_kind}-{task_id}"
-    if artifact_kind == "preview":
-        reference = f"oripa-v2-{name}:preview-{task_id}-{source_sha[:12]}"
+    if artifact_kind in {"preview", "old-test"}:
+        reference = f"oripa-v2-{name}:{artifact_kind}-{task_id}-{source_sha[:12]}"
     else:
         reference = (
             f"oripa-v2-{name}:production-candidate-{task_id}-"
@@ -180,6 +182,8 @@ def package_images(arguments: argparse.Namespace) -> dict:
         fail("output_directory_not_empty")
     output.mkdir(parents=True, exist_ok=True)
     image_names = IMAGE_MODES[arguments.image_mode]
+    if arguments.artifact_kind == "old-test" and image_names != ("api",):
+        fail("old_test_api_only_required")
     archives = archive_names(arguments.architecture)
     references = {"api": arguments.api_image, "admin": arguments.admin_image, "agency": getattr(arguments, 'agency_image', None)}
     if (arguments.image_mode in {"normal", "agency"}) != (arguments.admin_image is not None):
@@ -397,6 +401,8 @@ def verify_artifact(
     ) if isinstance(images, list) else ()
     if image_names not in IMAGE_MODES.values() or len(image_names) != len(images):
         fail("manifest_images_invalid")
+    if artifact_kind == "old-test" and image_names != ("api",):
+        fail("old_test_api_only_required")
 
     archives = archive_names(architecture)
     expected_files = {archives[name] for name in image_names} | {"manifest.json"}

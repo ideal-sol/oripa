@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Read-only GitHub App API wrapper, including verified Preview artifacts."""
+"""GitHub reads and narrowly approved OLD Test artifact dispatch/retrieval."""
 
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -47,6 +48,8 @@ REQUIRED_CHECKS = {
     "integration-gate",
     "ci-gate",
 }
+OLD_AUTHORITY_PATH = "manifests/platform-old-test-approved-source.json"
+OLD_WORKFLOW_PATH = ".github/workflows/old-test-main-artifact.yml"
 CHECK_RUN_GATE = runpy.run_path(str(Path(__file__).with_name("check_run_gate.py")))
 REDACTIONS = (
     re.compile(r"(?i)(authorization|token|password|secret)([=:]\\s*)[^\\s]+"),
@@ -244,10 +247,11 @@ def validated_pr(policy: dict, pr_number: str, head_sha: str) -> dict:
     return pull
 
 
-def validate_required_checks(head_sha: str) -> None:
+def validate_required_checks(head_sha: str, get=None) -> None:
+    get = get or api_get
     try:
         check_runs = CHECK_RUN_GATE["list_required_check_runs"](
-            api_get, repository=REPOSITORY, head_sha=head_sha
+            get, repository=REPOSITORY, head_sha=head_sha
         )
         summary = CHECK_RUN_GATE["evaluate_required_check_runs"](
             check_runs, head_sha=head_sha, required_checks=REQUIRED_CHECKS
@@ -258,11 +262,101 @@ def validate_required_checks(head_sha: str) -> None:
         fail("required_checks_not_successful")
 
 
-def artifact_name(task_id: str, head_sha: str) -> str:
-    return f"oripa-preview-images-{task_id}-{head_sha}"
+def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
+                              control_sha: str, *, get=None) -> dict:
+    get = get or api_get
+    if (
+        not TASK_ID.fullmatch(task_id) or not PR_NUMBER.fullmatch(pr_number)
+        or not FULL_SHA.fullmatch(source_sha) or not FULL_SHA.fullmatch(control_sha)
+    ):
+        fail("old_test_identity_invalid")
+    main = get(f"/repos/{REPOSITORY}/branches/main")
+    if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
+        fail("old_test_control_not_current_protected_main")
+    content = get(f"/repos/{REPOSITORY}/contents/{OLD_AUTHORITY_PATH}?ref={control_sha}")
+    if content.get("encoding") != "base64":
+        fail("old_test_approval_invalid")
+    approval = json.loads(base64.b64decode(content["content"]).decode("utf-8"))
+    if (
+        approval.get("schema_version") != "1.0"
+        or approval.get("repository") != REPOSITORY
+        or approval.get("task_id") != task_id
+        or approval.get("source_pr") != int(pr_number)
+        or approval.get("source_sha") != source_sha
+        or approval.get("target") != "old-test"
+        or approval.get("platform") != "linux/amd64"
+        or approval.get("image_mode") != "api-only"
+        or approval.get("activation_authorized") is not False
+        or not str(approval.get("authority", "")).startswith("Human-approved exact OLD Test payload:")
+    ):
+        fail("old_test_approval_mismatch")
+    comparison = get(f"/repos/{REPOSITORY}/compare/{source_sha}...{control_sha}?per_page=1")
+    if (
+        comparison.get("status") not in {"ahead", "identical"}
+        or comparison.get("merge_base_commit", {}).get("sha") != source_sha
+        or comparison.get("base_commit", {}).get("sha") != source_sha
+    ):
+        fail("old_test_source_not_main_ancestor")
+    pull = get(f"/repos/{REPOSITORY}/pulls/{pr_number}")
+    head = pull.get("head") or {}
+    if (
+        pull.get("state") != "closed" or pull.get("merged") is not True
+        or pull.get("merge_commit_sha") != source_sha
+        or pull.get("base", {}).get("ref") != "main"
+        or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+        or head.get("repo", {}).get("full_name") != REPOSITORY
+        or not FULL_SHA.fullmatch(str(head.get("sha", "")))
+    ):
+        fail("old_test_source_pr_mismatch")
+    reviewed_sha = head["sha"]
+    source = get(f"/repos/{REPOSITORY}/git/commits/{source_sha}")
+    reviewed = get(f"/repos/{REPOSITORY}/git/commits/{reviewed_sha}")
+    tree = source.get("tree", {}).get("sha", "")
+    if (
+        source.get("sha") != source_sha or reviewed.get("sha") != reviewed_sha
+        or not FULL_SHA.fullmatch(tree) or reviewed.get("tree", {}).get("sha") != tree
+    ):
+        fail("old_test_reviewed_tree_mismatch")
+    validate_required_checks(reviewed_sha, get)
+    validate_required_checks(control_sha, get)
+    current = get(f"/repos/{REPOSITORY}/branches/main")
+    if current.get("protected") is not True or current.get("commit", {}).get("sha") != control_sha:
+        fail("old_test_control_moved")
+    return {
+        "task_id": task_id, "source_pr": int(pr_number), "source_sha": source_sha,
+        "source_tree": tree, "reviewed_sha": reviewed_sha, "control_sha": control_sha,
+        "target": "old-test", "platform": "linux/amd64", "image_mode": "api-only",
+        "authority_path": OLD_AUTHORITY_PATH,
+    }
 
 
-def validated_run(run_id: int) -> dict:
+def old_test_policy(task_id: str) -> dict:
+    policy = secure_policy(task_id)
+    if policy.get("lane") != "Strict Change" or policy.get("activation") not in {"deferred", "immediate"}:
+        fail("old_test_policy_invalid")
+    return policy
+
+
+def dispatch_old_test_artifact(task_id: str, pr_number: str, source_sha: str) -> dict:
+    old_test_policy(task_id)
+    control_sha = api_get(f"/repos/{REPOSITORY}/branches/main").get("commit", {}).get("sha", "")
+    authority = authorize_old_test_source(task_id, pr_number, source_sha, control_sha)
+    autonomy = runpy.run_path("/usr/local/libexec/ideal-sol-github-app-autonomy")
+    status, _ = autonomy["request"](
+        "POST", f"/repos/{REPOSITORY}/actions/workflows/old-test-main-artifact.yml/dispatches",
+        {"ref": "main", "inputs": {"task_id": task_id, "pr_number": pr_number, "source_sha": source_sha}},
+    )
+    if status != 204:
+        fail("old_test_dispatch_failed")
+    return {**authority, "status": "dispatched"}
+
+
+def artifact_name(task_id: str, head_sha: str, old_test: bool = False) -> str:
+    kind = "old-test" if old_test else "preview"
+    return f"oripa-{kind}-images-{task_id}-{head_sha}"
+
+
+def validated_run(run_id: int, old_test: bool = False) -> dict:
     run = api_get(f"/repos/{REPOSITORY}/actions/runs/{run_id}")
     if not isinstance(run, dict):
         fail("workflow_run_invalid")
@@ -271,18 +365,23 @@ def validated_run(run_id: int) -> dict:
         run.get("event") != "workflow_dispatch"
         or run.get("status") != "completed"
         or run.get("conclusion") != "success"
-        or path != ".github/workflows/preview-image-build.yml"
+        or path != (OLD_WORKFLOW_PATH if old_test else ".github/workflows/preview-image-build.yml")
         or run.get("head_branch") != "main"
     ):
         fail("workflow_run_rejected")
     return run
 
 
-def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str) -> list[dict]:
-    policy = secure_policy(task_id)
-    validated_pr(policy, pr_number, head_sha)
-    validate_required_checks(head_sha)
-    query = urllib.parse.urlencode({"name": artifact_name(task_id, head_sha), "per_page": "100"})
+def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str, *, old_test: bool = False) -> list[dict]:
+    if old_test:
+        old_test_policy(task_id)
+        control = api_get(f"/repos/{REPOSITORY}/branches/main").get("commit", {}).get("sha", "")
+        authorize_old_test_source(task_id, pr_number, head_sha, control)
+    else:
+        policy = secure_policy(task_id)
+        validated_pr(policy, pr_number, head_sha)
+        validate_required_checks(head_sha)
+    query = urllib.parse.urlencode({"name": artifact_name(task_id, head_sha, old_test), "per_page": "100"})
     result = api_get(f"/repos/{REPOSITORY}/actions/artifacts?{query}")
     if not isinstance(result, dict) or not isinstance(result.get("artifacts"), list):
         fail("artifacts_response_invalid")
@@ -294,9 +393,11 @@ def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str) -> list[
         run_id = workflow_run.get("id") if isinstance(workflow_run, dict) else None
         if not isinstance(run_id, int):
             continue
-        validated_run(run_id)
+        run = validated_run(run_id, old_test)
+        if old_test and run.get("head_sha") != control:
+            continue
         digest = artifact.get("digest")
-        if artifact.get("name") != artifact_name(task_id, head_sha) or not isinstance(digest, str) or not SHA256.fullmatch(digest):
+        if artifact.get("name") != artifact_name(task_id, head_sha, old_test) or not isinstance(digest, str) or not SHA256.fullmatch(digest):
             continue
         output.append(
             {
@@ -377,7 +478,7 @@ def download_to(path: str, destination: Path) -> str:
     return digest.hexdigest()
 
 
-def safe_extract(source: Path, destination: Path) -> None:
+def safe_extract(source: Path, destination: Path, old_test: bool = False) -> None:
     common = {
         "manifest.json",
         "SHA256SUMS",
@@ -388,6 +489,8 @@ def safe_extract(source: Path, destination: Path) -> None:
         common | {"oripa-v2-admin-linux-amd64.docker.tar.zst"},
         common | {"oripa-v2-admin-linux-amd64.docker.tar.zst", "oripa-v2-agency-linux-amd64.docker.tar.zst"},
     )
+    if old_test:
+        allowed_sets = (common | {"source-authority.json"},)
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
         filenames = {item.filename for item in files}
@@ -417,10 +520,17 @@ def download_preview_artifact(
     head_sha: str,
     artifact_id: str,
     destination_value: str,
+    *,
+    old_test: bool = False,
 ) -> dict:
-    policy = secure_policy(task_id)
-    validated_pr(policy, pr_number, head_sha)
-    validate_required_checks(head_sha)
+    if old_test:
+        old_test_policy(task_id)
+        control = api_get(f"/repos/{REPOSITORY}/branches/main").get("commit", {}).get("sha", "")
+        authority = authorize_old_test_source(task_id, pr_number, head_sha, control)
+    else:
+        policy = secure_policy(task_id)
+        validated_pr(policy, pr_number, head_sha)
+        validate_required_checks(head_sha)
     if not ARTIFACT_ID.fullmatch(artifact_id):
         fail("artifact_id_invalid")
     destination = validate_destination(task_id, destination_value)
@@ -429,14 +539,16 @@ def download_preview_artifact(
     run_id = workflow_run.get("id") if isinstance(workflow_run, dict) else None
     digest = artifact.get("digest") if isinstance(artifact, dict) else None
     if (
-        artifact.get("name") != artifact_name(task_id, head_sha)
+        artifact.get("name") != artifact_name(task_id, head_sha, old_test)
         or artifact.get("expired") is True
         or not isinstance(run_id, int)
         or not isinstance(digest, str)
         or not SHA256.fullmatch(digest)
     ):
         fail("artifact_identity_mismatch")
-    validated_run(run_id)
+    run = validated_run(run_id, old_test)
+    if old_test and run.get("head_sha") != control:
+        fail("old_test_run_control_mismatch")
 
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".preview-artifact-", dir=destination.parent) as temporary:
@@ -448,11 +560,27 @@ def download_preview_artifact(
         require_outer_digest(digest, actual_digest)
         payload = staging / "payload"
         payload.mkdir(mode=0o700)
-        safe_extract(archive, payload)
+        safe_extract(archive, payload, old_test)
+        helper = ARTIFACT_HELPER
+        extra_arguments = []
+        if old_test:
+            provenance = json.loads((payload / "source-authority.json").read_text())
+            expected = {**authority, "run_id": run_id, "run_attempt": run.get("run_attempt")}
+            if provenance != expected:
+                fail("old_test_provenance_mismatch")
+            helper = staging / "verified-control-artifact-helper.py"
+            control_source = subprocess.run(
+                ["git", "-C", "/var/www/oripa", "show", f"{control}:scripts/ops/preview_image_artifact.py"],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+            )
+            if control_source.returncode:
+                fail("old_test_control_helper_unavailable")
+            helper.write_bytes(control_source.stdout)
+            extra_arguments = ["--artifact-kind", "old-test", "--architecture", "amd64"]
         verification = subprocess.run(
             [
                 sys.executable,
-                str(ARTIFACT_HELPER),
+                str(helper),
                 "verify",
                 "--directory",
                 str(payload),
@@ -462,6 +590,7 @@ def download_preview_artifact(
                 pr_number,
                 "--source-sha",
                 head_sha,
+                *extra_arguments,
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -480,6 +609,8 @@ def download_preview_artifact(
             "pull_request": int(pr_number),
             "source_commit": head_sha,
         }
+        if old_test:
+            metadata.update(control_sha=control, artifact_kind="old-test", architecture="amd64")
         (staging / "download-metadata.json").write_bytes(
             (json.dumps(metadata, sort_keys=True, indent=2) + "\n").encode("utf-8")
         )
@@ -550,6 +681,18 @@ def main() -> None:
         if len(arguments) != 1:
             fail("job_log_arguments_invalid")
         job_log_errors_operation(arguments[0])
+    elif operation == "dispatch-old-test-artifact":
+        if len(arguments) != 3:
+            fail("old_test_arguments_invalid")
+        print(json.dumps(dispatch_old_test_artifact(*arguments), sort_keys=True))
+    elif operation == "old-test-artifacts":
+        if len(arguments) != 3:
+            fail("old_test_arguments_invalid")
+        print(json.dumps(list_preview_artifacts(*arguments, old_test=True), sort_keys=True))
+    elif operation == "download-old-test-artifact":
+        if len(arguments) != 5:
+            fail("old_test_arguments_invalid")
+        print(json.dumps(download_preview_artifact(*arguments, old_test=True), sort_keys=True))
     elif operation == "preview-artifacts":
         if len(arguments) != 3:
             fail("preview_artifact_arguments_invalid")

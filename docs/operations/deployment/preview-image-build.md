@@ -2,9 +2,10 @@
 
 ## Boundary
 
-Platform API and Admin Preview images are built only by
+Platform API and Admin PR Preview images are built only by
 `.github/workflows/preview-image-build.yml` on GitHub-hosted
-`ubuntu-24.04` x64. The Preview host must never run `docker build`.
+`ubuntu-24.04` x64. The separate OLD Test merged-main API-only path below uses
+the same native runner and artifact verifier. The Preview host must never run `docker build`.
 
 This workflow owns Preview image build only. It never builds, uploads, or
 publishes the Storefront Contract Artifact; that post-merge responsibility is
@@ -149,3 +150,77 @@ keeps `linux/amd64` as the default target; both Preview CI build selection and
 the Preview host load guard consume that boundary. The helper also validates the
 separate `linux/arm64` Production-candidate artifact kind, but Preview rejects
 that kind and architecture. Cross-architecture loading remains fail closed.
+
+## OLD Test Exact Merged-Main Payload
+
+`.github/workflows/old-test-main-artifact.yml` is a separate, API-only AMD64
+build control plane. It does not replace or relax the PR Preview head guard,
+and does not change Production ARM64 behavior. It neither deploys nor migrates.
+
+The reviewed `manifests/platform-old-test-approved-source.json` binds an
+explicit Human-approved artifact Task, merged source PR, exact payload SHA,
+`old-test` target, `linux/amd64`, and `api-only`. Future payload approvals require
+a separately reviewed change; a caller cannot request an arbitrary main ancestor.
+
+Build Control Authority is the current protected `main` workflow SHA. Application
+Payload Authority is the manifest-approved 40-character SHA, which may be an older
+ancestor. The shared CI/retrieval validator requires the source PR's squash SHA,
+internal main base, reviewed/merged tree equality, trusted successful five Required
+Checks on its reviewed head and control main, and protected-main ancestry. Unknown,
+PR-only, unapproved, malformed, Production, and ARM64 inputs fail closed.
+The workflow checks out control and payload separately, verifies exact checkout,
+and builds only the payload directory. OCI revision is the payload SHA, never the
+control SHA. The validator is `authorize_old_test_source` in the source-controlled
+GitHub App artifact wrapper, also called by `old_test_source_authority.py` in CI.
+
+After the infrastructure PR and control-main checks pass, provision only the
+reviewed `infrastructure/github-app/oripa-github-app-api` to the existing installed
+wrapper path. Preserve its owner/mode and an external byte-exact rollback copy.
+Verify source/runtime byte identity. Existing broker, authentication, and Secret
+handling are unchanged. No global schema or unrelated wrapper operation changes.
+
+```bash
+oripa-github-app-api dispatch-old-test-artifact <TASK_ID> <SOURCE_PR> <PAYLOAD_SHA>
+oripa-github-app-api old-test-artifacts <TASK_ID> <SOURCE_PR> <PAYLOAD_SHA>
+oripa-github-app-api download-old-test-artifact \
+  <TASK_ID> <SOURCE_PR> <PAYLOAD_SHA> <ARTIFACT_ID> \
+  /var/lib/oripa-v2-evidence/<TASK_ID>/preview-image-artifacts/<PAYLOAD_SHA>
+```
+
+Dispatch uses the existing authenticated GitHub App transport, with fixed workflow
+and `ref=main`, after root-owned Strict Task Policy and reviewed source approval
+validation. It does not reuse a PR check operation. Retrieval repeats source
+validation and requires the successful main-only workflow run at current control
+SHA. Main drift requires revalidation, not a permissive fallback.
+
+The GitHub artifact is `oripa-old-test-images-<TASK_ID>-<PAYLOAD_SHA>` and the image
+is `oripa-v2-api:old-test-<TASK_ID>-<PAYLOAD_SHA_PREFIX12>`. Its manifest uses
+`artifact_kind=old-test`, never a Production or PR Preview tag. `source-authority.json`
+records source/reviewed tree, control SHA, Task, source PR, run ID and attempt.
+The GitHub outer digest authenticates the exact provenance and archive file set;
+inner checksums and Docker image ID/OCI labels are verified independently.
+
+The retrieval wrapper extracts the existing standalone image verifier from the
+validated control Git object, not the host's possibly older checkout or artifact
+payload, and retains it as `verified-control-artifact-helper.py` beside `payload/`.
+Use that exact verifier's `load` command with `--artifact-kind old-test`,
+`--architecture amd64`, and the same Task/PR/payload identity. Import does not build.
+
+Activation requires separate explicit Human OLD Test approval and an immediate
+Task Activation phase after artifact verification. Only the existing 8611 `api`
+and 8621 `test-api` services are eligible. Record current image IDs, ordered Compose
+chain, ports, mounts, config-source paths and networks without exposing Secrets.
+Append an external image-only override; preserve the chain and TEST credentials.
+Start on the existing private network only, wait for healthy, then attach the
+existing API egress network. Never change host routes, create networks, or start
+with both networks attached. Keep the previous image and reverse the image override
+with the same private-start/health/egress sequence if Technical verification fails.
+
+OLD-only acceptance uses 8611/8621 loopback health plus the existing Test HTTPS
+API/session endpoints and non-destructive webhook route inspection. Unlike the
+broader historical Preview procedure above, this task does not touch Production.
+Require the exact same payload revision/image ID on both APIs, zero restart loop,
+no 502/unexpected 5xx, unchanged Storefront/Nginx/config, and preserved migration
+ledger. Do not execute real Card DELETE, Payment, 3DS or Provider requests.
+Global payment/card registration reconciliation and scheduler remain OFF.
+Stop at Technical PASS; Browser Card Delete acceptance remains Human-only.
