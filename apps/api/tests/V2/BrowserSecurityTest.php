@@ -193,6 +193,153 @@ final class BrowserSecurityTest extends TestCase
         self::assertFalse($cookies[1]->isHttpOnly());
     }
 
+    public function test_bodyless_public_delete_routes_preserve_browser_security(): void
+    {
+        foreach ([
+            ['/api/v2/me/payment-cards/card', 'v2.public.payment-cards.destroy'],
+            ['/api/v2/me/shipping-addresses/address', 'v2.public.shipping-addresses.destroy'],
+            ['/api/v2/me/external-identities/google', 'v2.public.external-identities.google.destroy'],
+            ['/api/v2/me/external-identities/line', 'v2.public.external-identities.line.destroy'],
+        ] as [$uri, $routeName]) {
+            foreach ([null, 'application/json'] as $contentType) {
+                $request = $this->publicDeleteRequest($uri, $routeName);
+                $request->headers->set('Content-Length', '0');
+                if ($contentType !== null) {
+                    $request->headers->set('Content-Type', $contentType);
+                }
+                $response = app(EnforceV2BrowserSecurity::class)->handle(
+                    $request,
+                    static fn (): Response => new Response('downstream'),
+                    'user'
+                );
+                self::assertSame('downstream', $response->getContent());
+            }
+        }
+    }
+
+    public function test_delete_media_type_and_nonempty_body_behavior_is_preserved(): void
+    {
+        foreach ([
+            ['', '', 415],
+            ['', 'text/plain', 415],
+            ['', 'application/x-www-form-urlencoded', 415],
+            ['', 'multipart/form-data; boundary=test', 415],
+            ['{}', null, 415],
+            ['null', null, 415],
+            [' ', null, 415],
+            ['{}', 'text/plain', 415],
+            ['{}', 'application/json', 200],
+            ['malformed-json', 'application/json', 200],
+        ] as [$body, $contentType, $status]) {
+            $request = $this->publicDeleteRequest(content: $body);
+            $request->headers->set('Content-Length', '0');
+            if ($contentType !== null) {
+                $request->headers->set('Content-Type', $contentType);
+            }
+            $reached = false;
+            try {
+                app(EnforceV2BrowserSecurity::class)->handle(
+                    $request,
+                    static function () use (&$reached): Response {
+                        $reached = true;
+                        return new Response('ok');
+                    },
+                    'user'
+                );
+                self::assertSame(200, $status);
+                self::assertTrue($reached);
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame($status, $exception->status);
+                self::assertSame('UNSUPPORTED_MEDIA_TYPE', $exception->errorCode);
+                self::assertFalse($reached);
+            }
+        }
+    }
+
+    public function test_bodyless_public_delete_does_not_skip_origin_or_csrf(): void
+    {
+        foreach ([
+            ['Origin', 'https://attacker.example.test'],
+            ['Origin', null],
+            ['Sec-Fetch-Site', 'cross-site'],
+            ['X-XSRF-TOKEN', null],
+            ['X-XSRF-TOKEN', str_repeat('b', 64)],
+        ] as [$header, $value]) {
+            $request = $this->publicDeleteRequest();
+            if ($value === null) {
+                $request->headers->remove($header);
+            } else {
+                $request->headers->set($header, $value);
+            }
+            try {
+                app(EnforceV2BrowserSecurity::class)->handle(
+                    $request,
+                    static function (): Response {
+                        self::fail('Rejected browser request must not reach downstream.');
+                    },
+                    'user'
+                );
+                self::fail('Invalid browser security must fail closed.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame(403, $exception->status);
+                self::assertSame('CSRF_TOKEN_MISMATCH', $exception->errorCode);
+            }
+        }
+        $request = $this->publicDeleteRequest();
+        $request->headers->remove('Origin');
+        $request->headers->set('Referer', 'https://storefront.example.test/cards');
+        self::assertSame(200, app(EnforceV2BrowserSecurity::class)->handle(
+            $request,
+            static fn (): Response => new Response('ok'),
+            'user'
+        )->getStatusCode());
+    }
+
+    public function test_bodyless_delete_exception_is_public_user_delete_only(): void
+    {
+        foreach ([
+            ['POST', 'v2.public.payment-cards.destroy', 'user'],
+            ['PUT', 'v2.public.payment-cards.destroy', 'user'],
+            ['PATCH', 'v2.public.payment-cards.destroy', 'user'],
+            ['DELETE', 'v2.admin.cards.destroy', 'admin'],
+            ['DELETE', 'v2.agency.cards.destroy', 'agency'],
+            ['DELETE', 'v2.public.payment-cards.destroy', 'admin'],
+            ['DELETE', 'v2.public.payment-cards.destroy', 'agency'],
+            ['DELETE', 'unrelated.destroy', 'user'],
+        ] as [$method, $routeName, $realm]) {
+            $request = $this->requestForNamedRoute('/api/v2/me/payment-cards/card', $method, $routeName);
+            $request->headers->remove('Content-Type');
+            try {
+                app(EnforceV2BrowserSecurity::class)->handle(
+                    $request,
+                    static function (): Response {
+                        self::fail('Out-of-scope request must not gain an exemption.');
+                    },
+                    $realm
+                );
+                self::fail('JSON Content-Type must remain required.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame(415, $exception->status);
+                self::assertSame('UNSUPPORTED_MEDIA_TYPE', $exception->errorCode);
+            }
+        }
+    }
+
+    private function publicDeleteRequest(
+        string $uri = '/api/v2/me/payment-cards/card',
+        string $routeName = 'v2.public.payment-cards.destroy',
+        string $content = ''
+    ): Request {
+        $request = $this->requestForNamedRoute($uri, 'DELETE', $routeName, $content);
+        $request->headers->remove('Content-Type');
+        $request->headers->set('Origin', 'https://storefront.example.test');
+        $request->headers->set('Sec-Fetch-Site', 'same-origin');
+        $request->headers->set('X-XSRF-TOKEN', str_repeat('a', 64));
+        $request->cookies->set('__Host-oripa_user_xsrf', str_repeat('a', 64));
+
+        return $request;
+    }
+
     public function test_authentication_problem_details_are_private_and_versioned(): void
     {
         $request = Request::create('/api/v2/auth/login', 'POST');
