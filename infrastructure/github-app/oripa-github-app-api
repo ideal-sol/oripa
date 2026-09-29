@@ -89,8 +89,25 @@ def installation_token() -> str:
 
 
 def github_request(path: str, *, accept: str = "application/vnd.github+json"):
-    if not path.startswith("/") or ".." in path or "://" in path:
+    if not isinstance(path, str):
         fail("github_path_invalid")
+    decoded = path
+    while True:
+        if (
+            not decoded.startswith("/") or decoded.startswith("//")
+            or ".." in decoded or "://" in decoded or "\\" in decoded or "#" in decoded
+            or re.match(r"^/repos/[^/]+/[^/]+/compare(?:/|\?|$)", decoded)
+            or any(ord(character) < 32 or ord(character) == 127 for character in decoded)
+        ):
+            fail("github_path_invalid")
+        unquoted = urllib.parse.unquote(decoded)
+        if unquoted == decoded:
+            break
+        decoded = unquoted
+    return _github_get_response(path, accept=accept)
+
+
+def _github_get_response(path: str, *, accept: str = "application/vnd.github+json"):
     access_token = installation_token()
     request = urllib.request.Request(
         API_ROOT + path,
@@ -113,13 +130,29 @@ def github_request(path: str, *, accept: str = "application/vnd.github+json"):
         access_token = ""
 
 
-def api_get(path: str):
-    with github_request(path) as response:
+def _json_response(response):
+    with response:
         body = response.read()
     try:
         return json.loads(body.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError):
         fail("github_api_response_invalid")
+
+
+def api_get(path: str):
+    return _json_response(github_request(path))
+
+
+def api_compare(repository: str, source_sha: str, control_sha: str, *, get=None):
+    if repository != REPOSITORY or any(
+        not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", value)
+        for value in (source_sha, control_sha)
+    ):
+        fail("github_compare_identity_invalid")
+    path = f"/repos/{REPOSITORY}/compare/{source_sha.lower()}...{control_sha.lower()}?per_page=1"
+    if get is not None:
+        return get(path)
+    return _json_response(_github_get_response(path))
 
 
 def api_get_bytes(path: str) -> bytes:
@@ -264,6 +297,7 @@ def validate_required_checks(head_sha: str, get=None) -> None:
 
 def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
                               control_sha: str, *, get=None) -> dict:
+    compare_get = get
     get = get or api_get
     if (
         not TASK_ID.fullmatch(task_id) or not PR_NUMBER.fullmatch(pr_number)
@@ -290,7 +324,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         or not str(approval.get("authority", "")).startswith("Human-approved exact OLD Test payload:")
     ):
         fail("old_test_approval_mismatch")
-    comparison = get(f"/repos/{REPOSITORY}/compare/{source_sha}...{control_sha}?per_page=1")
+    comparison = api_compare(REPOSITORY, source_sha, control_sha, get=compare_get)
     if (
         comparison.get("status") not in {"ahead", "identical"}
         or comparison.get("merge_base_commit", {}).get("sha") != source_sha

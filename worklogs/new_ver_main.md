@@ -10269,3 +10269,13 @@ PHP構文137 files／diff whitespace／Source scope review PASS。helper／新�
 - Artifact authority, wrapper negative tests, Preview/Production regression, local policy/quality/security and all Required Checks are required. Final-head self-review, merged control/payload identity, artifact build and runtime verification are recorded separately on this PR and task evidence.
 - After successful merge/build verification only, activate the same payload on OLD Test APIs 8611/8621 using private startup, healthy confirmation, then existing egress attach. Preserve config and rollback image. No Storefront/Nginx change, runtime DB mutation, Provider operation, Browser, scheduler or global reconciliation. Human Card Delete acceptance remains pending.
 - Historical 2026-08-30 root cause remains UNKNOWN.
+
+## OPS-20260929B — Structured GitHub compare transport compatibility
+
+- Issue none; Risk R3; Strict Change; Activation deferred. Separate Source Change from merged PR #517, based on protected main `d14d015dc2bfc69788198eb0d67c7880b7fed50a`; dedicated branch/worktree preserves existing dirty work and previous evidence.
+- Root cause: the new ancestor comparison assembled GitHub's triple-dot endpoint, while the existing generic raw-path guard rejects dot-dot before transport. No OLD artifact dispatch POST or Runtime activation occurred in that failed attempt.
+- Structured comparison validates the fixed Repository and two full hexadecimal commit SHAs, then internally builds the fixed endpoint/query. Generic reads continue to reject dot-dot, including encoded traversal, backslashes and URI injection. Existing GET authentication, token lifecycle and sanitized error handling remain unchanged.
+- Real path-guard/HTTP-transport regression covers the positive comparison and negative input matrix; existing PR Preview head, OLD source ancestry/provenance and Production artifact authority tests remain mandatory. Workflow and policy gates are not modified.
+- Artifact approval Task remains OPS-20260929 and Application Payload remains `62c3c813081cf0ea526c66e7e4131c6816de2449`. After follow-up merge and control checks, only merged wrapper bytes may be provisioned; dispatch is one-shot after live ancestry and duplicate-run checks.
+- Application, Card Delete, dependency manifests, contracts, migration, fixtures, Storefront, Nginx and security policy changes are zero. OLD 8611/8621 activation remains separate and gated by verified AMD64 payload; no runtime DB, Provider, Browser, scheduler or reconciliation operation.
+- Exact tests, fresh self-review, Required Checks, merge, artifact and Runtime results are recorded separately in task evidence and PR. Historical 2026-08-30 root cause remains UNKNOWN.

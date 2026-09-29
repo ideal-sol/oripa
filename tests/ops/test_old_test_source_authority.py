@@ -2,6 +2,7 @@ import base64
 import copy
 import json
 import hashlib
+import io
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,98 @@ CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
 TASK_ID = "OPS-20260929"
+
+
+class GithubReadTransportTest(unittest.TestCase):
+    def test_structured_sha_comparison_reaches_canonical_get_transport(self):
+        for source, control in ((PAYLOAD, CONTROL), (PAYLOAD.upper(), CONTROL.upper())):
+            with self.subTest(source=source), \
+                 mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
+                 mock.patch.object(wrapper.urllib.request, "urlopen", return_value=io.BytesIO(b'{"status":"ahead"}')) as opener:
+                self.assertEqual(wrapper.api_compare(wrapper.REPOSITORY, source, control), {"status": "ahead"})
+                request = opener.call_args.args[0]
+                self.assertEqual(request.full_url, f"https://api.github.com/repos/ideal-sol/oripa/compare/{PAYLOAD}...{CONTROL}?per_page=1")
+                self.assertEqual(request.get_method(), "GET")
+                self.assertEqual(opener.call_args.kwargs, {"timeout": 60})
+
+    def test_compare_rejects_non_sha_components_before_credentials_or_network(self):
+        invalid = (
+            "a" * 39, "a" * 41, "g" * 40, "main", "v1.0.0", "", None,
+            PAYLOAD + "/extra", PAYLOAD + "?unexpected=value", PAYLOAD + "#fragment",
+            PAYLOAD + "%2f", PAYLOAD + "\\extra", "../main", "%2e%2e",
+            "%2E%2E", "%252e%252e", "..%2f", "%2e%2e%2f", "%255c..",
+            PAYLOAD + "\n", PAYLOAD + "\r", PAYLOAD + "\x00",
+        )
+        with mock.patch.object(wrapper, "installation_token") as credential, \
+             mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
+            for value in invalid:
+                for source, control in ((value, CONTROL), (PAYLOAD, value)):
+                    with self.subTest(source=source, control=control), self.assertRaisesRegex(wrapper.WrapperError, "github_compare_identity_invalid"):
+                        wrapper.api_compare(wrapper.REPOSITORY, source, control)
+            for repository in ("external/repository", "ideal-sol/other", "ideal-sol/oripa/..", "https://api.github.com/repos/ideal-sol/oripa", "ideal-sol%2foripa", None):
+                with self.subTest(repository=repository), self.assertRaisesRegex(wrapper.WrapperError, "github_compare_identity_invalid"):
+                    wrapper.api_compare(repository, PAYLOAD, CONTROL)
+            credential.assert_not_called()
+            opener.assert_not_called()
+
+    def test_generic_paths_still_reject_traversal_and_raw_compare(self):
+        invalid = (
+            "../", "../../", "/foo/../bar", "/%2e%2e", "/%2E%2E",
+            "/%252e%252e", "/..%2f", "/%2e%2e%2f", "/foo\\..\\bar",
+            "/foo/%252e%2E%255cbar", "/%255c..", "/foo%0abar", "/foo#fragment",
+            "https://api.github.com/repos/ideal-sol/oripa", "//external/host", None,
+        )
+        comparisons = (
+            f"{PAYLOAD}...{CONTROL}", f"{'a' * 39}...{CONTROL}", f"{'a' * 41}...{CONTROL}",
+            f"{PAYLOAD}..{CONTROL}", f"{PAYLOAD}....{CONTROL}",
+            f"{PAYLOAD}/{CONTROL}", f"{PAYLOAD}%252f{CONTROL}",
+            f"{PAYLOAD}...main", f"main...{CONTROL}", f"{PAYLOAD}...{CONTROL}/extra",
+            f"{PAYLOAD}%2f...{CONTROL}", f"{PAYLOAD}...{CONTROL}?unexpected=value",
+            f"{PAYLOAD}...{CONTROL}#fragment", "../...", "%2e%2e%2f...main",
+        )
+        with mock.patch.object(wrapper, "installation_token") as credential, \
+             mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
+            for path in invalid + tuple("/repos/ideal-sol/oripa/compare/" + value for value in comparisons):
+                with self.subTest(path=path), self.assertRaisesRegex(wrapper.WrapperError, "github_path_invalid"):
+                    wrapper.api_get(path)
+            credential.assert_not_called()
+            opener.assert_not_called()
+
+    def test_compare_operation_does_not_accept_a_combined_path_or_extra_options(self):
+        with mock.patch.object(wrapper, "installation_token") as credential, \
+             mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
+            for source in (f"{PAYLOAD}/{CONTROL}", f"{PAYLOAD}...{CONTROL}"):
+                with self.subTest(source=source), self.assertRaises(wrapper.WrapperError):
+                    wrapper.api_compare(wrapper.REPOSITORY, source, CONTROL)
+            with self.assertRaises(TypeError):
+                wrapper.api_compare(wrapper.REPOSITORY, PAYLOAD, CONTROL, query="unexpected=value")
+            credential.assert_not_called()
+            opener.assert_not_called()
+
+    def test_existing_generic_read_paths_reach_transport_unchanged(self):
+        paths = (
+            "/repos/ideal-sol/oripa/branches/main",
+            "/repos/ideal-sol/oripa/branches/archive%2Fv1-current",
+            "/repos/ideal-sol/oripa/actions/runs?per_page=100&page=2",
+        )
+        for path in paths:
+            with self.subTest(path=path), \
+                 mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
+                 mock.patch.object(wrapper.urllib.request, "urlopen", return_value=io.BytesIO(b"{}")) as opener:
+                self.assertEqual(wrapper.api_get(path), {})
+                self.assertEqual(opener.call_args.args[0].full_url, wrapper.API_ROOT + path)
+
+    def test_compare_transport_errors_remain_sanitized(self):
+        failures = (
+            (wrapper.urllib.error.HTTPError("https://api.github.com", 404, "private response", {}, io.BytesIO(b"private body")), "github_api_http_404"),
+            (wrapper.urllib.error.URLError("private connection detail"), "github_api_connection_failed"),
+        )
+        for error, expected in failures:
+            with self.subTest(expected=expected), \
+                 mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
+                 mock.patch.object(wrapper.urllib.request, "urlopen", side_effect=error), \
+                 self.assertRaisesRegex(wrapper.WrapperError, "^" + expected + "$"):
+                wrapper.api_compare(wrapper.REPOSITORY, PAYLOAD, CONTROL)
 
 
 class OldTestSourceAuthorityTest(unittest.TestCase):
@@ -62,6 +155,28 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
 
     def authorize(self, source=PAYLOAD, control=CONTROL):
         return wrapper.authorize_old_test_source(TASK_ID, "515", source, control, get=self.get)
+
+    def test_ci_injected_read_transport_does_not_use_host_credentials(self):
+        transport = mock.Mock(side_effect=self.get)
+        with mock.patch.object(wrapper, "installation_token") as credential, \
+             mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
+            result = wrapper.authorize_old_test_source(TASK_ID, "515", PAYLOAD, CONTROL, get=transport)
+        self.assertEqual(result["source_sha"], PAYLOAD)
+        transport.assert_any_call(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1")
+        credential.assert_not_called()
+        opener.assert_not_called()
+
+    def test_full_authority_uses_real_path_guards_and_http_transport(self):
+        requests = []
+        def respond(request, **options):
+            path = request.full_url.removeprefix(wrapper.API_ROOT)
+            requests.append(path)
+            return io.BytesIO(json.dumps(self.get(path)).encode())
+        with mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
+             mock.patch.object(wrapper.urllib.request, "urlopen", side_effect=respond):
+            result = wrapper.authorize_old_test_source(TASK_ID, "515", PAYLOAD, CONTROL)
+        self.assertEqual(result["source_sha"], PAYLOAD)
+        self.assertEqual(requests.count(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1"), 1)
 
     def test_approved_payload_is_allowed_as_protected_main_ancestor(self):
         result = self.authorize()
@@ -153,6 +268,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         transport = mock.Mock(return_value=(204, None))
         with mock.patch.object(wrapper, "secure_policy", return_value={"lane": "Strict Change", "activation": "deferred"}), \
              mock.patch.object(wrapper, "api_get", side_effect=self.get), \
+             mock.patch.object(wrapper, "api_compare", return_value=self.comparison), \
              mock.patch.object(wrapper.runpy, "run_path", return_value={"request": transport}):
             result = wrapper.dispatch_old_test_artifact(TASK_ID, "515", PAYLOAD)
         self.assertEqual(result["status"], "dispatched")
