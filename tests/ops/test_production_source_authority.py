@@ -10,12 +10,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29"
+APPROVED = "62c3c813081cf0ea526c66e7e4131c6816de2449"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "ASSETURL-20260925"
-SOURCE_PR = 508
+SOURCE_CHANGE = "PAY-20260928C"
+SOURCE_PR = 515
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -119,6 +119,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         for change_id, pr_number in [
             ("PRIZEIMAGE-20260924", 500), ("PRODAUTH-20260924", 502),
             ("CATALOG-20260924", 503), ("REL-040", 507),
+            ("ASSETURL-20260925", 508), ("OPS-20260929", 516),
         ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
@@ -189,6 +190,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
+                "3b07a157a8c8ff7d466984dea6c7a5ae1a4d3254",
                 "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
                 "706849a57b9919bb3f01cc630ac90a3efdf5a61c",
                 "be1a8f3f822d23f3251d32e616fb0b2fe422714e",
@@ -201,23 +204,44 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
-    def test_contract_artifact_source_remains_distinct_from_runtime_target(self):
+    def test_storefront_contract_artifact_source_remains_distinct_from_runtime_target(self):
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
-        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.40"]
+        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.41"]
         self.assertEqual(len(contracts), 1)
         contract = contracts[0]
-        artifact_source = "dadf79f3b0b2409a57e41b10a83c7b6570ea3507"
-        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.40")
+        artifact_source = "e2b30805704ed5b9c3fd54492fb86f8b8549bde5"
+        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.41")
         self.assertEqual(contract["source_commit"], artifact_source)
-        self.assertEqual(contract["publication"]["artifact_id"], 10845475225)
+        self.assertEqual(contract["publication"]["artifact_id"], 10900150259)
         self.assertNotEqual(artifact_source, APPROVED)
         subprocess.run([
             "git", "-C", str(ROOT), "merge-base", "--is-ancestor", artifact_source, APPROVED,
         ], check=True)
         subprocess.run([
             "git", "-C", str(ROOT), "diff", "--exit-code", artifact_source, APPROVED,
-            "--", "openapi", "packages", "pnpm-lock.yaml",
+            "--", "openapi/public", "openapi/admin", "openapi/bundled/public.openapi.json",
+            "openapi/bundled/admin.openapi.json", "packages",
         ], check=True)
+        contract_changes = MODULE["git"](
+            ROOT, "diff", "--name-only", artifact_source, APPROVED, "--", "openapi", "packages",
+        ).splitlines()
+        self.assertEqual(set(contract_changes), {
+            "openapi/webhook/openapi.yaml", "openapi/bundled/webhook.openapi.json",
+        })
+        for package in ["storefront-client", "storefront-testkit"]:
+            manifest = json.loads(MODULE["git"](
+                ROOT, "show", f"{APPROVED}:packages/{package}/package.json",
+            ))
+            self.assertEqual(manifest["version"], "2.0.0-alpha.41")
+
+    def test_source_sync_cannot_implicitly_authorize_activation(self):
+        self.authority["activation_authorized"] = True
+        (self.repository / MODULE["AUTHORITY_PATH"]).write_text(json.dumps(self.authority))
+        self.git("add", ".")
+        self.git("commit", "-qm", "invalid activation authority")
+        self.workflow = self.git("rev-parse", "HEAD")
+        with self.assertRaisesRegex(ValueError, "Human-approved source authority mismatch"):
+            self.authorize()
 
     def test_workflow_exact_source_labels_and_manifest(self):
         workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
