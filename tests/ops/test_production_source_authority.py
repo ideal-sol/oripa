@@ -10,12 +10,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "62c3c813081cf0ea526c66e7e4131c6816de2449"
+APPROVED = "538a208c025fcc5a7d6f9914d3c428b9ef702dbe"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "PAY-20260928C"
-SOURCE_PR = 515
+SOURCE_CHANGE = "SECINT-20260930"
+SOURCE_PR = 523
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -120,6 +120,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             ("PRIZEIMAGE-20260924", 500), ("PRODAUTH-20260924", 502),
             ("CATALOG-20260924", 503), ("REL-040", 507),
             ("ASSETURL-20260925", 508), ("OPS-20260929", 516),
+            ("PAY-20260928C", 515), ("PRODAUTH-20260930", 519),
         ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
@@ -190,6 +191,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "62c3c813081cf0ea526c66e7e4131c6816de2449",
+                "60da22cf83c8f65242fb5c0b121a73fa96b396c8",
                 "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
                 "3b07a157a8c8ff7d466984dea6c7a5ae1a4d3254",
                 "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
@@ -203,6 +206,34 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                     AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
+
+    def test_security_remediated_target_dependency_pins(self):
+        lock = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:apps/api/composer.lock"))
+        versions = {package["name"]: package["version"] for package in lock["packages"]}
+        self.assertEqual(versions["laravel/framework"], "v13.30.0")
+        self.assertEqual(versions["league/flysystem"], "3.35.3")
+        root = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:package.json"))
+        self.assertEqual(root["pnpm"]["overrides"]["brace-expansion"], "5.0.12")
+        self.assertEqual(root["pnpm"]["overrides"]["fast-uri"], "3.1.8")
+        legacy = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/package.json"))
+        self.assertEqual(legacy["pnpm"]["overrides"]["brace-expansion"], "5.0.12")
+        workspace_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:pnpm-lock.yaml")
+        self.assertIn("  brace-expansion@5.0.12:", workspace_lock)
+        self.assertIn("  fast-uri@3.1.8:", workspace_lock)
+        legacy_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/pnpm-lock.yaml")
+        self.assertIn("  brace-expansion@5.0.12:", legacy_lock)
+
+    def test_approved_source_to_workflow_has_only_authority_delta(self):
+        subprocess.run([
+            "git", "-C", str(ROOT), "merge-base", "--is-ancestor",
+            "62c3c813081cf0ea526c66e7e4131c6816de2449", APPROVED,
+        ], check=True)
+        paths = MODULE["git"](ROOT, "diff", "--name-only", APPROVED, PROTECTED).splitlines()
+        self.assertEqual(set(paths), {
+            "manifests/platform-production-approved-source.json",
+            "tests/ops/test_production_source_authority.py",
+            "worklogs/new_ver_main.md",
+        })
 
     def test_storefront_contract_artifact_source_remains_distinct_from_runtime_target(self):
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
