@@ -94,3 +94,59 @@ any new source acceptance require their separate authorities and gates.
 Rollback of this source-only update is a new reviewed revert Change. Rolling
 back dependencies reintroduces the two advisories; no database rollback or
 secret rotation is indicated by this change. Runtime rollback is not executed.
+
+## SECINT-20260930 — Human-approved integrated security remediation
+
+Issue #522 tracks the explicitly approved integrated Strict Security Change.
+Protected main still has the two Composer findings, while Composer-only PR #521
+fails on new pnpm findings. Separate main-based remediation PRs cannot pass the
+unchanged all-audit gate in either merge order. Reuse original Composer checkpoint
+`3c8e7e68df0e2051fce19ce1bb6d7fbf801ff20d` and recovery commit
+`4e3c5095ed9b0702c75e8b50b03bd0a9c66fd8a9` as ancestors of the integrated branch;
+the Composer lockfile and Flysystem regression remain byte-identical. Preserve
+#521 without updates until the integrated PR passes Required Checks and merges,
+then close it as superseded. Authority PR #519 remains separate and unchanged
+until the approved post-security main synchronization.
+
+| npm advisory | Installed version | Affected range on installed line | Minimum fixed version | Dependency path |
+| --- | --- | --- | --- | --- |
+| [GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr), Moderate quadratic CPU DoS | brace-expansion 5.0.9 | `>=4.0.0 <5.0.12` | 5.0.12 | Admin/legacy -> ESLint -> minimatch -> brace-expansion |
+| [GHSA-qhr7-859c-m2p7](https://github.com/advisories/GHSA-qhr7-859c-m2p7), High nested-brace stack exhaustion | brace-expansion 5.0.9 | `>=4.0.0 <5.0.11` | 5.0.11 | Same transitive development-tool path |
+| [GHSA-6j4f-fj2g-mc7p](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p), High comma-parser stack exhaustion | brace-expansion 5.0.9 | `>=4.0.0 <5.0.10` | 5.0.10 | Same transitive development-tool path |
+| [GHSA-hrr3-gc8f-f4qj](https://github.com/advisories/GHSA-hrr3-gc8f-f4qj), Moderate encoded-host case normalization | fast-uri 3.1.7 | `>=3.0.0 <3.1.8` | 3.1.8 | Site Schema -> AJV 8.20.0 -> fast-uri (transitive runtime library) |
+
+Workspace audit reproduced four findings, and the independent preserved legacy
+reference reproduced the three brace findings. The prior incomplete overrides
+match these findings, but legacy also requires its own brace override/lock update.
+Choose brace-expansion 5.0.12 to fix all three advisories on the existing major
+line, and fast-uri 3.1.8 on the existing major line. Root and legacy manifests and
+locks change only these overrides, target package versions/integrities and their
+dependency references. Preserve unrelated peer-snapshot formatting and packages;
+both pinned-pnpm frozen installs succeed without scripts or lockfile mutation.
+
+The existing policy validator also pins the exact audited root override values.
+Synchronize only its brace/fast-uri expected versions and matching positive test
+fixture; retain strict equality and add rejection tests for both former versions
+and semver ranges. This directly necessary bounded dependency-guard maintenance
+does not change Lane classification, check requirements, workflow, protection,
+baseline or validation logic. The integrated PR declares these two additional
+validator/test paths; no guard is removed or weakened.
+
+Fresh locked Composer, workspace pnpm and legacy pnpm audits each return exit 0
+with zero findings. Thirteen targeted dependency assertions pass for normal brace
+expansion, Japanese paths, all three advisory-shaped brace inputs in both
+installations and fast-uri percent-encoded scheme-relative host normalization.
+Reuse the source-equivalent 196-test / 2326-assertion Backend PASS and completed
+834-test / 9150-assertion Full V2 recovery evidence (ten existing opt-in skips);
+the interrupted zero-byte XML is not PASS. Prior #521 integration PASS is
+historical Composer evidence, not a substitute for the integrated head's fresh
+Required CI. No duplicate manual Full suite is run.
+
+The original empty baseline, CI workflows, protection and all five Strict
+Required Checks remain unchanged. Current Required ARM64 verification is
+permitted; Production Artifact workflows, builds and Activation are not.
+Brace changes affect development tooling; fast-uri affects future consumers of
+Site Schema validation. No deployed dependency, ENV or runtime is changed, and
+the Human-approved Production Runtime Target remains the exact source stated
+above, including its prior dependency versions. Rollback needs a new reviewed
+dependency Change and reintroduces the findings; no migration is involved.
