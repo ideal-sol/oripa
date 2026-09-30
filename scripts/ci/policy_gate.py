@@ -1907,8 +1907,8 @@ def validate_workspace_configuration(repository: Path) -> None:
         "overrides": {
             "@tiptap/extension-bubble-menu": "3.30.5",
             "@tiptap/extension-floating-menu": "3.30.5",
-            "brace-expansion": "5.0.9",
-            "fast-uri": "3.1.7",
+            "brace-expansion": "5.0.12",
+            "fast-uri": "3.1.8",
             "js-yaml": "4.3.2",
             "minimatch": "10.2.5",
             "nanoid": "3.3.18",

@@ -2887,8 +2887,8 @@ This is a non-Production Skeleton and contains no application implementation.
                         "overrides": {
                             "@tiptap/extension-bubble-menu": "3.30.5",
                             "@tiptap/extension-floating-menu": "3.30.5",
-                            "brace-expansion": "5.0.9",
-                            "fast-uri": "3.1.7",
+                            "brace-expansion": "5.0.12",
+                            "fast-uri": "3.1.8",
                             "js-yaml": "4.3.2",
                             "minimatch": "10.2.5",
                             "nanoid": "3.3.18",
@@ -3360,6 +3360,26 @@ services:
             root = Path(temporary)
             paths = self.make_workspace(root)
             policy_gate.validate_workspace_skeleton(root, paths)
+
+    def test_workspace_security_overrides_remain_exact(self):
+        for package_name, invalid_version in [
+            ("brace-expansion", "5.0.9"),
+            ("fast-uri", "3.1.7"),
+            ("brace-expansion", "^5.0.12"),
+            ("fast-uri", "^3.1.8"),
+        ]:
+            with self.subTest(package=package_name, version=invalid_version):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    self.make_workspace(root)
+                    manifest_path = root / "package.json"
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    manifest["pnpm"]["overrides"][package_name] = invalid_version
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        policy_gate.PolicyFailure, "audited exact pnpm overrides"
+                    ):
+                        policy_gate.validate_workspace_configuration(root)
 
     def test_storefront_admin_type_export_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
