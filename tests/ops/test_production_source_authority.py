@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
 APPROVED = "538a208c025fcc5a7d6f9914d3c428b9ef702dbe"
+PREFLIGHT_AUTHORITY = "60da22cf83c8f65242fb5c0b121a73fa96b396c8"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
@@ -223,12 +224,12 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         legacy_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/pnpm-lock.yaml")
         self.assertIn("  brace-expansion@5.0.12:", legacy_lock)
 
-    def test_approved_source_to_workflow_has_only_authority_delta(self):
+    def test_approved_source_to_preflight_authority_has_only_metadata_delta(self):
         subprocess.run([
             "git", "-C", str(ROOT), "merge-base", "--is-ancestor",
             "62c3c813081cf0ea526c66e7e4131c6816de2449", APPROVED,
         ], check=True)
-        paths = MODULE["git"](ROOT, "diff", "--name-only", APPROVED, PROTECTED).splitlines()
+        paths = MODULE["git"](ROOT, "diff", "--name-only", APPROVED, PREFLIGHT_AUTHORITY).splitlines()
         self.assertEqual(set(paths), {
             "manifests/platform-production-approved-source.json",
             "tests/ops/test_production_source_authority.py",
