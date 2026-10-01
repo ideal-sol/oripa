@@ -168,17 +168,23 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
         $gacha = $this->find('catalog_gachas', $gachaPublicId);
+        $revisionReference = $gacha->gacha_type === 'standard' ? 'master.current_revision_id' : DB::raw(
+            'COALESCE((SELECT relation.published_rank_revision_id FROM catalog_gacha_version_prizes relation '.
+            'JOIN catalog_gacha_versions version ON version.id = relation.gacha_version_id '.
+            'WHERE relation.gacha_rank_id = gacha_rank.id AND version.status = \'published\' '.
+            'ORDER BY version.version_number DESC LIMIT 1), gacha_rank.preferred_rank_revision_id, master.current_revision_id)'
+        );
         $rows = DB::table('catalog_rank_masters as master')
-            ->join(
-                'catalog_rank_master_revisions as revision',
-                'revision.id',
-                '=',
-                'master.current_revision_id'
-            )
             ->leftJoin('catalog_gacha_ranks as gacha_rank', function (JoinClause $join) use ($gacha): void {
                 $join->on('gacha_rank.rank_master_id', '=', 'master.id')
                     ->where('gacha_rank.gacha_id', '=', $gacha->id);
             })
+            ->join(
+                'catalog_rank_master_revisions as revision',
+                'revision.id',
+                '=',
+                $revisionReference
+            )
             ->leftJoin(
                 'catalog_gacha_rank_video_revisions as video_revision',
                 'video_revision.id',
@@ -196,6 +202,7 @@ final class V2AdminCatalogReadService
             ->orderBy('master.public_id')
             ->get([
                 'master.*',
+                'revision.id as current_revision_id',
                 'gacha_rank.id as gacha_rank_internal_id',
                 'gacha_rank.public_id as gacha_rank_public_id',
                 'gacha_rank.revision as gacha_rank_revision',
@@ -235,7 +242,13 @@ final class V2AdminCatalogReadService
         ];
     }
 
-    /** @param array<string, mixed> $filters */
+    public function composition(V2AdminAuthorizationContext $context, string $identifier, bool $copy = false): array
+    {
+        $this->authorize($context);
+
+        return ['data' => app(V2GachaCopyService::class)->projection($identifier, $copy)];
+    }
+
     public function gachas(
         V2AdminAuthorizationContext $context,
         array $filters
@@ -249,7 +262,7 @@ final class V2AdminCatalogReadService
             'state' => 'gacha.state',
         ];
         $query = DB::table('catalog_gachas as gacha')
-            ->join('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
+            ->leftJoin('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
             ->select([
                 'gacha.*',
                 'category.public_id as category_public_id',
@@ -270,6 +283,10 @@ final class V2AdminCatalogReadService
         );
         if ($state !== 'all') {
             $query->where('gacha.state', $state);
+        }
+        $type = $this->enum($filters, 'gacha_type', ['all', 'standard', 'login_daily', 'signup_once'], 'all');
+        if ($type !== 'all') {
+            $query->where('gacha.gacha_type', $type);
         }
         $managementStatuses = $this->enumList(
             $filters,
@@ -310,7 +327,7 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
         $row = DB::table('catalog_gachas as gacha')
-            ->join('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
+            ->leftJoin('catalog_categories as category', 'category.id', '=', 'gacha.category_id')
             ->where(function (Builder $query) use ($publicId): void {
                 $query->where('gacha.public_code', $publicId);
                 if (Str::isUuid($publicId)) {
@@ -643,7 +660,7 @@ final class V2AdminCatalogReadService
                 'catalog_rank_master_revisions as rank_revision',
                 'rank_revision.id',
                 '=',
-                'rank_master.current_revision_id'
+                $this->effectiveRankRevisionReference()
             )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
@@ -960,7 +977,7 @@ final class V2AdminCatalogReadService
                     : [
                         'status' => $state->status,
                         'sold_count' => (int) $state->sold_count,
-                        'total_count' => (int) $state->total_count,
+                        'total_count' => $state->total_count === null ? null : (int) $state->total_count,
                     ],
                 'publish_schedule' => $schedule === null
                     ? null
@@ -1130,7 +1147,7 @@ final class V2AdminCatalogReadService
                 'catalog_rank_master_revisions as rank_revision',
                 'rank_revision.id',
                 '=',
-                'rank_master.current_revision_id'
+                $this->effectiveRankRevisionReference()
             )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
@@ -1212,7 +1229,7 @@ final class V2AdminCatalogReadService
                 'catalog_rank_master_revisions as rank_revision',
                 'rank_revision.id',
                 '=',
-                'rank_master.current_revision_id'
+                $this->effectiveRankRevisionReference()
             )
             ->leftJoin(
                 'catalog_presentation_assets as asset',
@@ -1919,7 +1936,7 @@ final class V2AdminCatalogReadService
                     ? $row->category_id
                     : ($currentVersion?->category_id ?? $row->category_id)
             )
-            ->firstOrFail();
+            ->first();
         $versionTags = $useCurrentPresentation || $currentVersion === null
             ? collect()
             : DB::table(
@@ -1950,6 +1967,7 @@ final class V2AdminCatalogReadService
         return [
             'id' => $row->public_id,
             'public_code' => $row->public_code,
+            'gacha_type' => $row->gacha_type,
             'code' => $row->code,
             'slug' => $row->slug,
             'state' => $row->state,
@@ -1958,7 +1976,7 @@ final class V2AdminCatalogReadService
                 : (int) DB::table('gacha_draw_states')
                     ->where('id', $row->active_draw_state_id)
                     ->value('sold_count'),
-            'category' => [
+            'category' => $category === null ? null : [
                 'id' => $category->public_id,
                 'code' => $category->code,
                 'name' => $category->display_name,
@@ -2026,7 +2044,8 @@ final class V2AdminCatalogReadService
                 ? $row->notices
                 : $presentation->current_notices,
             'price_points' => (int) $row->price_points,
-            'total_count' => (int) $row->total_count,
+            'total_count' => $row->total_count === null ? null : (int) $row->total_count,
+            'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
@@ -2087,7 +2106,7 @@ final class V2AdminCatalogReadService
                 'catalog_rank_master_revisions as rank_revision',
                 'rank_revision.id',
                 '=',
-                'rank_master.current_revision_id'
+                $this->effectiveRankRevisionReference()
             )
             ->where('relation.gacha_version_id', $row->id)
             ->orderBy('relation.sort_order')
@@ -2128,7 +2147,8 @@ final class V2AdminCatalogReadService
             'description' => $row->description,
             'notices' => $row->notices,
             'price_points' => (int) $row->price_points,
-            'total_count' => (int) $row->total_count,
+            'total_count' => $row->total_count === null ? null : (int) $row->total_count,
+            'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
@@ -2275,6 +2295,14 @@ final class V2AdminCatalogReadService
         return collect($grouped)->map(
             fn (int $count, string $status): array => compact('status', 'count')
         )->values()->all();
+    }
+
+    private function effectiveRankRevisionReference(): \Illuminate\Database\Query\Expression
+    {
+        return DB::raw('COALESCE((SELECT frozen.published_rank_revision_id FROM catalog_gacha_version_prizes frozen '.
+            'JOIN catalog_gacha_versions version ON version.id = frozen.gacha_version_id '.
+            'WHERE frozen.gacha_rank_id = gacha_rank.id AND version.status = \'published\' '.
+            'ORDER BY version.version_number DESC LIMIT 1), gacha_rank.preferred_rank_revision_id, rank_master.current_revision_id)');
     }
 
     /** @param list<array<string, mixed>> $prizes */

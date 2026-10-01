@@ -541,6 +541,64 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    public function saveComposition(V2AdminAuthorizationContext $context, string $key, array $input, ?string $identifier = null): array
+    {
+        $admin = $this->authorize($context, $identifier === null ? 'create' : 'update', 'gacha');
+        if ($identifier !== null && (array_diff(array_keys($input), ['expected_revision', 'expected_version_revision', 'composition']) !== []
+            || ! is_int($input['expected_revision'] ?? null) || ! is_int($input['expected_version_revision'] ?? null)
+            || ! is_array($input['composition'] ?? null))) {
+            throw $this->validationException();
+        }
+        $service = app(V2GachaCompositionService::class);
+        $payload = $service->validate($identifier === null ? $input : $input['composition']);
+
+        return $this->execute($context, $admin, 'gacha', $identifier === null ? 'create' : 'update', $key,
+            ['gacha_id' => $identifier, ...$input], $identifier === null ? 201 : 200,
+            function () use ($identifier, $input, $payload, $service): object {
+                $gacha = $identifier === null ? null : $this->find('catalog_gachas', $identifier, true);
+                if ($gacha !== null) {
+                    $this->assertMutable($gacha, $input['expected_revision']);
+                }
+
+                return $service->save($payload, $gacha, $input['expected_version_revision'] ?? null);
+            });
+    }
+
+    public function updateLoginInventory(V2AdminAuthorizationContext $context, string $identifier, string $prizeId, string $key, array $input): array
+    {
+        $admin = $this->authorize($context, 'update', 'gacha_prize');
+        if (array_diff(array_keys($input), ['expected_revision', 'available_quantity', 'reason']) !== []
+            || ! is_int($input['expected_revision'] ?? null) || $input['expected_revision'] < 0
+            || ! is_int($input['available_quantity'] ?? null) || $input['available_quantity'] < 0 || $input['available_quantity'] > 2147483647
+            || ! is_string($input['reason'] ?? null) || trim($input['reason']) === '' || mb_strlen($input['reason']) > 500
+            || $input['reason'] !== strip_tags($input['reason'])) {
+            throw $this->validationException();
+        }
+
+        return $this->execute($context, $admin, 'gacha', 'update', $key, ['gacha_id' => $identifier, 'prize_id' => $prizeId, ...$input], 200,
+            function () use ($context, $admin, $identifier, $prizeId, $key, $input): object {
+                $gacha = $this->find('catalog_gachas', $identifier, true);
+                if (! in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true) || $gacha->management_status !== 'published') {
+                    throw new V2CatalogException('CATALOG_GACHA_IDENTITY_IMMUTABLE', 409, 'Only Published login inventory may be adjusted.');
+                }
+                $version = DB::table('catalog_gacha_versions')->where('id', $gacha->published_version_id)->lockForUpdate()->firstOrFail();
+                $prize = $this->find('catalog_prizes', $prizeId, true);
+                $relation = DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)->where('prize_id', $prize->id)->first();
+                if ($relation === null) {
+                    throw $this->notFound();
+                }
+                DB::table('gacha_draw_states')->where('id', $gacha->active_draw_state_id)->lockForUpdate()->firstOrFail();
+                $inventory = DB::table('prize_inventories')->where('gacha_version_prize_id', $relation->id)->lockForUpdate()->firstOrFail();
+                $total = (int) $inventory->total_quantity + max(0, $input['available_quantity'] - (int) $inventory->available_quantity);
+                $this->adjustOperationalInventory($gacha, $version, $prize, $relation, $inventory, [
+                    'adjust_inventory' => true, 'total_inventory' => $total, 'available_inventory' => $input['available_quantity'],
+                    'expected_inventory_revision' => $input['expected_revision'], 'inventory_reason' => $input['reason'],
+                ], $context, $admin, $key);
+
+                return $this->find('catalog_gachas', $identifier, false);
+            });
+    }
+
     public function createGachaCore(
         V2AdminAuthorizationContext $context,
         string $idempotencyKey,
@@ -640,7 +698,7 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
-        foreach (['code', 'slug', 'state', 'sold_count', 'published_version_id', 'public_code'] as $field) {
+        foreach (['code', 'slug', 'state', 'sold_count', 'published_version_id', 'public_code', 'gacha_type'] as $field) {
             if (array_key_exists($field, $input)) {
                 throw new V2CatalogException(
                     'CATALOG_GACHA_IDENTITY_IMMUTABLE',
@@ -665,6 +723,9 @@ final class V2CatalogMasterMutationService
             200,
             function () use ($context, $admin, $publicId, $payload): object {
                 $row = $this->find('catalog_gachas', $publicId, true);
+                if ($row->gacha_type !== 'standard') {
+                    throw $this->immutableException();
+                }
                 $this->assertMutable($row, $payload['expected_revision']);
                 if ($this->usesCurrentPresentation($row)) {
                     return $this->updateCurrentGachaPresentation(
@@ -1049,6 +1110,9 @@ final class V2CatalogMasterMutationService
             200,
             function () use ($gachaPublicId, $rankMasterPublicId, $payload): object {
                 $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                if ($gacha->gacha_type !== 'standard' && $gacha->first_published_at !== null) {
+                    throw $this->immutableException();
+                }
                 $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
                 if ($master->status !== 'active') {
                     throw new V2CatalogException(
@@ -1169,6 +1233,9 @@ final class V2CatalogMasterMutationService
             200,
             function () use ($gachaPublicId, $rankMasterPublicId, $payload): object {
                 $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                if ($gacha->gacha_type !== 'standard' && $gacha->first_published_at !== null) {
+                    throw $this->immutableException();
+                }
                 $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
                 $gachaRank = DB::table('catalog_gacha_ranks')
                     ->where('gacha_id', $gacha->id)
@@ -2014,6 +2081,9 @@ final class V2CatalogMasterMutationService
             ): object {
                 $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
                 $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                if ($gacha->gacha_type !== 'standard') {
+                    throw $this->immutableException();
+                }
                 if (
                     (int) $version->gacha_id !== (int) $gacha->id
                     || (int) $version->revision !== $payload['expected_version_revision']
@@ -5215,6 +5285,9 @@ final class V2CatalogMasterMutationService
         Admin $admin,
         string $idempotencyKey
     ): void {
+        if ($gacha->gacha_type !== 'standard') {
+            throw $this->immutableException();
+        }
         if (
             $gacha->first_published_at === null
             || (int) $prize->gacha_id !== (int) $gacha->id
@@ -6116,6 +6189,9 @@ final class V2CatalogMasterMutationService
         int $expectedRevision
     ): array {
         $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+        if ($gacha->gacha_type !== 'standard') {
+            throw new V2CatalogException('CATALOG_MUTATION_INVALID', 409, 'Login Gacha must be edited as a complete composition.');
+        }
         $this->assertGachaAvailable($gacha);
         $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
         $this->assertGachaVersionMutable(
@@ -6380,6 +6456,9 @@ final class V2CatalogMasterMutationService
         bool $lock
     ): object {
         $gacha = $this->find('catalog_gachas', $gachaPublicId, $lock);
+        if ($gacha->gacha_type !== 'standard') {
+            throw new V2CatalogException('CATALOG_MUTATION_INVALID', 409, 'Login fixed rates must be edited with the complete composition.');
+        }
         $this->assertGachaAvailable($gacha);
         $version = $this->find(
             'catalog_gacha_versions',
@@ -6797,6 +6876,10 @@ final class V2CatalogMasterMutationService
         object $version,
         object $gachaVersion
     ): string {
+        $login = app(V2LoginProbabilityService::class);
+        if ($login->isLoginVersion((int) $gachaVersion->id)) {
+            return $login->snapshot((int) $version->id, (int) $gachaVersion->id)['checksum'];
+        }
         $structure = $this->resolveProbabilityStructure(
             (int) $gachaVersion->id,
             $this->probabilityStructure((int) $version->id)
@@ -6942,6 +7025,10 @@ final class V2CatalogMasterMutationService
         object $gachaVersion,
         ?int $pinnedProbabilityVersionId = null
     ): object {
+        $login = app(V2LoginProbabilityService::class);
+        if ($login->isLoginVersion((int) $gachaVersion->id)) {
+            return $login->prepare((int) $gachaVersion->id, $pinnedProbabilityVersionId);
+        }
         $pinnedCandidate = null;
         if ($pinnedProbabilityVersionId !== null) {
             $pinnedCandidate = DB::table('catalog_probability_versions')
@@ -7157,9 +7244,11 @@ final class V2CatalogMasterMutationService
             ->where('id', $gacha->category_id)
             ->first();
         if (
-            $category === null
-            || ! $category->is_visible
-            || $category->archived_at !== null
+            $gacha->gacha_type === 'standard' && (
+                $category === null
+                || ! $category->is_visible
+                || $category->archived_at !== null
+            )
         ) {
             $block(
                 'GACHA_CATEGORY_UNAVAILABLE',
@@ -7252,7 +7341,7 @@ final class V2CatalogMasterMutationService
                 'At least one Prize must have available initial inventory.'
             );
         }
-        if ($initialInventory > (int) $version->total_count) {
+        if ($gacha->gacha_type === 'standard' && $initialInventory > (int) $version->total_count) {
             $block(
                 'GACHA_INVENTORY_CAPACITY_INVALID',
                 'Aggregate Prize inventory cannot exceed the Gacha total count.'
@@ -7283,8 +7372,8 @@ final class V2CatalogMasterMutationService
         if (
             ! is_string($version->title)
             || trim($version->title) === ''
-            || (int) $version->price_points <= 0
-            || (int) $version->total_count <= 0
+            || ($gacha->gacha_type === 'standard' && ((int) $version->price_points <= 0 || (int) $version->total_count <= 0))
+            || ($gacha->gacha_type !== 'standard' && ((int) $version->price_points < 0 || $version->total_count !== null))
         ) {
             $block(
                 'GACHA_VERSION_VALUES_INVALID',
@@ -7319,6 +7408,16 @@ final class V2CatalogMasterMutationService
             $probability = null;
         }
 
+        if ($gacha->gacha_type !== 'standard') {
+            try {
+                app(V2LoginProbabilityService::class)->prepare((int) $version->id);
+            } catch (V2CatalogException) {
+                $block('GACHA_PROBABILITY_SNAPSHOT_INVALID', 'The exact fixed percentage composition is invalid.');
+            }
+            if (! $this->loginInventoryAvailable((int) $version->id)) {
+                $block('GACHA_PRIZE_INVENTORY_EMPTY', 'Every login Prize requires positive operational inventory.');
+            }
+        }
         $publishable = $blockingReasons === [];
 
         return [
@@ -7512,15 +7611,17 @@ final class V2CatalogMasterMutationService
         ];
     }
 
-    /**
-     * @param array{
-     *   version: ?object,
-     *   draw_state: ?object,
-     *   probability: ?object,
-     *   active_schedule: ?object
-     * } $contextRows
-     * @return array<string, mixed>
-     */
+    private function loginInventoryAvailable(int $versionId): bool
+    {
+        $relations = DB::table('catalog_gacha_version_prizes as relation')
+            ->leftJoin('prize_inventories as inventory', 'inventory.gacha_version_prize_id', '=', 'relation.id')
+            ->where('relation.gacha_version_id', $versionId);
+
+        return (clone $relations)->exists() && ! $relations->where(function ($query): void {
+            $query->whereNull('inventory.id')->orWhere('inventory.available_quantity', '<=', 0);
+        })->exists();
+    }
+
     private function operationalDrawStateMatches(object $drawState): bool
     {
         if ($drawState->status === 'selling') {
@@ -7535,6 +7636,15 @@ final class V2CatalogMasterMutationService
             ->sum('available_quantity') > 0;
     }
 
+    /**
+     * @param array{
+     *   version: ?object,
+     *   draw_state: ?object,
+     *   probability: ?object,
+     *   active_schedule: ?object
+     * } $contextRows
+     * @return array<string, mixed>
+     */
     private function gachaSalesPreflightResult(
         string $requestId,
         object $gacha,
@@ -7604,10 +7714,8 @@ final class V2CatalogMasterMutationService
         }
         if (
             $version !== null
-            && (
-                (int) $version->price_points <= 0
-                || (int) $version->total_count <= 0
-            )
+            && (($gacha->gacha_type === 'standard' && ((int) $version->price_points <= 0 || (int) $version->total_count <= 0))
+                || ($gacha->gacha_type !== 'standard' && ((int) $version->price_points < 0 || $version->total_count !== null)))
         ) {
             $block(
                 'GACHA_SALES_CONFIGURATION_INVALID',
@@ -7623,7 +7731,7 @@ final class V2CatalogMasterMutationService
                 $block('GACHA_NOT_PAUSED', 'Gacha Sales is not paused.');
             }
             if (
-                $drawState !== null
+                $gacha->gacha_type === 'standard' && $drawState !== null
                 && (int) DB::table('prize_inventories')
                     ->where('gacha_draw_state_id', $drawState->id)
                     ->sum('available_quantity') === 0
@@ -8178,7 +8286,7 @@ final class V2CatalogMasterMutationService
             ->get([
                 'gacha_rank.id', 'gacha_rank.current_video_revision_id',
                 'gacha_rank.first_published_at', 'gacha_rank.revision',
-                'master.status',
+                'master.status', 'master.current_revision_id', 'gacha_rank.preferred_rank_revision_id',
             ]);
         if (
             $versionPrizeCount === 0
@@ -8194,6 +8302,13 @@ final class V2CatalogMasterMutationService
             throw $this->gachaPublishPrizeException();
         }
         foreach ($canonicalGachaRanks->unique('id') as $rank) {
+            if ($gacha->gacha_type !== 'standard') {
+                DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)
+                    ->where('gacha_rank_id', $rank->id)->update([
+                        'published_rank_revision_id' => $rank->preferred_rank_revision_id ?? $rank->current_revision_id,
+                        'published_video_revision_id' => $rank->current_video_revision_id,
+                    ]);
+            }
             if ($rank->first_published_at !== null) {
                 continue;
             }
@@ -8265,7 +8380,9 @@ final class V2CatalogMasterMutationService
             ]);
             $remainingCount += (int) $inventory->available_quantity;
         }
-        if ($remainingCount <= 0 || $remainingCount > (int) $version->total_count) {
+        if ($remainingCount <= 0
+            || ($gacha->gacha_type === 'standard' && $remainingCount > (int) $version->total_count)
+            || ($gacha->gacha_type !== 'standard' && ! $this->loginInventoryAvailable((int) $version->id))) {
             throw $this->gachaPublishInventoryException();
         }
         DB::table('catalog_gachas')->where('id', $gacha->id)->update([
@@ -8319,7 +8436,7 @@ final class V2CatalogMasterMutationService
             'draw_state' => [
                 'status' => 'selling',
                 'sold_count' => 0,
-                'total_count' => (int) $published->total_count,
+                'total_count' => $published->total_count === null ? null : (int) $published->total_count,
             ],
             'request_id' => $requestId,
         ];
@@ -8763,7 +8880,7 @@ final class V2CatalogMasterMutationService
                     ? $row->category_id
                     : ($currentVersion?->category_id ?? $row->category_id)
             )
-            ->firstOrFail();
+            ->first();
         $versionTags = $useCurrentPresentation || $currentVersion === null
             ? collect()
             : DB::table(
@@ -8798,6 +8915,7 @@ final class V2CatalogMasterMutationService
         return [
             'id' => $row->public_id,
             'public_code' => $row->public_code,
+            'gacha_type' => $row->gacha_type,
             'code' => $row->code,
             'slug' => $row->slug,
             'state' => $row->state,
@@ -8806,7 +8924,7 @@ final class V2CatalogMasterMutationService
                 : (int) DB::table('gacha_draw_states')
                     ->where('id', $row->active_draw_state_id)
                     ->value('sold_count'),
-            'category' => [
+            'category' => $category === null ? null : [
                 'id' => $category->public_id,
                 'code' => $category->code,
                 'name' => $category->display_name,
@@ -8874,7 +8992,8 @@ final class V2CatalogMasterMutationService
                 ? $row->notices
                 : $presentation->current_notices,
             'price_points' => (int) $row->price_points,
-            'total_count' => (int) $row->total_count,
+            'total_count' => $row->total_count === null ? null : (int) $row->total_count,
+            'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
@@ -8976,7 +9095,8 @@ final class V2CatalogMasterMutationService
             'description' => $row->description,
             'notices' => $row->notices,
             'price_points' => (int) $row->price_points,
-            'total_count' => (int) $row->total_count,
+            'total_count' => $row->total_count === null ? null : (int) $row->total_count,
+            'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
@@ -9015,6 +9135,9 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     public function mapProbabilityVersion(object $row): array
     {
+        if (app(V2LoginProbabilityService::class)->isLoginVersion((int) $row->gacha_version_id)) {
+            throw $this->notFound();
+        }
         $gachaVersion = DB::table('catalog_gacha_versions')
             ->where('id', $row->gacha_version_id)
             ->firstOrFail();

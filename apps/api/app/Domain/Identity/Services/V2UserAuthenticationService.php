@@ -190,12 +190,14 @@ final class V2UserAuthenticationService
                     return ['failure' => 'expired'];
                 }
 
+                $qualifiedAt = now()->startOfSecond();
                 $user->forceFill([
-                    'email_verified_at' => now(),
+                    'email_verified_at' => $qualifiedAt,
+                    'first_registration_qualified_at' => $user->first_registration_qualified_at ?? $qualifiedAt,
                     'state' => V2UserState::Active,
                     'state_revision' => $user->state_revision + 1,
                 ])->save();
-                $verification->forceFill(['used_at' => now()])->save();
+                $verification->forceFill(['used_at' => $qualifiedAt])->save();
                 UserEmailVerification::query()
                     ->where('user_id', $user->getKey())
                     ->whereKeyNot($verification->getKey())

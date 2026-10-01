@@ -25,6 +25,7 @@ import {
 } from "@/components/catalog/catalog-gacha-forms";
 import { CatalogGachaRankPrizeManager } from "@/components/catalog/catalog-gacha-rank-prize-manager";
 import { CatalogGachaQaGuaranteeManager } from "@/components/catalog/catalog-gacha-qa-guarantee-manager";
+import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { CatalogSectionNavigation } from "@/components/catalog/catalog-section-navigation";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -43,6 +44,7 @@ import type {
   AdminCatalogGachaVersion,
 } from "@/lib/admin-api/generated";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
+import { gachaTypeLabels } from "@/lib/catalog/login-gacha";
 
 type ViewState =
   | { kind: "loading" }
@@ -91,6 +93,7 @@ export function CatalogGachaWorkspace({
   const [state, setState] = useState<ViewState>({ kind: "loading" });
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(initialStatus);
+  const [gachaType, setGachaType] = useState<NonNullable<AdminCatalogQuery["gacha_type"]>>("all");
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [versionCursorHistory, setVersionCursorHistory] = useState<(string | null)[]>([
@@ -115,7 +118,7 @@ export function CatalogGachaWorkspace({
     const controller = new AbortController();
     loadState(
       client,
-      { cursor: cursor ?? undefined, direction: "desc", limit: 20, management_status: status === "all" ? undefined : status, q: query || undefined },
+      { cursor: cursor ?? undefined, direction: "desc", limit: 20, gacha_type: gachaType, management_status: status === "all" ? undefined : status, q: query || undefined },
       controller.signal,
       gachaId,
       versionId,
@@ -134,6 +137,7 @@ export function CatalogGachaWorkspace({
     cursor,
     expireSession,
     gachaId,
+    gachaType,
     query,
     reload,
     status,
@@ -368,6 +372,10 @@ export function CatalogGachaWorkspace({
     if ([401, 403, 409, 412, 429].includes(error.status)) setFormMode(null);
   }
 
+  if (currentGacha?.gacha_type && currentGacha.gacha_type !== "standard") {
+    return <LoginGachaWorkspace sourceId={gachaId} type={currentGacha.gacha_type} />;
+  }
+
   if (createMode) {
     return (
       <AdminShell>
@@ -488,6 +496,12 @@ export function CatalogGachaWorkspace({
                   <option value="all">すべて</option>
                 </select>
               </label>
+              <label>ガチャ種別<select value={gachaType} onChange={(event) => { setGachaType(event.target.value as typeof gachaType); setCursorHistory([null]); setCursorIndex(0); }}>
+                <option value="all">すべて</option>
+                <option value="standard">通常ガチャ</option>
+                <option value="signup_once">新規登録限定ガチャ</option>
+                <option value="login_daily">ログインガチャ</option>
+              </select></label>
               <button className="secondary-button" type="submit">
                 検索
               </button>
@@ -677,11 +691,13 @@ function GachaList({
             <tr>
               <th>ID</th>
               <th>ガチャ名</th>
+              <th>種別</th>
               <th>サムネイル画像</th>
               <th>消費ポイント</th>
               <th>公開ステータス</th>
               <th>履歴</th>
               <th>詳細</th>
+              <th>コピー</th>
             </tr>
           </thead>
           <tbody>
@@ -691,6 +707,7 @@ function GachaList({
                   <code>{gacha.public_code ?? "未発行"}</code>
                 </td>
                 <td><strong>{gacha.current_version?.title ?? "未設定"}</strong></td>
+                <td>{gachaTypeLabels[gacha.gacha_type ?? "standard"]}</td>
                 <td><PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} /></td>
                 <td>{gacha.current_version?.price_points.toLocaleString() ?? "-"}</td>
                 <td>{publicationStatusLabel(gacha.publication_status)}</td>
@@ -712,6 +729,7 @@ function GachaList({
                     詳細
                   </Link>
                 </td>
+                <td>{["draft", "published", "sales_paused"].includes(gacha.publication_status ?? "") ? <Link className="table-link" href={`/catalog/gachas/${gachaIdentifier(gacha)}/copy`}>コピー</Link> : "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -766,10 +784,10 @@ function GachaDetail({
         <dl>
           <Detail label="公開ID" value={gacha.public_code ?? "未発行"} />
           <Detail label="ガチャタイトル" value={gacha.current_version?.title ?? "未設定"} />
-          <Detail label="カテゴリ" value={gacha.category.name} />
+          <Detail label="カテゴリ" value={gacha.category?.name ?? "なし"} />
           <Detail label="タグ" value={gacha.tags.map((tag) => tag.name).join(", ") || "なし"} />
           <Detail label="消費ポイント" value={gacha.current_version?.price_points.toLocaleString() ?? "未設定"} />
-          <Detail label="総口数" value={gacha.current_version?.total_count.toLocaleString() ?? "未設定"} />
+          <Detail label="総口数" value={gacha.current_version?.total_count?.toLocaleString() ?? "設定なし"} />
           <Detail label="1日規定回数" value={dailyLimitLabel(gacha.current_version?.daily_draw_limit)} />
           <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
           <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
@@ -835,7 +853,7 @@ function GachaDetail({
                     <td>{versionStatusLabel(version)}</td>
                     <td>
                       {version.price_points.toLocaleString()} /{" "}
-                      {version.total_count.toLocaleString()}
+                      {version.total_count?.toLocaleString() ?? "設定なし"}
                     </td>
                     <td>
                       <div className="catalog-table-actions">
@@ -909,7 +927,7 @@ function VersionDetail({ version }: { version: AdminCatalogGachaVersion }) {
           <Detail label="説明" value={version.description ?? "未設定"} />
           <Detail label="注意事項" value={version.notices ?? "未設定"} />
           <Detail label="消費ポイント" value={version.price_points.toLocaleString()} />
-          <Detail label="販売口数" value={version.total_count.toLocaleString()} />
+          <Detail label="販売口数" value={version.total_count?.toLocaleString() ?? "設定なし"} />
           <Detail label="公開開始" value={version.publish_start_at} />
           <Detail label="公開終了" value={version.publish_end_at ?? "無期限"} />
           <Detail

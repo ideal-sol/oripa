@@ -129,6 +129,95 @@ x-oripa-error-codes:
 servers:
   - url: /admin/api/v2
 paths:
+  /catalog/gacha-compositions:
+    post:
+      operationId: createAdminGachaComposition
+      summary: 景品構成と設定を一括保存し新しいCanonical Draftを作成する
+      description: login系の固定率は十進文字列、小数最大10桁、各率正数、合計100%ちょうど。コピーも表示した入力だけを保存し元ガチャを再読込しない。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaCompositionSave'}
+      responses:
+        '201': {description: 新しいガチャ。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/composition:
+    get:
+      operationId: getAdminGachaComposition
+      summary: 同一時点の有効な設定と景品構成を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/GachaId'}]
+      responses:
+        '200': {description: 有効な構成。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaCompositionResponse'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminGachaComposition
+      summary: 未公開login Draftの全景品と固定率を一括更新する
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaCompositionUpdate'}
+      responses:
+        '200': {description: 更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/copy:
+    get:
+      operationId: getAdminGachaCopy
+      summary: 新規登録画面の未保存コピーを取得する
+      description: Draft、Published、Sales Pausedから現在有効な内容を一括取得。期間と識別子は引き継がず、在庫はinitial_inventoryのみ。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/GachaId'}]
+      responses:
+        '200': {description: 未保存prefill。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaCompositionResponse'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/login-inventory/{prize_id}:
+    put:
+      operationId: updateAdminLoginGachaInventory
+      summary: 公開中login景品の利用可能在庫数だけを調整する
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - name: prize_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminLoginInventoryUpdate'}
+      responses:
+        '200': {description: 更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogGachaMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
   /agencies/aggregates/users: {"get":{"operationId":"getAdminAgencyUserAggregate","summary":"本登録・仮登録ユーザー集計","description":"期間省略時はAsia/Tokyoの当月。monthまたはstart_dateとend_date（両端の日を含む）を指定し、DBはUTCの[start,翌日end)で比較。未知のquery/body fieldは422。現在のactive verified SMSが本登録、メール認証済みかつSMSなしが仮登録。未分類は除外。広告コードID昇順のcursor pagination。0件コードも残す。users.created_atで登録期間を判定。Owner/Admin/Operatorのagency.read。停止代理店も含む。","security":[{"adminSession":[]}],"x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","parameters":[{"name":"month","in":"query","schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$"}},{"name":"start_date","in":"query","schema":{"type":"string","format":"date"}},{"name":"end_date","in":"query","schema":{"type":"string","format":"date"}},{"name":"cursor","in":"query","schema":{"type":"string"}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":50}}],"responses":{"200":{"description":"集計値のみ","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyUserAggregate"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
   /agencies/aggregates/sales: {"get":{"operationId":"getAdminAgencySalesAggregate","summary":"広告コード別売上集計","description":"期間省略時はAsia/Tokyoの当月。monthまたはstart_dateとend_date（両端の日を含む）を指定し、DBはUTCの[start,翌日end)で比較。未知のquery/body fieldは422。現在のactive verified SMSが本登録、メール認証済みかつSMSなしが仮登録。未分類は除外。広告コードID昇順のcursor pagination。0件コードも残す。payments.status=succeededかつsucceeded_atで対象を判定し登録日は条件にしない。課金人数はunique user_idで全額返金後も残る。refund/typeかつsucceeded/statusの金額をPaymentごとに先に合算し、返金日に関係なく元Payment期間から控除。chargebackは控除しない。Owner/Admin/Operatorのagency.read。停止代理店も含む。","security":[{"adminSession":[]}],"x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","parameters":[{"name":"month","in":"query","schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$"}},{"name":"start_date","in":"query","schema":{"type":"string","format":"date"}},{"name":"end_date","in":"query","schema":{"type":"string","format":"date"}},{"name":"cursor","in":"query","schema":{"type":"string"}},{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":50}}],"responses":{"200":{"description":"集計値のみ","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencySalesAggregate"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
   /agencies: {"get":{"operationId":"listAdminAgencies","summary":"代理店一覧","description":"Owner/Admin/Operatorが参照可能。","x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"$ref":"#/components/parameters/PageLimit"},{"$ref":"#/components/parameters/PageCursor"}],"responses":{"200":{"description":"代理店一覧","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCollection"}}}},"default":{"$ref":"#/components/responses/Problem"}}},"post":{"operationId":"createAdminAgency","summary":"代理店作成","description":"Owner/Adminのみ。追加Fresh認証は不要。Credentialは永続的な冪等fingerprintから除外し、同一キーの再試行はPW入力が異なっても最初の完了結果を返す。通知の再試行には明示的なログイン情報再発行を使用する。","x-idempotency":"required","x-rate-limit":"none","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"$ref":"#/components/parameters/IdempotencyKey"}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyCreate"}}}},"responses":{"201":{"description":"代理店作成","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminAgencyMutationResult"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
@@ -957,6 +1046,7 @@ paths:
       x-stability: alpha
       security: [{adminSession: []}]
       parameters:
+        - {name: gacha_type, in: query, schema: {type: string, enum: [all, standard, login_daily, signup_once], default: all}}
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
         - {$ref: '#/components/parameters/CatalogSearch'}
@@ -4594,6 +4684,128 @@ components:
       in: cookie
       name: __Host-oripa_admin_session
   schemas:
+    AdminGachaType:
+      type: string
+      enum: [standard, login_daily, signup_once]
+    AdminFixedPercentage:
+      type: string
+      pattern: '^(?:[1-9][0-9]?(?:\.[0-9]{1,10})?|0\.(?=[0-9]{0,9}[1-9])[0-9]{1,10}|100(?:\.0{1,10})?)$'
+      description: 0より大きく100以下の正確な百分率。全景品の合計は厳密に100。浮動小数への変換・丸めは禁止。
+      examples: ['70', '25', '4.9999999999', '0.0000000001']
+    AdminCompositionRank:
+      type: object
+      additionalProperties: false
+      required: [rank_id, rank_revision_number, video_asset_id]
+      properties:
+        rank_id: {$ref: '#/components/schemas/OpaqueId'}
+        rank_revision_number: {type: [integer, 'null'], minimum: 1}
+        video_asset_id: {type: [string, 'null'], format: uuid}
+        presentation:
+          type: object
+          readOnly: true
+          additionalProperties: false
+          required: [name, lineup_image, result_image]
+          properties:
+            name: {type: string}
+            lineup_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+            result_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+    AdminCompositionPrize:
+      type: object
+      additionalProperties: false
+      required: [name, presentation_asset_id, rank_id, exchange_points, cost_price, initial_inventory, shipping_only, percentage]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 191}
+        presentation_asset_id: {type: string, format: uuid}
+        rank_id: {type: string, format: uuid}
+        exchange_points: {type: integer, minimum: 0, maximum: 9007199254740991}
+        cost_price: {type: integer, minimum: 0, maximum: 9007199254740991}
+        initial_inventory: {type: integer, minimum: 0, maximum: 2147483647}
+        shipping_only: {type: boolean}
+        percentage:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminFixedPercentage'}
+            - {type: 'null'}
+    AdminGachaComposition:
+      type: object
+      additionalProperties: false
+      required: [gacha_type, title, description, notices, presentation_asset_id, price_points, minimum_exchange_points, publish_start_at, publish_end_at, category_id, tag_ids, total_count, daily_draw_limit, audience_code, first_time_eligible_days, allowed_draw_counts, ranks, prizes]
+      properties:
+        gacha_type: {$ref: '#/components/schemas/AdminGachaType'}
+        title: {type: string, minLength: 1, maxLength: 191}
+        description: {type: [string, 'null'], maxLength: 10000}
+        notices: {type: [string, 'null'], maxLength: 10000}
+        presentation_asset_id: {type: string, format: uuid}
+        price_points: {type: integer, minimum: 0, maximum: 9007199254740991}
+        minimum_exchange_points: {type: [integer, 'null'], minimum: 0, maximum: 9007199254740991}
+        publish_start_at: {type: [string, 'null'], format: date-time}
+        publish_end_at: {type: [string, 'null'], format: date-time}
+        category_id: {type: [string, 'null'], format: uuid}
+        tag_ids: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        total_count: {type: [integer, 'null'], minimum: 1}
+        daily_draw_limit: {type: integer, minimum: 0}
+        audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        first_time_eligible_days: {type: integer, minimum: 1}
+        allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
+        ranks: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminCompositionRank'}}
+        prizes: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/AdminCompositionPrize'}}
+    AdminGachaCompositionSave:
+      allOf:
+        - {$ref: '#/components/schemas/AdminGachaComposition'}
+        - type: object
+          properties:
+            publish_start_at: {type: string, format: date-time}
+            ranks: {minItems: 1}
+            prizes: {minItems: 1}
+        - if: {properties: {gacha_type: {const: standard}}}
+          then:
+            properties:
+              price_points: {minimum: 1}
+              total_count: {type: integer}
+              category_id: {type: string}
+              minimum_exchange_points: {type: 'null'}
+              prizes: {items: {properties: {percentage: {type: 'null'}}}}
+          else:
+            properties:
+              total_count: {type: 'null'}
+              category_id: {type: 'null'}
+              tag_ids: {maxItems: 0}
+              audience_code: {const: all_users}
+              first_time_eligible_days: {const: 7}
+              allowed_draw_counts: {const: [1]}
+              prizes: {items: {properties: {shipping_only: {const: false}, percentage: {type: string}}}}
+        - if: {properties: {gacha_type: {const: signup_once}}}
+          then:
+            properties:
+              price_points: {const: 0}
+              daily_draw_limit: {const: 0}
+              minimum_exchange_points: {type: 'null'}
+        - if: {properties: {gacha_type: {const: login_daily}}}
+          then:
+            properties:
+              daily_draw_limit: {const: 1}
+              minimum_exchange_points: {type: integer}
+    AdminGachaCompositionUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, expected_version_revision, composition]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        expected_version_revision: {type: integer, minimum: 1}
+        composition: {$ref: '#/components/schemas/AdminGachaCompositionSave'}
+    AdminGachaCompositionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaComposition'}
+    AdminLoginInventoryUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, available_quantity, reason]
+      properties:
+        expected_revision: {type: integer, minimum: 0}
+        available_quantity: {type: integer, minimum: 0, maximum: 2147483647}
+        reason: {type: string, minLength: 1, maxLength: 500}
     AgencyAggregatePeriod: {"type":"object","additionalProperties":false,"required":["start_date","end_date","timezone"],"properties":{"start_date":{"type":"string","format":"date"},"end_date":{"type":"string","format":"date"},"timezone":{"type":"string","const":"Asia/Tokyo"}}}
     AdminAgencyUserAggregateRow: {"type":"object","additionalProperties":false,"required":["company_name","advertising_code","temporary_users","full_users"],"properties":{"company_name":{"type":"string"},"advertising_code":{"type":"string","pattern":"^[A-Za-z0-9]{8}$"},"temporary_users":{"type":"integer","minimum":0},"full_users":{"type":"integer","minimum":0}}}
     AdminAgencyUserAggregate: {"type":"object","additionalProperties":false,"required":["items","period","next_cursor"],"properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/AdminAgencyUserAggregateRow"}},"period":{"$ref":"#/components/schemas/AgencyAggregatePeriod"},"next_cursor":{"type":["string","null"]}}}
@@ -5619,8 +5831,9 @@ components:
         title: {type: string, minLength: 1, maxLength: 191}
         description: {type: [string, 'null'], maxLength: 10000}
         notices: {type: [string, 'null'], maxLength: 10000}
-        price_points: {type: integer, minimum: 1}
-        total_count: {type: integer, minimum: 1}
+        price_points: {type: integer, minimum: 0}
+        total_count: {type: [integer, 'null'], minimum: 1}
+        minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         first_time_eligible_days: {type: integer, minimum: 1, default: 7}
@@ -5637,13 +5850,17 @@ components:
       additionalProperties: false
       required: [id, code, slug, state, sold_count, category, tags, published_version, version_count, has_draw_history, is_archived, revision, archived_at, created_at, updated_at]
       properties:
+        gacha_type: {$ref: '#/components/schemas/AdminGachaType'}
         id: {$ref: '#/components/schemas/OpaqueId'}
         public_code: {type: string, pattern: '^[A-Za-z0-9]{11}$'}
         code: {type: string, maxLength: 64}
         slug: {type: string, maxLength: 128}
         state: {type: string, enum: [draft, active, disabled]}
         sold_count: {type: integer, minimum: 0}
-        category: {$ref: '#/components/schemas/AdminCatalogReference'}
+        category:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminCatalogReference'}
+            - {type: 'null'}
         tags:
           type: array
           items: {$ref: '#/components/schemas/AdminCatalogReference'}
@@ -5829,7 +6046,7 @@ components:
         gacha: {$ref: '#/components/schemas/AdminGachaUsageHistoryGacha'}
         user: {$ref: '#/components/schemas/AdminGachaUsageHistoryUser'}
         executed_count: {type: integer, minimum: 1, maximum: 1000}
-        consumed_points: {type: integer, minimum: 1}
+        consumed_points: {type: integer, minimum: 0}
         used_at: {type: string, format: date-time}
         status_summary:
           type: array
@@ -5901,8 +6118,9 @@ components:
         title: {type: string, minLength: 1, maxLength: 191}
         description: {type: [string, 'null'], maxLength: 10000}
         notices: {type: [string, 'null'], maxLength: 10000}
-        price_points: {type: integer, minimum: 1}
-        total_count: {type: integer, minimum: 1}
+        price_points: {type: integer, minimum: 0}
+        total_count: {type: [integer, 'null'], minimum: 1}
+        minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         first_time_eligible_days: {type: integer, minimum: 1}
@@ -6126,7 +6344,7 @@ components:
       properties:
         status: {type: string, enum: [selling, paused, sold_out]}
         sold_count: {type: integer, minimum: 0}
-        total_count: {type: integer, minimum: 1}
+        total_count: {type: [integer, 'null'], minimum: 1}
     AdminGachaPublishState:
       type: object
       additionalProperties: false

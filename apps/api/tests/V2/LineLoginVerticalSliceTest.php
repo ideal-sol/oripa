@@ -115,6 +115,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertSame(V2UserState::Active, $result['user']->state);
         self::assertFalse($result['user']->password_login_enabled);
         self::assertNotNull($result['user']->email_verified_at);
+        self::assertTrue($result['user']->first_registration_qualified_at->equalTo($result['user']->email_verified_at));
         $serialized = json_encode(
             [
                 ...ExternalIdentityAccount::query()->sole()->getAttributes(),
@@ -179,6 +180,7 @@ final class LineLoginVerticalSliceTest extends TestCase
     public function test_existing_line_identity_login_does_not_require_email_or_follow_profile(): void
     {
         $user = $this->user('existing-line@example.test');
+        $qualifiedAt = $user->first_registration_qualified_at;
         $this->account($user, 'stable-subject');
         $started = $this->start('login');
         $this->provider->claims(
@@ -191,6 +193,7 @@ final class LineLoginVerticalSliceTest extends TestCase
 
         self::assertSame($user->getKey(), $result['user']->getKey());
         self::assertSame('existing-line@example.test', $result['user']->email_normalized);
+        self::assertEquals($qualifiedAt, $user->fresh()->first_registration_qualified_at);
         self::assertSame(1, ExternalIdentityAccount::query()->count());
     }
 

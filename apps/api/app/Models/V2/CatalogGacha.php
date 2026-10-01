@@ -18,6 +18,7 @@ final class CatalogGacha extends Model
         'code',
         'slug',
         'category_id',
+        'gacha_type',
         'state',
         'management_status',
         'first_published_at',

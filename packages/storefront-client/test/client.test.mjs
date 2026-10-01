@@ -74,6 +74,29 @@ const browserConfig = (fetch) => ({
   fetch,
 });
 
+test("Login Catalog stays thin, separate from standard, and forwards authenticated transport", async () => {
+  const requests = [];
+  const client = createStorefrontCatalogClient({ request: async (request) => {
+    requests.push(request);
+    return { data: { items: [] }, metadata: {} };
+  } });
+  await client.listLoginGachas();
+  await client.getLoginGacha("0198a001-0000-7000-8000-000000000011");
+  assert.deepEqual(requests, [
+    { path: "/login-gachas" },
+    { path: "/login-gachas/0198a001-0000-7000-8000-000000000011" },
+  ]);
+  assert.throws(() => client.getLoginGacha("invalid/path"), TypeError);
+  let request;
+  const browser = createStorefrontCatalogClient(createBrowserStorefrontClient(browserConfig(async (url, init) => {
+    request = { url, init };
+    return jsonResponse({ data: { price_points: 0, eligibility: { eligible: true, used: false } } });
+  })));
+  const result = await browser.getLoginGacha("0198a001-0000-7000-8000-000000000011");
+  assert.equal(request.init.credentials, "include");
+  assert.equal(result.data.data.price_points, 0);
+});
+
 test("Package VersionとRuntime Versionを一致させる", async () => {
   const packageManifest = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),

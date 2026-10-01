@@ -4,11 +4,15 @@ namespace App\Domain\Draw\Services;
 
 use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
+use App\Domain\Catalog\Exceptions\V2CatalogException;
+use App\Domain\Catalog\Services\V2FixedPercentage;
+use App\Domain\Catalog\Services\V2LoginProbabilityService;
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointService;
+use App\Domain\Point\Services\V2CurrentUserPointReadService;
 use App\Domain\QaDraw\Exceptions\V2QaDrawException;
 use App\Domain\QaDraw\Services\V2QaDrawResolver;
 use App\Domain\QaDraw\ValueObjects\V2AdminQaDrawCommand;
@@ -144,12 +148,21 @@ final class V2DrawService
                         'The requested Gacha is temporarily unavailable.'
                     );
                 }
-                $context = $this->publishedContext($gacha, $state);
+                $login = in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true);
+                if ($login && ($adminCommand !== null || $drawCount !== 1)) {
+                    throw new V2DrawException('INVALID_DRAW_REQUEST', 422, 'Login Gacha does not allow QA or multi Draw.');
+                }
+                if ($login) {
+                    DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+                    DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->first();
+                }
+                $occurredAt = CarbonImmutable::now()->startOfSecond();
+                $context = $this->publishedContext($gacha, $state, $login ? $occurredAt : null);
                 $drawMetadata = $this->drawMetadata(
                     (int) $context['probability']->id,
                     (int) $context['version']->id
                 );
-                $qaSelection = $this->qaDraw->resolve(
+                $qaSelection = $login ? ['active' => false, 'kind' => null, 'mode' => null, 'plan' => null, 'assignment' => null, 'item_ids' => []] : $this->qaDraw->resolve(
                     $user,
                     (int) $gacha->id,
                     (int) $context['version']->id,
@@ -175,6 +188,9 @@ final class V2DrawService
                 }
                 $inventories = $this->lockInventories($state);
                 $this->assertPresentationInventories($drawMetadata, $inventories);
+                if ($login && $inventories->contains(fn (PrizeInventory $inventory): bool => (int) $inventory->available_quantity <= 0)) {
+                    throw new V2DrawException('PRIZE_INVENTORY_UNAVAILABLE', 409, 'Every login Prize requires positive inventory.');
+                }
                 $remainingCount = $this->remainingInventory($inventories);
                 $this->qaDraw->validateInventory($qaSelection, $inventories);
                 if (
@@ -205,11 +221,13 @@ final class V2DrawService
                         'The Gacha does not have enough remaining draw count.'
                     );
                 }
-                $totalCost = $this->totalCost(
+                $totalCost = $login && (int) $context['version']->price_points === 0 ? 0 : $this->totalCost(
                     (int) $context['version']->price_points,
                     $executedCount
                 );
-                $occurredAt = CarbonImmutable::now()->startOfSecond();
+                if (! $login) {
+                    $occurredAt = CarbonImmutable::now()->startOfSecond();
+                }
                 if (! $qaSelection['active']) {
                     $this->eligibility->assertForDraw(
                         $user,
@@ -261,14 +279,14 @@ final class V2DrawService
                     ],
                 ]);
 
-                $pointConsumption = $this->points->consumeForDraw(
+                $pointConsumption = $login && $totalCost === 0 ? $this->freeDrawWallet($user, $occurredAt) : $this->points->consumeForDraw(
                     $user->id,
                     $totalCost,
                     $drawRequest->id,
                     $drawRequest->public_id,
                     $occurredAt
                 );
-                $outcomes = $qaSelection['kind'] === 'legacy_plan'
+                $outcomes = $login ? $this->selectLoginOutcome($state, $context, $drawMetadata, $inventories, $occurredAt) : ($qaSelection['kind'] === 'legacy_plan'
                     ? $this->selectQaOutcomes(
                         $state,
                         $drawMetadata,
@@ -294,14 +312,14 @@ final class V2DrawService
                         $executedCount,
                         (int) $context['version']->price_points,
                         $occurredAt
-                    ));
+                    )));
                 $this->persistInventory($inventories, $outcomes['inventory_won'], $occurredAt);
                 $state->forceFill([
                     'sold_count' => $state->sold_count + $executedCount,
                     'lock_version' => $state->lock_version + 1,
                 ]);
                 $remainingAfter = $remainingCount - $executedCount;
-                if ($remainingAfter === 0) {
+                if (! $login && $remainingAfter === 0) {
                     $state->forceFill([
                         'status' => 'sold_out',
                         'sold_out_at' => $occurredAt,
@@ -741,9 +759,9 @@ final class V2DrawService
     /**
      * @return array{version: object, probability: object}
      */
-    private function publishedContext(object $gacha, GachaDrawState $state): array
+    private function publishedContext(object $gacha, GachaDrawState $state, ?CarbonImmutable $occurredAt = null): array
     {
-        $now = now();
+        $now = $occurredAt ?? now();
         $version = DB::table('catalog_gacha_versions')
             ->where('id', $state->gacha_version_id)
             ->where('gacha_id', $gacha->id)
@@ -788,6 +806,35 @@ final class V2DrawService
         }
 
         return ['version' => $version, 'probability' => $probability];
+    }
+
+    private function freeDrawWallet(User $user, CarbonImmutable $occurredAt): array
+    {
+        $wallet = app(V2CurrentUserPointReadService::class)->wallet($user, $occurredAt);
+
+        return ['paid' => 0, 'free' => 0, 'wallet_paid_after' => $wallet['paid_points'], 'wallet_free_after' => $wallet['free_points']];
+    }
+
+    private function selectLoginOutcome(GachaDrawState $state, array $context, array $metadata, Collection $inventories, CarbonImmutable $occurredAt): array
+    {
+        try {
+            $snapshot = app(V2LoginProbabilityService::class)->snapshot((int) $context['probability']->id, (int) $context['version']->id);
+            if (! hash_equals($context['probability']->snapshot_sha256, $snapshot['checksum'])) {
+                throw new V2CatalogException('CATALOG_MUTATION_INVALID', 409, 'The fixed snapshot has changed.');
+            }
+        } catch (V2CatalogException) {
+            throw new V2DrawException('PROBABILITY_CONFIGURATION_INVALID', 409, 'The fixed Probability snapshot is invalid.');
+        }
+        $ticket = $this->random->integer(1, V2FixedPercentage::SCALE);
+        $relationId = V2FixedPercentage::select($snapshot['rates'], $ticket);
+        $inventoryWon = $inventories->mapWithKeys(fn (PrizeInventory $inventory): array => [
+            (int) $inventory->gacha_version_prize_id => (int) $inventory->awarded_count,
+        ])->all();
+        $inventoryWon[$relationId]++;
+        $row = $this->prizeOutcomeRow(1, $state->sold_count + 1, $snapshot['stage'], $ticket - 1,
+            $relationId, (int) $context['version']->price_points, $occurredAt, $metadata['prizes'][$relationId]);
+
+        return ['rows' => [$row], 'inventory_won' => $inventoryWon];
     }
 
     private function totalCost(int $price, int $drawCount): int
@@ -861,7 +908,7 @@ final class V2DrawService
                 'catalog_rank_master_revisions as rank_revision',
                 'rank_revision.id',
                 '=',
-                'rank_master.current_revision_id'
+                DB::raw('COALESCE(relation.published_rank_revision_id, rank_master.current_revision_id)')
             )
             ->join(
                 'catalog_presentation_assets as result_asset',
@@ -873,7 +920,7 @@ final class V2DrawService
                 'catalog_gacha_rank_video_revisions as video_revision',
                 'video_revision.id',
                 '=',
-                'gacha_rank.current_video_revision_id'
+                DB::raw('COALESCE(relation.published_video_revision_id, gacha_rank.current_video_revision_id)')
             )
             ->join(
                 'catalog_presentation_assets as video_asset',

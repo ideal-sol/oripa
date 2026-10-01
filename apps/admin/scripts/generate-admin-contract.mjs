@@ -12,6 +12,11 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  createAdminGachaComposition: ["post", "/catalog/gacha-compositions"],
+  getAdminGachaComposition: ["get", "/catalog/gachas/{gacha_id}/composition"],
+  updateAdminGachaComposition: ["put", "/catalog/gachas/{gacha_id}/composition"],
+  getAdminGachaCopy: ["get", "/catalog/gachas/{gacha_id}/copy"],
+  updateAdminLoginGachaInventory: ["put", "/catalog/gachas/{gacha_id}/login-inventory/{prize_id}"],
   getAdminAgencyUserAggregate: ["get", "/agencies/aggregates/users"],
   getAdminAgencySalesAggregate: ["get", "/agencies/aggregates/sales"],
   listAdminAgencies: ["get", "/agencies"],
@@ -405,6 +410,12 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
+  "AdminGachaType",
+  "AdminGachaComposition",
+  "AdminGachaCompositionSave",
+  "AdminGachaCompositionUpdate",
+  "AdminGachaCompositionResponse",
+  "AdminLoginInventoryUpdate",
   "AdminAgency",
   "AgencyAggregatePeriod",
   "AdminAgencyUserAggregateRow",
@@ -2104,6 +2115,63 @@ export interface AdminCatalogGachaVersionSummary {
 
 export type AdminGachaAllowedDrawCount = 1 | 5 | 10 | 100 | 1000;
 
+export type AdminGachaType = "standard" | "login_daily" | "signup_once";
+
+export interface AdminCompositionRank {
+  rank_id: string;
+  rank_revision_number: number | null;
+  video_asset_id: string | null;
+  presentation?: { name: string; lineup_image: AdminCanonicalAssetSnapshot; result_image: AdminCanonicalAssetSnapshot };
+}
+
+export interface AdminCompositionPrize {
+  name: string;
+  presentation_asset_id: string;
+  rank_id: string;
+  exchange_points: number;
+  cost_price: number;
+  initial_inventory: number;
+  shipping_only: boolean;
+  percentage: string | null;
+}
+
+export interface AdminGachaComposition {
+  gacha_type: AdminGachaType;
+  title: string;
+  description: string | null;
+  notices: string | null;
+  presentation_asset_id: string;
+  price_points: number;
+  minimum_exchange_points: number | null;
+  publish_start_at: string | null;
+  publish_end_at: string | null;
+  category_id: string | null;
+  tag_ids: string[];
+  total_count: number | null;
+  daily_draw_limit: number;
+  audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days: number;
+  allowed_draw_counts: AdminGachaAllowedDrawCount[];
+  ranks: AdminCompositionRank[];
+  prizes: AdminCompositionPrize[];
+}
+
+export interface AdminGachaCompositionSave extends AdminGachaComposition {
+  publish_start_at: string;
+}
+
+export interface AdminGachaCompositionUpdate {
+  expected_revision: number;
+  expected_version_revision: number;
+  composition: AdminGachaCompositionSave;
+}
+
+export interface AdminLoginInventoryUpdate {
+  expected_revision: number;
+  available_quantity: number;
+  reason: string;
+}
+
 export interface AdminCatalogGachaCoreVersion {
   id: string;
   version_number: number;
@@ -2112,7 +2180,8 @@ export interface AdminCatalogGachaCoreVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number;
+  total_count: number | null;
+  minimum_exchange_points?: number | null;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
@@ -2124,13 +2193,14 @@ export interface AdminCatalogGachaCoreVersion {
 }
 
 export interface AdminCatalogGacha {
+  gacha_type?: AdminGachaType;
   id: string;
   public_code?: string;
   code: string;
   slug: string;
   state: "draft" | "active" | "disabled";
   sold_count: number;
-  category: AdminCatalogReference;
+  category: AdminCatalogReference | null;
   tags: AdminCatalogReference[];
   published_version: AdminCatalogGachaVersionSummary | null;
   current_version?: AdminCatalogGachaCoreVersion | null;
@@ -2295,7 +2365,8 @@ export interface AdminCatalogGachaVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number;
+  total_count: number | null;
+  minimum_exchange_points?: number | null;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
@@ -2407,7 +2478,7 @@ export interface AdminGachaPublishedVersionState {
 export interface AdminGachaDrawStateSummary {
   status: "selling" | "paused" | "sold_out";
   sold_count: number;
-  total_count: number;
+  total_count: number | null;
 }
 
 export interface AdminGachaPublishState {

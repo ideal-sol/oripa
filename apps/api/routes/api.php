@@ -71,6 +71,9 @@ Route::prefix('v2')->group(function (): void {
     Route::get('/point-products', [V2PointProductController::class, 'index'])
         ->middleware('v2.browser:user')
         ->name('v2.public.point-products.index');
+    Route::get('/login-gachas', [V2CatalogController::class, 'loginGachas'])->name('v2.public.login-gachas.index');
+    Route::get('/login-gachas/{gachaId}', [V2CatalogController::class, 'loginGacha'])
+        ->whereUuid('gachaId')->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user'])->name('v2.public.login-gachas.show');
     Route::get('/gachas', [V2CatalogController::class, 'index'])
         ->middleware('v2.browser:user')
         ->name('v2.public.catalog.gachas');

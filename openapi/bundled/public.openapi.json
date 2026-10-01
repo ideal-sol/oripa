@@ -17,6 +17,74 @@
     }
   ],
   "paths": {
+    "/login-gachas": {
+      "get": {
+        "operationId": "listLoginGachas",
+        "summary": "TOP用の無料・ログインボーナスを取得する",
+        "description": "公開期間内で全景品に在庫があるログイン系のみ。個人の利用済み状態は含めない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ログイン系Catalog。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginGachaCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/login-gachas/{gacha_id}": {
+      "get": {
+        "operationId": "getLoginGacha",
+        "summary": "有効Sessionでログイン系ガチャ詳細を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gacha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "個人の利用可否を含む詳細。Draw時に再判定する。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginGachaDetailResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/content/banners": {
       "get": {
         "operationId": "listContentBanners",
@@ -3258,6 +3326,260 @@
       }
     },
     "schemas": {
+      "LoginGachaSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "public_code",
+          "gacha_type",
+          "title",
+          "thumbnail",
+          "price_points",
+          "publish_start_at",
+          "publish_end_at",
+          "availability"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "public_code": {
+            "type": "string"
+          },
+          "gacha_type": {
+            "type": "string",
+            "enum": [
+              "login_daily",
+              "signup_once"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "thumbnail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PresentationAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "publish_start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "availability": {
+            "type": "string",
+            "const": "available"
+          }
+        }
+      },
+      "LoginGachaCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoginGachaSummary"
+            }
+          }
+        }
+      },
+      "LoginGachaEligibility": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eligible",
+          "used",
+          "reason",
+          "resets_at"
+        ],
+        "properties": {
+          "eligible": {
+            "type": "boolean"
+          },
+          "used": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              null,
+              "registration_not_qualified",
+              "already_used",
+              "inventory_unavailable"
+            ]
+          },
+          "resets_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "LoginGachaPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "exchange_points",
+          "rank_id",
+          "asset"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "exchange_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rank_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PresentationAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "LoginGachaRank": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "lineup_image",
+          "result_image",
+          "video"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lineup_image": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PresentationAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_image": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PresentationAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "video": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PresentationAsset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "LoginGachaDetailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "unevaluatedProperties": false,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginGachaSummary"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "description",
+                  "notices",
+                  "eligibility",
+                  "prizes",
+                  "ranks"
+                ],
+                "properties": {
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "notices": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "eligibility": {
+                    "$ref": "#/components/schemas/LoginGachaEligibility"
+                  },
+                  "prizes": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/LoginGachaPrize"
+                    }
+                  },
+                  "ranks": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/LoginGachaRank"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
       "PaymentMethod": {
         "enum": [
           "credit_card",
@@ -6985,7 +7307,7 @@
           },
           "point_cost_total": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 0
           },
           "point_consumption": {
             "$ref": "#/components/schemas/PointConsumption"

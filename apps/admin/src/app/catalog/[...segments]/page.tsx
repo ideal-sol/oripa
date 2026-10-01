@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CatalogGachaWorkspace } from "@/components/catalog/catalog-gacha-workspace";
+import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { CatalogGachaUsageHistory } from "@/components/catalog/catalog-gacha-usage-history";
 import { CatalogGachaProfitSimulation } from "@/components/catalog/catalog-gacha-profit-simulation";
 import { CatalogProbabilityWorkspace } from "@/components/catalog/catalog-probability-workspace";
@@ -36,6 +37,9 @@ export default async function CatalogResourcePage({
           key={segments[1]}
         />
       );
+    }
+    if (segments.length === 3 && segments[2] === "copy") {
+      return <LoginGachaWorkspace sourceId={segments[1]} copy />;
     }
     if (segments.length === 3 && segments[2] === "history") {
       return <CatalogGachaUsageHistory gachaId={segments[1]} />;

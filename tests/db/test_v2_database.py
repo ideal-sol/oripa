@@ -19,6 +19,33 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_login_forward_migration_refuses_rollback_without_schema_or_ledger_change(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_04_000078_add_v2_login_gachas.php"
+        migration.touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"78"), mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            command = run.call_args.args[0]
+            self.assertIn("--no-deps", command)
+            self.assertIn("$migration->down()", command[-1])
+            self.assertIn("Login eligibility, rates and Draw history require a forward correction migration.", command[-1])
+            self.assertNotIn("migrate:rollback", command)
+
+    def test_login_rollback_verification_rejects_unexpected_result_schema_or_ledger_mutation(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_04_000078_add_v2_login_gachas.php"
+        migration.touch()
+        for result, rows, schemas in [
+            (b"unexpected", [b"78", b"78"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"78", b"77"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"78", b"78"], [b"schema", b"changed"]),
+        ]:
+            with self.subTest(result=result, rows=rows, schemas=schemas), mock.patch.object(
+                v2_database, "migration_rows", side_effect=rows
+            ), mock.patch.object(v2_database, "schema_dump", side_effect=schemas), mock.patch.object(v2_database, "run", return_value=result):
+                with self.assertRaises(v2_database.GuardFailure):
+                    v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, False)
+
     def test_shipping_only_forward_migration_refuses_rollback_without_schema_or_ledger_change(self):
         migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_03_000077_add_v2_shipping_only_prizes.php"
         migration.touch()

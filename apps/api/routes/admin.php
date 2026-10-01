@@ -226,6 +226,15 @@ Route::prefix('v2')
             ->name('v2.admin.catalog.gachas.index');
         Route::post('/catalog/gachas', [V2AdminCatalogController::class, 'createGacha'])
             ->name('v2.admin.catalog.gachas.create');
+        Route::post('/catalog/gacha-compositions', [V2AdminCatalogController::class, 'createComposition'])->name('v2.admin.catalog.composition.create');
+        Route::get('/catalog/gachas/{gachaId}/composition', [V2AdminCatalogController::class, 'composition'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.composition.show');
+        Route::put('/catalog/gachas/{gachaId}/composition', [V2AdminCatalogController::class, 'updateComposition'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.composition.update');
+        Route::get('/catalog/gachas/{gachaId}/copy', [V2AdminCatalogController::class, 'copyGacha'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.composition.copy');
+        Route::put('/catalog/gachas/{gachaId}/login-inventory/{prizeId}', [V2AdminCatalogController::class, 'updateLoginInventory'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('prizeId')->name('v2.admin.catalog.login-inventory.update');
         Route::post('/catalog/gachas/core', [V2AdminCatalogController::class, 'createGachaCore'])
             ->name('v2.admin.catalog.gachas.core.create');
         Route::post('/catalog/gacha-thumbnails', [V2AdminCatalogController::class, 'uploadGachaThumbnail'])

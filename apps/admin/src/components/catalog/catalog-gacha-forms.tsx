@@ -74,7 +74,7 @@ export function CatalogGachaCoreForm({
   const initial = useMemo<GachaCoreDraft>(() => ({
     allowedDrawCounts: current?.current_version?.allowed_draw_counts ?? [1, 5, 10],
     audienceCode: current?.current_version?.audience_code ?? "all_users",
-    categoryId: current?.category.id ?? "",
+    categoryId: current?.category?.id ?? "",
     dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
     firstTimeEligibleDays: current?.current_version?.first_time_eligible_days ?? 7,
     description: current?.current_version?.description ?? null,
@@ -326,7 +326,7 @@ export function CatalogGachaMasterForm({
 }) {
   const initial = useMemo<GachaMasterDraft>(
     () => ({
-      categoryId: current?.category.id ?? "",
+      categoryId: current?.category?.id ?? "",
       code: current?.code ?? "",
       slug: current?.slug ?? "",
       tagIds: current?.tags.map((tag) => tag.id) ?? [],

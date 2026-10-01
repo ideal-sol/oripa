@@ -4,6 +4,43 @@
  */
 
 export interface paths {
+    "/login-gachas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * TOP用の無料・ログインボーナスを取得する
+         * @description 公開期間内で全景品に在庫があるログイン系のみ。個人の利用済み状態は含めない。
+         */
+        get: operations["listLoginGachas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/login-gachas/{gacha_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 有効Sessionでログイン系ガチャ詳細を取得する */
+        get: operations["getLoginGacha"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/content/banners": {
         parameters: {
             query?: never;
@@ -1279,6 +1316,55 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        LoginGachaSummary: {
+            id: components["schemas"]["OpaqueId"];
+            public_code: string;
+            /** @enum {string} */
+            gacha_type: "login_daily" | "signup_once";
+            title: string;
+            thumbnail: components["schemas"]["PresentationAsset"] | null;
+            price_points: number;
+            /** Format: date-time */
+            publish_start_at: string;
+            /** Format: date-time */
+            publish_end_at: string | null;
+            /** @constant */
+            availability: "available";
+        };
+        LoginGachaCollection: {
+            items: components["schemas"]["LoginGachaSummary"][];
+        };
+        LoginGachaEligibility: {
+            eligible: boolean;
+            used: boolean;
+            /** @enum {string|null} */
+            reason: null | "registration_not_qualified" | "already_used" | "inventory_unavailable";
+            /** Format: date-time */
+            resets_at: string | null;
+        };
+        LoginGachaPrize: {
+            id: components["schemas"]["OpaqueId"];
+            name: string;
+            exchange_points: number;
+            rank_id: components["schemas"]["OpaqueId"];
+            asset: components["schemas"]["PresentationAsset"] | null;
+        };
+        LoginGachaRank: {
+            id: components["schemas"]["OpaqueId"];
+            name: string;
+            lineup_image: components["schemas"]["PresentationAsset"] | null;
+            result_image: components["schemas"]["PresentationAsset"] | null;
+            video: components["schemas"]["PresentationAsset"] | null;
+        };
+        LoginGachaDetailResponse: {
+            data: components["schemas"]["LoginGachaSummary"] & {
+                description: string | null;
+                notices: string | null;
+                eligibility: components["schemas"]["LoginGachaEligibility"];
+                prizes: components["schemas"]["LoginGachaPrize"][];
+                ranks: components["schemas"]["LoginGachaRank"][];
+            };
+        };
         /** @enum {unknown} */
         PaymentMethod: "credit_card" | "paypay" | "konbini" | "virtual_account";
         /** @enum {unknown} */
@@ -2531,6 +2617,50 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listLoginGachas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ログイン系Catalog。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginGachaCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getLoginGacha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gacha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 個人の利用可否を含む詳細。Draw時に再判定する。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginGachaDetailResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listContentBanners: {
         parameters: {
             query?: never;

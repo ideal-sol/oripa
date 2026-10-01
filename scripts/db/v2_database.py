@@ -523,14 +523,18 @@ def rollback_and_reapply_latest(
 ) -> str:
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
-    if latest == "2026_10_03_000077_add_v2_shipping_only_prizes.php":
+    forward_only_messages = {
+        "2026_10_03_000077_add_v2_shipping_only_prizes.php": "Shipping-only prize rights require a forward correction migration.",
+        "2026_10_04_000078_add_v2_login_gachas.php": "Login eligibility, rates and Draw history require a forward correction migration.",
+    }
+    if latest in forward_only_messages:
         before = migration_rows(base, repository)
         schema_before = normalize_schema_dump(schema_dump(base, repository))
         verification = (
             "$migration = require 'database/migrations-v2/" + latest + "'; "
             "try { $migration->down(); exit(1); } "
             "catch (LogicException $error) { "
-            "if ($error->getMessage() !== 'Shipping-only prize rights require a forward correction migration.') { exit(2); } "
+            "if ($error->getMessage() !== '" + forward_only_messages[latest] + "') { exit(2); } "
             "echo 'FORWARD_ONLY_REJECTION_PASS'; }"
         )
         output = run(base + prefix + ["api", "php", "-r", "require 'vendor/autoload.php'; " + verification], cwd=repository)

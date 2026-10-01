@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: e72e63d565187ec9ea71ed6291772d76e03865c11bcfafd5e8538c67c63eddba
+// Contract SHA-256: 4e16c4ed262f2d02ba4cb61dc72fe16414ffb348815e994b599b9da5e40ff1cf
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1487,6 +1487,63 @@ export interface AdminCatalogGachaVersionSummary {
 
 export type AdminGachaAllowedDrawCount = 1 | 5 | 10 | 100 | 1000;
 
+export type AdminGachaType = "standard" | "login_daily" | "signup_once";
+
+export interface AdminCompositionRank {
+  rank_id: string;
+  rank_revision_number: number | null;
+  video_asset_id: string | null;
+  presentation?: { name: string; lineup_image: AdminCanonicalAssetSnapshot; result_image: AdminCanonicalAssetSnapshot };
+}
+
+export interface AdminCompositionPrize {
+  name: string;
+  presentation_asset_id: string;
+  rank_id: string;
+  exchange_points: number;
+  cost_price: number;
+  initial_inventory: number;
+  shipping_only: boolean;
+  percentage: string | null;
+}
+
+export interface AdminGachaComposition {
+  gacha_type: AdminGachaType;
+  title: string;
+  description: string | null;
+  notices: string | null;
+  presentation_asset_id: string;
+  price_points: number;
+  minimum_exchange_points: number | null;
+  publish_start_at: string | null;
+  publish_end_at: string | null;
+  category_id: string | null;
+  tag_ids: string[];
+  total_count: number | null;
+  daily_draw_limit: number;
+  audience_code: "all_users" | "first_time_users" | "line_users";
+  first_time_eligible_days: number;
+  allowed_draw_counts: AdminGachaAllowedDrawCount[];
+  ranks: AdminCompositionRank[];
+  prizes: AdminCompositionPrize[];
+}
+
+export interface AdminGachaCompositionSave extends AdminGachaComposition {
+  publish_start_at: string;
+}
+
+export interface AdminGachaCompositionUpdate {
+  expected_revision: number;
+  expected_version_revision: number;
+  composition: AdminGachaCompositionSave;
+}
+
+export interface AdminLoginInventoryUpdate {
+  expected_revision: number;
+  available_quantity: number;
+  reason: string;
+}
+
 export interface AdminCatalogGachaCoreVersion {
   id: string;
   version_number: number;
@@ -1495,7 +1552,8 @@ export interface AdminCatalogGachaCoreVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number;
+  total_count: number | null;
+  minimum_exchange_points?: number | null;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
@@ -1507,13 +1565,14 @@ export interface AdminCatalogGachaCoreVersion {
 }
 
 export interface AdminCatalogGacha {
+  gacha_type?: AdminGachaType;
   id: string;
   public_code?: string;
   code: string;
   slug: string;
   state: "draft" | "active" | "disabled";
   sold_count: number;
-  category: AdminCatalogReference;
+  category: AdminCatalogReference | null;
   tags: AdminCatalogReference[];
   published_version: AdminCatalogGachaVersionSummary | null;
   current_version?: AdminCatalogGachaCoreVersion | null;
@@ -1678,7 +1737,8 @@ export interface AdminCatalogGachaVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number;
+  total_count: number | null;
+  minimum_exchange_points?: number | null;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
   first_time_eligible_days?: number;
@@ -1790,7 +1850,7 @@ export interface AdminGachaPublishedVersionState {
 export interface AdminGachaDrawStateSummary {
   status: "selling" | "paused" | "sold_out";
   sold_count: number;
-  total_count: number;
+  total_count: number | null;
 }
 
 export interface AdminGachaPublishState {

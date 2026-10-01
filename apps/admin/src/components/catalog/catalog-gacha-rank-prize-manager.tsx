@@ -269,7 +269,7 @@ export function CatalogGachaRankPrizeManager({
         </div>
       ) : null}
 
-      {prizeDialog && prizeRank ? (
+      {prizeDialog && prizeRank && version.total_count !== null ? (
         <Dialog onClose={() => { setPrizeDialog(false); setPrizeEditing(null); setPrizeRank(null); }} title={prizeEditing ? "景品編集" : "新規景品登録"}>
           <PrizeForm
             busy={busyPrize}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\V2;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogReadService;
+use App\Domain\Catalog\Services\V2LoginCatalogReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -15,6 +16,23 @@ final class V2CatalogController
     public function __construct(
         private readonly V2CatalogReadService $catalog
     ) {
+    }
+
+    public function loginGachas(Request $request): JsonResponse
+    {
+        return $this->success(app(V2LoginCatalogReadService::class)->listing(), $request, 'no-store');
+    }
+
+    public function loginGacha(Request $request, string $gachaId): JsonResponse
+    {
+        try {
+            $response = $this->success(app(V2LoginCatalogReadService::class)->detail($gachaId, Auth::guard('v2_user')->user()), $request, 'private, no-store');
+            $response->headers->set('Vary', 'Cookie');
+
+            return $response;
+        } catch (V2CatalogException $exception) {
+            return $this->problem($request, $exception);
+        }
     }
 
     public function categories(Request $request): JsonResponse
