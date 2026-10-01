@@ -20,9 +20,9 @@ final class V2CurrentUserPointReadService
      *     expiring_within_7_days: list<array{expires_at: string, amount: int}>
      * }
      */
-    public function wallet(User $user): array
+    public function wallet(User $user, ?CarbonImmutable $operationAt = null): array
     {
-        $operationAt = CarbonImmutable::now()->utc()->startOfSecond();
+        $operationAt = ($operationAt ?? CarbonImmutable::now())->utc()->startOfSecond();
         $operationAtIso = $operationAt->toIso8601ZuluString();
         $wallet = DB::table('wallets')->where('user_id', $user->id)->first([
             'paid_balance',

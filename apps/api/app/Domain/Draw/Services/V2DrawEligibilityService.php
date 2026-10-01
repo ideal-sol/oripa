@@ -82,6 +82,24 @@ final class V2DrawEligibilityService
             ->where('id', $user->id)
             ->lockForUpdate()
             ->first();
+        if (in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true)) {
+            if ($lockedUser === null || $drawCount !== 1) {
+                throw new V2DrawException('INVALID_DRAW_REQUEST', 422, 'A login Gacha permits one Draw.');
+            }
+            if ($lockedUser->state !== 'active') {
+                throw new V2DrawException('GACHA_AUDIENCE_NOT_ELIGIBLE', 403, 'An active User is required.');
+            }
+            $eligibility = $this->evaluateLogin($lockedUser, $gacha, $version, $occurredAt);
+            if (! $eligibility['eligible']) {
+                throw new V2DrawException(
+                    $eligibility['used'] ? 'DAILY_DRAW_LIMIT_EXCEEDED' : 'GACHA_AUDIENCE_NOT_ELIGIBLE',
+                    $eligibility['used'] ? 409 : 403,
+                    'The user is not eligible for this login Gacha.'
+                );
+            }
+
+            return;
+        }
         if (
             $lockedUser === null
             || ! $this->isAudienceEligible(
@@ -118,6 +136,30 @@ final class V2DrawEligibilityService
                 'The daily Draw limit would be exceeded.'
             );
         }
+    }
+
+    public function evaluateLogin(object $user, object $gacha, object $version, CarbonImmutable $occurredAt): array
+    {
+        $bounds = $this->jstDayBounds($occurredAt);
+        $usage = DB::table('draw_requests as request')
+            ->join('gacha_draw_states as state', 'state.id', '=', 'request.gacha_draw_state_id')
+            ->where('request.user_id', $user->id)->where('state.gacha_id', $gacha->id)
+            ->where('request.status', 'completed');
+        if ($gacha->gacha_type === 'login_daily') {
+            $usage->where('request.completed_at', '>=', $bounds['start']->toIso8601String())
+                ->where('request.completed_at', '<', $bounds['end']->toIso8601String());
+        }
+        $used = $usage->exists();
+        $qualified = $gacha->gacha_type === 'login_daily'
+            || ($gacha->gacha_type === 'signup_once' && $user->first_registration_qualified_at !== null
+                && CarbonImmutable::parse($user->first_registration_qualified_at)->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
+
+        return [
+            'eligible' => $qualified && ! $used,
+            'used' => $used,
+            'reason' => ! $qualified ? 'registration_not_qualified' : ($used ? 'already_used' : null),
+            'resets_at' => $gacha->gacha_type === 'login_daily' ? $bounds['end']->toIso8601ZuluString() : null,
+        ];
     }
 
     private function isAudienceEligible(

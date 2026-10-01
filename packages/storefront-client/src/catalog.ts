@@ -14,6 +14,8 @@ export interface GachaListQuery {
 }
 
 export interface StorefrontCatalogClient {
+  listLoginGachas(): Promise<StorefrontResponse<Schemas["LoginGachaCollection"]>>;
+  getLoginGacha(gachaId: string): Promise<StorefrontResponse<Schemas["LoginGachaDetailResponse"]>>;
   listGachaCategories(): Promise<
     StorefrontResponse<Schemas["GachaCategoryCollection"]>
   >;
@@ -63,6 +65,8 @@ export function createStorefrontCatalogClient(
   transport: StorefrontTransport,
 ): StorefrontCatalogClient {
   return {
+    listLoginGachas: () => transport.request({ path: "/login-gachas" }),
+    getLoginGacha: (gachaId) => transport.request({ path: `/login-gachas/${pathSegment(gachaId, "gacha_id")}` }),
     listGachaCategories: () =>
       transport.request({ path: "/gacha-categories" }),
     listGachaTags: () => transport.request({ path: "/gacha-tags" }),

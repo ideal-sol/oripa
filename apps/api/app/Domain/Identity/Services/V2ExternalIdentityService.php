@@ -661,10 +661,12 @@ final class V2ExternalIdentityService
             );
         }
 
+        $qualifiedAt = now()->startOfSecond();
         $user = User::query()->create([
             'email_display' => $identity->emailDisplay,
             'email_normalized' => $identity->emailNormalized,
-            'email_verified_at' => now()->startOfSecond(),
+            'email_verified_at' => $qualifiedAt,
+            'first_registration_qualified_at' => $qualifiedAt,
             'password_hash' => $this->passwords->hash($this->tokens->generate()),
             'password_login_enabled' => false,
             'state' => V2UserState::Active,

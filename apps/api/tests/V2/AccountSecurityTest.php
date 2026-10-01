@@ -123,6 +123,8 @@ final class AccountSecurityTest extends TestCase
     public function test_email_change_same_browser_rotates_current_session_and_notifies_new_email_only(): void
     {
         $user = $this->user('email-same-browser@example.test');
+        $qualifiedAt = now()->subYear()->startOfSecond();
+        $user->forceFill(['first_registration_qualified_at' => $qualifiedAt])->save();
         [$request, $initiating] = $this->authenticatedRequest(
             $user,
             '/api/v2/me/email-change-requests'
@@ -153,6 +155,7 @@ final class AccountSecurityTest extends TestCase
         self::assertTrue($result['initiating_session_preserved']);
         self::assertFalse($result['request_session_revoked']);
         self::assertSame('email-same-browser-new@example.test', $user->refresh()->email_normalized);
+        self::assertTrue($user->first_registration_qualified_at->equalTo($qualifiedAt));
         self::assertNotNull(UserEmailChangeRequest::query()
             ->where('public_id', $started['request_id'])->value('used_at'));
         foreach ([$initiating['token'], $other['token']] as $oldToken) {

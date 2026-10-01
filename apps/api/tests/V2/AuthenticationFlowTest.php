@@ -80,6 +80,7 @@ final class AuthenticationFlowTest extends TestCase
         );
 
         self::assertSame(V2UserState::PendingVerification, $first->state);
+        self::assertNull($first->first_registration_qualified_at);
         self::assertNotSame($first->getKey(), $second->getKey());
         self::assertCount(2, $this->notifier->messages);
         $token = $this->notifier->messages[0]['token'];
@@ -90,6 +91,9 @@ final class AuthenticationFlowTest extends TestCase
 
         $verified = $service->verify($first->public_id, $token);
         self::assertSame(V2UserState::Active, $verified['user']->state);
+        self::assertNotNull($verified['user']->first_registration_qualified_at);
+        self::assertTrue($verified['user']->first_registration_qualified_at->equalTo($verified['user']->email_verified_at));
+        $firstQualification = $verified['user']->first_registration_qualified_at;
         self::assertDatabaseHas('user_sessions', [
             'session_id_hash' => hash('sha256', $verified['session']['token']),
         ]);
@@ -113,6 +117,7 @@ final class AuthenticationFlowTest extends TestCase
             'valid user password',
             '192.0.2.12'
         );
+        self::assertTrue($first->fresh()->first_registration_qualified_at->equalTo($firstQualification));
         $request = Request::create('/api/v2/auth/logout', 'POST');
         $request->cookies->set('__Host-oripa_user_session', $login['session']['token']);
         $service->logout($request);

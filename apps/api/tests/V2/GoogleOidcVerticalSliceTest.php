@@ -73,6 +73,8 @@ final class GoogleOidcVerticalSliceTest extends TestCase
         self::assertSame(V2UserState::Active, $result['user']->state);
         self::assertFalse($result['user']->password_login_enabled);
         self::assertNotNull($result['user']->email_verified_at);
+        self::assertNotNull($result['user']->first_registration_qualified_at);
+        self::assertTrue($result['user']->first_registration_qualified_at->equalTo($result['user']->email_verified_at));
         self::assertDatabaseHas('external_identity_accounts', [
             'user_id' => $result['user']->getKey(),
             'provider' => 'google',
@@ -134,6 +136,7 @@ final class GoogleOidcVerticalSliceTest extends TestCase
                     'advertising_code_id' => DB::table('agency_advertising_codes')->value('id'), 'attributed_at' => now()]);
             }
             $before = DB::table('user_advertising_attributions')->get()->toJson();
+            $qualificationBefore = $user->first_registration_qualified_at;
             [$request, $session] = $this->authenticatedRequest($user);
             $started = $this->start('link', $user, $request, 'Ab12Cd34');
             self::assertNull(ExternalIdentityTransaction::query()->latest('id')->first()->advertising_code_candidate);
@@ -150,6 +153,7 @@ final class GoogleOidcVerticalSliceTest extends TestCase
                 '192.0.2.10', $this->callbackRequest($started['binding'])
             );
             self::assertSame($user->id, $loggedIn['user']->id);
+            self::assertEquals($qualificationBefore, $user->fresh()->first_registration_qualified_at);
             self::assertSame($before, DB::table('user_advertising_attributions')->get()->toJson());
         }
     }

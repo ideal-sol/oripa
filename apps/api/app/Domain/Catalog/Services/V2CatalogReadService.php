@@ -309,6 +309,7 @@ final class V2CatalogReadService
         $now = CarbonImmutable::now('UTC');
 
         return DB::table('catalog_gachas as g')
+            ->where('g.gacha_type', 'standard')
             ->join('catalog_gacha_versions as gv', 'gv.id', '=', 'g.published_version_id')
             ->join(
                 'catalog_probability_versions as pv',

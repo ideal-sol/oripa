@@ -19,7 +19,7 @@ for (const width of [1440, 1366, 390]) {
   for (const mode of ["new", "edit"]) {
     test(`Form batch ${width}px gacha ${mode} category stays standard beside media`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto(mode === "new" ? "/catalog/gachas/new" : `/gachas/${gachaCode}/edit`);
+      await page.goto(mode === "new" ? "/catalog/gachas/new/standard" : `/gachas/${gachaCode}/edit`);
       const select = page.getByRole("combobox", { name: "カテゴリ", exact: true });
       await expect(select.getByRole("option", { name: "カード", exact: true })).toHaveCount(1);
       const title = page.getByLabel("ガチャタイトル");

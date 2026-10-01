@@ -19,6 +19,7 @@ final class User extends Authenticatable
         'email_display',
         'email_normalized',
         'email_verified_at',
+        'first_registration_qualified_at',
         'password_hash',
         'password_login_enabled',
         'state',
@@ -40,6 +41,7 @@ final class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'immutable_datetime',
+            'first_registration_qualified_at' => 'immutable_datetime',
             'password_login_enabled' => 'boolean',
             'state' => V2UserState::class,
             'state_revision' => 'integer',

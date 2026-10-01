@@ -21,6 +21,157 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_login_gacha_admin_paths_are_registered_exactly(self):
+        expected = {
+            "apps/admin/e2e/admin-login-gacha.spec.ts",
+            "apps/admin/src/app/catalog/gachas/new/login/page.tsx",
+            "apps/admin/src/app/catalog/gachas/new/signup/page.tsx",
+            "apps/admin/src/app/catalog/gachas/new/standard/page.tsx",
+            "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
+            "apps/admin/src/lib/catalog/login-gacha.ts",
+            "apps/admin/test/login-gacha.test.tsx",
+        }
+        self.assertEqual(policy_gate.LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES, expected)
+        self.assertTrue(expected.issubset(policy_gate.ADMIN_SKELETON_FILES))
+        self.assertFalse(any("*" in path for path in expected))
+
+    def test_login_gacha_admin_registration_rejects_unregistered_and_wildcard_paths(self):
+        paths = set(policy_gate.tracked_paths(ROOT))
+        for relative in (
+            "apps/admin/src/components/catalog/login-gacha-unregistered.tsx",
+            "apps/admin/src/arbitrary.tsx",
+            "apps/admin/**",
+            "apps/admin/src/app/catalog/gachas/new/*/page.tsx",
+        ):
+            with self.subTest(path=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+
+    def test_login_gacha_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", "LOGIN-GACHA-20261001"),
+            "[LOGIN-GACHA-20261001] Login Gacha",
+            data["changed_paths"],
+            data["base_sha"],
+        )
+        for task_id in (
+            "LOGIN-GACHA-20261002",
+            "LOGIN-GACHA-123",
+            "LOGIN-OTHER-20261001",
+            "LOGIN-GACHA-*",
+            "LOGIN-GACHA-20261001A",
+            "LOGIN-GACHA-20261001-EXTRA",
+        ):
+            with self.subTest(task_id=task_id):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(task_id))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                    policy_gate.validate_pr_body(
+                        data["pr_body"].replace("GOV-008", task_id),
+                        f"[{task_id}] Login Gacha",
+                        data["changed_paths"],
+                        data["base_sha"],
+                    )
+
+    def test_login_gacha_cost_registration_remains_exactly_scoped(self):
+        for relative in (
+            "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
+            "apps/admin/src/lib/catalog/login-gacha.ts",
+        ):
+            with self.subTest(path=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.make_workspace(root)
+                source = root / relative
+                source.write_text(
+                    source.read_text(encoding="utf-8") + '\nconst prohibited = "cost_price";\n',
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "cost must remain exactly scoped|prohibited cost_price"):
+                    policy_gate.validate_admin_skeleton(root, paths)
+
+    def test_login_gacha_task_keeps_exact_changed_files_and_dangerous_path_checks(self):
+        data = fixture("positive.json")
+        with self.assertRaisesRegex(policy_gate.PolicyFailure, "Changed files"):
+            policy_gate.validate_pr_body(
+                data["pr_body"].replace("GOV-008", "LOGIN-GACHA-20261001"),
+                "[LOGIN-GACHA-20261001] Login Gacha",
+                [*data["changed_paths"], "apps/admin/test/login-gacha.test.tsx"],
+                data["base_sha"],
+            )
+        secret = fixture("negative_secret_path.json")
+        with self.assertRaisesRegex(policy_gate.PolicyFailure, "dangerous tracked"):
+            policy_gate.validate_dangerous_paths(
+                [*secret["tracked_paths"], "apps/admin/test/login-gacha.test.tsx"]
+            )
+
+    def test_login_gacha_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_04_000078_add_v2_login_gachas.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000078" if change == "duplicate_number" else "000079"
+                    unexpected = migration.with_name(f"2026_10_04_{number}_unregistered.php")
+                    shutil.copy2(migration, unexpected)
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_login_gacha_catalog_registration_requires_each_new_operation(self):
+        operations = (
+            ("admin", "/catalog/gacha-compositions", "post"),
+            ("admin", "/catalog/gachas/{gacha_id}/composition", "get"),
+            ("admin", "/catalog/gachas/{gacha_id}/composition", "put"),
+            ("admin", "/catalog/gachas/{gacha_id}/copy", "get"),
+            ("admin", "/catalog/gachas/{gacha_id}/login-inventory/{prize_id}", "put"),
+            ("public", "/login-gachas", "get"),
+            ("public", "/login-gachas/{gacha_id}", "get"),
+        )
+        for surface, route, method in operations:
+            with self.subTest(route=route, method=method), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                bundle = root / f"openapi/bundled/{surface}.openapi.json"
+                document = json.loads(bundle.read_text(encoding="utf-8"))
+                document["paths"][route][method]["operationId"] = "unregisteredLoginOperation"
+                bundle.write_text(json.dumps(document), encoding="utf-8")
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "operation set is incomplete|Public Catalog contract missing"):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_login_gacha_catalog_registration_rejects_unregistered_mutations_and_paths(self):
+        for route, method in (
+            ("/catalog/gachas/{gacha_id}/copy", "post"),
+            ("/catalog/gachas/{gacha_id}/login-inventory/{prize_id}", "delete"),
+            ("/catalog/arbitrary", "post"),
+            ("/catalog/**", "post"),
+        ):
+            with self.subTest(route=route, method=method), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                bundle = root / "openapi/bundled/admin.openapi.json"
+                document = json.loads(bundle.read_text(encoding="utf-8"))
+                document["paths"].setdefault(route, {})[method] = {"operationId": "unregisteredLoginOperation"}
+                bundle.write_text(json.dumps(document), encoding="utf-8")
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited mutation"):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_login_gacha_public_registration_keeps_existing_leak_checks(self):
+        for field in ("individual_ppm", "storage_identifier", "secret", "credential", "internal_id"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                bundle = root / "openapi/bundled/public.openapi.json"
+                document = json.loads(bundle.read_text(encoding="utf-8"))
+                document["components"]["schemas"]["LoginGachaPrize"]["properties"][field] = {"type": "string"}
+                bundle.write_text(json.dumps(document), encoding="utf-8")
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, field):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
+
     def test_admin_phase1_removes_only_mutation_limiters_and_explicit_password_contracts(self):
         for path in (ROOT / "apps/api/app").rglob("*.php"):
             source = path.read_text(encoding="utf-8")
@@ -853,6 +1004,10 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.42')
+        self.assertEqual(value['candidate']['public_api_operation_count'], 78)
+        value['candidate'] = None
         value['latest_immutable'] = value['immutable_history'][-2]
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.40')
         self.assertEqual(value['latest_immutable']['source_commit'], 'dadf79f3b0b2409a57e41b10a83c7b6570ea3507')
@@ -3095,7 +3250,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.41",
+                    "version": "2.0.0-alpha.42",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3133,7 +3288,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.37",
+                        "minimumPublicApiContract": "2.0.0-alpha.38",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -3490,8 +3645,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 76",
-                    "operation_count: 75",
+                    "operation_count: 78",
+                    "operation_count: 77",
                 ),
                 encoding="utf-8",
             )

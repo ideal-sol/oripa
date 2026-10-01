@@ -34,7 +34,9 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
-TASK_ID = re.compile(r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+)$")
+TASK_ID = re.compile(
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001)$"
+)
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
     r"(?:/[A-Za-z0-9_.-]+)*"
@@ -287,6 +289,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     "apps/api/database/migrations-v2/2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
     "apps/api/database/migrations-v2/2026_10_03_000077_add_v2_shipping_only_prizes.php",
+    "apps/api/database/migrations-v2/2026_10_04_000078_add_v2_login_gachas.php",
     "apps/api/database/migrations-v2/2026_09_30_000074_add_v2_agency_realm.php",
     "apps/api/app/Auth/V2RealmSessionGuard.php",
     "apps/api/app/Domain/Identity/Enums/V2AdminRole.php",
@@ -944,6 +947,15 @@ AGENCY_001_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/agencies/agency-workspace.tsx",
     "apps/admin/test/agency-management.test.tsx",
 }
+LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-login-gacha.spec.ts",
+    "apps/admin/src/app/catalog/gachas/new/login/page.tsx",
+    "apps/admin/src/app/catalog/gachas/new/signup/page.tsx",
+    "apps/admin/src/app/catalog/gachas/new/standard/page.tsx",
+    "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
+    "apps/admin/src/lib/catalog/login-gacha.ts",
+    "apps/admin/test/login-gacha.test.tsx",
+}
 
 ADMIN_SKELETON_FILES = {
     "apps/admin/src/app/agencies/aggregates/users/page.tsx",
@@ -954,6 +966,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/agency-aggregation.test.tsx",
     "apps/admin/e2e/agency-aggregation.spec.ts",
     *AGENCY_001_ADMIN_SKELETON_FILES,
+    *LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES,
     "apps/admin/AGENTS.md",
     "apps/admin/README.md",
     "apps/admin/Dockerfile",
@@ -2221,6 +2234,9 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     profit_simulation_path = (
         "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx"
     )
+    login_composition_path = (
+        "apps/admin/src/components/catalog/login-gacha-workspace.tsx"
+    )
     catalog_cost_sources = {
         relative: (repository / relative).read_text(
             encoding="utf-8", errors="replace"
@@ -2232,13 +2248,22 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     if any(
         "cost_price" in source
         for relative, source in catalog_cost_sources.items()
-        if relative not in {rank_prize_path, profit_simulation_path}
+        if relative not in {rank_prize_path, profit_simulation_path, login_composition_path}
     ):
         raise PolicyFailure("apps/admin: Catalog read UI exposes prohibited cost_price")
     rank_prize_source = catalog_cost_sources.get(rank_prize_path, "")
     if rank_prize_source.count("cost_price") != 4 or "原価" not in rank_prize_source:
         raise PolicyFailure(
             "apps/admin: Draft Gacha Prize cost must remain exactly scoped"
+        )
+    login_composition_source = catalog_cost_sources.get(login_composition_path, "")
+    if (
+        login_composition_source.count("cost_price") != 4
+        or "原価" not in login_composition_source
+        or "<fieldset disabled={locked || busy}>" not in login_composition_source
+    ):
+        raise PolicyFailure(
+            "apps/admin: Login Gacha composition cost must remain exactly scoped"
         )
     profit_simulation_source = catalog_cost_sources.get(profit_simulation_path, "")
     if (
@@ -2642,7 +2667,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3045,6 +3070,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
         "2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
         "2026_10_03_000077_add_v2_shipping_only_prizes.php",
+        "2026_10_04_000078_add_v2_login_gachas.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4487,6 +4513,11 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "getAdminCatalogGacha",
         "createAdminCatalogGacha",
         "createAdminCatalogGachaCore",
+        "createAdminGachaComposition",
+        "getAdminGachaComposition",
+        "updateAdminGachaComposition",
+        "getAdminGachaCopy",
+        "updateAdminLoginGachaInventory",
         "updateAdminCatalogGacha",
         "archiveAdminCatalogGacha",
         "listAdminCatalogGachaVersions",
@@ -4554,6 +4585,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gacha-thumbnails": {"post"},
         "/catalog/gachas": {"get", "post"},
         "/catalog/gachas/core": {"post"},
+        "/catalog/gacha-compositions": {"post"},
+        "/catalog/gachas/{gacha_id}/composition": {"get", "put"},
+        "/catalog/gachas/{gacha_id}/copy": {"get"},
+        "/catalog/gachas/{gacha_id}/login-inventory/{prize_id}": {"put"},
         "/catalog/gachas/{gacha_id}": {"get", "put"},
         "/catalog/gachas/{gacha_id}/archive": {"post"},
         "/catalog/gachas/{gacha_id}/history": {"get"},
@@ -4692,6 +4727,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "listGachaCategories",
         "listGachaTags",
         "listGachas",
+        "listLoginGachas",
+        "getLoginGacha",
     ):
         if required not in operation_ids:
             raise PolicyFailure(f"Public Catalog contract missing {required}")
@@ -4699,6 +4736,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         path: path_item
         for path, path_item in bundle.get("paths", {}).items()
         if path.startswith("/api/v2/gacha")
+        or path in {"/login-gachas", "/login-gachas/{gacha_id}"}
     }
     catalog_schemas = {
         name: schema
@@ -4715,6 +4753,14 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
                 "Rank",
             )
         )
+        or name in {
+            "LoginGachaSummary",
+            "LoginGachaCollection",
+            "LoginGachaEligibility",
+            "LoginGachaPrize",
+            "LoginGachaRank",
+            "LoginGachaDetailResponse",
+        }
     }
     public_contract = json.dumps(
         {"paths": catalog_paths, "schemas": catalog_schemas},
@@ -4746,6 +4792,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "getGacha",
         "getGachaBySlug",
         "getGachaPresentation",
+        "listLoginGachas",
+        "getLoginGacha",
     ):
         if required not in generated or required not in facade:
             raise PolicyFailure(f"Storefront Catalog Client missing {required}")

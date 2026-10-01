@@ -32,6 +32,7 @@ import type {
   AdminGachaUnpublishPreflight,
   AdminGachaUnpublishState,
 } from "@/lib/admin-api/generated";
+import { drawStateCountLabel, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 const ADMIN_DISPLAY_TIME_ZONE = "Asia/Tokyo";
 
@@ -217,7 +218,7 @@ export function GachaPublishPreflightPanel({
       setConfirmOpen(false);
       setPreflight(null);
       setError(null);
-      onCanonical(result.data);
+      onCanonical(standardGachaVersion(result.data));
     } catch (cause) {
       const next = normalizeError(cause);
       if (!next.retryable) pendingMutation.current = null;
@@ -297,7 +298,7 @@ export function GachaPublishPreflightPanel({
         selected_probability: result.data.selected_probability,
         draw_state: result.data.draw_state,
       });
-      onCanonical(canonical.data);
+      onCanonical(standardGachaVersion(canonical.data));
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
@@ -377,7 +378,7 @@ export function GachaPublishPreflightPanel({
       setSchedulePreflight(null);
       setScheduleConfirmOpen(false);
       setError(null);
-      onCanonical(canonical.data);
+      onCanonical(standardGachaVersion(canonical.data));
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
@@ -423,7 +424,7 @@ export function GachaPublishPreflightPanel({
       setSchedule(result.data);
       setCancelConfirmOpen(false);
       setError(null);
-      onCanonical(canonical.data);
+      onCanonical(standardGachaVersion(canonical.data));
       setReload((value) => value + 1);
     } catch (cause) {
       const next = normalizeError(cause);
@@ -740,8 +741,7 @@ export function GachaPublishPreflightPanel({
           <div>
             <dt>販売状況</dt>
             <dd>
-              {publishState.draw_state?.sold_count ?? 0} /{" "}
-              {publishState.draw_state?.total_count ?? 0}
+              {drawStateCountLabel(publishState.draw_state)}
             </dd>
           </div>
         </dl>
@@ -760,8 +760,7 @@ export function GachaPublishPreflightPanel({
             <p>
               公開Version v
               {salesState.current_published_version?.version_number ?? "未設定"} /{" "}
-              {salesState.draw_state?.sold_count ?? 0} of{" "}
-              {salesState.draw_state?.total_count ?? 0}
+              {drawStateCountLabel(salesState.draw_state, " of ")}
             </p>
             {salesState.status === "paused" ? (
               <p>

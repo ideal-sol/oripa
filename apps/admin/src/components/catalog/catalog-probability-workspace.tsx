@@ -37,6 +37,7 @@ import type {
   AdminCatalogProbabilityVersion,
 } from "@/lib/admin-api/generated";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
+import { standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 type ViewState =
   | { kind: "loading" }
@@ -1041,9 +1042,9 @@ async function loadProbabilityState(
   cursor: string | null,
   signal: AbortSignal,
 ): Promise<ViewState> {
-  const gachaVersion = (
+  const gachaVersion = standardGachaVersion((
     await client.getCatalogGachaVersion(gachaId, gachaVersionId, signal)
-  ).data;
+  ).data);
   if (probabilityVersionId) {
     const probability = (
       await client.getCatalogProbabilityVersion(

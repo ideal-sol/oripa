@@ -243,6 +243,34 @@ final class V2AdminCatalogController
         );
     }
 
+    public function createComposition(Request $request): JsonResponse
+    {
+        return $this->mutation($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->saveComposition($context, (string) $request->header('Idempotency-Key', ''), $request->json()->all()));
+    }
+
+    public function updateComposition(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->mutation($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->saveComposition($context, (string) $request->header('Idempotency-Key', ''), $request->json()->all(), $gachaId));
+    }
+
+    public function composition(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array => $this->catalog->composition($context, $gachaId));
+    }
+
+    public function copyGacha(Request $request, string $gachaId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array => $this->catalog->composition($context, $gachaId, true));
+    }
+
+    public function updateLoginInventory(Request $request, string $gachaId, string $prizeId): JsonResponse
+    {
+        return $this->mutation($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->updateLoginInventory($context, $gachaId, $prizeId, (string) $request->header('Idempotency-Key', ''), $request->json()->all()));
+    }
+
     public function createGachaCore(Request $request): JsonResponse
     {
         return $this->mutation(
