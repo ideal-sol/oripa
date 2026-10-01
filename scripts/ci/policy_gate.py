@@ -1089,7 +1089,7 @@ ADMIN_DEPENDENCY_VERSIONS = {
     "@tiptap/react": "3.30.5",
     "@tiptap/starter-kit": "3.30.5",
     "lucide-react": "0.468.0",
-    "next": "16.3.3",
+    "next": "16.3.6",
     "react": "19.2.7",
     "react-dom": "19.2.7",
 }

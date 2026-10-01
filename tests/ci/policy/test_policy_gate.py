@@ -3605,10 +3605,13 @@ services:
     def test_pre_remediation_admin_dependency_pins_fail(self):
         for section, name, version in (
             ("dependencies", "next", "16.2.11"),
+            ("dependencies", "next", "16.3.3"),
+            ("dependencies", "next", "^16.3.6"),
+            ("dependencies", "next", "latest"),
             ("dependencies", "@tiptap/react", "3.30.4"),
             ("devDependencies", "vitest", "4.1.10"),
         ):
-            with self.subTest(package=name):
+            with self.subTest(package=name, version=version):
                 package = {
                     "dependencies": dict(policy_gate.ADMIN_DEPENDENCY_VERSIONS),
                     "devDependencies": dict(policy_gate.ADMIN_DEV_DEPENDENCY_VERSIONS),
