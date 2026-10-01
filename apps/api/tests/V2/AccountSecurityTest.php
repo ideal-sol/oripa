@@ -120,6 +120,22 @@ final class AccountSecurityTest extends TestCase
             ->count());
     }
 
+    public function test_email_change_does_not_qualify_a_legacy_user_with_unknown_registration(): void
+    {
+        $user = $this->user('legacy-email-qualification@example.test');
+        self::assertNull($user->first_registration_qualified_at);
+        [$request] = $this->authenticatedRequest($user, '/api/v2/me/email-change-requests');
+        $started = app(V2EmailChangeService::class)->start(
+            $user, $request, 'legacy-email-qualification-new@example.test', '/'
+        );
+        $payload = $this->decryptedOutbox('identity.email-change-verification');
+        app(V2EmailChangeService::class)->complete($started['request_id'], $payload['verification_token'], $request);
+
+        self::assertSame('legacy-email-qualification-new@example.test', $user->fresh()->email_normalized);
+        self::assertNotNull($user->fresh()->email_verified_at);
+        self::assertNull($user->fresh()->first_registration_qualified_at);
+    }
+
     public function test_email_change_same_browser_rotates_current_session_and_notifies_new_email_only(): void
     {
         $user = $this->user('email-same-browser@example.test');

@@ -144,16 +144,6 @@ return new class extends Migration
             UPDATE users SET first_registration_qualified_at = first_evidence.qualified_at
             FROM first_evidence WHERE users.id = first_evidence.user_id
               AND users.first_registration_qualified_at IS NULL;
-            DO $$
-            DECLARE unresolved bigint;
-            BEGIN
-                SELECT COUNT(*) INTO unresolved FROM users
-                WHERE email_verified_at IS NOT NULL AND first_registration_qualified_at IS NULL;
-                IF unresolved > 0 THEN
-                    RAISE EXCEPTION 'LOGIN_REGISTRATION_BACKFILL_UNRESOLVED count=% reason=no successful initial verification or external creation evidence', unresolved;
-                END IF;
-            END;
-            $$;
         SQL);
     }
 

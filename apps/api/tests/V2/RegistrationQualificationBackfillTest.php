@@ -46,16 +46,67 @@ final class RegistrationQualificationBackfillTest extends TestCase
         self::assertTrue($external->fresh()->first_registration_qualified_at->equalTo($external->created_at));
     }
 
-    public function test_unrecoverable_verified_user_fails_closed_with_count_and_reason(): void
+    public function test_backfill_qualifies_only_seven_evidenced_users_and_leaves_three_unknown_users_null(): void
+    {
+        $expected = [];
+        for ($index = 0; $index < 6; $index++) {
+            $user = $this->user();
+            $qualifiedAt = CarbonImmutable::parse('2026-07-01T00:00:00Z')->addDays($index);
+            UserEmailVerification::query()->create([
+                'user_id' => $user->id, 'token_hash' => hash('sha256', (string) Str::uuid7()),
+                'created_at' => $qualifiedAt->subMinute(), 'expires_at' => $qualifiedAt->addMinutes(30), 'used_at' => $qualifiedAt,
+            ]);
+            $expected[$user->id] = $qualifiedAt;
+        }
+        $external = $this->user();
+        app(V2OutboxService::class)->enqueue('identity.external-user-created', 'user', $external->public_id,
+            'identity.external_user.created', ['user_id' => $external->public_id], 'login-backfill-seven-evidenced');
+        $expected[$external->id] = $external->created_at;
+
+        $unknown = [$this->user(), $this->user(), $this->user()];
+        $unknown[0]->forceFill(['created_at' => CarbonImmutable::parse('2020-01-01T00:00:00Z')])->save();
+        UserEmailVerification::query()->create([
+            'user_id' => $unknown[1]->id, 'token_hash' => hash('sha256', (string) Str::uuid7()),
+            'created_at' => now()->subDays(2), 'expires_at' => now()->subDays(2)->addMinutes(30), 'used_at' => null,
+        ]);
+        app(V2OutboxService::class)->enqueue('identity.external-identity-linked', 'user', $unknown[2]->public_id,
+            'identity.external_identity.linked', ['user_id' => $unknown[2]->public_id], 'login-backfill-unrelated-event');
+
+        $this->backfill();
+        self::assertCount(7, $expected);
+        foreach ($expected as $userId => $qualifiedAt) {
+            self::assertTrue(User::query()->findOrFail($userId)->first_registration_qualified_at->equalTo($qualifiedAt));
+        }
+        foreach ($unknown as $user) {
+            self::assertNotNull($user->fresh()->email_verified_at);
+            self::assertNull($user->fresh()->first_registration_qualified_at);
+        }
+        self::assertSame(7, User::query()->whereIn('id', array_keys($expected))->whereNotNull('first_registration_qualified_at')->count());
+        self::assertSame(3, User::query()->whereIn('id', array_map(fn (User $user) => $user->id, $unknown))->whereNull('first_registration_qualified_at')->count());
+    }
+
+    public function test_backfill_does_not_overwrite_immutable_non_null_qualification(): void
     {
         $user = $this->user();
-        try {
-            DB::transaction(fn () => $this->backfill());
-            self::fail('Missing trustworthy registration evidence must require Human review.');
-        } catch (QueryException $exception) {
-            self::assertStringContainsString('LOGIN_REGISTRATION_BACKFILL_UNRESOLVED count=1 reason=', $exception->getMessage());
+        $qualifiedAt = CarbonImmutable::parse('2026-07-01T00:00:00Z');
+        $user->forceFill(['first_registration_qualified_at' => $qualifiedAt])->save();
+        UserEmailVerification::query()->create([
+            'user_id' => $user->id, 'token_hash' => hash('sha256', (string) Str::uuid7()),
+            'created_at' => $qualifiedAt->subDay()->subMinute(), 'expires_at' => $qualifiedAt->subDay()->addMinutes(30),
+            'used_at' => $qualifiedAt->subDay(),
+        ]);
+        $this->backfill();
+        self::assertTrue($user->fresh()->first_registration_qualified_at->equalTo($qualifiedAt));
+        foreach ([null, $qualifiedAt->addDay()->toIso8601String()] as $replacement) {
+            try {
+                DB::transaction(fn () => DB::table('users')->where('id', $user->id)
+                    ->update(['first_registration_qualified_at' => $replacement]));
+                self::fail('Non-null registration qualification must remain immutable.');
+            } catch (QueryException $exception) {
+                self::assertStringContainsString('First registration qualification is immutable', $exception->getMessage());
+            }
+            self::assertTrue($user->fresh()->first_registration_qualified_at->equalTo($qualifiedAt));
         }
-        self::assertNull($user->fresh()->first_registration_qualified_at);
     }
 
     private function backfill(): void

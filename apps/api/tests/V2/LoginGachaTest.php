@@ -86,11 +86,17 @@ final class LoginGachaTest extends TestCase
     public function test_signup_requires_qualification_at_start_and_is_once_without_expiry(): void
     {
         $gacha = $this->createPublished('signup_once');
+        CarbonImmutable::setTestNow('2026-10-01T00:00:00Z');
         $before = $this->user('2026-06-30T23:59:59Z');
         $this->rejectDraw($before, $gacha, 'signup-before', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
-        $this->rejectDraw($this->user(null), $gacha, 'signup-unknown', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
+        $unknown = $this->user(null);
+        self::assertTrue($unknown->created_at->greaterThan(CarbonImmutable::parse('2026-07-01T00:00:00Z')));
+        self::assertTrue($unknown->email_verified_at->greaterThan(CarbonImmutable::parse('2026-07-01T00:00:00Z')));
+        $this->rejectDraw($unknown, $gacha, 'signup-unknown', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
         $atStart = $this->user('2026-07-01T00:00:00Z');
         CarbonImmutable::setTestNow('2027-10-01T00:00:00Z');
+        $this->rejectDraw($unknown, $gacha, 'signup-unknown-later', 'GACHA_AUDIENCE_NOT_ELIGIBLE');
+        self::assertNull($unknown->fresh()->first_registration_qualified_at);
         $this->draw($atStart, $gacha, 'signup-first');
         CarbonImmutable::setTestNow('2028-10-01T00:00:00Z');
         $this->rejectDraw($atStart, $gacha, 'signup-second', 'DAILY_DRAW_LIMIT_EXCEEDED');
