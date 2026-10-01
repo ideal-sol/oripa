@@ -8,6 +8,32 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class LoginGachaContractTest(unittest.TestCase):
+    def test_admin_standard_capacity_remains_required_positive_and_login_is_a_separate_branch(self):
+        document = json.loads((ROOT / 'openapi/bundled/admin.openapi.json').read_text())
+        schemas = document['components']['schemas']
+        for standard, login, representation in [
+            ('AdminCatalogGachaCoreVersion', 'AdminLoginGachaCoreVersion', 'AdminCatalogGachaCoreVersionRepresentation'),
+            ('AdminCatalogGachaVersion', 'AdminLoginGachaVersion', 'AdminCatalogGachaVersionRepresentation'),
+            ('AdminGachaDrawStateSummary', 'AdminLoginGachaDrawStateSummary', 'AdminGachaDrawStateRepresentation'),
+        ]:
+            with self.subTest(schema=standard):
+                self.assertIn('total_count', schemas[standard]['required'])
+                self.assertEqual(schemas[standard]['properties']['total_count'], {'type': 'integer', 'minimum': 1})
+                self.assertEqual(schemas[login]['properties']['total_count']['type'], 'null')
+                self.assertEqual(schemas[representation]['oneOf'], [
+                    {'$ref': '#/components/schemas/' + standard},
+                    {'$ref': '#/components/schemas/' + login},
+                ])
+                if 'price_points' in schemas[standard]['properties']:
+                    self.assertEqual(schemas[standard]['properties']['price_points']['minimum'], 1)
+                    self.assertEqual(schemas[login]['properties']['price_points']['minimum'], 0)
+        branch = schemas['AdminCatalogGacha']['allOf'][0]
+        self.assertEqual(branch['if']['required'], ['gacha_type'])
+        self.assertEqual(branch['if']['properties']['gacha_type']['enum'], ['login_daily', 'signup_once'])
+        self.assertEqual(branch['then']['properties']['current_version']['oneOf'][0], {'$ref': '#/components/schemas/AdminLoginGachaCoreVersion'})
+        self.assertEqual(branch['else']['properties']['current_version']['oneOf'][0], {'$ref': '#/components/schemas/AdminCatalogGachaCoreVersion'})
+        self.assertEqual(schemas['AdminCatalogGachaVersionDetail']['properties']['data']['$ref'], '#/components/schemas/AdminCatalogGachaVersionRepresentation')
+
     def test_standard_catalog_keeps_numeric_capacity_and_login_has_no_total(self):
         document = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
         schemas = document['components']['schemas']

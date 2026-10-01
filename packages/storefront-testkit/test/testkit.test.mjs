@@ -954,9 +954,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつAdvertising Validationを含むOperation 76件である", () => {
+test("Public OpenAPIは3.1.1かつLogin Gacha読取を含むOperation 78件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 76);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 78);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -983,6 +983,7 @@ test("Public OpenAPIは3.1.1かつAdvertising Validationを含むOperation 76件
     "getGachaBySlug",
     "getGachaPresentation",
     "getLineFriendState",
+    "getLoginGacha",
     "getPayment",
     "getPaymentCardRegistration",
     "getPaymentCardUiBootstrap",
@@ -1000,6 +1001,7 @@ test("Public OpenAPIは3.1.1かつAdvertising Validationを含むOperation 76件
     "listGachaCategories",
     "listGachaTags",
     "listGachas",
+    "listLoginGachas",
     "listMyPayments",
     "listPaymentCards",
     "listPointLedgerEntries",

@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 4e16c4ed262f2d02ba4cb61dc72fe16414ffb348815e994b599b9da5e40ff1cf
+// Contract SHA-256: 9ebe0a2967635c339dccb178446c03d4aeea357441ae8649be9fad307b698282
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1552,7 +1552,7 @@ export interface AdminCatalogGachaCoreVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number | null;
+  total_count: number;
   minimum_exchange_points?: number | null;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
@@ -1563,6 +1563,12 @@ export interface AdminCatalogGachaCoreVersion {
   publish_end_at: string | null;
   revision?: number;
 }
+
+export interface AdminLoginGachaCoreVersion extends Omit<AdminCatalogGachaCoreVersion, "total_count"> {
+  total_count: null;
+}
+
+export type AdminCatalogGachaCoreVersionRepresentation = AdminCatalogGachaCoreVersion | AdminLoginGachaCoreVersion;
 
 export interface AdminCatalogGacha {
   gacha_type?: AdminGachaType;
@@ -1575,7 +1581,7 @@ export interface AdminCatalogGacha {
   category: AdminCatalogReference | null;
   tags: AdminCatalogReference[];
   published_version: AdminCatalogGachaVersionSummary | null;
-  current_version?: AdminCatalogGachaCoreVersion | null;
+  current_version?: AdminCatalogGachaCoreVersionRepresentation | null;
   publication_status?: "draft" | "published" | "scheduled" | "sales_paused" | "unpublished";
   first_published_at?: string | null;
   version_count: number;
@@ -1737,7 +1743,7 @@ export interface AdminCatalogGachaVersion {
   description: string | null;
   notices: string | null;
   price_points: number;
-  total_count: number | null;
+  total_count: number;
   minimum_exchange_points?: number | null;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
@@ -1763,6 +1769,12 @@ export interface AdminCatalogGachaVersion {
   created_at: string;
   updated_at: string;
 }
+
+export interface AdminLoginGachaVersion extends Omit<AdminCatalogGachaVersion, "total_count"> {
+  total_count: null;
+}
+
+export type AdminCatalogGachaVersionRepresentation = AdminCatalogGachaVersion | AdminLoginGachaVersion;
 
 export interface AdminCatalogGachaVersionCreate {
   title: string;
@@ -1850,8 +1862,14 @@ export interface AdminGachaPublishedVersionState {
 export interface AdminGachaDrawStateSummary {
   status: "selling" | "paused" | "sold_out";
   sold_count: number;
-  total_count: number | null;
+  total_count: number;
 }
+
+export interface AdminLoginGachaDrawStateSummary extends Omit<AdminGachaDrawStateSummary, "total_count"> {
+  total_count: null;
+}
+
+export type AdminGachaDrawStateRepresentation = AdminGachaDrawStateSummary | AdminLoginGachaDrawStateSummary;
 
 export interface AdminGachaPublishState {
   gacha_id: string;
@@ -1861,7 +1879,7 @@ export interface AdminGachaPublishState {
     id: string;
     snapshot_sha256: string;
   } | null;
-  draw_state: AdminGachaDrawStateSummary | null;
+  draw_state: AdminGachaDrawStateRepresentation | null;
   publish_schedule?: AdminGachaPublishSchedule | null;
 }
 
@@ -1891,7 +1909,7 @@ export interface AdminGachaSalesState {
     id: string;
     snapshot_sha256: string;
   } | null;
-  draw_state: AdminGachaDrawStateSummary | null;
+  draw_state: AdminGachaDrawStateRepresentation | null;
   publish_schedule: AdminGachaPublishSchedule | null;
   request_id: string;
 }
@@ -1920,7 +1938,7 @@ export interface AdminGachaUnpublishState {
     id: string;
     snapshot_sha256: string;
   } | null;
-  draw_state: AdminGachaDrawStateSummary | null;
+  draw_state: AdminGachaDrawStateRepresentation | null;
   publish_schedule: AdminGachaPublishSchedule | null;
   request_id: string;
 }
@@ -1945,7 +1963,7 @@ export interface AdminGachaImmediatePublish {
   };
   previous_published_version: AdminGachaPublishedVersionState | null;
   current_published_version: AdminGachaPublishedVersionState;
-  draw_state: AdminGachaDrawStateSummary;
+  draw_state: AdminGachaDrawStateRepresentation;
   request_id: string;
 }
 

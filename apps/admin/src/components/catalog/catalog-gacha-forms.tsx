@@ -4,6 +4,7 @@ import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import { standardCoreVersion } from "@/lib/catalog/login-gacha";
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import type {
@@ -86,7 +87,7 @@ export function CatalogGachaCoreForm({
     tagIds: current?.tags.map((tag) => tag.id) ?? [],
     title: current?.current_version?.title ?? "",
     thumbnailFile: null,
-    totalCount: current?.current_version?.total_count ?? 1,
+    totalCount: current?.current_version ? standardCoreVersion(current.current_version).total_count : 1,
     managementStatus: current?.publication_status ?? "draft",
   }), [current]);
   const [draft, setDraft] = useState<GachaCoreDraft>(initial);

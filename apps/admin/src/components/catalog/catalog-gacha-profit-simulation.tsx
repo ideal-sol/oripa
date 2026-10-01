@@ -8,6 +8,7 @@ import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-ro
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import { standardGachaVersion } from "@/lib/catalog/login-gacha";
 import type {
   AdminCatalogGacha,
   AdminCatalogGachaVersion,
@@ -347,8 +348,9 @@ async function loadSimulationData(
       signal,
     ),
   ]);
-  const version = versions.items.find((candidate) => candidate.status === "draft" && !candidate.is_archived);
-  if (!version) return { empty: gachaResponse.data };
+  const candidate = versions.items.find((item) => item.status === "draft" && !item.is_archived);
+  if (!candidate) return { empty: gachaResponse.data };
+  const version = standardGachaVersion(candidate);
   const [prizes, selection] = await Promise.all([
     client.listGachaVersionPrizes(gachaId, version.id, signal),
     client.getGachaProbabilitySelection(gachaId, version.id, signal),

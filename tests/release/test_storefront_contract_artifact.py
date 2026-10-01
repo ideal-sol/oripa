@@ -140,6 +140,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = artifact.validate_governance(self.governance())
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.42')
+        self.assertEqual(value['candidate']['public_api_operation_count'], 78)
+        value['candidate'] = None
         latest = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.34')
         alpha_32 = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.32')
         canonical = lambda item: hashlib.sha256(
@@ -351,7 +355,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.41",
+            "2.0.0-alpha.42",
         )
         with mock.patch.object(
             artifact,

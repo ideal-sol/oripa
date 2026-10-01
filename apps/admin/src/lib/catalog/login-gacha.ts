@@ -1,4 +1,26 @@
-import type { AdminGachaComposition, AdminGachaType } from "@/lib/admin-api/generated";
+import { AdminApiError } from "@/lib/admin-api/client";
+import type { AdminCatalogGachaCoreVersion, AdminCatalogGachaCoreVersionRepresentation, AdminCatalogGachaVersion, AdminCatalogGachaVersionRepresentation, AdminGachaComposition, AdminGachaDrawStateRepresentation, AdminGachaType } from "@/lib/admin-api/generated";
+
+export function standardCoreVersion(version: AdminCatalogGachaCoreVersionRepresentation): AdminCatalogGachaCoreVersion {
+  if (version.total_count === null) {
+    throw new AdminApiError(422, "CATALOG_STANDARD_GACHA_REQUIRED", null, null, false);
+  }
+  return version;
+}
+
+export function standardGachaVersion(version: AdminCatalogGachaVersionRepresentation): AdminCatalogGachaVersion {
+  if (version.total_count === null) {
+    throw new AdminApiError(422, "CATALOG_STANDARD_GACHA_REQUIRED", null, null, false);
+  }
+  return version;
+}
+
+export function drawStateCountLabel(state: AdminGachaDrawStateRepresentation | null, separator = " / "): string {
+  if (state === null) return "未設定";
+  return state.total_count === null
+    ? `${state.sold_count}（総口数なし）`
+    : `${state.sold_count}${separator}${state.total_count}`;
+}
 
 export const fixedPercentageScale = 1_000_000_000_000n;
 

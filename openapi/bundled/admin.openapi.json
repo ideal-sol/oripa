@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.35",
+    "version": "2.0.0-alpha.36",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -14328,13 +14328,10 @@
           },
           "price_points": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           },
           "total_count": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "minimum": 1
           },
           "minimum_exchange_points": {
@@ -14396,6 +14393,129 @@
           }
         }
       },
+      "AdminLoginGachaCoreVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version_number",
+          "status",
+          "title",
+          "description",
+          "notices",
+          "price_points",
+          "total_count",
+          "daily_draw_limit",
+          "audience_code",
+          "presentation_asset",
+          "publish_start_at",
+          "publish_end_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "notices": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "price_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_count": {
+            "type": "null",
+            "description": "Login Gachas have no standard capacity."
+          },
+          "minimum_exchange_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "daily_draw_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "audience_code": {
+            "type": "string",
+            "enum": [
+              "all_users",
+              "first_time_users",
+              "line_users"
+            ]
+          },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
+          },
+          "presentation_asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publish_start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminCatalogGachaCoreVersionRepresentation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AdminCatalogGachaCoreVersion"
+          },
+          {
+            "$ref": "#/components/schemas/AdminLoginGachaCoreVersion"
+          }
+        ]
+      },
       "AdminCatalogGacha": {
         "type": "object",
         "additionalProperties": false,
@@ -14415,6 +14535,51 @@
           "archived_at",
           "created_at",
           "updated_at"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "gacha_type"
+              ],
+              "properties": {
+                "gacha_type": {
+                  "enum": [
+                    "login_daily",
+                    "signup_once"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "current_version": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminLoginGachaCoreVersion"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "current_version": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminCatalogGachaCoreVersion"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
         ],
         "properties": {
           "gacha_type": {
@@ -14476,7 +14641,7 @@
           "current_version": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/AdminCatalogGachaCoreVersion"
+                "$ref": "#/components/schemas/AdminCatalogGachaCoreVersionRepresentation"
               },
               {
                 "type": "null"
@@ -15315,13 +15480,10 @@
           },
           "price_points": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           },
           "total_count": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "minimum": 1
           },
           "minimum_exchange_points": {
@@ -15429,6 +15591,189 @@
             "format": "date-time"
           }
         }
+      },
+      "AdminLoginGachaVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version_number",
+          "status",
+          "title",
+          "description",
+          "notices",
+          "price_points",
+          "total_count",
+          "presentation_asset",
+          "published_probability_version",
+          "cloned_from_version",
+          "publish_start_at",
+          "publish_end_at",
+          "published_at",
+          "prizes",
+          "is_archived",
+          "revision",
+          "archived_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "notices": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "price_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_count": {
+            "type": "null",
+            "description": "Login Gachas have no standard capacity."
+          },
+          "minimum_exchange_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "daily_draw_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "audience_code": {
+            "type": "string",
+            "enum": [
+              "all_users",
+              "first_time_users",
+              "line_users"
+            ]
+          },
+          "first_time_eligible_days": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "allowed_draw_counts": {
+            "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
+          },
+          "presentation_asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published_probability_version": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogProbabilityVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cloned_from_version": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogClonedVersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publish_start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publish_end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "prizes": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/AdminCatalogGachaVersionPrize"
+            }
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminCatalogGachaVersionRepresentation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AdminCatalogGachaVersion"
+          },
+          {
+            "$ref": "#/components/schemas/AdminLoginGachaVersion"
+          }
+        ]
       },
       "AdminCatalogGachaVersionCreate": {
         "type": "object",
@@ -15594,7 +15939,7 @@
         ],
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/AdminCatalogGachaVersion"
+            "$ref": "#/components/schemas/AdminCatalogGachaVersionRepresentation"
           },
           "idempotent_replay": {
             "type": "boolean"
@@ -15612,7 +15957,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminCatalogGachaVersion"
+              "$ref": "#/components/schemas/AdminCatalogGachaVersionRepresentation"
             }
           },
           "next_cursor": {
@@ -15631,7 +15976,7 @@
         ],
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/AdminCatalogGachaVersion"
+            "$ref": "#/components/schemas/AdminCatalogGachaVersionRepresentation"
           }
         }
       },
@@ -15988,13 +16333,47 @@
             "minimum": 0
           },
           "total_count": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "minimum": 1
           }
         }
+      },
+      "AdminLoginGachaDrawStateSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "sold_count",
+          "total_count"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "selling",
+              "paused",
+              "sold_out"
+            ]
+          },
+          "sold_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_count": {
+            "type": "null",
+            "description": "Login Gachas have no standard capacity."
+          }
+        }
+      },
+      "AdminGachaDrawStateRepresentation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaDrawStateSummary"
+          },
+          {
+            "$ref": "#/components/schemas/AdminLoginGachaDrawStateSummary"
+          }
+        ]
       },
       "AdminGachaPublishState": {
         "type": "object",
@@ -16037,7 +16416,7 @@
           "draw_state": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/AdminGachaDrawStateSummary"
+                "$ref": "#/components/schemas/AdminGachaDrawStateRepresentation"
               },
               {
                 "type": "null"
@@ -16184,7 +16563,7 @@
           "draw_state": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/AdminGachaDrawStateSummary"
+                "$ref": "#/components/schemas/AdminGachaDrawStateRepresentation"
               },
               {
                 "type": "null"
@@ -16373,7 +16752,7 @@
           "draw_state": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/AdminGachaDrawStateSummary"
+                "$ref": "#/components/schemas/AdminGachaDrawStateRepresentation"
               },
               {
                 "type": "null"
@@ -16528,7 +16907,7 @@
             "$ref": "#/components/schemas/AdminGachaPublishedVersionState"
           },
           "draw_state": {
-            "$ref": "#/components/schemas/AdminGachaDrawStateSummary"
+            "$ref": "#/components/schemas/AdminGachaDrawStateRepresentation"
           },
           "request_id": {
             "$ref": "#/components/schemas/OpaqueId"

@@ -8007,9 +8007,11 @@ final class V2CatalogMasterMutationService
                 : [
                     'status' => $drawState->status,
                     'sold_count' => (int) $drawState->sold_count,
-                    'total_count' => (int) DB::table('prize_inventories')
-                        ->where('gacha_draw_state_id', $drawState->id)
-                        ->sum('total_quantity'),
+                    'total_count' => $gacha->gacha_type === 'standard'
+                        ? (int) DB::table('prize_inventories')
+                            ->where('gacha_draw_state_id', $drawState->id)
+                            ->sum('total_quantity')
+                        : null,
                 ],
             'publish_schedule' => $schedule === null
                 ? null

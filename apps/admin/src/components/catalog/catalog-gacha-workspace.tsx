@@ -44,7 +44,7 @@ import type {
   AdminCatalogGachaVersion,
 } from "@/lib/admin-api/generated";
 import { catalogSection } from "@/lib/catalog/catalog-registry";
-import { gachaTypeLabels } from "@/lib/catalog/login-gacha";
+import { gachaTypeLabels, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 type ViewState =
   | { kind: "loading" }
@@ -258,7 +258,7 @@ export function CatalogGachaWorkspace({
       setMutationError(null);
       setFormMode(null);
       if (state.kind === "version") {
-        setState({ ...state, version: result.data });
+        setState({ ...state, version: standardGachaVersion(result.data) });
       } else {
         setReload((value) => value + 1);
       }
@@ -334,7 +334,7 @@ export function CatalogGachaWorkspace({
           currentVersion!.revision,
           mutationKey(fingerprint),
         );
-        if (state.kind === "version") setState({ ...state, version: result.data });
+        if (state.kind === "version") setState({ ...state, version: standardGachaVersion(result.data) });
       }
       pendingMutation.current = null;
       setMutationError(null);
@@ -853,7 +853,7 @@ function GachaDetail({
                     <td>{versionStatusLabel(version)}</td>
                     <td>
                       {version.price_points.toLocaleString()} /{" "}
-                      {version.total_count?.toLocaleString() ?? "設定なし"}
+                      {version.total_count.toLocaleString()}
                     </td>
                     <td>
                       <div className="catalog-table-actions">
@@ -927,7 +927,7 @@ function VersionDetail({ version }: { version: AdminCatalogGachaVersion }) {
           <Detail label="説明" value={version.description ?? "未設定"} />
           <Detail label="注意事項" value={version.notices ?? "未設定"} />
           <Detail label="消費ポイント" value={version.price_points.toLocaleString()} />
-          <Detail label="販売口数" value={version.total_count?.toLocaleString() ?? "設定なし"} />
+          <Detail label="販売口数" value={version.total_count.toLocaleString()} />
           <Detail label="公開開始" value={version.publish_start_at} />
           <Detail label="公開終了" value={version.publish_end_at ?? "無期限"} />
           <Detail
@@ -981,11 +981,14 @@ async function loadState(
     return { kind: "list", items: response.items, nextCursor: response.next_cursor };
   }
   const gacha = (await client.getCatalogGacha(gachaId, signal)).data;
+  if (gacha.gacha_type && gacha.gacha_type !== "standard") {
+    return { kind: "gacha", gacha, currentVersion: null, publishedVersion: null, versions: [], versionsNextCursor: null };
+  }
   if (versionId) {
     const version = (
       await client.getCatalogGachaVersion(gachaId, versionId, signal)
     ).data;
-    return { kind: "version", gacha, version };
+    return { kind: "version", gacha, version: standardGachaVersion(version) };
   }
   const versions = await client.listCatalogGachaVersions(
     gachaId,
@@ -1011,9 +1014,9 @@ async function loadState(
   return {
     kind: "gacha",
     gacha,
-    currentVersion,
-    publishedVersion,
-    versions: versions.items,
+    currentVersion: currentVersion === null ? null : standardGachaVersion(currentVersion),
+    publishedVersion: publishedVersion === null ? null : standardGachaVersion(publishedVersion),
+    versions: versions.items.map(standardGachaVersion),
     versionsNextCursor: versions.next_cursor,
   };
 }

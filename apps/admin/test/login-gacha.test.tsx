@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import GachaCreatePage from "@/app/catalog/gachas/new/page";
 import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import { emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits } from "@/lib/catalog/login-gacha";
+import type { AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion } from "@/lib/admin-api/generated";
+import { drawStateCountLabel, emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits, standardCoreVersion, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 const callbacks = vi.hoisted(() => ({ expireSession: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: callbacks.push }) }));
@@ -23,6 +24,31 @@ function selections() {
 }
 
 describe("Login Gacha composition", () => {
+  it("narrows standard capacity without turning a login null into a numeric fallback", () => {
+    const core: AdminCatalogGachaCoreVersion = {
+      id: "version", version_number: 1, status: "draft", title: "Standard", description: null, notices: null,
+      price_points: 1, total_count: 6, daily_draw_limit: 0, audience_code: "all_users", presentation_asset: null,
+      publish_start_at: "2026-10-01T00:00:00Z", publish_end_at: null,
+    };
+    const version: AdminCatalogGachaVersion = {
+      ...core, published_probability_version: null, cloned_from_version: null, published_at: null, prizes: [],
+      is_archived: false, revision: 1, archived_at: null, created_at: "", updated_at: "",
+    };
+    expect(standardCoreVersion(core)).toBe(core);
+    expect(standardGachaVersion(version)).toBe(version);
+    expect(() => standardCoreVersion({ ...core, total_count: null, price_points: 0 })).toThrow();
+    expect(() => standardGachaVersion({ ...version, total_count: null, price_points: 0 })).toThrow();
+    expect(core.total_count).toBe(6);
+    expect(version.total_count).toBe(6);
+  });
+
+  it("keeps standard draw counters numeric and distinguishes login capacity from zero or absent state", () => {
+    expect(drawStateCountLabel({ status: "selling", sold_count: 2, total_count: 6 })).toBe("2 / 6");
+    expect(drawStateCountLabel({ status: "selling", sold_count: 2, total_count: 6 }, " of ")).toBe("2 of 6");
+    expect(drawStateCountLabel({ status: "selling", sold_count: 2, total_count: null })).toBe("2（総口数なし）");
+    expect(drawStateCountLabel(null)).toBe("未設定");
+  });
+
   it("preserves exact decimal strings without floating point or ppm conversion", () => {
     expect(percentageUnits("0.0000000001")).toBe(1n);
     expect(percentageUnits("99.9999999999")).toBe(fixedPercentageScale - 1n);

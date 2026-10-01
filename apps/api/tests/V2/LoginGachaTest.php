@@ -97,6 +97,22 @@ final class LoginGachaTest extends TestCase
         self::assertTrue($this->draw($atStart, $gacha, 'signup-first')['idempotent_replay']);
     }
 
+    public function test_login_admin_core_version_publish_and_sales_readbacks_have_no_numeric_capacity(): void
+    {
+        foreach (['login_daily', 'signup_once'] as $type) {
+            $gacha = $this->createPublished($type);
+            $root = '/admin/api/v2/catalog/gachas/'.$gacha['id'];
+            Auth::forgetGuards();
+            $this->withCredentials()->withUnencryptedCookie('__Host-oripa_admin_session', $this->adminToken)
+                ->getJson($root)->assertOk()->assertJsonPath('data.gacha_type', $type)
+                ->assertJsonPath('data.current_version.total_count', null);
+            $this->getJson($root.'/versions/'.$gacha['current_version']['id'])->assertOk()
+                ->assertJsonPath('data.total_count', null);
+            $this->getJson($root.'/publish-state')->assertOk()->assertJsonPath('data.draw_state.total_count', null);
+            $this->getJson($root.'/sales-state')->assertOk()->assertJsonPath('data.draw_state.total_count', null);
+        }
+    }
+
     public function test_copy_is_read_only_clears_period_and_saves_independent_initial_inventory(): void
     {
         $source = $this->createPublished();
@@ -167,10 +183,11 @@ final class LoginGachaTest extends TestCase
         self::assertSame('published', DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('management_status'));
         $revision = (int) DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('revision');
         $this->mutate('POST', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/sales-pause',
-            ['expected_gacha_revision' => $revision, 'reason_code' => 'inventory_review'])->assertOk();
+            ['expected_gacha_revision' => $revision, 'reason_code' => 'inventory_review'])->assertOk()
+            ->assertJsonPath('data.draw_state.total_count', null);
         $this->mutate('PUT', $path, ['expected_revision' => (int) $prize->lock_version + 1, 'available_quantity' => 3, 'reason' => 'Blocked while paused'])->assertStatus(409);
         $this->mutate('POST', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/sales-resume',
-            ['expected_gacha_revision' => $revision + 1])->assertOk();
+            ['expected_gacha_revision' => $revision + 1])->assertOk()->assertJsonPath('data.draw_state.total_count', null);
         self::assertSame([], app(V2LoginCatalogReadService::class)->listing()['items']);
         $this->rejectDraw($user, $gacha, 'resumed-still-empty', 'PRIZE_INVENTORY_UNAVAILABLE');
         $this->mutate('PUT', $path, ['expected_revision' => (int) $prize->lock_version + 1, 'available_quantity' => 3, 'reason' => 'Synthetic replenishment'])->assertOk();
