@@ -319,3 +319,18 @@ class ReadinessTests(unittest.TestCase):
         self.candidate["source"]["platform"] = None
         with self.assertRaises(records.RecordError):
             self.evaluate()
+
+    def test_malformed_nested_facts_produce_unknown_observation(self):
+        self.add("platform_impact", "NONE")
+        self.add("classification_baseline", {key: self.candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.json"
+            for number, invalid in enumerate((None, False, [], 42)):
+                self.candidate["facts"]["storefront_minor_classification"] = invalid
+                source.write_text(json.dumps(self.data), encoding="utf-8")
+                output = Path(directory) / ("output-" + str(number) + ".json")
+                completed = subprocess.run([
+                    "python3", "-m", "scripts.release.readiness", "--input", str(source), "--output", str(output)
+                ], capture_output=True, check=False)
+                self.assertEqual(completed.returncode, 0)
+                self.assertEqual(json.loads(output.read_text())["shadow_final_status"], "SHADOW_UNKNOWN")

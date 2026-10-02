@@ -91,6 +91,7 @@ def validate_candidate(candidate):
         require(matches(SHA, candidate.get(key)), "CANDIDATE_SHA_INVALID")
     require(matches(DIGEST, candidate.get("authority_snapshot_digest")), "CANDIDATE_SNAPSHOT_INVALID")
     require(isinstance(candidate.get("facts"), dict), "FACTS_INVALID")
+    require(all(isinstance(entry, dict) for entry in candidate["facts"].values()), "FACT_RECORD_INVALID")
     fields(candidate.get("source"), "platform storefront")
     require(all(value is None or matches(SHA, value) for value in candidate["source"].values()), "SOURCE_INVALID")
     for scope in ("service_inventory", "build_scope", "activation_scope", "acceptance_scope", "rollback_scope"):
