@@ -195,9 +195,14 @@ def human_go(record, candidate):
     require(isinstance(record["artifacts"], list), "GO_ARTIFACTS_INVALID")
     for artifact in record["artifacts"]:
         fields(artifact, "service artifact_id digest")
-        require(text(artifact["service"]) and text(artifact["artifact_id"]) and matches(DIGEST, artifact["digest"]), "GO_ARTIFACT_INVALID")
+        require(text(artifact["service"]) and (artifact["artifact_id"] is None or text(artifact["artifact_id"]))
+                and (artifact["digest"] is None or matches(DIGEST, artifact["digest"]))
+                and (artifact["artifact_id"] is not None or artifact["digest"] is not None), "GO_ARTIFACT_INVALID")
     require(record["source"] == candidate["source"] and record["authority_snapshot_digest"] == candidate["authority_snapshot_digest"], "GO_AUTHORITY_MISMATCH")
-    require(record["artifacts"] == [candidate["artifacts"][service] for service in sorted(record["service_scope"])], "GO_ARTIFACT_MISMATCH")
+    require([artifact["service"] for artifact in record["artifacts"]] == sorted(record["service_scope"]), "GO_ARTIFACT_SCOPE_MISMATCH")
+    for artifact in record["artifacts"]:
+        expected = candidate["artifacts"][artifact["service"]]
+        require(all(artifact[key] is None or artifact[key] == expected[key] for key in ("artifact_id", "digest")), "GO_ARTIFACT_MISMATCH")
     check_digest(record, "record_digest")
     return "HUMAN_GO_RECORD_VALID_NOT_AUTHENTICATED"
 

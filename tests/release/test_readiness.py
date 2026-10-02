@@ -243,6 +243,14 @@ class ReadinessTests(unittest.TestCase):
             "artifacts": [self.candidate["artifacts"]["api"]], "authority_snapshot_digest": self.candidate["authority_snapshot_digest"],
             "approval_actor_role": "human_operator", "approval_evidence_reference": "fixture:human-only",}, "record_digest")
         self.assertEqual(records.human_go(record, self.candidate), "HUMAN_GO_RECORD_VALID_NOT_AUTHENTICATED")
+        for nullable in ("artifact_id", "digest"):
+            partial = copy.deepcopy(record)
+            partial["artifacts"][0][nullable] = None
+            self.assertEqual(records.human_go(records.seal(partial, "record_digest"), self.candidate), "HUMAN_GO_RECORD_VALID_NOT_AUTHENTICATED")
+        missing = copy.deepcopy(record)
+        missing["artifacts"][0].update({"artifact_id": None, "digest": None})
+        with self.assertRaises(records.RecordError):
+            records.human_go(records.seal(missing, "record_digest"), self.candidate)
         record["approval_actor_role"] = "codex"
         with self.assertRaises(records.RecordError):
             records.human_go(records.seal(record, "record_digest"), self.candidate)
