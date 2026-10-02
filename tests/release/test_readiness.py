@@ -55,6 +55,11 @@ def fixture():
     def add(name, value):
         candidate["facts"][name] = {"identity": gate.identity(candidate), "status": "PASS",
                                      "evidence_reference": "fixture:" + name, "value": value}
+    candidate["rollback_authority"] = {
+        "operator_role": "fixture_approved_operator", "go_actor_role": "human_operator",
+        "go_evidence_reference": "fixture:rollback-go", "procedure_reference": "fixture:procedure",
+        "procedure_status": "CURRENT", "target": candidate["rollback_target"],
+    }
     for name in (*gate.R1_FACTS, *gate.R6_FACTS, "all_runtime_deltas_approved", "complete_diff", "no_known_holds"):
         add(name, True)
     for name in gate.RB_FACTS.values():
@@ -295,3 +300,14 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(gate.artifact_verification(self.candidate)["status"], "VERIFICATION_INCOMPLETE")
         self.add("artifacts_non_applicable", True)
         self.assertEqual(gate.artifact_verification(self.candidate)["status"], "N/A")
+
+    def test_undefined_operator_and_historical_procedure_are_not_ready(self):
+        self.candidate["rollback_authority"]["operator_role"] = None
+        self.assertEqual(gate.rollback(self.candidate, gate.FULL)["requirements"]["RB6"]["status"], "UNKNOWN")
+        self.candidate["rollback_authority"]["procedure_status"] = "HISTORICAL"
+        self.assertEqual(gate.rollback(self.candidate, gate.FULL)["requirements"]["RB5"]["status"], "UNKNOWN")
+
+    def test_built_service_requires_exact_source(self):
+        self.candidate["source"]["platform"] = None
+        with self.assertRaises(records.RecordError):
+            self.evaluate()

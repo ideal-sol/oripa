@@ -103,6 +103,13 @@ def validate_candidate(candidate):
         fields(artifact, "service artifact_id digest")
         require(service in candidate["service_inventory"] and artifact["service"] == service
                 and text(artifact["artifact_id"]) and matches(DIGEST, artifact["digest"]), "ARTIFACT_IDENTITY_INVALID")
+    for service in set(candidate["artifacts"]) | set(candidate["build_scope"]) | set(candidate["activation_scope"]):
+        require(matches(SHA, candidate["source"]["storefront" if service == "storefront" else "platform"]), "SERVICE_SOURCE_MISSING")
+    contract = candidate.get("target_contract")
+    fields(contract, "status artifact_id manifest_digest client_pin testkit_pin openapi_pin evidence_reference")
+    require(contract["status"] in {"CONFIRMED", "UNKNOWN", "N/A"}, "TARGET_CONTRACT_STATUS_INVALID")
+    if contract["status"] == "CONFIRMED":
+        require(all(text(value) for value in contract.values()) and matches(DIGEST, contract["manifest_digest"]), "TARGET_CONTRACT_IDENTITY_INVALID")
 
 
 def classify(candidate):
@@ -214,6 +221,13 @@ def rollback(candidate, lane):
         return {"status": "ROLLBACK_READY" if proof["status"] in {"PASS", "N/A"} else "ROLLBACK_UNKNOWN", "requirements": {"N/A": proof}}
     rows = {key: fact(candidate, "rollback." + name, True) for key, name in RB_FACTS.items()}
     target = candidate.get("rollback_target", {})
+    authority = candidate.get("rollback_authority", {})
+    if (not isinstance(authority, dict) or not text(authority.get("operator_role"))
+            or authority.get("go_actor_role") != "human_operator" or not text(authority.get("go_evidence_reference"))):
+        rows["RB6"] = result("UNKNOWN", "ROLLBACK_OPERATOR_OR_GO_UNDEFINED")
+    if (not isinstance(authority, dict) or not text(authority.get("procedure_reference"))
+            or authority.get("procedure_status") != "CURRENT" or authority.get("target") != target):
+        rows["RB5"] = result("UNKNOWN", "ROLLBACK_CURRENT_PROCEDURE_AUTHORITY_MISSING")
     if not isinstance(target, dict) or set(target) != set(candidate["rollback_scope"]):
         rows["RB1"] = result("UNKNOWN", "ROLLBACK_TARGET_SCOPE_MISSING")
     else:
@@ -302,6 +316,8 @@ def evaluate(candidate, authority_snapshot, continuity_record, *, generated_at=N
     if set(current) != set(candidate["service_inventory"]):
         service_checks.append(result("UNKNOWN", "SNAPSHOT_SERVICE_COVERAGE_MISSING"))
     contract_checks = [fact(candidate, "contract_provenance", candidate.get("target_contract"), allow_na=True)]
+    if candidate["target_contract"]["status"] == "UNKNOWN":
+        contract_checks.append(result("UNKNOWN", "TARGET_CONTRACT_UNKNOWN"))
     if not isinstance(candidate.get("target_contract"), dict) or not candidate["target_contract"]:
         contract_checks.append(result("UNKNOWN", "TARGET_CONTRACT_MISSING"))
     delta_checks = [fact(candidate, "runtime_delta_inventory", {"current": current, "surfaces": list(RUNTIME_SURFACES)}),
