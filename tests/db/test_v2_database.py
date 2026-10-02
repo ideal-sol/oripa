@@ -19,6 +19,16 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_rank_video_default_forward_migration_refuses_rollback(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_05_000079_add_v2_rank_video_default.php"
+        migration.touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"79"), mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertIn("Rank video defaults require a forward correction migration.", run.call_args.args[0][-1])
+            self.assertNotIn("migrate:rollback", run.call_args.args[0])
+
     def test_login_forward_migration_refuses_rollback_without_schema_or_ledger_change(self):
         migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_04_000078_add_v2_login_gachas.php"
         migration.touch()

@@ -979,6 +979,7 @@ paths:
       x-stability: alpha
       security: [{adminSession: []}]
       parameters:
+        - {name: media_type, in: query, schema: {type: string, enum: [all, image, video], default: all}}
         - {$ref: '#/components/parameters/PageLimit'}
         - {$ref: '#/components/parameters/PageCursor'}
         - {$ref: '#/components/parameters/CatalogSearch'}
@@ -995,7 +996,9 @@ paths:
       x-cache-policy: no-store
       x-stability: alpha
       security: [{adminSession: []}]
-      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+        - {name: media_type, in: query, description: Rank Video管理境界ではvideoを指定し、画像payloadは422。省略時は旧Rank Effect互換。, schema: {type: string, enum: [video]}}
       requestBody:
         required: true
         content:
@@ -1026,6 +1029,7 @@ paths:
       x-stability: alpha
       security: [{adminSession: []}]
       parameters:
+        - {name: media_type, in: query, description: Rank Video管理境界ではvideoを指定し、画像payloadは422。, schema: {type: string, enum: [video]}}
         - {$ref: '#/components/parameters/CatalogResourceId'}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
@@ -4730,6 +4734,7 @@ components:
       additionalProperties: false
       required: [gacha_type, title, description, notices, presentation_asset_id, price_points, minimum_exchange_points, publish_start_at, publish_end_at, category_id, tag_ids, total_count, daily_draw_limit, audience_code, first_time_eligible_days, allowed_draw_counts, ranks, prizes]
       properties:
+        use_default_rank_video: {type: boolean, default: true, description: 新規登録のRank初期化のみ。Copy projectionはfalseを返す。既存構成では適用しない。}
         gacha_type: {$ref: '#/components/schemas/AdminGachaType'}
         title: {type: string, minLength: 1, maxLength: 191}
         description: {type: [string, 'null'], maxLength: 10000}
@@ -5491,6 +5496,7 @@ components:
       required: [expected_revision, title, asset_type, is_active]
       properties:
         expected_revision: {type: integer, minimum: 1}
+        is_default: {type: boolean, description: グローバル既定動画の明示設定・解除。他の既定動画があれば409。既定中の無効化・非表示・アーカイブ・差し替えは禁止。}
         title: {type: string, minLength: 1, maxLength: 191}
         asset_type: {type: string, enum: [image, video]}
         is_active: {type: boolean}
@@ -5620,6 +5626,7 @@ components:
           required: [content_path]
           properties:
             content_path: {type: string, pattern: '^/(?!/)', maxLength: 512}
+            is_default: {type: boolean, readOnly: true}
     AdminGachaRank:
       type: object
       additionalProperties: false

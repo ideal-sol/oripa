@@ -1504,6 +1504,23 @@ export class AdminApiClient {
     return this.catalogDetail("rank-effects", id, signal);
   }
 
+  createRankVideo(
+    body: Omit<AdminRankEffectCreate, "asset_type"> & { asset_type: "video" },
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminRankEffect>> {
+    return this.catalogMutation("POST", "rank-effects", null, body, idempotencyKey, signal, "video");
+  }
+
+  updateRankVideo(
+    id: string,
+    body: Omit<AdminRankEffectUpdate, "asset_type"> & { asset_type: "video" },
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminCatalogMutationResult<AdminRankEffect>> {
+    return this.catalogMutation("PUT", "rank-effects", id, body, idempotencyKey, signal, "video");
+  }
+
   createRankEffect(
     body: AdminRankEffectCreate,
     idempotencyKey: string,
@@ -2768,6 +2785,7 @@ export class AdminApiClient {
     body: TBody,
     idempotencyKey: string,
     signal?: AbortSignal,
+    mediaType?: "video",
   ): Promise<AdminCatalogMutationResult<TResult>> {
     if (
       (id !== null && !(resource === "gachas" ? isGachaIdentifier(id) : isOpaqueId(id))) ||
@@ -2778,7 +2796,7 @@ export class AdminApiClient {
       );
     }
     const suffix = id === null ? "" : `/${encodeURIComponent(id)}`;
-    return this.request(method, `/catalog/${resource}${suffix}`, {
+    return this.request(method, `/catalog/${resource}${suffix}${mediaType ? "?media_type=video" : ""}`, {
       body,
       idempotencyKey,
       signal,

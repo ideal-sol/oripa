@@ -32,6 +32,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [gacha, setGacha] = useState<AdminCatalogGacha | null>(null);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [defaultVideoId, setDefaultVideoId] = useState<string | null>(null);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [inventory, setInventory] = useState<AdminGachaVersionPrize[]>([]);
@@ -59,6 +60,18 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         client.listCatalogTags({ limit: 100, archive: "active" }, controller.signal),
       ]);
       let nextDraft = emptyGachaComposition(type);
+      let defaultVideo: string | null = null;
+      if (!sourceId) {
+        let cursor: string | undefined;
+        do {
+          const videos = await client.listRankEffects({ media_type: "video", visibility: "visible", limit: 100, cursor }, controller.signal);
+          defaultVideo = videos.items.find((video) => video.is_default)?.id ?? defaultVideo;
+          cursor = videos.next_cursor ?? undefined;
+        } while (cursor && !defaultVideo);
+        nextDraft.ranks = rankResponse.items.map((rank) => ({
+          rank_id: rank.id, rank_revision_number: null, video_asset_id: defaultVideo,
+        }));
+      }
       let current: AdminCatalogGacha | null = null;
       let currentInventory: AdminGachaVersionPrize[] = [];
       if (sourceId) {
@@ -81,6 +94,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       ]);
       if (controller.signal.aborted) return;
       setRanks(selectedRanks); setAssets(selectedAssets); setCategories(selectedCategories); setTags(selectedTags);
+      setDefaultVideoId(defaultVideo);
       setThumbnailFile(null); thumbnailUpload.current = null;
       setPrizeKeys(nextDraft.prizes.map(() => crypto.randomUUID()));
       setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false);
@@ -124,7 +138,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
     setPrizeKeys((current) => [...current, crypto.randomUUID()]);
     setDraft((current) => ({
       ...current,
-      ranks: current.ranks.some((item) => item.rank_id === rank.id) ? current.ranks : [...current.ranks, { rank_id: rank.id, rank_revision_number: null, video_asset_id: null }],
+      ranks: current.ranks.some((item) => item.rank_id === rank.id) ? current.ranks : [...current.ranks, { rank_id: rank.id, rank_revision_number: null, video_asset_id: defaultVideoId }],
       prizes: [...current.prizes, { name: "", presentation_asset_id: "", rank_id: rank.id, exchange_points: current.minimum_exchange_points ?? 0,
         cost_price: 0, initial_inventory: 1, shipping_only: false, percentage: login ? "" : null }],
     }));
@@ -256,7 +270,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             <label>ランク<select aria-label="ランク" required value={prize.rank_id} onChange={(event) => {
               const rankId = event.target.value;
               setDraft((current) => ({ ...current, prizes: current.prizes.map((item, position) => position === index ? { ...item, rank_id: rankId } : item),
-                ranks: current.ranks.some((rank) => rank.rank_id === rankId) ? current.ranks : [...current.ranks, { rank_id: rankId, rank_revision_number: null, video_asset_id: null }] }));
+                ranks: current.ranks.some((rank) => rank.rank_id === rankId) ? current.ranks : [...current.ranks, { rank_id: rankId, rank_revision_number: null, video_asset_id: defaultVideoId }] }));
             }}>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{draft.ranks.find((item) => item.rank_id === rank.id)?.presentation?.name ?? rank.rank_name}</option>)}</select></label>
             <label>交換ポイント<input required type="number" min={draft.minimum_exchange_points ?? 0} step={1} value={prize.exchange_points} onChange={(event) => updatePrize(index, { exchange_points: Number(event.target.value) })} /></label>
             <label>原価<input required type="number" min={0} step={1} value={prize.cost_price} onChange={(event) => updatePrize(index, { cost_price: Number(event.target.value) })} /></label>
@@ -269,14 +283,17 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             }}>景品を削除</button> : null}
           </section>)}
           {!locked ? <button type="button" className="secondary-button" disabled={!ranks.length} onClick={addPrize}>景品を追加</button> : null}
-          {draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id)).map((rank) => <label key={rank.rank_id}>
+          {draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id)).map((rank) => <label className="catalog-rank-video-control" key={rank.rank_id}>
             {rank.presentation?.name ?? ranks.find((master) => master.id === rank.rank_id)?.rank_name ?? "ランク"}の演出動画
             <select aria-label={`${rank.presentation?.name ?? ranks.find((master) => master.id === rank.rank_id)?.rank_name ?? "ランク"}の演出動画`} required value={rank.video_asset_id ?? ""} onChange={(event) => setDraft({ ...draft, ranks: draft.ranks.map((item) => item.rank_id === rank.rank_id ? { ...item, video_asset_id: event.target.value || null } : item) })}>
               <option value="">選択してください</option>{videoOptions.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text ?? asset.id}</option>)}
             </select>
             {rank.rank_revision_number ? <span>参照ランクリビジョン: {rank.rank_revision_number}</span> : null}
+            {rank.video_asset_id
+              ? <PublicAssetPreview allowAuthenticatedContent asset={assets.find((asset) => asset.id === rank.video_asset_id) ?? null} />
+              : <span>未設定</span>}
             {(rank.presentation ? [rank.presentation.lineup_image, rank.presentation.result_image] : []).map((asset, index) =>
-              <PublicAssetPreview key={`${asset.id}:${index}`} asset={{ id: asset.id, public_path: asset.path, mime_type: asset.mime_type, alt_text: asset.alt_text, media_type: "image", is_public: true }} />)}
+              <PublicAssetPreview allowAuthenticatedContent key={`${asset.id}:${index}`} asset={{ id: asset.id, public_path: asset.path, mime_type: asset.mime_type, alt_text: asset.alt_text, media_type: "image", is_public: true }} />)}
           </label>)}
         </fieldset>
         {login ? <p role="status">確率合計: {total.label} {total.valid ? "（100%・保存可能）" : "（各景品を正の値、合計を厳密に100%にしてください）"}</p> : null}

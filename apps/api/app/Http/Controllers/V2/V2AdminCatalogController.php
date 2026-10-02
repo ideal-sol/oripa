@@ -174,7 +174,7 @@ final class V2AdminCatalogController
                 $this->mutations->createRankEffect(
                     $context,
                     (string) $request->header('Idempotency-Key', ''),
-                    $request->json()->all()
+                    $this->rankEffectInput($request)
                 )
         );
     }
@@ -190,9 +190,21 @@ final class V2AdminCatalogController
                     $context,
                     $catalogResourceId,
                     (string) $request->header('Idempotency-Key', ''),
-                    $request->json()->all()
+                    $this->rankEffectInput($request)
                 )
         );
+    }
+
+    private function rankEffectInput(Request $request): array
+    {
+        $input = $request->json()->all();
+        if ($request->query->has('media_type') && (
+            $request->query('media_type') !== 'video' || ($input['asset_type'] ?? null) !== 'video'
+        )) {
+            throw new V2CatalogException('CATALOG_MUTATION_INVALID', 422, 'Rank Video registration requires a video.');
+        }
+
+        return $input;
     }
 
     public function gachas(Request $request): JsonResponse

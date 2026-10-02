@@ -28,16 +28,41 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Rank effect settings", () => {
+  it("hides historical images and blocks direct default switching", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listRankEffects").mockResolvedValue({
+      items: [{ ...effect(), is_default: true }, { ...effect(), id: uuid("3"), alt_text: "Other video" },
+        { ...effect(), id: uuid("4"), media_type: "image", alt_text: "Historical image" }],
+      next_cursor: null,
+    });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateRankVideo")
+      .mockResolvedValue({ data: { ...effect(), is_default: false, revision: 2 }, idempotent_replay: false });
+    render(<RankEffectSettingsWorkspace mode="list" />);
+    expect(await screen.findByRole("button", { name: "デフォルトを解除" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "デフォルトに設定" })).toBeDisabled();
+    expect(screen.queryByText("Historical image")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "デフォルトを解除" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(effect().id,
+      expect.objectContaining({ is_default: false, expected_revision: 1, asset_type: "video" }), expect.any(String)));
+  });
+
+  it("allows default title editing but disables lifecycle changes", async () => {
+    vi.spyOn(AdminApiClient.prototype, "getRankEffect").mockResolvedValue({ data: { ...effect(), is_default: true } });
+    render(<RankEffectSettingsWorkspace mode="edit" id={effect().id} />);
+    expect(await screen.findByLabelText("タイトル")).toBeEnabled();
+    expect(screen.getByLabelText("状態")).toBeDisabled();
+    expect(screen.getByLabelText("ファイル差し替え（任意）")).toBeDisabled();
+  });
+
   it("renders the relation-free Asset Master list and edit route", async () => {
     const list = vi.spyOn(AdminApiClient.prototype, "listRankEffects");
     render(<RankEffectSettingsWorkspace mode="list" />);
-    expect(await screen.findByRole("heading", { name: "ランク演出" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "ランク動画" })).toBeVisible();
     expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
-      "種別", "タイトル", "プレビュー", "状態", "更新日時", "操作",
+      "種別", "タイトル", "プレビュー", "状態", "デフォルト", "更新日時", "操作",
     ]);
     expect(screen.getByText("当選演出")).toBeVisible();
     expect(screen.queryByText("Sランク")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
+    expect(screen.getByLabelText("ランク動画プレビュー")).toHaveAttribute(
       "src",
       `/admin/api/v2/catalog/presentation-assets/${effect().id}/content`,
     );
@@ -55,12 +80,12 @@ describe("Rank effect settings", () => {
   });
 
   it("edits metadata without requiring a replacement file and preserves current preview", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateRankEffect")
+    const update = vi.spyOn(AdminApiClient.prototype, "updateRankVideo")
       .mockResolvedValue({ data: { ...effect(), alt_text: "更新演出", revision: 2 }, idempotent_replay: false });
     render(<RankEffectSettingsWorkspace id={effect().id} mode="edit" />);
-    expect(await screen.findByRole("heading", { name: "ランク演出編集" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "ランク動画編集" })).toBeVisible();
     expect(screen.getByLabelText("タイトル")).toHaveValue("当選演出");
-    expect(screen.getByRole("img", { name: "ランク演出プレビュー" })).toBeVisible();
+    expect(screen.getByLabelText("ランク動画プレビュー")).toBeVisible();
     expect(screen.getByLabelText("ファイル差し替え（任意）")).not.toBeRequired();
     expect(screen.queryByText("Rank relation")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "対象ランクと表示順" })).not.toBeInTheDocument();
@@ -69,14 +94,14 @@ describe("Rank effect settings", () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith(
       effect().id,
       expect.objectContaining({
-        asset_type: "image",
+        asset_type: "video",
         expected_revision: 1,
         title: "更新演出",
       }),
       expect.any(String),
     ));
     expect(update.mock.calls[0][1]).not.toHaveProperty("rank_assignments");
-    expect(await screen.findByRole("img", { name: "ランク演出プレビュー" })).toHaveAttribute(
+    expect(await screen.findByLabelText("ランク動画プレビュー")).toHaveAttribute(
       "src",
       effect().content_path,
     );
@@ -89,12 +114,12 @@ describe("Rank effect settings", () => {
     expect(replace).toHaveBeenCalledWith(`/catalog/presentation-assets/${effect().id}/edit`);
   });
 
-  it("requires direct upload for new effects and exposes image/video choices", async () => {
+  it("requires video uploads without image or media type controls", async () => {
     render(<RankEffectSettingsWorkspace mode="create" />);
-    expect(await screen.findByRole("heading", { name: "ランク演出登録" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "ランク動画登録" })).toBeVisible();
     expect(screen.getByLabelText("ファイル")).toBeRequired();
-    expect(screen.getByLabelText("画像")).toBeChecked();
-    expect(screen.getByLabelText("動画")).not.toBeChecked();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("ファイル")).toHaveAttribute("accept", "video/mp4,video/webm,video/quicktime");
     expect(screen.queryByText("Rank relation")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "対象ランクと表示順" })).not.toBeInTheDocument();
     expect(screen.queryByText(/バナー/u)).not.toBeInTheDocument();
@@ -112,8 +137,8 @@ function effect(): AdminRankEffect {
     id: uuid("2"),
     is_archived: false,
     is_public: true,
-    media_type: "image",
-    mime_type: "image/png",
+    media_type: "video",
+    mime_type: "video/mp4",
     public_path: `/admin/api/v2/catalog/presentation-assets/${uuid("2")}/content`,
     revision: 1,
     updated_at: "2026-08-05T00:00:00Z",

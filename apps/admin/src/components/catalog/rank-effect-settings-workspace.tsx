@@ -52,11 +52,12 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
           cursor: cursor ?? undefined,
           direction: "desc",
           limit: 20,
+          media_type: "video",
           sort: "created_at",
           visibility,
         }, controller.signal).then((result) => ({
           kind: "list" as const,
-          items: result.items,
+          items: result.items.filter((item) => item.media_type === "video"),
           nextCursor: result.next_cursor,
         }))
       : (mode === "edit" && id
@@ -97,9 +98,9 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
             <ArrowLeft aria-hidden="true" size={17} />一覧へ戻る
           </Link>
         ) : undefined}
-        description="ガチャRankで使用する画像・動画演出素材を管理します。"
+        description="ガチャRankで使用する動画と、全体で1本のデフォルト動画を管理します。"
         eyebrow="Settings"
-        title={mode === "list" ? "ランク演出" : mode === "create" ? "ランク演出登録" : "ランク演出編集"}
+        title={mode === "list" ? "ランク動画" : mode === "create" ? "ランク動画登録" : "ランク動画編集"}
       />
       {mode === "list" ? (
         <label className="announcement-filter">
@@ -111,10 +112,12 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
           </select>
         </label>
       ) : null}
-      {state.kind === "loading" ? <RankEffectState loading message="ランク演出を読み込んでいます。" /> : null}
+      {state.kind === "loading" ? <RankEffectState loading message="ランク動画を読み込んでいます。" /> : null}
       {state.kind === "error" ? <RankEffectState error message={state.message} retry={retry} /> : null}
       {state.kind === "list" ? (
         <RankEffectList
+          client={client}
+          onDefaultChange={retry}
           items={state.items}
           nextCursor={state.nextCursor}
           onNext={() => loadNext(state.nextCursor)}
@@ -122,40 +125,47 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
         />
       ) : null}
       {state.kind === "form" ? (
-        <RankEffectForm client={client} effect={state.effect} mode={mode} />
+        state.effect && state.effect.media_type !== "video"
+          ? <RankEffectState message="この素材はランク動画ではありません。" />
+          : <RankEffectForm client={client} effect={state.effect} mode={mode} />
       ) : null}
     </section>
   );
 }
 
 function RankEffectList({
+  client,
+  onDefaultChange,
   items,
   nextCursor,
   onNext,
   onReset,
 }: {
+  client: AdminApiClient;
+  onDefaultChange: () => void;
   items: AdminRankEffect[];
   nextCursor: string | null;
   onNext: () => void;
   onReset: () => void;
 }) {
-  if (items.length === 0) return <RankEffectState message="登録済みのランク演出はありません。" />;
+  if (items.length === 0) return <RankEffectState message="登録済みのランク動画はありません。" />;
   return (
     <section className="rank-effect-list" aria-labelledby="rank-effect-list-heading">
       <div className="rank-effect-section-heading">
-        <div><span className="eyebrow">Asset Master</span><h2 id="rank-effect-list-heading">登録済み演出</h2></div>
+        <div><span className="eyebrow">Asset Master</span><h2 id="rank-effect-list-heading">登録済み動画</h2></div>
       </div>
       <div className="catalog-table-wrap rank-effect-table-container">
         <table className="announcement-table">
-          <thead><tr><th>種別</th><th>タイトル</th><th>プレビュー</th><th>状態</th><th>更新日時</th><th>操作</th></tr></thead>
+          <thead><tr><th>種別</th><th>タイトル</th><th>プレビュー</th><th>状態</th><th>デフォルト</th><th>更新日時</th><th>操作</th></tr></thead>
           <tbody>{items.map((item) => (
             <tr key={item.id}>
               <td>{item.media_type === "image" ? "画像" : "動画"}</td>
               <td>{item.alt_text ?? "未設定"}</td>
               <td><RankEffectPreview compact effect={item} /></td>
               <td><span className={`status-badge ${item.is_public ? "is-success" : "is-muted"}`}>{item.is_public ? "有効" : "無効"}</span></td>
+              <td><DefaultVideoAction client={client} effect={item} hasDefault={items.some((video) => video.is_default)} onSaved={onDefaultChange} /></td>
               <td>{formatDate(item.updated_at)}</td>
-              <td><Link aria-label={`${item.alt_text ?? "ランク演出"}を編集`} className="icon-button" href={`/catalog/presentation-assets/${item.id}/edit`} title="編集"><Pencil aria-hidden="true" size={17} /></Link></td>
+              <td><Link aria-label={`${item.alt_text ?? "ランク動画"}を編集`} className="icon-button" href={`/catalog/presentation-assets/${item.id}/edit`} title="編集"><Pencil aria-hidden="true" size={17} /></Link></td>
             </tr>
           ))}</tbody>
         </table>
@@ -166,6 +176,37 @@ function RankEffectList({
       </div>
     </section>
   );
+}
+
+function DefaultVideoAction({ client, effect, hasDefault, onSaved }: {
+  client: AdminApiClient; effect: AdminRankEffect; hasDefault: boolean; onSaved: () => void;
+}) {
+  const { hasPermission } = usePermissions();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function changeDefault() {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      await client.updateRankVideo(effect.id, {
+        expected_revision: effect.revision ?? 1, title: effect.alt_text ?? "",
+        asset_type: "video", is_active: effect.is_public, is_default: !effect.is_default,
+      }, crypto.randomUUID());
+      onSaved();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <div>
+    {effect.is_default ? <span className="status-badge is-success">デフォルト</span> : null}
+    {hasPermission("catalog.manage") ? <button className="secondary-button" type="button"
+      disabled={busy || !effect.is_public || !!effect.is_archived || (hasDefault && !effect.is_default)}
+      onClick={() => void changeDefault()}>{effect.is_default ? "デフォルトを解除" : "デフォルトに設定"}</button> : null}
+    {hasDefault && !effect.is_default ? <small>先に現在のデフォルトを解除してください。</small> : null}
+    {error ? <p className="error-alert" role="alert">{error}</p> : null}
+  </div>;
 }
 
 function RankEffectForm({
@@ -180,26 +221,17 @@ function RankEffectForm({
   const router = useRouter();
   const [currentEffect, setCurrentEffect] = useState(effect);
   const [title, setTitle] = useState(effect?.alt_text ?? "");
-  const [assetType, setAssetType] = useState<"image" | "video">(effect?.media_type ?? "image");
+  const assetType = "video" as const;
   const [active, setActive] = useState(effect?.is_public ?? true);
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const key = useRef<string | null>(null);
 
-  useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
-
   function selectFile(next: File | null) {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(next);
-    setPreviewUrl(next ? URL.createObjectURL(next) : null);
     setError(null);
-    if (next?.type.startsWith("image/")) setAssetType("image");
-    if (next?.type.startsWith("video/")) setAssetType("video");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -211,7 +243,7 @@ function RankEffectForm({
       return;
     }
     if (file && !validFile(file, assetType)) {
-      setError(assetType === "image" ? "画像はGIF/JPEG/PNG/WebP、5MB以下です。" : "動画はMP4/WebM/QuickTime、50MB以下です。");
+      setError("動画はMP4/WebM/QuickTime、50MB以下です。");
       return;
     }
     setBusy(true);
@@ -230,11 +262,11 @@ function RankEffectForm({
         ...filePayload,
       };
       const result = currentEffect
-        ? await client.updateRankEffect(currentEffect.id, {
+        ? await client.updateRankVideo(currentEffect.id, {
             expected_revision: currentEffect.revision ?? 1,
             ...common,
           }, key.current)
-        : await client.createRankEffect({
+        : await client.createRankVideo({
             ...common,
             file_name: file!.name,
             mime_type: file!.type,
@@ -242,7 +274,8 @@ function RankEffectForm({
           }, key.current);
       key.current = null;
       setCurrentEffect(result.data);
-      setMessage(result.idempotent_replay ? "保存済みの結果を再表示しました。" : "ランク演出を保存しました。");
+      setFile(null);
+      setMessage(result.idempotent_replay ? "保存済みの結果を再表示しました。" : "ランク動画を保存しました。");
       router.replace(`/catalog/presentation-assets/${result.data.id}/edit`);
     } catch (cause) {
       if (!(cause instanceof AdminApiError) || !cause.retryable) key.current = null;
@@ -255,18 +288,19 @@ function RankEffectForm({
   return (
     <form className="rank-effect-form" noValidate onSubmit={submit}>
       <section className="rank-effect-form-section" aria-labelledby="rank-effect-basic-heading">
-        <div className="rank-effect-section-heading"><div><span className="eyebrow">Basic</span><h2 id="rank-effect-basic-heading">演出情報</h2></div></div>
+        <div className="rank-effect-section-heading"><div><span className="eyebrow">Basic</span><h2 id="rank-effect-basic-heading">動画情報</h2></div></div>
         {error ? <p className="error-alert" role="alert">{error}</p> : null}
         {message ? <p className="status-alert" role="status">{message}</p> : null}
         <div className="rank-effect-fields">
           <label><span>タイトル</span><input maxLength={191} onChange={(event) => setTitle(event.target.value)} required value={title} /></label>
-          <fieldset><legend>種別</legend><div className="segmented-control"><label className="catalog-checkbox"><input checked={assetType === "image"} disabled={Boolean(currentEffect && !file)} name="asset-type" onChange={() => setAssetType("image")} type="radio" />画像</label><label className="catalog-checkbox"><input checked={assetType === "video"} disabled={Boolean(currentEffect && !file)} name="asset-type" onChange={() => setAssetType("video")} type="radio" />動画</label></div></fieldset>
-          <label><span>状態</span><select onChange={(event) => setActive(event.target.value === "active")} value={active ? "active" : "inactive"}><option value="active">有効</option><option value="inactive">無効</option></select></label>
-          <div className="rank-effect-file"><label htmlFor="rank-effect-file">{currentEffect ? "ファイル差し替え（任意）" : "ファイル"}</label><input accept="image/gif,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" id="rank-effect-file" onChange={(event) => selectFile(event.target.files?.[0] ?? null)} required={!currentEffect} type="file" /><small>画像5MB以下、動画50MB以下</small></div>
+          <p>種別: 動画</p>
+          <label><span>状態</span><select disabled={busy || !!currentEffect?.is_default} onChange={(event) => setActive(event.target.value === "active")} value={active ? "active" : "inactive"}><option value="active">有効</option><option value="inactive">無効</option></select></label>
+          <div className="rank-effect-file"><label htmlFor="rank-effect-file">{currentEffect ? "ファイル差し替え（任意）" : "ファイル"}</label><input accept="video/mp4,video/webm,video/quicktime" disabled={busy || !!currentEffect?.is_default} id="rank-effect-file" onChange={(event) => selectFile(event.target.files?.[0] ?? null)} required={!currentEffect} type="file" /><small>動画50MB以下</small></div>
         </div>
+        {currentEffect?.is_default ? <p className="status-alert">デフォルト動画です。無効化・非表示・アーカイブ・ファイル差し替えの前に、一覧でデフォルトを解除してください。</p> : null}
         <div className="rank-effect-preview-panel">
           <h3>プレビュー</h3>
-          {previewUrl ? <LocalPreview mediaType={assetType} url={previewUrl} /> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">ファイルを選択するとPreviewを表示します。</p>}
+          {file ? <p className="empty-state">選択中: {file.name}。保存後に登録済み動画のPreviewを表示します。</p> : currentEffect ? <RankEffectPreview effect={currentEffect} /> : <p className="empty-state">保存後に登録済み動画のPreviewを表示します。</p>}
         </div>
       </section>
       <div className="rank-effect-actions"><button className="primary-button" disabled={busy} type="submit">{busy ? <LoaderCircle aria-hidden="true" className="spin" size={17} /> : <Upload aria-hidden="true" size={17} />}{busy ? "保存中" : "保存"}</button><Link className="secondary-button" href="/catalog/presentation-assets">キャンセル</Link></div>
@@ -282,12 +316,12 @@ function LocalPreview({ compact = false, mediaType, url }: { compact?: boolean; 
   const encodedUrl = encodeURI(url);
   return mediaType === "image"
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img alt="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={encodedUrl} />
-    : <video aria-label="ランク演出プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={encodedUrl} />;
+    ? <img alt="ランク動画プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} src={encodedUrl} />
+    : <video aria-label="ランク動画プレビュー" className={compact ? "rank-effect-thumbnail" : "rank-effect-preview"} controls={!compact} muted playsInline preload="metadata" src={encodedUrl} />;
 }
 
 function RankEffectBreadcrumb({ mode }: { mode: Mode }) {
-  return <nav aria-label="パンくず" className="breadcrumb"><ol><li><Link href="/">ダッシュボード</Link></li><li><span aria-hidden="true">/</span><Link href="/catalog/presentation-assets">ランク演出</Link></li>{mode !== "list" ? <li aria-current="page"><span aria-hidden="true">/</span>{mode === "create" ? "新規登録" : "編集"}</li> : null}</ol></nav>;
+  return <nav aria-label="パンくず" className="breadcrumb"><ol><li><Link href="/">ダッシュボード</Link></li><li><span aria-hidden="true">/</span><Link href="/catalog/presentation-assets">ランク動画</Link></li>{mode !== "list" ? <li aria-current="page"><span aria-hidden="true">/</span>{mode === "create" ? "新規登録" : "編集"}</li> : null}</ol></nav>;
 }
 
 function RankEffectState({ error = false, loading = false, message, retry }: { error?: boolean; loading?: boolean; message: string; retry?: () => void }) {
@@ -304,7 +338,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 function errorMessage(cause: unknown) {
-  if (cause instanceof AdminApiError) return cause.status === 409 ? "別の更新と競合しました。再読み込みしてください。" : "ランク演出を処理できませんでした。";
+  if (cause instanceof AdminApiError) return cause.status === 409 ? "先に現在のデフォルトを解除してください。別の更新と競合した場合は再読み込みしてください。" : "ランク動画を処理できませんでした。";
   return "通信に失敗しました。";
 }
 

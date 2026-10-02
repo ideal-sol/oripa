@@ -1917,6 +1917,7 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
 
 export interface AdminRankEffect extends AdminCatalogPresentationAsset {
   content_path: string;
+  is_default?: boolean;
 }
 
 export interface AdminRankEffectCreate {
@@ -1930,6 +1931,7 @@ export interface AdminRankEffectCreate {
 
 export interface AdminRankEffectUpdate {
   expected_revision: number;
+  is_default?: boolean;
   title: string;
   asset_type: "image" | "video";
   is_active: boolean;
@@ -2136,6 +2138,7 @@ export interface AdminCompositionPrize {
 }
 
 export interface AdminGachaComposition {
+  use_default_rank_video?: boolean;
   gacha_type: AdminGachaType;
   title: string;
   description: string | null;

@@ -2590,6 +2590,19 @@
         ],
         "parameters": [
           {
+            "name": "media_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "image",
+                "video"
+              ],
+              "default": "all"
+            }
+          },
+          {
             "$ref": "#/components/parameters/PageLimit"
           },
           {
@@ -2636,6 +2649,17 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "media_type",
+            "in": "query",
+            "description": "Rank Video管理境界ではvideoを指定し、画像payloadは422。省略時は旧Rank Effect互換。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "video"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -2712,6 +2736,17 @@
           }
         ],
         "parameters": [
+          {
+            "name": "media_type",
+            "in": "query",
+            "description": "Rank Video管理境界ではvideoを指定し、画像payloadは422。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "video"
+              ]
+            }
+          },
           {
             "$ref": "#/components/parameters/CatalogResourceId"
           },
@@ -11046,6 +11081,11 @@
           "prizes"
         ],
         "properties": {
+          "use_default_rank_video": {
+            "type": "boolean",
+            "default": true,
+            "description": "新規登録のRank初期化のみ。Copy projectionはfalseを返す。既存構成では適用しない。"
+          },
           "gacha_type": {
             "$ref": "#/components/schemas/AdminGachaType"
           },
@@ -13258,6 +13298,10 @@
             "type": "integer",
             "minimum": 1
           },
+          "is_default": {
+            "type": "boolean",
+            "description": "グローバル既定動画の明示設定・解除。他の既定動画があれば409。既定中の無効化・非表示・アーカイブ・差し替えは禁止。"
+          },
           "title": {
             "type": "string",
             "minLength": 1,
@@ -13664,6 +13708,10 @@
                 "type": "string",
                 "pattern": "^/(?!/)",
                 "maxLength": 512
+              },
+              "is_default": {
+                "type": "boolean",
+                "readOnly": true
               }
             }
           }

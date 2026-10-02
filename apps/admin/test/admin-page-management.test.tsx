@@ -22,6 +22,47 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); push.mockReset(); });
 
 describe("Page management", () => {
+  it("creates once, resets busy, and routes subsequent saves to the created page", async () => {
+    let resolveCreate!: (value: AdminManagedPage & { idempotent_replay: boolean }) => void;
+    const create = vi.spyOn(AdminApiClient.prototype, "createManagedPage")
+      .mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve; }));
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedPage")
+      .mockResolvedValue({ ...managedPage(), title: "Second save", version_number: 2, idempotent_replay: false });
+    render(<PageManagementWorkspace mode="create" />);
+    fireEvent.change(await screen.findByLabelText("タイトル"), { target: { value: "New page" } });
+    fireEvent.change(screen.getByLabelText("slug"), { target: { value: "new-page" } });
+    fireEvent.change(screen.getByLabelText("カテゴリ"), { target: { value: category.id } });
+    const form = screen.getByRole("button", { name: "保存" }).closest("form")!;
+    fireEvent.submit(form);
+    expect(screen.getByRole("button", { name: "保存中" })).toBeDisabled();
+    fireEvent.submit(form);
+    expect(create).toHaveBeenCalledOnce();
+    resolveCreate({ ...managedPage(), idempotent_replay: false });
+    expect(await screen.findByRole("status")).toHaveTextContent("保存に成功しました");
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "Second save" } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][0]).toBe(managedPage().id);
+    expect(create).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.getByLabelText("タイトル")).toHaveValue("Second save"));
+  });
+
+  it("restores the save button on failure and permits retry", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedPage")
+      .mockRejectedValueOnce(new Error("failure"))
+      .mockResolvedValueOnce({ ...managedPage(), idempotent_replay: false });
+    render(<PageManagementWorkspace mode="edit" pageId={managedPage().id} />);
+    await screen.findByLabelText("タイトル");
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    expect(screen.queryByText("保存に成功しました。")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("保存に成功しました");
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
   it("renders the V1-based list order and page visibility", async () => {
     const list = vi.spyOn(AdminApiClient.prototype, "listManagedPages");
     render(<PageManagementWorkspace mode="list" />);
@@ -69,8 +110,14 @@ describe("Page management", () => {
     fireEvent.click(screen.getByRole("button", { name: "ページプレビューを閉じる" }));
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(update).toHaveBeenCalledOnce());
-    expect(AdminApiClient.prototype.getManagedPage).toHaveBeenCalledTimes(2);
-    expect(push).toHaveBeenCalledWith(`/settings/pages/${managedPage().id}`);
+    expect(await screen.findByRole("status")).toHaveTextContent("保存に成功しました");
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+    expect(screen.getByLabelText("タイトル")).toHaveValue("更新ガイド");
+    fireEvent.change(screen.getByLabelText("タイトル"), { target: { value: "再編集" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(update.mock.calls[1][1].title).toBe("再編集");
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("defaults new pages to footer off", async () => {

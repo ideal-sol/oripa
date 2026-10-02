@@ -60,6 +60,7 @@ final class V2GachaCopyService
             }
 
             return [
+                'use_default_rank_video' => false,
                 'gacha_type' => $gacha->gacha_type, 'title' => $published ? $gacha->current_title : $version->title,
                 'description' => $published ? $gacha->current_description : $version->description,
                 'notices' => $published ? $gacha->current_notices : $version->notices,

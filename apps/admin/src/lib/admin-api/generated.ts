@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 9ebe0a2967635c339dccb178446c03d4aeea357441ae8649be9fad307b698282
+// Contract SHA-256: 7f892611f1cb68eb6b6dff549028c287d3baf13b1982a10314f5cc4ae84e8698
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1289,6 +1289,7 @@ export interface AdminCatalogPresentationAsset extends AdminCatalogAssetReferenc
 
 export interface AdminRankEffect extends AdminCatalogPresentationAsset {
   content_path: string;
+  is_default?: boolean;
 }
 
 export interface AdminRankEffectCreate {
@@ -1302,6 +1303,7 @@ export interface AdminRankEffectCreate {
 
 export interface AdminRankEffectUpdate {
   expected_revision: number;
+  is_default?: boolean;
   title: string;
   asset_type: "image" | "video";
   is_active: boolean;
@@ -1508,6 +1510,7 @@ export interface AdminCompositionPrize {
 }
 
 export interface AdminGachaComposition {
+  use_default_rank_video?: boolean;
   gacha_type: AdminGachaType;
   title: string;
   description: string | null;

@@ -48,14 +48,74 @@ test("mobile create route opens an accessible category dialog without overflow",
   expect(errors()).toEqual({ console: [], gateway: [], page: [] });
 });
 
+for (const width of [1440, 390]) {
+  test(`save completion and consecutive edits at ${width}px`, async ({ page }, testInfo) => {
+    const errors = observeErrors(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/settings/pages/new");
+    await page.getByLabel("タイトル", { exact: true }).fill("New guide");
+    await page.getByLabel("slug", { exact: true }).fill("new-guide");
+    await page.getByRole("combobox", { name: "カテゴリ", exact: true }).selectOption(categoryId);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.getByRole("button", { name: "保存中", exact: true })).toBeDisabled();
+    await expect(page.getByRole("status")).toHaveText("保存に成功しました。");
+    await expect(page.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+    await page.screenshot({ path: testInfo.outputPath("save-success.png"), fullPage: true });
+    await expect(page.getByLabel("タイトル", { exact: true })).toHaveValue("New guide");
+    await page.getByLabel("タイトル", { exact: true }).fill("Second guide");
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("保存に成功しました。");
+    await expect(page.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+    await page.goto(`/settings/pages/${pageId}`);
+    await expect(page.getByLabel("タイトル", { exact: true })).toHaveValue("Second guide");
+    expect(errors()).toEqual({ console: [], gateway: [], page: [] });
+  });
+}
+
+test("failed save restores the button and retries without duplicate submission", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  let requests = 0;
+  let release: (() => void) | undefined;
+  await page.route(`**/admin/api/v2/page-management/pages/${pageId}`, async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    requests += 1;
+    if (requests === 1) {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ error: { code: "VALIDATION_ERROR", message: "Retry fixture" } }) });
+    }
+    return route.fallback();
+  });
+  await page.goto(`/settings/pages/${pageId}`);
+  await page.getByLabel("タイトル", { exact: true }).fill("Retried guide");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("button", { name: "保存中", exact: true })).toBeDisabled();
+  await page.locator("form.announcement-form").dispatchEvent("submit");
+  expect(requests).toBe(1);
+  release!();
+  await expect(page.getByRole("alert").filter({ hasText: "入力内容を確認してください。" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("保存に成功しました。");
+  expect(requests).toBe(2);
+  expect(pageErrors).toEqual([]);
+});
+
 async function installApi(page: Page): Promise<void> {
+  let current = managedPage();
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/auth/session")) return json(route, { admin: { id: uuid("9"), mfa_verified: false, role: "admin", state: "active" }, authenticated: true, mfa_required: false, requires_mfa_enrollment: false });
     if (url.pathname.endsWith("/auth/permissions")) return json(route, { permissions: ["content.read", "content.manage"], request_id: uuid("9"), role: "admin" });
     if (url.pathname.endsWith("/page-management/categories")) return json(route, { items: [{ created_at: "2026-08-05T00:00:00Z", id: categoryId, name: "ご利用案内", visibility: "visible" }] });
     if (url.pathname.endsWith("/page-management/pages/preview")) return json(route, { body_html: "<p>安全な本文</p>", title: "ご利用ガイド" });
-    if (url.pathname.includes("/page-management/pages/")) return json(route, managedPage());
+    if (url.pathname.includes("/page-management/pages") && ["POST", "PUT"].includes(route.request().method())) {
+      const payload = route.request().postDataJSON();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      current = { ...current, ...payload, version_number: current.version_number + 1 };
+      return json(route, { ...current, idempotent_replay: false });
+    }
+    if (url.pathname.includes("/page-management/pages/")) return json(route, current);
     if (url.pathname.endsWith("/page-management/pages")) return json(route, { items: [managedPage()], next_cursor: null });
     return route.fulfill({ status: 404 });
   });

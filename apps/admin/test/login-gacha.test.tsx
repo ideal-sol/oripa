@@ -17,6 +17,7 @@ vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({
 afterEach(() => { vi.restoreAllMocks(); });
 
 function selections() {
+  vi.spyOn(AdminApiClient.prototype, "listRankEffects").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [] });
   vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listCatalogRanks").mockResolvedValue({ items: [], next_cursor: null });

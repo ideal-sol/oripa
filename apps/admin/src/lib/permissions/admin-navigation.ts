@@ -115,7 +115,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("contacts", "一覧", "/contacts", "contact.read", "contacts"),
   route("page-settings", "ページ設定", "/settings/pages", "content.read", "content", "scaffold"),
   route("rank-settings", "ランク設定", "/catalog/ranks", "catalog.read", "catalog"),
-  route("presentation-assets", "ランク演出", "/catalog/presentation-assets", "catalog.read", "catalog"),
+  route("presentation-assets", "ランク動画", "/catalog/presentation-assets", "catalog.read", "catalog"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", "referral.settings.read", "settings"),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
   route("mail-settings", "メール設定", "/settings/mail", "content.read", "settings"),
