@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
+import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { usePermissions } from "@/components/permissions/permission-provider";
@@ -27,6 +28,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const { expireSession } = useAdminAuth();
   const { hasPermission } = usePermissions();
   const [draft, setDraft] = useState<AdminGachaComposition>(() => emptyGachaComposition(type));
+  const [prizeKeys, setPrizeKeys] = useState<string[]>([]);
   const [gacha, setGacha] = useState<AdminCatalogGacha | null>(null);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
@@ -80,6 +82,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       if (controller.signal.aborted) return;
       setRanks(selectedRanks); setAssets(selectedAssets); setCategories(selectedCategories); setTags(selectedTags);
       setThumbnailFile(null); thumbnailUpload.current = null;
+      setPrizeKeys(nextDraft.prizes.map(() => crypto.randomUUID()));
       setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false);
     }
     load().catch((cause: unknown) => {
@@ -118,6 +121,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   function addPrize() {
     const rank = ranks[0];
     if (!rank) return;
+    setPrizeKeys((current) => [...current, crypto.randomUUID()]);
     setDraft((current) => ({
       ...current,
       ranks: current.ranks.some((item) => item.rank_id === rank.id) ? current.ranks : [...current.ranks, { rank_id: rank.id, rank_revision_number: null, video_asset_id: null }],
@@ -128,6 +132,10 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
 
   async function save() {
     if (!draft.publish_start_at || (login && !total.valid) || locked) return;
+    if (draft.prizes.some((prize) => !prize.presentation_asset_id)) {
+      setNotice("選択したBanner CategoryからBannerを選択してください。");
+      return;
+    }
     const thumbnailError = gachaThumbnailError(thumbnailFile, draft.presentation_asset_id);
     if (thumbnailError) { setNotice(thumbnailError); return; }
     if (sourceId && !copy && typeof gacha?.current_version?.revision !== "number") {
@@ -193,11 +201,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
     });
   }
 
-  const imageOptions = assets.filter((asset) => asset.media_type === "image" && asset.is_public);
   const videoOptions = assets.filter((asset) => asset.media_type === "video" && asset.is_public);
-  const assetSelect = (value: string, change: (value: string) => void, label: string) => <div><label>{label}<select aria-label={label} required value={value} onChange={(event) => change(event.target.value)}>
-    <option value="">選択してください</option>{imageOptions.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text ?? asset.id}</option>)}
-  </select></label><PublicAssetPreview asset={assets.find((asset) => asset.id === value) ?? null} /></div>;
 
   return <AdminShell><ProtectedAdminRoute permission={sourceId && !copy ? "catalog.read" : "catalog.manage"}><div className="workspace">
     <AdminPageHeader eyebrow="ガチャ管理" title={`${gachaTypeLabels[draft.gacha_type]}${copy ? "をコピー" : sourceId ? "の管理" : "の登録"}`}
@@ -244,10 +248,11 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
           <label>注意事項<textarea value={draft.notices ?? ""} maxLength={10000} onChange={(event) => setDraft({ ...draft, notices: event.target.value || null })} /></label>
         </fieldset>
         <fieldset disabled={locked || busy}><legend>景品と演出</legend>
-          {draft.prizes.map((prize, index) => <section className="catalog-prize-fieldset" key={index}>
+          {draft.prizes.map((prize, index) => <section className="catalog-prize-fieldset" key={prizeKeys[index]}>
             <h3>景品 {index + 1}</h3>
             <label>景品名<input required maxLength={191} value={prize.name} onChange={(event) => updatePrize(index, { name: event.target.value })} /></label>
-            {assetSelect(prize.presentation_asset_id, (value) => updatePrize(index, { presentation_asset_id: value }), "景品画像")}
+            <CatalogBannerAssetPicker assetId={prize.presentation_asset_id || null} disabled={locked || busy}
+              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "" })} />
             <label>ランク<select aria-label="ランク" required value={prize.rank_id} onChange={(event) => {
               const rankId = event.target.value;
               setDraft((current) => ({ ...current, prizes: current.prizes.map((item, position) => position === index ? { ...item, rank_id: rankId } : item),
@@ -258,7 +263,10 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             <label>初期在庫<input required type="number" min={0} max={2147483647} step={1} value={prize.initial_inventory} onChange={(event) => updatePrize(index, { initial_inventory: Number(event.target.value) })} /></label>
             {login ? <label>固定当選確率（%・小数10桁まで）<input required type="text" inputMode="decimal" value={prize.percentage ?? ""} onChange={(event) => updatePrize(index, { percentage: event.target.value })} /></label>
               : <label><input type="checkbox" checked={prize.shipping_only} onChange={(event) => updatePrize(index, { shipping_only: event.target.checked })} />発送専用</label>}
-            {!locked ? <button type="button" className="secondary-button" onClick={() => setDraft({ ...draft, prizes: draft.prizes.filter((_, position) => position !== index) })}>景品を削除</button> : null}
+            {!locked ? <button type="button" className="secondary-button" onClick={() => {
+              setPrizeKeys((current) => current.filter((_, position) => position !== index));
+              setDraft({ ...draft, prizes: draft.prizes.filter((_, position) => position !== index) });
+            }}>景品を削除</button> : null}
           </section>)}
           {!locked ? <button type="button" className="secondary-button" disabled={!ranks.length} onClick={addPrize}>景品を追加</button> : null}
           {draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id)).map((rank) => <label key={rank.rank_id}>

@@ -4,6 +4,9 @@ const gachaId = "A7k9P2x4Qm8";
 const rankId = "0198a001-0000-7000-8000-000000000001";
 const imageId = "0198a001-0000-7000-8000-000000000005";
 const videoId = "0198a001-0000-7000-8000-000000000006";
+const bannerCategoryId = "0198a001-0000-7000-8000-000000000011";
+const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
+const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
 
 test("registration offers three separate routes and daily has no standard-only fields", async ({ page }) => {
   await installApi(page);
@@ -28,7 +31,8 @@ test("daily sends a complete exact composition once with JST and an idempotency 
   await page.getByLabel("公開開始日時（JST）").fill("2026-10-01T00:00");
   await page.getByRole("button", { name: "景品を追加" }).click();
   await page.getByLabel("景品名", { exact: true }).fill("Prize fixture");
-  await page.getByLabel("景品画像", { exact: true }).selectOption(imageId);
+  await page.getByRole("combobox", { name: "Banner Category", exact: true }).selectOption(bannerCategoryId);
+  await page.getByRole("button", { name: "Card Banner", exact: true }).click();
   await page.getByLabel("Aの演出動画", { exact: true }).selectOption(videoId);
   await page.getByLabel("固定当選確率（%・小数10桁まで）").fill("99.9999999999");
   await expect(page.getByRole("button", { name: "構成を一括保存" })).toBeDisabled();
@@ -68,6 +72,7 @@ test("signup is explicitly free and omits price and post-registration day inputs
 
 async function installApi(page: Page) {
   const mutations: { body: Record<string, unknown>; key: string | undefined }[] = [];
+  await page.route(/\/synthetic-(?:banner|login)-image\.png$/u, (route) => route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") }));
   await page.addInitScript(() => {
     Object.defineProperty(Document.prototype, "cookie", { configurable: true, get: () => `__Host-oripa_admin_xsrf=${"a".repeat(64)}`, set: () => undefined });
   });
@@ -76,6 +81,17 @@ async function installApi(page: Page) {
     if (path.endsWith("/auth/session")) return json(route, { authenticated: true, mfa_required: false, requires_mfa_enrollment: false,
       admin: { id: rankId, role: "owner", state: "active", mfa_verified: true } });
     if (path.endsWith("/auth/permissions")) return json(route, { role: "owner", request_id: rankId, permissions: ["catalog.read", "catalog.manage", "catalog.publish"] });
+    if (path.endsWith("/banner-management/categories")) return json(route, { items: [
+      { id: bannerCategoryId, name: "Cards" }, { id: otherBannerCategoryId, name: "Other" }, { id: "empty", name: "Empty" },
+    ] });
+    if (path.endsWith("/banner-management/banners")) {
+      const categoryId = new URL(route.request().url()).searchParams.get("category_id");
+      expect([bannerCategoryId, otherBannerCategoryId, "empty"]).toContain(categoryId);
+      return json(route, { items: categoryId === "empty" ? [] : [{ id: `banner-${categoryId}`, title: categoryId === bannerCategoryId ? "Card Banner" : "Other Banner",
+        category: { id: categoryId, name: categoryId === bannerCategoryId ? "Cards" : "Other" },
+        asset: { id: categoryId === bannerCategoryId ? imageId : otherBannerAssetId, public_url: "/synthetic-banner-image.png" },
+      }], next_cursor: null });
+    }
     if (path.endsWith("/catalog/categories") || path.endsWith("/catalog/tags")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/gachas")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/ranks")) return json(route, { items: [{ id: rankId, rank_name: "A", status: "active" }], next_cursor: null });
@@ -166,6 +182,55 @@ for (const width of [1440, 390]) {
 }
 
 for (const type of ["login_daily", "signup_once"]) {
+  for (const width of [1440, 390]) {
+    test(`${type} ${width}px prize uses the standard category-scoped Banner picker without thumbnail changes`, async ({ page }, testInfo) => {
+      await installApi(page);
+      await page.setViewportSize({ width, height: 900 });
+      const errors: string[] = [];
+      const saved: Record<string, unknown>[] = [];
+      const uploads: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      page.on("request", (request) => { if (request.url().endsWith("/catalog/gacha-thumbnails")) uploads.push(request.url()); });
+      const source = projection(type);
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/copy`, (route) => json(route, { data: source }));
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: source }));
+      await page.route("**/admin/api/v2/catalog/gacha-compositions", (route) => {
+        saved.push(route.request().postDataJSON() as Record<string, unknown>);
+        return json(route, { data: { id: rankId, public_code: gachaId } });
+      });
+      await page.goto(`/catalog/gachas/${gachaId}/copy`);
+      const prize = page.locator(".catalog-prize-fieldset").first();
+      const category = prize.getByRole("combobox", { name: "Banner Category", exact: true });
+      await expect(category).toHaveValue(bannerCategoryId);
+      await expect(prize.getByRole("button", { name: "Card Banner", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByLabel(/サムネイル画像/u)).toHaveAttribute("type", "file");
+      await expect(page.getByLabel("景品画像", { exact: true })).toHaveCount(0);
+      await page.getByLabel("公開開始日時（JST）").fill("2026-10-02T00:00");
+      await category.selectOption("empty");
+      await expect(prize.getByText("このCategoryに選択可能なBannerはありません。")).toBeVisible();
+      await page.getByRole("button", { name: "構成を一括保存" }).click();
+      await expect(page.getByRole("alert").filter({ hasText: "選択したBanner Category" })).toBeVisible();
+      expect(saved).toHaveLength(0);
+      await category.selectOption(otherBannerCategoryId);
+      await expect(prize.getByRole("button", { name: "Card Banner", exact: true })).toHaveCount(0);
+      const banner = prize.getByRole("button", { name: "Other Banner", exact: true });
+      await expect(banner.locator("img")).toBeVisible();
+      await banner.click();
+      await expect(banner).toHaveAttribute("aria-pressed", "true");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await prize.screenshot({ path: testInfo.outputPath(`prize-${type}-${width}.png`) });
+      await page.getByRole("button", { name: "構成を一括保存" }).click();
+      await expect.poll(() => saved.length).toBe(1);
+      expect(saved[0]).toMatchObject({ gacha_type: type, presentation_asset_id: imageId, prizes: [
+        { presentation_asset_id: otherBannerAssetId, percentage: "0.0000000001" },
+        { presentation_asset_id: imageId, percentage: "99.9999999999" },
+      ] });
+      expect(uploads).toHaveLength(0);
+      expect(errors).toEqual([]);
+    });
+  }
+
   for (const replace of [false, true]) {
     test(`${type} copy ${replace ? "replaces" : "reuses"} the canonical thumbnail through a successful save`, async ({ page }) => {
       await installApi(page);
