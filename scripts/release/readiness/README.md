@@ -81,7 +81,7 @@ immutable reference and `non_applicability_reason` in a permitted position.
 | R1 | exact_source, workflow_authority, approved_source, existing_source_policy, source_identity |
 | R2 | exact service_scope and per-service artifact receipts, including reused artifacts |
 | R3 | contract_provenance equal to the approved target_contract, never an implicit latest version |
-| R4 | complete raw canonical GitHub check-run inventories for head and workflow SHA |
+| R4 | complete raw canonical GitHub check-run inventories for head/workflow and every non-null Platform/Storefront Source |
 | R5 | runtime_delta_inventory from Snapshot services and all runtime surfaces, complete_diff, all_runtime_deltas_approved, no_known_holds |
 | R6 | migration_assessment, compatibility, activation_order, env_requirement_delta, restore_point, exact service Stage evidence and RB1–RB6 |
 
@@ -89,6 +89,11 @@ Boolean assessment facts carry the existing validator or Human assessment
 result; they do not make new provider, accounting or security decisions.
 R4 reuses `infrastructure/github-app/check_run_gate.py` including latest-run,
 source-App and exact-head validation, with the canonical Required Check set.
+Each Source Repository is mandatory even when another Repository's checks pass.
+Reviewed-tree reuse requires an explicit `source_sha`, matching exact
+`source_tree_sha` / `checked_tree_sha`, immutable `tree_evidence_reference`, and
+the original checked `head_sha`. Missing or mismatching tree correspondence
+cannot reuse those checks. No runtime or network lookup is performed.
 `adapters.py` replays the existing Production source-authority validator using
 only supplied API responses and maps `preview_image_artifact.verify_artifact`
 receipts. It never invokes an online getter or rebuilds an Artifact.

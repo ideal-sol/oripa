@@ -162,26 +162,36 @@ def classify(candidate):
 
 
 def required_checks(candidate):
-    required_heads = {candidate["head_sha"], candidate["workflow_authority"]}
+    required_targets = {(candidate["repository"], candidate["head_sha"]),
+                        (candidate["repository"], candidate["workflow_authority"])}
+    repositories = {"platform": "ideal-sol/oripa", "storefront": "ideal-sol/luxe-pack-storefront"}
+    required_targets.update((repositories[realm], source) for realm, source in candidate["source"].items() if source is not None)
     rows = candidate.get("required_check_evidence", [])
     checks = []
-    for head in sorted(required_heads):
+    for repository, head in sorted(required_targets):
         matches_rows = [row for row in rows if isinstance(row, dict)
-                        and row.get("repository") == candidate["repository"] and row.get("head_sha") == head]
+                        and row.get("repository") == repository and row.get("head_sha") == head]
+        if not matches_rows:
+            matches_rows = [row for row in rows if isinstance(row, dict)
+                            and row.get("repository") == repository and row.get("source_sha") == head
+                            and matches(SHA, row.get("head_sha")) and matches(SHA, row.get("source_tree_sha"))
+                            and row.get("source_tree_sha") == row.get("checked_tree_sha")
+                            and text(row.get("tree_evidence_reference"))]
         if len(matches_rows) != 1 or not text(matches_rows[0].get("evidence_reference")):
-            checks.append(result("UNKNOWN", "REQUIRED_CHECKS_MISSING"))
+            checks.append(result("UNKNOWN", repository + ":REQUIRED_CHECKS_MISSING"))
             continue
         row = matches_rows[0]
         if not isinstance(row.get("check_runs"), list) or row.get("complete") is not True:
             checks.append(result("UNKNOWN", "CHECK_INVENTORY_INCOMPLETE"))
             continue
         evaluation = CHECKS["evaluate_required_check_runs"](
-            row["check_runs"], head_sha=head, required_checks=REQUIRED_CHECKS,
+            row["check_runs"], head_sha=row["head_sha"], required_checks=REQUIRED_CHECKS,
         )
         failures = evaluation["failures"]
         mismatch = any(failure.endswith((":not_success", ":stale_head", ":source_mismatch", ":invalid_order")) for failure in failures)
         checks.append(result("PASS" if evaluation["passed"] else "HOLD" if mismatch else "UNKNOWN",
-                             "REQUIRED_CHECKS:" + (",".join(failures) or "PASS"), [row["evidence_reference"]]))
+                             repository + ":REQUIRED_CHECKS:" + (",".join(failures) or "PASS"),
+                             [row["evidence_reference"]] + ([row["tree_evidence_reference"]] if row["head_sha"] != head else [])))
     return checks
 
 

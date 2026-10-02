@@ -334,3 +334,25 @@ class ReadinessTests(unittest.TestCase):
                 ], capture_output=True, check=False)
                 self.assertEqual(completed.returncode, 0)
                 self.assertEqual(json.loads(output.read_text())["shadow_final_status"], "SHADOW_UNKNOWN")
+
+    def test_every_source_repository_requires_checks_and_exact_tree_reuse(self):
+        self.candidate["source"]["storefront"] = "c" * 40
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "UNKNOWN")
+        storefront = copy.deepcopy(self.candidate["required_check_evidence"][0])
+        storefront.update(repository="ideal-sol/luxe-pack-storefront", head_sha="c" * 40)
+        for check in storefront["check_runs"]:
+            check["head_sha"] = "c" * 40
+        self.candidate["required_check_evidence"].append(storefront)
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "PASS")
+        storefront["check_runs"][0]["conclusion"] = "failure"
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "HOLD")
+        storefront["check_runs"][0]["conclusion"] = "success"
+        storefront["head_sha"] = "d" * 40
+        for check in storefront["check_runs"]:
+            check["head_sha"] = "d" * 40
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "UNKNOWN")
+        storefront.update(source_sha="c" * 40, source_tree_sha="e" * 40, checked_tree_sha="e" * 40,
+                          tree_evidence_reference="fixture:canonical-reviewed-tree-authority")
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "PASS")
+        storefront["checked_tree_sha"] = "f" * 40
+        self.assertEqual(gate.aggregate(gate.required_checks(self.candidate)), "UNKNOWN")
