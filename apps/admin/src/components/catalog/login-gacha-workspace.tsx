@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
+import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { usePermissions } from "@/components/permissions/permission-provider";
@@ -38,6 +39,8 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [error, setError] = useState<AdminApiError | null>(null);
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const thumbnailUpload = useRef<{ file: File; key: string; asset?: AdminCatalogPresentationAsset } | null>(null);
   const pending = useRef<{ fingerprint: string; key: string } | null>(null);
   const canManage = hasPermission("catalog.manage");
   const locked = !canManage || !!gacha && !copy && (gacha.first_published_at !== null || gacha.publication_status !== "draft");
@@ -76,6 +79,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       ]);
       if (controller.signal.aborted) return;
       setRanks(selectedRanks); setAssets(selectedAssets); setCategories(selectedCategories); setTags(selectedTags);
+      setThumbnailFile(null); thumbnailUpload.current = null;
       setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false);
     }
     load().catch((cause: unknown) => {
@@ -124,6 +128,8 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
 
   async function save() {
     if (!draft.publish_start_at || (login && !total.valid) || locked) return;
+    const thumbnailError = gachaThumbnailError(thumbnailFile, draft.presentation_asset_id);
+    if (thumbnailError) { setNotice(thumbnailError); return; }
     if (sourceId && !copy && typeof gacha?.current_version?.revision !== "number") {
       setNotice("リビジョンを取得できません。再読み込みしてください。");
       return;
@@ -136,6 +142,14 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       return;
     }
     await act(async () => {
+      if (thumbnailFile) {
+        if (thumbnailUpload.current?.file !== thumbnailFile) {
+          thumbnailUpload.current = { file: thumbnailFile, key: crypto.randomUUID() };
+        }
+        const upload = thumbnailUpload.current;
+        if (!upload.asset) upload.asset = (await uploadGachaThumbnail(client, thumbnailFile, upload.key)).data;
+        body.presentation_asset_id = upload.asset.id;
+      }
       const key = mutationKey(JSON.stringify(body));
       const result = sourceId && !copy && gacha?.current_version
         ? await client.updateGachaComposition(sourceId, { composition: body, expected_revision: gacha.revision, expected_version_revision: gacha.current_version.revision! }, key)
@@ -202,13 +216,18 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
           {gacha.publication_status === "sales_paused" ? <button type="button" className="secondary-button" disabled={busy} onClick={() => void lifecycle("resume")}>販売再開</button> : null}
         </> : null}
       </section> : null}
-      <form className="catalog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <CatalogGachaFormCard title={sourceId && !copy ? "ガチャ編集" : "ガチャ登録"} readOnly={locked}
+        description={locked ? "公開後は構成を変更できません。サムネイルも参照専用です。" : "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。"}>
+      <form className="catalog-mutation-form catalog-sectioned-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <fieldset disabled={locked || busy}><legend>基本情報</legend>
           <label>ガチャ名<input required maxLength={191} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-          {assetSelect(draft.presentation_asset_id, (value) => setDraft({ ...draft, presentation_asset_id: value }), "サムネイル")}
+          <GachaThumbnailField key={`${sourceId ?? "new"}:${reload}`} current={assets.find((asset) => asset.id === draft.presentation_asset_id) ?? null}
+            disabled={locked || busy} required={!draft.presentation_asset_id} onChange={(file) => { setThumbnailFile(file); setNotice(""); }} />
+          <div className="catalog-form-grid">
           {draft.gacha_type !== "signup_once" ? <label>消費ポイント<input required type="number" min={login ? 0 : 1} step={1} value={draft.price_points} onChange={(event) => setDraft({ ...draft, price_points: Number(event.target.value) })} /></label> : <p>消費ポイント: 無料（0）</p>}
-          {login ? <p>抽選回数: 1回固定</p> : null}
           {draft.gacha_type === "login_daily" ? <label>最低保証（交換ポイント）<input required type="number" min={0} step={1} value={draft.minimum_exchange_points ?? 0} onChange={(event) => setDraft({ ...draft, minimum_exchange_points: Number(event.target.value) })} /></label> : null}
+          </div>
+          {login ? <p className="field-hint">抽選回数: 1回固定 / {draft.gacha_type === "login_daily" ? "1ユーザー1日1回（JST）" : "1ユーザー1回・利用期限なし・公開開始日時以降の新規登録完了ユーザー"}</p> : null}
           {!login ? <><label>総口数<input required type="number" min={1} step={1} value={draft.total_count ?? 1} onChange={(event) => setDraft({ ...draft, total_count: Number(event.target.value) })} /></label>
             <label>カテゴリ<select required value={draft.category_id ?? ""} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}><option value="">選択してください</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label>タグ<select multiple value={draft.tag_ids} onChange={(event) => setDraft({ ...draft, tag_ids: Array.from(event.target.selectedOptions, (option) => option.value) })}>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
@@ -217,13 +236,15 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             {draft.audience_code === "first_time_users" ? <label>初回ユーザー期間（日）<input type="number" min={1} max={365} value={draft.first_time_eligible_days} onChange={(event) => setDraft({ ...draft, first_time_eligible_days: Number(event.target.value) })} /></label> : null}
             <fieldset><legend>許可抽選回数</legend>{([1, 5, 10, 100, 1000] as const).map((count) => <label key={count}><input type="checkbox" checked={draft.allowed_draw_counts.includes(count)} onChange={(event) => setDraft({ ...draft, allowed_draw_counts: event.target.checked ? [...draft.allowed_draw_counts, count].sort((first, second) => first - second) : draft.allowed_draw_counts.filter((value) => value !== count) })} />{count}回</label>)}</fieldset>
           </> : null}
+          <div className="catalog-form-grid">
           <label>公開開始日時（JST）<input required type="datetime-local" value={jstInput(draft.publish_start_at)} onChange={(event) => setDraft({ ...draft, publish_start_at: jstTimestamp(event.target.value) })} /></label>
           <label>公開終了日時（JST・任意）<input type="datetime-local" value={jstInput(draft.publish_end_at)} onChange={(event) => setDraft({ ...draft, publish_end_at: jstTimestamp(event.target.value) })} /></label>
+          </div>
           <label>説明<textarea value={draft.description ?? ""} maxLength={10000} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
           <label>注意事項<textarea value={draft.notices ?? ""} maxLength={10000} onChange={(event) => setDraft({ ...draft, notices: event.target.value || null })} /></label>
         </fieldset>
         <fieldset disabled={locked || busy}><legend>景品と演出</legend>
-          {draft.prizes.map((prize, index) => <section className="catalog-detail" key={index}>
+          {draft.prizes.map((prize, index) => <section className="catalog-prize-fieldset" key={index}>
             <h3>景品 {index + 1}</h3>
             <label>景品名<input required maxLength={191} value={prize.name} onChange={(event) => updatePrize(index, { name: event.target.value })} /></label>
             {assetSelect(prize.presentation_asset_id, (value) => updatePrize(index, { presentation_asset_id: value }), "景品画像")}
@@ -251,8 +272,9 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
           </label>)}
         </fieldset>
         {login ? <p role="status">確率合計: {total.label} {total.valid ? "（100%・保存可能）" : "（各景品を正の値、合計を厳密に100%にしてください）"}</p> : null}
-        {!locked ? <button type="submit" className="primary-button" disabled={busy || (login && !total.valid) || !draft.prizes.length}>構成を一括保存</button> : null}
+        {!locked ? <div className="catalog-dialog-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => router.push("/catalog/gachas")}>取り消し</button><button type="submit" className="primary-button" disabled={busy || (login && !total.valid) || !draft.prizes.length}>構成を一括保存</button></div> : null}
       </form>
+      </CatalogGachaFormCard>
       {sourceId && !copy && gacha?.first_published_at ? <section className="catalog-detail"><h2>運用在庫</h2><p>初期在庫は変更しません。いずれかの景品が0になるとTOP非表示・抽選停止になり、補充で自動復帰します。販売停止中は編集できません。在庫0でも販売再開でき、補充までは非表示・抽選不可です。</p>
         {inventory.map((prize) => <form key={prize.id} className="catalog-toolbar" onSubmit={(event) => {
           event.preventDefault();

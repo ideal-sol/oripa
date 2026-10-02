@@ -21,6 +21,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_login_gacha_ui_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", "LOGIN-GACHA-UI-20261002"),
+            "[LOGIN-GACHA-UI-20261002] Admin layout and thumbnail",
+            data["changed_paths"],
+            data["base_sha"],
+        )
+        for task_id in ("LOGIN-GACHA-UI-20261003", "LOGIN-GACHA-UI-*", "LOGIN-GACHA-UI-20261002A", "LOGIN-GACHA-UI-20261002-EXTRA"):
+            with self.subTest(task_id=task_id):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(task_id))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                    policy_gate.validate_pr_body(
+                        data["pr_body"].replace("GOV-008", task_id),
+                        f"[{task_id}] Admin layout",
+                        data["changed_paths"], data["base_sha"],
+                    )
+
     def test_login_gacha_admin_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/e2e/admin-login-gacha.spec.ts",
