@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import GachaCreatePage from "@/app/catalog/gachas/new/page";
 import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType } from "@/lib/admin-api/generated";
+import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType, AdminManagedBanner } from "@/lib/admin-api/generated";
 import { drawStateCountLabel, emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits, standardCoreVersion, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 const callbacks = vi.hoisted(() => ({ expireSession: vi.fn(), push: vi.fn() }));
@@ -17,6 +17,8 @@ vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({
 afterEach(() => { vi.restoreAllMocks(); });
 
 function selections() {
+  vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [] });
+  vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listCatalogRanks").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listCatalogPresentationAssets").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listCatalogCategories").mockResolvedValue({ items: [], next_cursor: null });
@@ -118,6 +120,79 @@ const thumbnail: AdminCatalogPresentationAsset = {
   checksum_sha256: "a".repeat(64), byte_size: 68, revision: 1, is_archived: false, archived_at: null, created_at: "", updated_at: "",
 };
 
+function prizeBanner(categoryId: string, assetId: string): AdminManagedBanner {
+  return { id: `banner-${assetId}`, title: `Banner ${assetId}`, status: "published", show_on_top: false, link_url: null,
+    category: { id: categoryId, name: categoryId }, asset: { id: assetId, public_url: "/qa-banner.png" },
+    version_id: "banner-version", version_number: 1, created_at: "", updated_at: "" };
+}
+
+describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picker", (type) => {
+  it("loads category-scoped paginated Banners and saves only the selected Asset without changing the thumbnail", async () => {
+    const { update, upload } = thumbnailFixture(type);
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }, { id: "empty", name: "Empty" }] });
+    const list = vi.mocked(AdminApiClient.prototype.listManagedBanners).mockImplementation(async (query) => query?.category_id === "cards"
+      ? { items: [prizeBanner("cards", query.cursor ? "chosen" : "first")], next_cursor: query.cursor ? null : "next" }
+      : { items: [], next_cursor: null });
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    const category = await screen.findByLabelText("Banner Category");
+    await screen.findByText(/一意に特定できませんでした/u);
+    expect(screen.queryByLabelText("景品画像")).not.toBeInTheDocument();
+    fireEvent.change(category, { target: { value: "cards" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Banner chosen" }));
+    expect(screen.getByRole("button", { name: "Banner chosen" })).toHaveAttribute("aria-pressed", "true");
+    expect(list).toHaveBeenCalledWith({ category_id: "cards", cursor: "next" }, expect.any(AbortSignal));
+    fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith("source", expect.objectContaining({ composition: expect.objectContaining({
+      presentation_asset_id: thumbnail.id, prizes: [expect.objectContaining({ presentation_asset_id: "chosen", percentage: "100.0000000000" })],
+    }) }), expect.any(String)));
+    expect(upload).not.toHaveBeenCalled();
+    fireEvent.change(category, { target: { value: "empty" } });
+    await screen.findByText("このCategoryに選択可能なBannerはありません。");
+    expect(screen.queryByRole("button", { name: "Banner chosen" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+    expect(screen.getByText("選択したBanner CategoryからBannerを選択してください。")).toHaveAttribute("role", "alert");
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an unresolved existing Copy Asset unless a different Banner is selected", async () => {
+    const { create, upload } = thumbnailFixture(type, "published", true);
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
+    render(<LoginGachaWorkspace type={type} sourceId="source" copy />);
+    await screen.findByText(/一意に特定できませんでした/u);
+    fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-02T00:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      presentation_asset_id: thumbnail.id, prizes: [expect.objectContaining({ presentation_asset_id: thumbnail.id })],
+    }), expect.any(String)));
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("preserves the second prize picker state when the first prize is removed", async () => {
+    thumbnailFixture(type);
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
+    vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [prizeBanner("cards", "second")], next_cursor: null });
+    const { container } = render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    await screen.findByLabelText("Banner Category");
+    fireEvent.click(screen.getByRole("button", { name: "景品を追加" }));
+    const second = within(container.querySelectorAll<HTMLElement>(".catalog-prize-fieldset")[1]);
+    await second.findByRole("option", { name: "Cards" });
+    fireEvent.change(second.getByLabelText("Banner Category"), { target: { value: "cards" } });
+    fireEvent.click(await second.findByRole("button", { name: "Banner second" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "景品を削除" })[0]);
+    expect(screen.getByLabelText("Banner Category")).toHaveValue("cards");
+    expect(screen.getByRole("button", { name: "Banner second" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows the existing shared picker error without creating or uploading data", async () => {
+    const { update, upload } = thumbnailFixture(type);
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockRejectedValue(new Error("QA network error"));
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("選択肢を取得できませんでした。");
+    expect(update).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+  });
+});
+
 function thumbnailFixture(type: AdminGachaType, status: "draft" | "published" | "sales_paused" = "draft", copy = false) {
   selections();
   vi.spyOn(AdminApiClient.prototype, "getCatalogPresentationAsset").mockResolvedValue({ data: thumbnail });
@@ -162,6 +237,7 @@ describe.each(["login_daily", "signup_once"] as const)("%s shared thumbnail form
       const { upload, update } = thumbnailFixture(type, status);
       render(<LoginGachaWorkspace type={type} sourceId="source" />);
       expect(await screen.findByLabelText(/サムネイル画像/u)).toBeDisabled();
+      expect(screen.getByLabelText("Banner Category")).toBeDisabled();
       expect(screen.getAllByAltText("現在のサムネイル")[0]).toHaveAttribute("src", thumbnail.public_path);
       expect(screen.queryByRole("button", { name: "構成を一括保存" })).not.toBeInTheDocument();
       expect(upload).not.toHaveBeenCalled();

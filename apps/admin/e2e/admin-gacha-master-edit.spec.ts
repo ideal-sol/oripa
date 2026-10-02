@@ -75,6 +75,59 @@ for (const width of [1440, 1366, 390]) {
   });
 }
 
+for (const width of [1440, 390]) {
+  test(`standard ${width}px prize registration selects Banner Category then its Banner Asset`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const errors: string[] = [];
+    const saved: Record<string, unknown>[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    const image = { id: assetId, path: `/admin/api/v2/catalog/presentation-assets/${assetId}/content`, alt_text: "Rank", media_type: "image", revision_number: 1 };
+    await page.route("**/qa-prize-video.mp4", (route) => route.fulfill({ contentType: "video/mp4", body: Buffer.alloc(0) }));
+    await page.route(`**/catalog/gachas/${gachaCode}/ranks`, (route) => json(route, { items: [{
+      rank: { id: rankId, rank_name: "S", lineup_image: image, result_image: image, show_total_stock: false, status: "active", display_order: 0, revision: 1, revision_number: 1 },
+      gacha_rank_id: null, gacha_rank_revision: null, can_unset_video: true, current_video: { id: uploadedAssetId, path: "/qa-prize-video.mp4" },
+    }] }));
+    await page.route("**/catalog/rank-effects*", (route) => json(route, { items: [{ id: uploadedAssetId, media_type: "video", is_public: true, alt_text: "QA video" }], next_cursor: null }));
+    await page.route("**/banner-management/categories", (route) => json(route, { items: [{ id: categoryId, name: "Cards" }, { id: tagId, name: "Other" }] }));
+    await page.route("**/banner-management/banners?*", (route) => {
+      const selected = new URL(route.request().url()).searchParams.get("category_id");
+      expect([categoryId, tagId]).toContain(selected);
+      return json(route, { items: [{ id: `banner-${selected}`, title: selected === categoryId ? "Card Banner" : "Other Banner",
+        category: { id: selected, name: selected === categoryId ? "Cards" : "Other" },
+        asset: { id: selected === categoryId ? assetId : uploadedAssetId, public_url: image.path },
+      }], next_cursor: null });
+    });
+    await page.route(`**/catalog/gachas/${gachaCode}/versions/${versionId}/ranks/${rankId}/prizes`, (route) => {
+      saved.push(route.request().postDataJSON() as Record<string, unknown>);
+      return json(route, { data: prize(), idempotent_replay: false });
+    });
+    await page.goto(`/catalog/gachas/${gachaCode}`);
+    await page.getByRole("button", { name: "景品登録", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "新規景品登録" });
+    await dialog.getByLabel("景品名", { exact: true }).fill("QA Banner prize");
+    const category = dialog.getByRole("combobox", { name: "Banner Category", exact: true });
+    await category.selectOption(categoryId);
+    const first = dialog.getByRole("button", { name: "Card Banner", exact: true });
+    await expect(first.locator("img")).toBeVisible();
+    await first.click();
+    await expect(first).toHaveAttribute("aria-pressed", "true");
+    await category.selectOption(tagId);
+    await expect(first).toHaveCount(0);
+    await dialog.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText("選択したBanner CategoryからBannerを選択してください。");
+    expect(saved).toHaveLength(0);
+    const second = dialog.getByRole("button", { name: "Other Banner", exact: true });
+    await second.click();
+    await expect(second).toHaveAttribute("aria-pressed", "true");
+    await dialog.screenshot({ path: testInfo.outputPath(`standard-prize-${width}.png`) });
+    await dialog.getByRole("button", { name: "保存", exact: true }).click();
+    await expect.poll(() => saved.length).toBe(1);
+    expect(saved[0]).toMatchObject({ presentation_asset_id: uploadedAssetId, name: "QA Banner prize" });
+    expect(errors).toEqual([]);
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((token) => {
     Object.defineProperty(Document.prototype, "cookie", {
