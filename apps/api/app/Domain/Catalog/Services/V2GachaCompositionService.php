@@ -18,6 +18,11 @@ final class V2GachaCompositionService
 
     public function validate(array $input): array
     {
+        $useDefault = array_key_exists('use_default_rank_video', $input) ? $input['use_default_rank_video'] : true;
+        if (! is_bool($useDefault)) {
+            throw $this->invalid();
+        }
+        unset($input['use_default_rank_video']);
         foreach (is_array($input['ranks'] ?? null) ? $input['ranks'] : [] as $index => $rank) {
             if (is_array($rank)) {
                 unset($input['ranks'][$index]['presentation']);
@@ -122,7 +127,7 @@ final class V2GachaCompositionService
             throw $this->invalid();
         }
 
-        return $input;
+        return [...$input, 'use_default_rank_video' => $useDefault];
     }
 
     public function save(array $payload, ?object $gacha = null, ?int $expectedVersionRevision = null): object
@@ -146,6 +151,13 @@ final class V2GachaCompositionService
                 'created_at' => $now, 'updated_at' => $now,
             ]);
             $gacha = DB::table('catalog_gachas')->where('id', $gachaId)->firstOrFail();
+            if ($payload['use_default_rank_video'] ?? true) {
+                $defaultVideo = app(V2CatalogMasterMutationService::class)->initializeRankVideos((int) $gachaId);
+                foreach ($payload['ranks'] as &$rankInput) {
+                    $rankInput['video_asset_id'] ??= $defaultVideo;
+                }
+                unset($rankInput);
+            }
             $version = null;
         } else {
             $version = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)->where('status', 'draft')

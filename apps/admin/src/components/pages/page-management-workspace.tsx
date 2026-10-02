@@ -13,7 +13,6 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { type FormEvent, type RefObject, useEffect, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -123,7 +122,6 @@ function PageList({ initialStatus }: { initialStatus: "draft" | "published" | "p
 }
 
 function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: string }) {
-  const router = useRouter();
   const { permissions } = usePermissions();
   const canManage = permissions.has("content.manage");
   const [categories, setCategories] = useState<AdminPageCategory[]>([]);
@@ -134,6 +132,9 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<AdminManagedPagePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedPage, setSavedPage] = useState<AdminManagedPage | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -142,7 +143,9 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
       client.listPageCategories(controller.signal),
       mode === "edit" && pageId ? client.getManagedPage(pageId, controller.signal) : Promise.resolve(null),
     ]).then(([categoryResult, page]) => {
+      if (controller.signal.aborted) return;
       setCategories(categoryResult.items);
+      setSavedPage(page);
       if (page) setDraft({ body_html: page.body_html, category_id: page.category?.id ?? "", footer_sort_order: page.footer_sort_order, show_in_footer: page.show_in_footer, slug: page.slug, title: page.title, visibility: page.visibility });
       setError(null);
     }).catch((reason: unknown) => {
@@ -155,20 +158,27 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canManage || !draft.category_id) return;
+    if (!canManage || !draft.category_id || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
+    setMessage(null);
     const payload = { ...draft, title: draft.title.normalize("NFC").trim(), slug: canonicalSlug(draft.slug) };
     try {
       const client = new AdminApiClient();
-      const result = mode === "create"
-        ? await client.createManagedPage(payload, crypto.randomUUID())
-        : await client.updateManagedPage(pageId ?? "", payload, crypto.randomUUID());
-      await client.getManagedPage(result.id);
-      router.push(`/settings/pages/${result.id}`);
-      router.refresh();
+      const identifier = savedPage?.id ?? pageId;
+      const result = identifier
+        ? await client.updateManagedPage(identifier, payload, crypto.randomUUID())
+        : await client.createManagedPage(payload, crypto.randomUUID());
+      setSavedPage(result);
+      setDraft({ body_html: result.body_html, category_id: result.category?.id ?? "",
+        footer_sort_order: result.footer_sort_order, show_in_footer: result.show_in_footer,
+        slug: result.slug, title: result.title, visibility: result.visibility });
+      setMessage("保存に成功しました。");
     } catch (reason) {
       setError(pageError(reason));
+    } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -190,10 +200,11 @@ function PageForm({ mode, pageId }: { mode: Exclude<Mode, "list">; pageId?: stri
   }
 
   return <main className="workspace announcement-workspace">
-    <AdminPageHeader eyebrow="Settings" title={mode === "create" ? "ページ新規登録" : "ページ編集"} description="V1と同じタイトル・本文構成で固定ページを管理します。" />
+    <AdminPageHeader eyebrow="Settings" title={mode === "create" && !savedPage ? "ページ新規登録" : "ページ編集"} description="V1と同じタイトル・本文構成で固定ページを管理します。" />
     {loading ? <State text="ページ設定を読み込んでいます。" /> : error && mode === "edit" && !draft.title ? <State error text={error} /> : (
       <form className="announcement-form" onSubmit={submit}>
         {error ? <div className="form-error" role="alert">{error}</div> : null}
+        {message ? <p className="status-alert" role="status">{message}</p> : null}
         <label>タイトル<input disabled={!canManage} maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
         <div className="rich-text-field"><span>本文内容</span><RichTextEditor disabled={!canManage} label="ページ本文" value={draft.body_html} onChange={(body_html) => setDraft((current) => ({ ...current, body_html }))} /></div>
         <div className="announcement-form-grid">

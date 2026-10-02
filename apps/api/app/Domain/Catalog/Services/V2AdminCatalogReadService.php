@@ -1371,6 +1371,7 @@ final class V2AdminCatalogReadService
     ): array {
         $this->authorize($context);
         $direction = $this->enum($filters, 'direction', ['asc', 'desc'], 'desc');
+        $mediaType = $this->enum($filters, 'media_type', ['all', 'image', 'video'], 'all');
         $query = DB::table('catalog_presentation_assets as asset')
             ->join(
                 'catalog_rank_effect_materials as material',
@@ -1389,11 +1390,15 @@ final class V2AdminCatalogReadService
                 'asset.byte_size',
                 'asset.alt_text',
                 'asset.is_public',
+                'asset.is_default_rank_video',
                 'asset.revision',
                 'asset.archived_at',
                 'asset.created_at',
                 'asset.updated_at',
             ]);
+        if ($mediaType !== 'all') {
+            $query->where('asset.media_type', $mediaType);
+        }
         $this->applySearch($query, $filters, ['asset.alt_text', 'asset.mime_type']);
         $this->applyVisibility($query, $filters, 'asset.is_public');
 
@@ -1429,6 +1434,7 @@ final class V2AdminCatalogReadService
                 'asset.public_id', 'asset.public_path', 'asset.checksum_sha256',
                 'asset.media_type', 'asset.mime_type', 'asset.byte_size',
                 'asset.alt_text', 'asset.is_public', 'asset.revision',
+                'asset.is_default_rank_video',
                 'asset.archived_at', 'asset.created_at', 'asset.updated_at',
             ]);
         if ($row === null) {
@@ -2264,6 +2270,7 @@ final class V2AdminCatalogReadService
     {
         return [
             ...$this->mapAsset($row),
+            'is_default' => (bool) $row->is_default_rank_video,
             'content_path' => '/admin/api/v2/catalog/presentation-assets/'
                 .$row->public_id.'/content',
         ];

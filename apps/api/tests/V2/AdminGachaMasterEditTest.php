@@ -101,6 +101,24 @@ final class AdminGachaMasterEditTest extends TestCase
             ->assertOk()->assertJsonPath('data.public_code', $created['public_code']);
     }
 
+    public function test_standard_core_initializes_real_rank_videos_only_when_a_default_exists(): void
+    {
+        $token = $this->createAdminSession();
+        $empty = $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', $this->coreInput(self::ASSET_ID), 'rank-video-none')->assertCreated()->json('data');
+        $emptyId = DB::table('catalog_gachas')->where('public_id', $empty['id'])->value('id');
+        self::assertSame(0, DB::table('catalog_gacha_ranks')->where('gacha_id', $emptyId)->whereNotNull('current_video_revision_id')->count());
+        $videoId = DB::table('catalog_presentation_assets')->where('media_type', 'video')->value('id');
+        DB::table('catalog_presentation_assets')->where('id', $videoId)->update(['is_default_rank_video' => true, 'revision' => DB::raw('revision + 1')]);
+        Auth::forgetGuards();
+        $created = $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', $this->coreInput(self::ASSET_ID), 'rank-video-present')->assertCreated()->json('data');
+        $internalId = DB::table('catalog_gachas')->where('public_id', $created['id'])->value('id');
+        $videos = DB::table('catalog_gacha_ranks as rank')->join('catalog_gacha_rank_video_revisions as video', 'video.id', '=', 'rank.current_video_revision_id')
+            ->where('rank.gacha_id', $internalId)->pluck('video.video_asset_id');
+        self::assertCount(DB::table('catalog_rank_masters')->where('status', 'active')->count(), $videos);
+        self::assertSame([$videoId], $videos->unique()->all());
+        self::assertSame(0, DB::table('catalog_gacha_ranks')->where('gacha_id', $emptyId)->whereNotNull('current_video_revision_id')->count());
+    }
+
     public function test_master_edit_updates_existing_draft_and_keeps_thumbnail_when_unchanged(): void
     {
         $token = $this->createAdminSession();

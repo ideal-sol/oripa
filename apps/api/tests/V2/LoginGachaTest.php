@@ -543,6 +543,61 @@ final class LoginGachaTest extends TestCase
         }
     }
 
+    public function test_default_initializes_every_type_without_retroactivity_or_copy_replacement(): void
+    {
+        $default = '0198a001-0000-7000-8000-000000000006';
+        $alternates = [];
+        foreach (['B', 'C'] as $title) {
+            $alternates[] = $this->mutate('POST', '/admin/api/v2/catalog/rank-effects?media_type=video', [
+                'title' => $title, 'asset_type' => 'video', 'is_active' => true,
+                'file_name' => 'video.mp4', 'mime_type' => 'video/mp4',
+                'content_base64' => base64_encode(hex2bin('00000018667479706d703432000000006d70343269736f6d')),
+            ])->assertCreated()->json('data.id');
+        }
+        $this->createPublished('login_daily');
+        $this->createPublished('signup_once');
+        $pinned = DB::table('catalog_gacha_version_ranks')->orderBy('id')->get()->toJson();
+        $before = DB::table('catalog_gacha_ranks')->orderBy('id')->get()->toJson();
+        DB::table('catalog_presentation_assets')->where('public_id', $default)->update(['is_default_rank_video' => true, 'revision' => DB::raw('revision + 1')]);
+        foreach (['standard', 'login_daily', 'signup_once'] as $type) {
+            $input = $this->input($type);
+            $input['ranks'][0]['video_asset_id'] = null;
+            if ($type === 'standard') {
+                $input['category_id'] = '0198a001-0000-7000-8000-000000000001';
+                $input['total_count'] = 6;
+                $input['price_points'] = 1;
+                foreach ($input['prizes'] as &$prize) {
+                    $prize['percentage'] = null;
+                }
+                unset($prize);
+            }
+            $gacha = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertCreated()->json('data');
+            $projection = app(V2GachaCopyService::class)->projection($gacha['id'], false);
+            self::assertSame($default, $projection['ranks'][0]['video_asset_id']);
+            $gachaId = DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('id');
+            self::assertSame(DB::table('catalog_rank_masters')->where('status', 'active')->count(),
+                DB::table('catalog_gacha_ranks')->where('gacha_id', $gachaId)->whereNotNull('current_video_revision_id')->count());
+            $this->mutate('PUT', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/ranks/'.$input['ranks'][0]['rank_id'].'/video', [
+                'video_asset_id' => $alternates[0], 'expected_revision' => 2,
+            ])->assertOk();
+            DB::table('catalog_presentation_assets')->where('public_id', $default)->update(['is_default_rank_video' => false, 'revision' => DB::raw('revision + 1')]);
+            DB::table('catalog_presentation_assets')->where('public_id', $alternates[1])->update(['is_default_rank_video' => true, 'revision' => DB::raw('revision + 1')]);
+            self::assertSame($alternates[0], app(V2GachaCopyService::class)->projection($gacha['id'], false)['ranks'][0]['video_asset_id']);
+            $copy = app(V2GachaCopyService::class)->projection($gacha['id'], true);
+            self::assertFalse($copy['use_default_rank_video']);
+            $copy['publish_start_at'] = $input['publish_start_at'];
+            $created = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $copy)->assertCreated()->json('data');
+            self::assertSame($alternates[0], app(V2GachaCopyService::class)->projection($created['id'], false)['ranks'][0]['video_asset_id']);
+            DB::table('catalog_presentation_assets')->where('public_id', $alternates[1])->update(['is_default_rank_video' => false, 'revision' => DB::raw('revision + 1')]);
+            DB::table('catalog_presentation_assets')->where('public_id', $default)->update(['is_default_rank_video' => true, 'revision' => DB::raw('revision + 1')]);
+        }
+        $originalIds = array_column(json_decode($before, true), 'id');
+        self::assertSame($before, DB::table('catalog_gacha_ranks')->whereIn('id', $originalIds)->orderBy('id')->get()->toJson());
+        $pinnedIds = array_column(json_decode($pinned, true), 'id');
+        self::assertSame($pinned, DB::table('catalog_gacha_version_ranks')->whereIn('id', $pinnedIds)->orderBy('id')->get()->toJson());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
     private function input(string $type = 'login_daily'): array
     {
         $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');

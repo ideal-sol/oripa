@@ -286,6 +286,7 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php",
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     "apps/api/database/migrations-v2/2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
     "apps/api/database/migrations-v2/2026_10_03_000077_add_v2_shipping_only_prizes.php",
@@ -3071,6 +3072,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
         "2026_10_03_000077_add_v2_shipping_only_prizes.php",
         "2026_10_04_000078_add_v2_login_gachas.php",
+        "2026_10_05_000079_add_v2_rank_video_default.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

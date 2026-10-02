@@ -134,8 +134,26 @@ class PolicyGateTest(unittest.TestCase):
                 if change == "missing":
                     migration.unlink()
                 else:
-                    number = "000078" if change == "duplicate_number" else "000079"
+                    number = "000078" if change == "duplicate_number" else "000080"
                     unexpected = migration.with_name(f"2026_10_04_{number}_unregistered.php")
+                    shutil.copy2(migration, unexpected)
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_rank_video_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000079" if change == "duplicate_number" else "000080"
+                    unexpected = migration.with_name(f"2026_10_05_{number}_unregistered.php")
                     shutil.copy2(migration, unexpected)
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)

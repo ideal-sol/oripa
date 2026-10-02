@@ -178,7 +178,90 @@ final class AdminRankEffectSettingsTest extends TestCase
         )));
     }
 
-    /** @return array<string, string> */
+    public function test_rank_video_boundary_filters_history_and_rejects_images(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $image = ['title' => 'Historical image', 'asset_type' => 'image', 'is_active' => true, ...$this->imageInput()];
+        $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects', $image)->assertCreated();
+        $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects?media_type=video', $image)->assertUnprocessable();
+        Auth::forgetGuards();
+        $this->asAdmin($token)->getJson('/admin/api/v2/catalog/rank-effects?media_type=video')
+            ->assertOk()->assertJsonCount(0, 'items');
+        self::assertDatabaseCount('catalog_rank_effect_materials', 1);
+    }
+
+    public function test_global_default_requires_explicit_unset_and_protects_every_asset_mutation(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $videos = [];
+        foreach (['A', 'B'] as $title) {
+            Auth::forgetGuards();
+            $videos[] = $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects?media_type=video', [
+                'title' => $title, 'asset_type' => 'video', 'is_active' => true, ...$this->videoInput(),
+            ])->assertCreated()->assertJsonPath('data.is_default', false)->json('data');
+        }
+        $update = function (array $video, array $changes = []) use ($token) {
+            Auth::forgetGuards();
+            return $this->mutate($token, 'PUT', '/admin/api/v2/catalog/rank-effects/'.$video['id'].'?media_type=video', [
+                'title' => $video['alt_text'], 'asset_type' => 'video', 'is_active' => true,
+                'expected_revision' => $video['revision'], ...$changes,
+            ]);
+        };
+        $first = $update($videos[0], ['is_default' => true])->assertOk()->assertJsonPath('data.is_default', true)->json('data');
+        $update($videos[1], ['is_default' => true])->assertConflict();
+        $update($first, ['is_active' => false])->assertConflict();
+        $update($first, ['is_default' => false, 'is_active' => false])->assertConflict();
+        $update($first, $this->videoInput())->assertConflict();
+        foreach (['PUT', 'POST'] as $method) {
+            Auth::forgetGuards();
+            $this->mutate($token, $method, '/admin/api/v2/catalog/presentation-assets/'.$first['id'].($method === 'POST' ? '/archive' : ''),
+                $method === 'POST' ? ['expected_revision' => $first['revision']]
+                    : ['expected_revision' => $first['revision'], 'alt_text' => 'A', 'is_public' => false])->assertConflict();
+        }
+        $first = $update($first, ['title' => 'Renamed'])->assertOk()->assertJsonPath('data.is_default', true)->json('data');
+        $update($videos[0], ['is_default' => false])->assertConflict();
+        $first = $update($first, ['is_default' => false])->assertOk()->assertJsonPath('data.is_default', false)->json('data');
+        self::assertSame(0, DB::table('catalog_presentation_assets')->where('is_default_rank_video', true)->count());
+        $replacement = $update($first, $this->videoInput())->assertOk()->assertJsonPath('data.is_default', false)->json('data');
+        self::assertNotSame($first['id'], $replacement['id']);
+        $update($videos[1], ['is_default' => true])->assertOk();
+        self::assertSame(1, DB::table('catalog_presentation_assets')->where('is_default_rank_video', true)->count());
+        $audit = DB::table('audit_logs')->where('action_code', 'catalog.rank_video.default_updated')->get();
+        self::assertCount(3, $audit);
+        self::assertStringContainsString('before_default', $audit[0]->metadata_redacted);
+        self::assertStringContainsString('after_default', $audit[0]->metadata_redacted);
+    }
+
+    public function test_default_database_constraints_reject_second_or_unusable_video(): void
+    {
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        $identifiers = [];
+        foreach (['video', 'video', 'image'] as $type) {
+            Auth::forgetGuards();
+            $identifiers[] = $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects', [
+                'title' => $type, 'asset_type' => $type, 'is_active' => true,
+                ...($type === 'video' ? $this->videoInput() : $this->imageInput()),
+            ])->assertCreated()->json('data.id');
+        }
+        DB::table('catalog_presentation_assets')->where('public_id', $identifiers[0])->update(['is_default_rank_video' => true, 'revision' => DB::raw('revision + 1')]);
+        foreach ([
+            [$identifiers[1], ['is_default_rank_video' => true]],
+            [$identifiers[2], ['is_default_rank_video' => true]],
+            [$identifiers[0], ['is_public' => false]],
+            [$identifiers[0], ['archived_at' => now()]],
+        ] as [$identifier, $changes]) {
+            DB::beginTransaction();
+            try {
+                DB::table('catalog_presentation_assets')->where('public_id', $identifier)->update([...$changes, 'revision' => DB::raw('revision + 1')]);
+                self::fail('The database accepted an invalid default.');
+            } catch (\Illuminate\Database\QueryException $exception) {
+                self::assertContains($exception->errorInfo[0], ['23505', '23514']);
+            } finally {
+                DB::rollBack();
+            }
+        }
+    }
+
     private function imageInput(): array
     {
         return [

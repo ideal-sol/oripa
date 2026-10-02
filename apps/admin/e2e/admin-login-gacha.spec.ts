@@ -4,9 +4,40 @@ const gachaId = "A7k9P2x4Qm8";
 const rankId = "0198a001-0000-7000-8000-000000000001";
 const imageId = "0198a001-0000-7000-8000-000000000005";
 const videoId = "0198a001-0000-7000-8000-000000000006";
+const videoBytes = Buffer.from("GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAEyEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCASDsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYQ/gAAATYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh8JblnZHhQ+DgQFV7oEBhoVWX1ZQOOCKsIEQuoEQU8CBAR9DtnUBAAAAAAAAU+eBAKDOoaOBAAAAEAIAnQEqEAAQAAAHCIWFiJmEiAEkEABgawD+/6tQgHWhpqak7oEBpZ8QAgCdASoQABAAAAcIhYWImYSIASQQAGBrAP7/uoMAHFO7a427i7OBALeG94EB8YHB", "base64");
 const bannerCategoryId = "0198a001-0000-7000-8000-000000000011";
 const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
 const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
+
+for (const type of ["login_daily", "signup_once"] as const) {
+  for (const width of [1440, 390]) {
+    test(`default video and authenticated Preview for ${type} at ${width}px`, async ({ page }, testInfo) => {
+      await installApi(page);
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await page.route("**/catalog/rank-effects?*", (route) => json(route, {
+        items: [{ id: videoId, media_type: "video", is_public: true, is_default: true }], next_cursor: null,
+      }));
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(type === "login_daily" ? "/catalog/gachas/new/login" : "/catalog/gachas/new/signup");
+      await page.getByRole("button", { name: "景品を追加" }).click();
+      await expect(page.getByLabel("Aの演出動画", { exact: true })).toHaveValue(videoId);
+      await expect(page.locator("video")).toHaveAttribute("src", `/admin/api/v2/catalog/presentation-assets/${videoId}/content`);
+      await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: projection(type) }));
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: {
+        id: rankId, public_code: gachaId, gacha_type: type, publication_status: "published", first_published_at: "2026-07-01T00:00:00Z", revision: 1,
+      } }));
+      await page.goto(`/catalog/gachas/${gachaId}`);
+      await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
+      await page.reload();
+      await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
+      await page.screenshot({ path: testInfo.outputPath("selected-video.png"), fullPage: true });
+      expect(errors).toEqual([]);
+    });
+  }
+}
 
 test("registration offers three separate routes and daily has no standard-only fields", async ({ page }) => {
   await installApi(page);
@@ -56,7 +87,7 @@ test("copy is read-only until save and preserves the smallest rate and frozen pr
   await page.getByLabel("公開開始日時（JST）").fill("2026-10-02T00:00");
   await page.getByRole("button", { name: "構成を一括保存" }).click();
   await expect.poll(() => mutations.length).toBe(1);
-  expect(mutations[0].body).toMatchObject({ prizes: [{ percentage: "0.0000000001" }, { percentage: "99.9999999999" }],
+  expect(mutations[0].body).toMatchObject({ use_default_rank_video: false, prizes: [{ percentage: "0.0000000001" }, { percentage: "99.9999999999" }],
     ranks: [{ rank_id: rankId, rank_revision_number: 1, video_asset_id: videoId }] });
   expect(mutations[0].body).not.toHaveProperty("id");
 });
@@ -95,6 +126,9 @@ async function installApi(page: Page) {
     if (path.endsWith("/catalog/categories") || path.endsWith("/catalog/tags")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/gachas")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/ranks")) return json(route, { items: [{ id: rankId, rank_name: "A", status: "active" }], next_cursor: null });
+    if (path.endsWith("/catalog/rank-effects")) return json(route, { items: [], next_cursor: null });
+    if (path.endsWith(`/catalog/presentation-assets/${videoId}/content`)) return route.fulfill({ contentType: "video/webm", body: videoBytes });
+    if (path.endsWith("/content") && path.includes("/catalog/presentation-assets/")) return route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") });
     if (path.endsWith("/catalog/presentation-assets")) return json(route, { items: [
       { id: imageId, media_type: "image", mime_type: "image/png", is_public: true, public_path: null, alt_text: "Image fixture" },
       { id: videoId, media_type: "video", mime_type: "video/mp4", is_public: true, public_path: null, alt_text: "Video fixture" },
@@ -117,7 +151,7 @@ async function installApi(page: Page) {
 function projection(type = "login_daily") {
   const prize = { name: "Copied prize", presentation_asset_id: imageId, rank_id: rankId, exchange_points: 10, cost_price: 0, initial_inventory: 3, shipping_only: false };
   const asset = { id: imageId, path: "/synthetic-login-image.png", mime_type: "image/png", alt_text: "Frozen image" };
-  return { gacha_type: type, title: "Published login fixture", description: null, notices: null, presentation_asset_id: imageId,
+  return { use_default_rank_video: false, gacha_type: type, title: "Published login fixture", description: null, notices: null, presentation_asset_id: imageId,
     price_points: 0, minimum_exchange_points: type === "login_daily" ? 10 : null, publish_start_at: null, publish_end_at: null, category_id: null, tag_ids: [], total_count: null,
     daily_draw_limit: type === "login_daily" ? 1 : 0, audience_code: "all_users", first_time_eligible_days: 7, allowed_draw_counts: [1],
     ranks: [{ rank_id: rankId, rank_revision_number: 1, video_asset_id: videoId, presentation: { name: "Frozen A", lineup_image: asset, result_image: asset } }],

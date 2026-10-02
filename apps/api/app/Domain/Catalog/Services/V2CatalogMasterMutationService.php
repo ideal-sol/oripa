@@ -535,6 +535,8 @@ final class V2CatalogMasterMutationService
                 ]);
                 $this->replaceGachaTags((int) $gachaId, $tags);
 
+                $this->initializeRankVideos((int) $gachaId);
+
                 return $this->find('catalog_gachas', $publicId, false);
             }
         );
@@ -685,6 +687,8 @@ final class V2CatalogMasterMutationService
                 $versionId = (int) DB::table('catalog_gacha_versions')
                     ->where('gacha_id', $gachaId)->where('version_number', 1)->value('id');
                 $this->replaceGachaVersionTags($versionId, $tags);
+
+                $this->initializeRankVideos((int) $gachaId);
 
                 return $this->find('catalog_gachas', $publicId, false);
             }
@@ -1037,7 +1041,7 @@ final class V2CatalogMasterMutationService
                 $idempotencyKey,
                 ['id' => $publicId, ...$this->rankEffectIdempotencyPayload($payload)],
                 200,
-                function () use ($publicId, $payload, &$storedPath): object {
+                function () use ($publicId, $payload, &$storedPath, $context, $admin): object {
                     $current = $this->find('catalog_presentation_assets', $publicId, true);
                     $material = DB::table('catalog_rank_effect_materials')
                         ->where('presentation_asset_id', $current->id)
@@ -1047,6 +1051,21 @@ final class V2CatalogMasterMutationService
                         throw $this->notFound();
                     }
                     $this->assertMutable($current, $payload['expected_revision']);
+                    if ($current->is_default_rank_video && (! $payload['is_active'] || $payload['file'] !== null)) {
+                        throw $this->rankVideoDefaultConflict();
+                    }
+                    if (array_key_exists('is_default', $payload)) {
+                        if ($payload['file'] !== null || ($payload['is_default'] && (
+                            $current->media_type !== 'video' || ! $current->is_public
+                            || ! $payload['is_active'] || $current->archived_at !== null
+                        ))) {
+                            throw $this->validationException();
+                        }
+                        if ($payload['is_default'] && DB::table('catalog_presentation_assets')
+                            ->where('is_default_rank_video', true)->where('id', '<>', $current->id)->exists()) {
+                            throw $this->rankVideoDefaultConflict();
+                        }
+                    }
                     if (! in_array($current->media_type, ['image', 'video'], true)) {
                         throw $this->validationException();
                     }
@@ -1057,6 +1076,7 @@ final class V2CatalogMasterMutationService
                         DB::table('catalog_presentation_assets')->where('id', $current->id)->update([
                             'alt_text' => $payload['title'],
                             'is_public' => $payload['is_active'],
+                            'is_default_rank_video' => $payload['is_default'] ?? $current->is_default_rank_video,
                             'revision' => (int) $current->revision + 1,
                             'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
                         ]);
@@ -1066,6 +1086,14 @@ final class V2CatalogMasterMutationService
                         DB::table('catalog_rank_effect_materials')
                             ->where('id', $material->id)
                             ->update(['presentation_asset_id' => $row->id]);
+                    }
+
+                    if (array_key_exists('is_default', $payload)) {
+                        $this->recordAudit('catalog.rank_video.default_updated', $context, $admin,
+                            'asset', 'update', 'success', 'default_updated', $publicId, [
+                                'before_default' => (bool) $current->is_default_rank_video,
+                                'after_default' => $payload['is_default'],
+                            ]);
                     }
 
                     return $this->find(
@@ -1083,6 +1111,32 @@ final class V2CatalogMasterMutationService
             }
             throw $exception;
         }
+    }
+
+    public function initializeRankVideos(int $gachaId): ?string
+    {
+        $asset = DB::table('catalog_presentation_assets as asset')
+            ->join('catalog_rank_effect_materials as material', 'material.presentation_asset_id', '=', 'asset.id')
+            ->where('asset.is_default_rank_video', true)->sharedLock()->first(['asset.*']);
+        if ($asset === null) {
+            return null;
+        }
+        $now = V2DatabaseTimestamp::format(now()->startOfSecond());
+        $masters = DB::table('catalog_rank_masters')->where('status', 'active')->orderBy('id')->sharedLock()->get();
+        foreach ($masters as $master) {
+            $rankId = DB::table('catalog_gacha_ranks')->insertGetId([
+                'public_id' => (string) Str::uuid7(), 'gacha_id' => $gachaId,
+                'rank_master_id' => $master->id, 'revision' => 1,
+                'created_at' => $now, 'updated_at' => $now,
+            ]);
+            $videoId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+                'gacha_rank_id' => $rankId, 'revision_number' => 1,
+                'video_asset_id' => $asset->id, 'created_at' => $now,
+            ]);
+            DB::table('catalog_gacha_ranks')->where('id', $rankId)->update(['current_video_revision_id' => $videoId]);
+        }
+
+        return $asset->public_id;
     }
 
     /** @param array<string, mixed> $input */
@@ -3542,6 +3596,9 @@ final class V2CatalogMasterMutationService
             function () use ($publicId, $payload): object {
                 $row = $this->find('catalog_presentation_assets', $publicId, true);
                 $this->assertMutable($row, $payload['expected_revision']);
+                if ($row->is_default_rank_video && ! $payload['is_public']) {
+                    throw $this->rankVideoDefaultConflict();
+                }
                 $changes = [
                     'alt_text' => $payload['alt_text'],
                     'is_public' => $payload['is_public'],
@@ -3589,6 +3646,9 @@ final class V2CatalogMasterMutationService
             function () use ($table, $visibility, $publicId, $payload): object {
                 $row = $this->find($table, $publicId, true);
                 $this->assertMutable($row, $payload['expected_revision']);
+                if ($table === 'catalog_presentation_assets' && $row->is_default_rank_video) {
+                    throw $this->rankVideoDefaultConflict();
+                }
                 $this->assertNoPublishedReference($table, (int) $row->id);
                 DB::table($table)->where('id', $row->id)->update([
                     $visibility => false,
@@ -4884,6 +4944,7 @@ final class V2CatalogMasterMutationService
         ];
         $required = ['title', 'asset_type', 'is_active'];
         if ($updating) {
+            $allowed[] = 'is_default';
             array_unshift($allowed, 'expected_revision');
             array_unshift($required, 'expected_revision');
         } else {
@@ -4908,6 +4969,7 @@ final class V2CatalogMasterMutationService
 
         return [
             ...($updating ? ['expected_revision' => $this->revision($input['expected_revision'])] : []),
+            ...(array_key_exists('is_default', $input) ? ['is_default' => $this->boolean($input['is_default'])] : []),
             'title' => $this->plainText($input['title'], 1, 191),
             'asset_type' => $assetType,
             'is_active' => $this->boolean($input['is_active']),
@@ -9417,6 +9479,7 @@ final class V2CatalogMasterMutationService
     {
         return [
             ...$this->mapAsset($row),
+            'is_default' => (bool) $row->is_default_rank_video,
             'content_path' => '/admin/api/v2/catalog/presentation-assets/'
                 .$row->public_id.'/content',
         ];
@@ -9455,6 +9518,9 @@ final class V2CatalogMasterMutationService
         $state = $exception->errorInfo[0] ?? null;
         $message = $exception->getMessage();
         if ($state === '23505') {
+            if (str_contains($message, 'catalog_rank_video_default_unique')) {
+                return $this->rankVideoDefaultConflict();
+            }
             if (str_contains($message, 'catalog_gacha_ranks_gacha_id_rank_master_id_unique')) {
                 return new V2CatalogException(
                     'CATALOG_REVISION_CONFLICT',
@@ -9753,6 +9819,12 @@ final class V2CatalogMasterMutationService
             'reason_code' => $reason,
             'metadata' => $metadata,
         ]);
+    }
+
+    private function rankVideoDefaultConflict(): V2CatalogException
+    {
+        return new V2CatalogException('CATALOG_MASTER_CONFLICT', 409,
+            'Unset the current default Rank Video before changing the default, visibility, archive state or file.');
     }
 
     private function validationException(): V2CatalogException

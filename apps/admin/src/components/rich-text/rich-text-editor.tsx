@@ -28,6 +28,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, {
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const editor = useEditor({
     immediatelyRender: false,
+    injectCSS: false,
     content: value,
     editable: !disabled,
     extensions: [
