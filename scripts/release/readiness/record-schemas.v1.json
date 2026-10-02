@@ -1,0 +1,699 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production Readiness Phase 1 offline records v1.0",
+  "description": "Shape contract only. records.py enforces digests, ordering, evidence-backed N/A and exact candidate correspondence. Digests are integrity checks, not signatures.",
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|\\+00:00)$"
+        },
+        "environment": {
+          "const": "production"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "ACTIVE",
+                  "INACTIVE",
+                  "UNKNOWN"
+                ]
+              },
+              "observed_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "(?:Z|\\+00:00)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "runtime_source": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "artifact_or_image_digest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "digest_kind": {
+                "enum": [
+                  "docker_image_id",
+                  "archive_sha256",
+                  "artifact_sha256",
+                  "other",
+                  null
+                ]
+              },
+              "observation_method": {
+                "type": "string",
+                "minLength": 1
+              },
+              "authority_record": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "service",
+              "status",
+              "observed_at",
+              "runtime_source",
+              "artifact_or_image_digest",
+              "digest_kind",
+              "observation_method",
+              "authority_record"
+            ],
+            "additionalProperties": false
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "contract": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "CONFIRMED",
+                "UNKNOWN",
+                "N/A"
+              ]
+            },
+            "artifact_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "manifest_digest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "client_pin": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "testkit_pin": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "openapi_pin": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence_reference": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "artifact_id",
+            "manifest_digest",
+            "client_pin",
+            "testkit_pin",
+            "openapi_pin",
+            "evidence_reference"
+          ],
+          "additionalProperties": false
+        },
+        "migration": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "CONFIRMED",
+                "HISTORICAL_ONLY",
+                "UNKNOWN",
+                "N/A"
+              ]
+            },
+            "revision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "observed_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "(?:Z|\\+00:00)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence_reference": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "revision",
+            "observed_at",
+            "evidence_reference"
+          ],
+          "additionalProperties": false
+        },
+        "external_runtime_definitions": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "CONFIRMED",
+                "PARTIAL",
+                "UNKNOWN",
+                "N/A"
+              ]
+            },
+            "docker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workers": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "systemd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "proxy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "storage_binding": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "docker",
+            "workers",
+            "systemd",
+            "proxy",
+            "storage_binding"
+          ],
+          "additionalProperties": false
+        },
+        "snapshot_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "environment",
+        "services",
+        "contract",
+        "migration",
+        "external_runtime_definitions",
+        "snapshot_digest"
+      ],
+      "additionalProperties": false
+    },
+    "continuity": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "base_snapshot_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|\\+00:00)$"
+        },
+        "continuity_status": {
+          "enum": [
+            "CONFIRMED_NO_AUTHORITY_CHANGE",
+            "AUTHORITY_CHANGE_DETECTED",
+            "CONTINUITY_UNKNOWN"
+          ]
+        },
+        "checked_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "authority_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event_type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "occurred_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "(?:Z|\\+00:00)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "event_type",
+              "occurred_at",
+              "scope",
+              "evidence_reference"
+            ],
+            "additionalProperties": false
+          },
+          "uniqueItems": true
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "unresolved_gaps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "confirmed_by_role": {
+          "enum": [
+            "human_operator",
+            "approved_producer"
+          ]
+        },
+        "record_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "base_snapshot_digest",
+        "checked_at",
+        "continuity_status",
+        "checked_scope",
+        "authority_events",
+        "evidence_references",
+        "unresolved_gaps",
+        "confirmed_by_role",
+        "record_digest"
+      ],
+      "additionalProperties": false
+    },
+    "human_go": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|\\+00:00)$"
+        },
+        "service_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "platform": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "storefront": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "platform",
+            "storefront"
+          ],
+          "additionalProperties": false
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "string",
+                "minLength": 1
+              },
+              "artifact_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "service",
+              "artifact_id",
+              "digest"
+            ],
+            "additionalProperties": false
+          },
+          "uniqueItems": true
+        },
+        "authority_snapshot_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "approval_actor_role": {
+          "const": "human_operator"
+        },
+        "approval_evidence_reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "candidate_id",
+        "approved_at",
+        "service_scope",
+        "source",
+        "artifacts",
+        "authority_snapshot_digest",
+        "approval_actor_role",
+        "approval_evidence_reference",
+        "record_digest"
+      ],
+      "additionalProperties": false
+    },
+    "browser_acceptance": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "HUMAN_BROWSER_ACCEPTANCE_PASS",
+            "HUMAN_BROWSER_ACCEPTANCE_FAIL",
+            "HUMAN_BROWSER_ACCEPTANCE_PENDING"
+          ]
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "(?:Z|\\+00:00)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actor_role": {
+          "enum": [
+            "human_operator",
+            null
+          ]
+        },
+        "change_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checked_routes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "checked_states": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "checked_viewports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "acceptance_plan_reference": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_notes": {
+          "type": "string"
+        },
+        "record_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "candidate_id",
+        "source_sha",
+        "artifact_id",
+        "build_id",
+        "status",
+        "checked_at",
+        "actor_role",
+        "change_class",
+        "checked_routes",
+        "checked_states",
+        "checked_viewports",
+        "acceptance_plan_reference",
+        "result_notes",
+        "record_digest"
+      ],
+      "additionalProperties": false
+    },
+    "requirement": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "HOLD",
+            "UNKNOWN",
+            "N/A"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "service",
+        "artifact_id",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storefront": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "platform",
+        "storefront"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
