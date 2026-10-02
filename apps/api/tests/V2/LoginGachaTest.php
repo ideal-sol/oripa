@@ -213,7 +213,10 @@ final class LoginGachaTest extends TestCase
         $this->withUnencryptedCookie('__Host-oripa_admin_session', '');
         $this->getJson('/api/v2/login-gachas')->assertOk()->assertJsonCount(1, 'items')
             ->assertJsonMissingPath('items.0.eligibility')->assertJsonMissingPath('items.0.total_count');
-        $this->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertUnauthorized();
+        $this->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertUnauthorized()
+            ->assertHeader('Content-Type', 'application/problem+json')->assertHeader('Vary', 'Cookie')
+            ->assertJsonStructure(['type', 'title', 'status', 'code', 'request_id', 'retryable'])
+            ->assertJsonPath('code', 'AUTHENTICATION_REQUIRED')->assertJsonPath('retryable', false);
         foreach ([$gacha['id'], $gacha['public_code']] as $identifier) {
             $this->getJson('/api/v2/gachas/'.$identifier)->assertNotFound();
         }
@@ -224,6 +227,44 @@ final class LoginGachaTest extends TestCase
             ->assertJsonMissingPath('data.prizes.0.percentage')->assertJsonMissingPath('data.prizes.0.rate_units');
         self::assertStringContainsString('private', $response->headers->get('Cache-Control'));
         self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    public function test_login_detail_requires_a_live_user_session_and_preserves_the_problem_contract(): void
+    {
+        $gacha = $this->createPublished();
+        $user = $this->user();
+        $manager = app(\App\Domain\Identity\Services\V2SessionManager::class);
+        $realm = \App\Domain\Identity\Enums\V2Realm::User;
+        $valid = $manager->issue($realm, $user->id);
+        $this->flushHeaders();
+        Auth::forgetGuards();
+        $this->withUnencryptedCookie('__Host-oripa_admin_session', '')
+            ->withUnencryptedCookie('__Host-oripa_user_session', $valid['token'])
+            ->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertOk()
+            ->assertJsonPath('data.eligibility.eligible', true);
+        foreach (['missing', 'invalid', 'revoked', 'expired'] as $state) {
+            $session = $manager->issue($realm, $user->id);
+            $token = $session['token'];
+            if ($state === 'missing') {
+                $token = '';
+            } elseif ($state === 'invalid') {
+                $token = str_repeat('f', 64);
+            } elseif ($state === 'revoked') {
+                DB::table('user_sessions')->where('session_id_hash', app(V2SessionPolicy::class)->hashSessionId($token))
+                    ->update(['revoked_at' => now()]);
+            } else {
+                CarbonImmutable::setTestNow(CarbonImmutable::now()->addYear());
+            }
+            Auth::forgetGuards();
+            $response = $this->withUnencryptedCookie('__Host-oripa_user_session', $token)
+                ->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertUnauthorized()
+                ->assertHeader('Content-Type', 'application/problem+json')->assertHeader('Vary', 'Cookie')
+                ->assertJsonStructure(['type', 'title', 'status', 'code', 'request_id', 'retryable'])
+                ->assertJsonPath('code', 'AUTHENTICATION_REQUIRED')->assertJsonPath('status', 401)
+                ->assertJsonMissingPath('data');
+            self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_fixed_ticket_endpoints_and_replay_preserve_probability_checksum_and_rank_snapshot(): void

@@ -43,6 +43,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(fn ($request, $e): bool => $request->is('api/*') || $request->is('admin/api/*') || $request->is('webhooks/*') || $request->expectsJson());
 
         $exceptions->render(function (AuthenticationException $exception, $request) {
+            if ($request->routeIs('v2.public.login-gachas.show')) {
+                return V2ProblemDetails::fromAuthentication(
+                    $request,
+                    new V2AuthenticationException('AUTHENTICATION_REQUIRED', 401, 'Authentication is required.')
+                );
+            }
             if ($request->is('api/*') || $request->is('admin/api/*')) {
                 return response()->json(['message' => 'Unauthenticated.'], 401);
             }
