@@ -126,6 +126,28 @@ final class AuthenticationFlowTest extends TestCase
             ->value('revoked_at'));
     }
 
+    public function test_verified_legacy_user_cannot_acquire_qualification_by_reverification_or_login(): void
+    {
+        $user = User::query()->create([
+            'email_display' => 'legacy-qualification@example.test',
+            'email_normalized' => 'legacy-qualification@example.test',
+            'email_verified_at' => now()->subYear(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('legacy qualification password'),
+            'state' => V2UserState::Active,
+        ]);
+        $service = app(V2UserAuthenticationService::class);
+        try {
+            $service->verify($user->public_id, 'synthetic legacy verification token');
+            self::fail('An already verified legacy User must not repeat initial verification.');
+        } catch (V2AuthenticationException $exception) {
+            self::assertSame('INVALID_VERIFICATION_LINK', $exception->errorCode);
+        }
+        self::assertNull($user->fresh()->first_registration_qualified_at);
+        $service->login('legacy-qualification@example.test', 'legacy qualification password', '192.0.2.30');
+        self::assertNull($user->fresh()->first_registration_qualified_at);
+        self::assertNotNull($user->fresh()->email_verified_at);
+    }
+
     public function test_resend_revokes_old_verification_and_expiry_has_stable_code(): void
     {
         $service = app(V2UserAuthenticationService::class);
