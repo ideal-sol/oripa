@@ -217,7 +217,7 @@ class ReadinessTests(unittest.TestCase):
             self.assertEqual(gate.rollback(self.candidate, gate.MINOR)["status"], "ROLLBACK_HOLD")
             self.add("minor_rollback." + key, gate.MINOR_INVARIANTS[key])
 
-    def test_authority_only_eligible_and_indeterminate(self):
+    def prepare_authority_candidate(self):
         self.add("platform_impact", "NONE")
         self.add("classification_baseline", {key: self.candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
         self.candidate["change_classes"] = ["authority_snapshot"]
@@ -225,12 +225,96 @@ class ReadinessTests(unittest.TestCase):
         for surface in gate.RUNTIME_SURFACES:
             self.add("runtime_delta." + surface, "NONE")
         self.add("authority_metadata_not_in_runtime", True)
+        self.add("service_scope", {key: self.candidate[key] for key in (
+            "service_inventory", "build_scope", "activation_scope", "acceptance_scope", "rollback_scope"
+        )})
+
+    def assert_strict_authority_fallback(self):
+        classification = gate.classify(self.candidate)
+        self.assertEqual(classification["candidate_lane"], "NORMAL_STRICT_CI")
+        self.assertEqual(classification["fallback_lane"], "NORMAL_STRICT_CI")
+        self.assertEqual(classification["classification_reason"], "AUTHORITY_ONLY_FAST_LANE_INDETERMINATE")
+        record = self.evaluate()
+        self.assertEqual(record["classification"], classification)
+        self.assertEqual(record["lane"], "NORMAL_STRICT_CI")
+        self.assertEqual(record["fallback_lane"], record["lane"])
+        matrix = record["production_step_matrix"]
+        self.assertEqual(matrix, gate.step_matrix(self.candidate, gate.FULL))
+        for step in ("platform_build", "platform_stage", "platform_activation", "storefront_build", "storefront_activation"):
+            self.assertEqual(matrix[step]["policy_modes"], ["CONDITIONAL"])
+            self.assertEqual(matrix[step]["disposition"], "CONDITIONAL")
+        for step in ("required_security_policy", "arm64_proof", "db_migration_assessment", "human_go", "rollback_readiness"):
+            self.assertEqual(matrix[step]["disposition"], "REQUIRED")
+        self.assertTrue(all(not row["operation_executed"] for row in matrix.values()))
+        self.assertEqual(record["production_impact"], "NONE")
+        self.assertFalse(record["blocking_authority"])
+        self.assertNotEqual(record["shadow_final_status"], "SHADOW_HOLD")
+
+    def test_authority_only_eligible_and_indeterminate(self):
+        self.prepare_authority_candidate()
         self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.AUTHORITY)
+        record = self.evaluate()
+        self.assertEqual(record["lane"], gate.AUTHORITY)
+        self.assertEqual(record["production_step_matrix"], gate.step_matrix(self.candidate, gate.AUTHORITY))
+        self.assertEqual(record["production_step_matrix"]["platform_build"]["policy_modes"], ["N/A", "REUSE"])
+        self.assertEqual(record["shadow_final_status"], "SHADOW_READY")
         for surface in gate.RUNTIME_SURFACES:
             key = "runtime_delta." + surface
             original = self.candidate["facts"].pop(key)
-            self.assertEqual(gate.classify(self.candidate)["fallback_lane"], "NORMAL_STRICT_CI")
+            self.assert_strict_authority_fallback()
             self.candidate["facts"][key] = original
+
+    def test_authority_runtime_unknown_uses_strict_matrix(self):
+        self.prepare_authority_candidate()
+        for surface in gate.RUNTIME_SURFACES:
+            with self.subTest(surface=surface):
+                self.candidate["facts"]["runtime_delta." + surface]["status"] = "UNKNOWN"
+                self.assert_strict_authority_fallback()
+                self.candidate["facts"]["runtime_delta." + surface]["status"] = "PASS"
+
+    def test_authority_missing_mandatory_proofs_uses_strict_matrix(self):
+        self.prepare_authority_candidate()
+        for name in ("authority_metadata_not_in_runtime", "complete_diff", "classification_baseline", "platform_impact"):
+            with self.subTest(name=name):
+                original = self.candidate["facts"].pop(name)
+                self.assert_strict_authority_fallback()
+                self.candidate["facts"][name] = original
+
+    def test_authority_runtime_none_not_proven_uses_strict_matrix(self):
+        self.prepare_authority_candidate()
+        for surface in gate.RUNTIME_SURFACES:
+            for value in ("CHANGED", None):
+                with self.subTest(surface=surface, value=value):
+                    self.add("runtime_delta." + surface, value)
+                    self.assert_strict_authority_fallback()
+            self.add("runtime_delta." + surface, "NONE")
+
+    def test_authority_requested_operations_use_strict_matrix(self):
+        self.prepare_authority_candidate()
+        for scope in ("build_scope", "activation_scope"):
+            with self.subTest(scope=scope):
+                self.candidate[scope] = ["api"]
+                self.add("service_scope", {key: self.candidate[key] for key in (
+                    "service_inventory", "build_scope", "activation_scope", "acceptance_scope", "rollback_scope"
+                )})
+                self.assert_strict_authority_fallback()
+                self.candidate[scope] = []
+
+    def test_non_authority_lane_classification_is_unchanged(self):
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.FULL)
+        self.add("platform_impact", "NONE")
+        self.add("classification_baseline", {key: self.candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
+        self.candidate["change_classes"] = ["storefront_presentation"]
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+        self.assertEqual(gate.step_matrix(self.candidate, gate.NORMAL)["storefront_build"]["disposition"], "REQUIRED")
+        classification = records.seal({
+            **{key: self.candidate[key] for key in ("repository", "base_sha", "head_sha", "tree_sha")},
+            "candidate_lane": gate.MINOR, "policy_approval": "HUMAN_APPROVED",
+            "production_impact": "NONE", "unknown_reasons": [],
+        }, "record_digest")
+        self.add("storefront_minor_classification", classification)
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.MINOR)
+        self.assertEqual(gate.step_matrix(self.candidate, gate.MINOR)["storefront_build"]["disposition"], "REQUIRED")
 
     def test_matrix_reuse_and_na_require_exact_evidence(self):
         self.assertEqual(gate.step_matrix(self.candidate, gate.AUTHORITY)["platform_build"]["disposition"], "CONDITIONAL")

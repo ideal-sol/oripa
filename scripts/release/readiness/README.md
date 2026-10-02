@@ -124,6 +124,14 @@ AUTHORITY_ONLY_FAST_LANE_INDETERMINATE / NORMAL_STRICT_CI. It does not create a
 Gate HOLD. Minor requires the exact digest-bound Storefront classifier record
 with approved Machine Policy. Other Storefront changes use Normal.
 
+For an Authority-only candidate, failed or missing entry proofs keep both the
+effective lane and fallback lane at `NORMAL_STRICT_CI`, including incomplete
+diff, baseline, Platform-impact or runtime-exclusion evidence. This is a
+fallback state, not a fifth release lane. Its Step Matrix conservatively uses
+the Full lane's general requirements and scope-dependent conditional steps,
+not Normal Storefront requirements or Authority-only exemptions. It neither
+assumes a Storefront release nor authorizes any build, activation or CI skip.
+
 The four-lane Step Matrix represents REQUIRED, CONDITIONAL, N/A and REUSE.
 N/A/REUSE are selected only with exact bound evidence; otherwise the proposal
 stays CONDITIONAL. No skip or operation is executed. Required Artifact, ARM64,

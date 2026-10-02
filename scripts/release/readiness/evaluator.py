@@ -19,6 +19,7 @@ FULL = "Full Platform + Storefront Release"
 NORMAL = "Normal Storefront Release"
 MINOR = "Storefront Minor Change Fast Lane"
 AUTHORITY = "Authority-only Fast Lane"
+STRICT_FALLBACK = "NORMAL_STRICT_CI"
 LANES = (FULL, NORMAL, MINOR, AUTHORITY)
 RUNTIME_SURFACES = (
     "application", "dependencies", "lockfile", "migration", "env_requirements",
@@ -116,22 +117,26 @@ def validate_candidate(candidate):
 def classify(candidate):
     evidence = []
     unknown = []
+    classes = candidate.get("change_classes", [])
+    authority_candidate = strings(classes, nonempty=True) and set(classes) <= AUTHORITY_CLASSES
     completeness = fact(candidate, "complete_diff", True)
     baseline = fact(candidate, "classification_baseline", {key: candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
     platform = fact(candidate, "platform_impact", "NONE")
     if platform["status"] != "PASS" or completeness["status"] != "PASS" or baseline["status"] != "PASS":
-        lane, reason = FULL, "PLATFORM_IMPACT_PRESENT_OR_UNKNOWN"
+        lane, reason = (
+            (STRICT_FALLBACK, "AUTHORITY_ONLY_FAST_LANE_INDETERMINATE")
+            if authority_candidate else (FULL, "PLATFORM_IMPACT_PRESENT_OR_UNKNOWN")
+        )
         unknown.extend(proof["reason"] for proof in (platform, completeness, baseline) if proof["status"] != "PASS")
     else:
-        classes = candidate.get("change_classes", [])
-        if strings(classes, nonempty=True) and set(classes) <= AUTHORITY_CLASSES:
+        if authority_candidate:
             proofs = [fact(candidate, "runtime_delta." + surface, "NONE") for surface in RUNTIME_SURFACES]
             proofs += [fact(candidate, "authority_metadata_not_in_runtime", True)]
             if aggregate(proofs) == "PASS" and not candidate["activation_scope"] and not candidate["build_scope"]:
                 lane, reason = AUTHORITY, "RUNTIME_NONE_AND_MANDATORY_PROOF"
                 evidence.extend(reference for proof in proofs for reference in proof["evidence"])
             else:
-                lane, reason = NORMAL, "AUTHORITY_ONLY_FAST_LANE_INDETERMINATE"
+                lane, reason = STRICT_FALLBACK, "AUTHORITY_ONLY_FAST_LANE_INDETERMINATE"
                 unknown.extend(proof["reason"] for proof in proofs if proof["status"] != "PASS")
         else:
             minor = fact(candidate, "storefront_minor_classification")
@@ -157,7 +162,7 @@ def classify(candidate):
     return {
         "candidate_lane": lane, "classification_reason": reason, "evidence": evidence,
         "unknown_reasons": unknown,
-        "fallback_lane": "NORMAL_STRICT_CI" if reason == "AUTHORITY_ONLY_FAST_LANE_INDETERMINATE" else (FULL if lane == FULL else NORMAL),
+        "fallback_lane": lane if lane in {STRICT_FALLBACK, FULL} else NORMAL,
     }
 
 
@@ -264,7 +269,7 @@ def rollback(candidate, lane):
 
 
 def step_matrix(candidate, lane):
-    lane_index = (AUTHORITY, MINOR, NORMAL, FULL).index(lane)
+    lane_index = (AUTHORITY, MINOR, NORMAL, FULL).index(FULL if lane == STRICT_FALLBACK else lane)
     matrix = {
         "required_security_policy": ("REQUIRED",) * 4,
         "exact_source": ("REQUIRED",) * 4,
