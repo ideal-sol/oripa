@@ -1,7 +1,7 @@
 "use client";
 
 import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import { standardCoreVersion } from "@/lib/catalog/login-gacha";
@@ -138,16 +138,8 @@ export function CatalogGachaCoreForm({
     const nextErrors: Record<string, string> = {};
     if (!draft.title.trim()) nextErrors.title = "ガチャタイトルは必須です。";
     if (!draft.categoryId) nextErrors.category = "カテゴリを選択してください。";
-    if (!draft.thumbnailFile && !draft.presentationAssetId) {
-      nextErrors.asset = "サムネイル画像を選択してください。";
-    }
-    if (
-      draft.thumbnailFile &&
-      (!(["image/gif", "image/jpeg", "image/png", "image/webp"] as string[])
-        .includes(draft.thumbnailFile.type) || draft.thumbnailFile.size > 5 * 1024 * 1024)
-    ) {
-      nextErrors.asset = "サムネイルはGIF、JPEG、PNG、WebPの5 MB以下にしてください。";
-    }
+    const thumbnailError = gachaThumbnailError(draft.thumbnailFile, draft.presentationAssetId);
+    if (thumbnailError) nextErrors.asset = thumbnailError;
     if (!Number.isSafeInteger(draft.pricePoints) || draft.pricePoints < 1) {
       nextErrors.price = "消費ポイントは1以上の整数です。";
     }
@@ -196,12 +188,8 @@ export function CatalogGachaCoreForm({
   }
 
   return (
-    <section className="catalog-core-form-card" aria-labelledby="gacha-core-heading">
-      <header>
-        <span className="eyebrow">下書きガチャ</span>
-        <h2 id="gacha-core-heading">{mode === "create" ? "ガチャ登録" : "ガチャ編集"}</h2>
-        <p>{mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : postPublished ? "公開後は表示情報と終了日時だけを変更できます。販売条件と抽選条件は変更できません。" : "変更は編集中データへ保存され、公開済み内容には直接反映されません。"}</p>
-      </header>
+    <CatalogGachaFormCard title={mode === "create" ? "ガチャ登録" : "ガチャ編集"}
+      description={mode === "create" ? "作成時の状態は下書きです。公開操作は登録後の管理画面で行います。" : postPublished ? "公開後は表示情報と終了日時だけを変更できます。販売条件と抽選条件は変更できません。" : "変更は編集中データへ保存され、公開済み内容には直接反映されません。"}>
       <form className="catalog-mutation-form" onSubmit={submit}>
         <TextField label="ガチャタイトル" maxLength={191} onChange={(title) => setDraft({ ...draft, title })} value={draft.title} />
         <FieldError message={errors.title} />
@@ -254,21 +242,64 @@ export function CatalogGachaCoreForm({
         {errors.form ? <FormError message={errors.form} /> : null}
         <div className="catalog-dialog-actions"><button className="secondary-button" disabled={submitting} onClick={onCancel} type="button">取り消し</button><button className="primary-button" disabled={submitting} type="submit">{submitting ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : null}{mode === "create" ? "下書きを登録" : "編集内容を保存"}</button></div>
       </form>
-    </section>
+    </CatalogGachaFormCard>
   );
 }
 
-function GachaThumbnailField({
+export function CatalogGachaFormCard({ title, description, children, readOnly = false }: {
+  title: string; description: string; children: ReactNode; readOnly?: boolean;
+}) {
+  return <section className="catalog-core-form-card" aria-labelledby="gacha-core-heading">
+    <header>
+      <span className="eyebrow">{readOnly ? "参照専用" : "下書きガチャ"}</span>
+      <h2 id="gacha-core-heading">{title}</h2>
+      <p>{description}</p>
+    </header>
+    {children}
+  </section>;
+}
+
+export function gachaThumbnailError(file: File | null, assetId: string | null): string | null {
+  if (!file && !assetId) return "サムネイル画像を選択してください。";
+  if (file && (!["image/gif", "image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+    return "サムネイルはGIF、JPEG、PNG、WebPの5 MB以下にしてください。";
+  }
+  return null;
+}
+
+export async function uploadGachaThumbnail(client: AdminApiClient, file: File, key: string) {
+  const validation = gachaThumbnailError(file, null);
+  if (validation) throw new Error(validation);
+  const content = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string" || !reader.result.includes(",")) {
+        reject(new Error("The selected thumbnail could not be read."));
+        return;
+      }
+      resolve(reader.result.slice(reader.result.indexOf(",") + 1));
+    });
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("The selected thumbnail could not be read.")));
+    reader.readAsDataURL(file);
+  });
+  return client.uploadGachaThumbnail({ content_base64: content, file_name: file.name,
+    mime_type: file.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp" }, key);
+}
+
+export function GachaThumbnailField({
   current,
   onChange,
   required,
+  disabled = false,
 }: {
   current: AdminCatalogAssetReference | null;
   onChange: (file: File | null) => void;
   required: boolean;
+  disabled?: boolean;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewReader = useRef<FileReader | null>(null);
+  useEffect(() => () => previewReader.current?.abort(), []);
 
   const selectFile = (selected: File | null) => {
     previewReader.current?.abort();
@@ -299,6 +330,7 @@ function GachaThumbnailField({
       <input
         accept="image/gif,image/jpeg,image/png,image/webp"
         aria-describedby="gacha-thumbnail-help"
+        disabled={disabled}
         onChange={(event) => selectFile(event.target.files?.[0] ?? null)}
         required={required && current === null}
         type="file"

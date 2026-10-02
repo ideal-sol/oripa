@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import GachaCreatePage from "@/app/catalog/gachas/new/page";
 import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import type { AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion } from "@/lib/admin-api/generated";
+import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType } from "@/lib/admin-api/generated";
 import { drawStateCountLabel, emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits, standardCoreVersion, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 const callbacks = vi.hoisted(() => ({ expireSession: vi.fn(), push: vi.fn() }));
@@ -110,4 +110,110 @@ describe("Login Gacha composition", () => {
     fireEvent.change(screen.getByLabelText("ガチャ名"), { target: { value: "Unsaved title" } });
     await waitFor(() => expect(create).not.toHaveBeenCalled());
   });
+});
+
+const thumbnail: AdminCatalogPresentationAsset = {
+  id: "0198a001-0000-7000-8000-000000000005", media_type: "image", mime_type: "image/png", is_public: true,
+  public_path: "/synthetic-thumbnail.png", alt_text: "現在のサムネイル",
+  checksum_sha256: "a".repeat(64), byte_size: 68, revision: 1, is_archived: false, archived_at: null, created_at: "", updated_at: "",
+};
+
+function thumbnailFixture(type: AdminGachaType, status: "draft" | "published" | "sales_paused" = "draft", copy = false) {
+  selections();
+  vi.spyOn(AdminApiClient.prototype, "getCatalogPresentationAsset").mockResolvedValue({ data: thumbnail });
+  const rankImage = { id: thumbnail.id, path: thumbnail.public_path!, mime_type: "image/png", alt_text: "QA rank" };
+  vi.mocked(AdminApiClient.prototype.listCatalogRanks).mockResolvedValue({ items: [{ id: "rank", rank_name: "A", lineup_image: rankImage, result_image: rankImage,
+    show_total_stock: false, status: "active", display_order: 0, revision: 1, revision_number: 1, has_usage: false, used_by_published_gacha: false, created_at: "", updated_at: "" }], next_cursor: null });
+  const composition = { ...emptyGachaComposition(type), title: "QA thumbnail", presentation_asset_id: thumbnail.id,
+    publish_start_at: copy ? null : "2026-10-02T00:00:00+09:00",
+    prizes: [{ name: "QA prize", presentation_asset_id: thumbnail.id, rank_id: "rank", exchange_points: 1, cost_price: 0, initial_inventory: 1, shipping_only: false, percentage: "100.0000000000" }],
+  };
+  const gacha: AdminCatalogGacha = { id: "source", code: "source", slug: "source", gacha_type: type, state: "active", category: null,
+    tags: [], published_version: null, version_count: 1, sold_count: 0, has_draw_history: false, is_archived: false,
+    revision: 1, archived_at: null, created_at: "", updated_at: "", publication_status: status, first_published_at: status === "draft" ? null : "2026-10-01T00:00:00Z",
+    current_version: { id: "version", version_number: 1, revision: 1, status: status === "draft" ? "draft" : "published", title: composition.title,
+      description: null, notices: null, price_points: 0, total_count: null, daily_draw_limit: 1, audience_code: "all_users",
+      presentation_asset: thumbnail, publish_start_at: "2026-10-02T00:00:00+09:00", publish_end_at: null },
+  };
+  vi.spyOn(AdminApiClient.prototype, "getGachaComposition").mockResolvedValue({ data: composition });
+  vi.spyOn(AdminApiClient.prototype, "getCatalogGacha").mockResolvedValue({ data: gacha });
+  vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({ items: [], version_revision: 1 });
+  const upload = vi.spyOn(AdminApiClient.prototype, "uploadGachaThumbnail").mockResolvedValue({ data: { ...thumbnail, id: "uploaded-thumbnail" }, idempotent_replay: false });
+  const create = vi.spyOn(AdminApiClient.prototype, "createGachaComposition").mockRejectedValue(new Error("QA save boundary"));
+  const update = vi.spyOn(AdminApiClient.prototype, "updateGachaComposition").mockRejectedValue(new Error("QA save boundary"));
+  return { upload, create, update };
+}
+
+describe.each(["login_daily", "signup_once"] as const)("%s shared thumbnail form", (type) => {
+  it("uses the standard white card, fields and upload input with an empty preview on create", async () => {
+    selections();
+    const { container } = render(<LoginGachaWorkspace type={type} />);
+    const input = await screen.findByLabelText(/サムネイル画像/u);
+    expect(input).toHaveAttribute("type", "file");
+    expect(input).toHaveAttribute("accept", "image/gif,image/jpeg,image/png,image/webp");
+    expect(input).toBeRequired();
+    expect(container.querySelector(".catalog-core-form-card .catalog-mutation-form .catalog-thumbnail-field")).toContainElement(input);
+    expect(screen.getByRole("img", { name: "Previewなし" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "サムネイル" })).not.toBeInTheDocument();
+  });
+
+  for (const status of ["published", "sales_paused"] as const) {
+    it(`${status} retains the current preview and disables upload and save`, async () => {
+      const { upload, update } = thumbnailFixture(type, status);
+      render(<LoginGachaWorkspace type={type} sourceId="source" />);
+      expect(await screen.findByLabelText(/サムネイル画像/u)).toBeDisabled();
+      expect(screen.getAllByAltText("現在のサムネイル")[0]).toHaveAttribute("src", thumbnail.public_path);
+      expect(screen.queryByRole("button", { name: "構成を一括保存" })).not.toBeInTheDocument();
+      expect(upload).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+  }
+
+  for (const copy of [false, true]) {
+    it(`${copy ? "copy" : "draft edit"} preserves the asset reference without reupload`, async () => {
+      const { upload, create, update } = thumbnailFixture(type, copy ? "published" : "draft", copy);
+      render(<LoginGachaWorkspace type={type} sourceId="source" copy={copy} />);
+      expect(await screen.findByLabelText(/サムネイル画像/u)).toBeEnabled();
+      expect(screen.getAllByAltText("現在のサムネイル")[0]).toHaveAttribute("src", thumbnail.public_path);
+      expect(create).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+      if (copy) fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-02T00:00" } });
+      fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+      await waitFor(() => expect(copy ? create : update).toHaveBeenCalledTimes(1));
+      if (copy) expect(create.mock.calls[0][0].presentation_asset_id).toBe(thumbnail.id);
+      else expect(update.mock.calls[0][1].composition.presentation_asset_id).toBe(thumbnail.id);
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it(`${copy ? "copy" : "draft edit"} uploads only the replacement and reuses it after a failed composition save`, async () => {
+      const { upload, create, update } = thumbnailFixture(type, copy ? "published" : "draft", copy);
+      render(<LoginGachaWorkspace type={type} sourceId="source" copy={copy} />);
+      const input = await screen.findByLabelText(/サムネイル画像/u);
+      fireEvent.change(input, { target: { files: [new File(["synthetic-image"], "qa.png", { type: "image/png" })] } });
+      expect(await screen.findByAltText("選択したサムネイルのPreview")).toHaveAttribute("src", "data:image/png;base64,c3ludGhldGljLWltYWdl");
+      expect(upload).not.toHaveBeenCalled();
+      if (copy) fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-02T00:00" } });
+      fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+      await waitFor(() => expect(copy ? create : update).toHaveBeenCalledTimes(1));
+      expect(upload).toHaveBeenCalledWith({ file_name: "qa.png", mime_type: "image/png", content_base64: "c3ludGhldGljLWltYWdl" }, expect.any(String));
+      if (copy) expect(create.mock.calls[0][0].presentation_asset_id).toBe("uploaded-thumbnail");
+      else expect(update.mock.calls[0][1].composition.presentation_asset_id).toBe("uploaded-thumbnail");
+      await waitFor(() => expect(screen.getByRole("button", { name: "構成を一括保存" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+      await waitFor(() => expect(copy ? create : update).toHaveBeenCalledTimes(2));
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  for (const invalid of [new File(["invalid"], "qa.svg", { type: "image/svg+xml" }), new File([new Uint8Array(5 * 1024 * 1024 + 1)], "qa.png", { type: "image/png" })]) {
+    it(`rejects invalid ${invalid.type} / ${invalid.size} before any upload or save`, async () => {
+      const { upload, update } = thumbnailFixture(type);
+      render(<LoginGachaWorkspace type={type} sourceId="source" />);
+      fireEvent.change(await screen.findByLabelText(/サムネイル画像/u), { target: { files: [invalid] } });
+      fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+      expect(await screen.findByText("サムネイルはGIF、JPEG、PNG、WebPの5 MB以下にしてください。")).toBeInTheDocument();
+      expect(upload).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+  }
 });

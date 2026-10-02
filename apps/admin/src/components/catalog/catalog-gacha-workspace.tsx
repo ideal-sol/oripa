@@ -20,6 +20,7 @@ import { CatalogConflictBoundary } from "@/components/catalog/catalog-conflict-b
 import {
   CatalogGachaCoreForm,
   CatalogGachaVersionForm,
+  uploadGachaThumbnail,
   type GachaCoreDraft,
   type GachaVersionDraft,
 } from "@/components/catalog/catalog-gacha-forms";
@@ -169,14 +170,7 @@ export function CatalogGachaWorkspace({
     try {
       let presentationAssetId = draft.presentationAssetId;
       if (draft.thumbnailFile) {
-        const upload = await client.uploadGachaThumbnail(
-          {
-            content_base64: await fileToBase64(draft.thumbnailFile),
-            file_name: draft.thumbnailFile.name,
-            mime_type: draft.thumbnailFile.type as "image/gif" | "image/jpeg" | "image/png" | "image/webp",
-          },
-          uploadKey,
-        );
+        const upload = await uploadGachaThumbnail(client, draft.thumbnailFile, uploadKey);
         presentationAssetId = upload.data.id;
       }
       if (!presentationAssetId) throw new Error("Gacha thumbnail is required.");
@@ -1025,23 +1019,6 @@ function normalizeError(cause: unknown): AdminApiError {
   return cause instanceof AdminApiError
     ? cause
     : new AdminApiError(0, "NETWORK_ERROR", null, null, true);
-}
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (typeof reader.result !== "string" || !reader.result.includes(",")) {
-        reject(new Error("The selected thumbnail could not be read."));
-        return;
-      }
-      resolve(reader.result.slice(reader.result.indexOf(",") + 1));
-    });
-    reader.addEventListener("error", () => reject(
-      reader.error ?? new Error("The selected thumbnail could not be read."),
-    ));
-    reader.readAsDataURL(file);
-  });
 }
 
 export function isEditableGachaVersion(
