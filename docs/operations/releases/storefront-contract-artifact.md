@@ -607,3 +607,24 @@ Shipping/selection still require existing conditions. Do not infer the flag
 from exchange points. Exact-pin this Artifact; Storefront UI and Human browser
 acceptance remain separate. OLD Test activation/migration is independently
 verified; release metadata alone is not runtime activation evidence.
+
+## Login Gacha contract release — REL-042
+
+Human-authorized STOREFRONT-LOGIN-GACHA-20261002 publishes the pending alpha.42
+candidate from current protected main `2918db8d960380084fa02009a9de15891e1a9d04` (source PR #531,
+LOGIN-GACHA-UI-20261002). Canonical workflow 36966883737 publishes
+Artifact 11210051800; workflow and independent readback pass.
+Client/Testkit alpha.42, Public alpha.38, 78 operations; immutable Site Schema
+alpha.23 remains referenced. `listLoginGachas` and `getLoginGacha` are added;
+all 76 predecessor path contracts are unchanged. Eligibility remains private.
+
+- outer_sha256: `fd3e9cb6a6567c087ae3b77527f043703691afe9399672727c76563b02f066c4`
+- manifest_sha256: `dc3ebabd16a52f21b226d55cafeba6ed548f5d15b9f0e9e67557cc341b76b346`
+- client_sha256: `e3d7c83da5289298099c6f3d91f2081180720680f2f6add30cd38fb1878922fc`
+- testkit_sha256: `da3ae837df68cc5502b9440213ac5267b76c2028c39297b8ff3cfa2b2c9d566c`
+- public_openapi_sha256: `fddb22735a1dff423562b10d9545391ccca4f9a6a13b805cb68df44445ef024a`
+- sha256sums_sha256: `c582b60105f4b05bb9d0882ad29ad7a5c0ce00b7cdb4902254fd34752aec1f57`
+
+All predecessors including alpha.41 remain immutable. This reconciliation clears
+the candidate and records exact publication bytes. No runtime activation,
+Provider, business logic, migration, Production or NEW operation occurs.

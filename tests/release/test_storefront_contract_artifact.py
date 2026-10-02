@@ -140,10 +140,17 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = artifact.validate_governance(self.governance())
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.42')
-        self.assertEqual(value['candidate']['public_api_operation_count'], 78)
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        released = value['immutable_history'][-1]
+        self.assertEqual(released, value['latest_immutable'])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.42')
+        self.assertEqual(released['public_openapi']['operation_count'], 78)
+        self.assertEqual(released['source_commit'], '2918db8d960380084fa02009a9de15891e1a9d04')
+        self.assertEqual(released['manifest_sha256'], 'dc3ebabd16a52f21b226d55cafeba6ed548f5d15b9f0e9e67557cc341b76b346')
+        self.assertEqual(released['publication']['artifact_id'], 11210051800)
+        # Exercise the existing predecessor assertions against their historical ledger state.
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         latest = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.34')
         alpha_32 = next(release for release in value['immutable_history'] if release['bundle_version'] == '2.0.0-alpha.32')
         canonical = lambda item: hashlib.sha256(
