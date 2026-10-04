@@ -33,14 +33,16 @@ Check contexts for Lite unless a higher Lane or another policy requires them.
 
 The quality job validates PHP syntax, Composer manifest/lock consistency,
 the Root V2 Workspace and independent Legacy lock installations, V2 Admin
-typecheck/lint/build, Legacy typecheck and exact ESLint findings, JSON, XML,
+typecheck/lint/build, Legacy typecheck and approved ESLint fingerprints, JSON, XML,
 YAML, TOML, Public／Admin／Webhook OpenAPI 3.1.1、deterministic Bundle、
 Breaking Change、`@oripa/storefront-client`の生成差分／Typecheck／Lint／Build／
 Unit Test、generated tracked output、whitespace。
 
-The V1 ESLint baseline is exact and expires on 2026-08-31. It contains eight
-errors and one warning. A new, changed, missing, or expired fingerprint fails.
-The baseline does not apply to future V2 application paths.
+The V1 ESLint baseline contains eight errors and one warning. Every normal CI
+collects fresh ESLint JSON and compares exact fingerprints. New fingerprints,
+including changed severity, rule, message, or location, fail. Missing approved
+findings are resolved improvements and do not fail; the summary reports current,
+known, new, and resolved counts. The baseline does not apply to V2 paths.
 
 `QUALITY-002` removed the expired V1 backend failure baseline after updating the
 two `AdminPaymentApiTest` fixtures with the required payment-origin point lots
@@ -54,17 +56,63 @@ workflow permission and action-pin checks, credential-bearing remote detection,
 dangerous workflow command checks, `.codex` safety checks, and Composer/pnpm
 audits.
 
-The dependency baseline was re-reviewed on 2026-07-31 by `SEC-005` and expires
-on 2026-08-07. Legacy and V2 pnpm audits contain zero findings. The exact
-remaining Composer findings are limited to the unchanged medium or
-unknown-severity Guzzle, PSR-7, and JMESPath advisories; their fixed versions
-require a separately authorized Composer remediation. New, removed, changed,
-worsened, or expired findings fail until the baseline and locked dependencies
-are reviewed together.
+Every normal CI runs fresh `composer audit --locked`, workspace `pnpm audit`,
+and legacy `pnpm audit`, plus `--prod` audits for both pnpm scopes. The general
+Composer and legacy pnpm baseline arrays are empty: findings outside the exact
+dev-tool exception below are blocking. New package/version/path, severity,
+or advisory identity fingerprints fail, including advisory-database changes with
+unchanged source/locks. Resolved approved findings are informational, not
+regressions. A dependency or lock change alone does not invalidate the baseline
+when fresh audits pass; lock consistency and Dependency Review remain enforced.
+Malformed, incomplete, unavailable, or lock-inconsistent audit results fail
+closed. Raw command statuses must agree with parsed findings; an unexplained
+nonzero status cannot pass. Fresh lint likewise requires a valid complete report
+and a consistent exit status.
 
-The V2 Root Workspace uses exact patched overrides for transitive `postcss` and
-`sharp`、`js-yaml` versions identified by a Fresh Audit. Its audit must remain at zero
-findings and cannot inherit or extend the V1 baseline.
+Both advisory and ESLint baselines use schema `1.1`. Required management fields
+are `owner`, `reason`, `tracking_task`, and `removal_condition`. Fixed expiry and
+seven-day renewal are removed: time passage alone never fails these baselines.
+There is no mandatory monthly or scheduled review, nor a replacement date field.
+New baseline allowances require separate Human review; resolved entries may be
+removed after fresh evidence confirms improvement. Reports never authorize
+automatic baseline expansion, suppression, or weakening a severity threshold.
+
+### Human-approved exact dev-tool exception
+
+The dedicated `approved_dev_tool_advisories` field in schema 1.1 records Human
+approval for `GHSA-vfj7-8cjw-p6xm`, `braces@3.0.3`, High, with approved
+`patched_versions` equal to `<0.0.0`. The generic Composer/pnpm arrays and
+Dependency Review broad allowlist remain unchanged. Only these paths qualify:
+
+- Workspace: `apps__admin>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces`.
+- Legacy: `.>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces`.
+
+The validator checks `eslint-config-next` in `devDependencies`, absent from
+runtime/optional/peer dependencies, in `apps/admin/package.json` and
+`legacy/v1-frontend/package.json`. Both fresh production-only audits must have
+zero findings and exit 0. Full audit exit 1 is accepted only when consistent
+with parsed findings and the exact approved state. Do not rely on the audit
+service's `dev` flag alone to prove dependency scope.
+
+The explicit `security_fingerprint` must exactly match: advisory numeric ID,
+GitHub advisory ID, package, severity, vulnerable/patched versions, CVE, CWE,
+and CVSS score/vector. Source, audit record ID, locked version and both paths
+are also exact-bound; dev-only proof and zero production-only findings remain
+mandatory. A newly available fix, changed risk fingerprint, package/version/path,
+additional exposure or advisory fails closed.
+
+`informational_metadata` is evidence only. References, overview, title,
+created/updated timestamps, attribution, access labels, recommendation text
+and other descriptive fields do not participate in the blocking fingerprint.
+Description-only changes do not invalidate an otherwise exact approved exception.
+Missing or malformed security-relevant fields still fail closed.
+No runtime finding receives an exception. V2 runtime remains zero-finding, and
+unapproved V2 dev-tool findings still fail; the V1 baseline cannot authorize them.
+
+Advisory disappearance is resolved/non-blocking even if the exception metadata
+remains; no renewal is required. Security summaries expose actual findings,
+approved exact exceptions and unapproved findings separately for both scopes,
+plus the distinct advisory count. An excepted finding is never reported as zero.
 
 ## Integration gate
 

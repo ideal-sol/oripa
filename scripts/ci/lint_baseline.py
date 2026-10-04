@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Compare ESLint JSON output with an exact, expiring baseline."""
+"""Reject new ESLint fingerprints while allowing resolved approved findings."""
 
 from __future__ import annotations
 
 import argparse
-import datetime
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -38,10 +38,39 @@ def normalize_message(value: str) -> str:
 
 
 def normalize_findings(report: list[dict]) -> list[dict]:
+    if not isinstance(report, list) or not report:
+        raise BaselineFailure("ESLint report is missing or malformed")
     findings = []
     for file_result in report:
+        if (
+            not isinstance(file_result, dict)
+            or not isinstance(file_result.get("filePath"), str)
+            or not file_result["filePath"].strip()
+            or not isinstance(file_result.get("messages"), list)
+        ):
+            raise BaselineFailure("ESLint file result is malformed")
         path = normalize_path(str(file_result.get("filePath", "")))
-        for message in file_result.get("messages", []):
+        for message in file_result["messages"]:
+            if (
+                not isinstance(message, dict)
+                or message.get("fatal")
+                or type(message.get("severity")) is not int
+                or message["severity"] not in {1, 2}
+                or not isinstance(message.get("ruleId"), str)
+                or not message["ruleId"]
+                or not isinstance(message.get("message"), str)
+                or not message["message"]
+                or any(
+                    type(message.get(key)) is not int or message[key] < 1
+                    for key in ("line", "column")
+                )
+                or any(
+                    message.get(key) is not None
+                    and (type(message[key]) is not int or message[key] < 1)
+                    for key in ("endLine", "endColumn")
+                )
+            ):
+                raise BaselineFailure("ESLint message is malformed or fatal")
             item = {
                 "path": path,
                 "line": message.get("line"),
@@ -58,77 +87,106 @@ def normalize_findings(report: list[dict]) -> list[dict]:
                 json.dumps(item, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
             findings.append(item)
+        for key, severity in (("errorCount", 2), ("warningCount", 1)):
+            if (
+                type(file_result.get(key)) is not int
+                or file_result[key] != sum(
+                    message["severity"] == severity for message in file_result["messages"]
+                )
+            ):
+                raise BaselineFailure("ESLint report counts are missing or inconsistent")
+        if (
+            type(file_result.get("fatalErrorCount")) is not int
+            or file_result["fatalErrorCount"] != 0
+        ):
+            raise BaselineFailure("ESLint report has fatal errors or missing counts")
     return sorted(findings, key=lambda item: item["fingerprint"])
 
 
-def validate_baseline(report: list[dict], baseline: dict, today: datetime.date) -> dict:
-    if baseline.get("schema_version") != "1.0":
+def validate_baseline(report: list[dict], baseline: dict) -> dict:
+    if not isinstance(baseline, dict) or baseline.get("schema_version") != "1.1":
         raise BaselineFailure("unsupported ESLint baseline schema")
     management = baseline.get("management", {})
-    required = {"owner", "reason", "removal_condition", "expires_at", "tracking_task"}
-    if not required.issubset(management) or any(
-        not str(management.get(key, "")).strip() for key in required
+    required = {"owner", "reason", "removal_condition", "tracking_task"}
+    if not isinstance(management, dict) or any(
+        not isinstance(management.get(key), str) or not management[key].strip()
+        for key in required
     ):
         raise BaselineFailure("ESLint baseline management metadata is incomplete")
-    expires = datetime.date.fromisoformat(management["expires_at"])
-    if today > expires:
-        raise BaselineFailure("ESLint baseline has expired")
 
     actual = normalize_findings(report)
-    expected = sorted(
-        baseline.get("findings", []), key=lambda item: item.get("fingerprint", "")
-    )
-    if actual != expected:
-        actual_ids = {item["fingerprint"] for item in actual}
-        expected_ids = {item.get("fingerprint") for item in expected}
-        added_ids = actual_ids - expected_ids
-        missing_ids = expected_ids - actual_ids
-        added = [
-            {
-                "path": item["path"],
-                "line": item["line"],
-                "column": item["column"],
-                "rule_id": item["rule_id"],
-                "severity": item["severity"],
-                "message_sha256": item["message_sha256"],
-            }
-            for item in actual
-            if item["fingerprint"] in added_ids
-        ]
-        missing = [
-            {
-                "path": item.get("path"),
-                "line": item.get("line"),
-                "column": item.get("column"),
-                "rule_id": item.get("rule_id"),
-                "severity": item.get("severity"),
-                "message_sha256": item.get("message_sha256"),
-            }
-            for item in expected
-            if item.get("fingerprint") in missing_ids
-        ]
+    expected = baseline.get("findings")
+    if not isinstance(expected, list):
+        raise BaselineFailure("ESLint baseline findings are missing or malformed")
+    fields = {
+        "path", "line", "column", "end_line", "end_column", "rule_id",
+        "severity", "message_sha256", "fingerprint",
+    }
+    for item in expected:
+        if not isinstance(item, dict) or set(item) != fields:
+            raise BaselineFailure("ESLint baseline finding is malformed")
+        if (
+            any(
+                not isinstance(item[key], str) or not item[key].strip()
+                for key in ("path", "rule_id", "message_sha256", "fingerprint")
+            )
+            or not item["path"].startswith("legacy/v1-frontend/")
+            or not re.fullmatch(r"[0-9a-f]{64}", item["message_sha256"])
+            or type(item["severity"]) is not int
+            or item["severity"] not in {1, 2}
+            or any(
+                type(item[key]) is not int or item[key] < 1
+                for key in ("line", "column")
+            )
+            or any(
+                item[key] is not None and (type(item[key]) is not int or item[key] < 1)
+                for key in ("end_line", "end_column")
+            )
+        ):
+            raise BaselineFailure("ESLint baseline finding is malformed")
+        payload = {key: value for key, value in item.items() if key != "fingerprint"}
+        digest = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if item["fingerprint"] != digest:
+            raise BaselineFailure("ESLint baseline fingerprint is invalid")
+    actual_counts = Counter(json.dumps(item, sort_keys=True) for item in actual)
+    expected_counts = Counter(json.dumps(item, sort_keys=True) for item in expected)
+    added = actual_counts - expected_counts
+    resolved = expected_counts - actual_counts
+    if added:
         raise BaselineFailure(
-            "ESLint baseline mismatch: "
-            f"new={json.dumps(added, sort_keys=True)} "
-            f"missing={json.dumps(missing, sort_keys=True)}"
+            "ESLint baseline mismatch: new=" + json.dumps(list(added.elements()))
         )
     return {
         "findings": len(actual),
+        "current_findings": len(actual),
+        "known_findings": len(actual),
+        "new_findings": 0,
+        "resolved_baseline_entries": sum(resolved.values()),
         "errors": sum(item["severity"] == 2 for item in actual),
         "warnings": sum(item["severity"] == 1 for item in actual),
-        "expires_at": management["expires_at"],
     }
+
+
+def validate_exit_status(status: int, report: list[dict]) -> None:
+    findings = normalize_findings(report)
+    expected = int(any(item["severity"] == 2 for item in findings))
+    if type(status) is not int or status != expected:
+        raise BaselineFailure("ESLint command failed or exit status contradicts report")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--exit-status", type=int, required=True)
     arguments = parser.parse_args()
     try:
         report = json.loads(arguments.report.read_text(encoding="utf-8"))
         baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
-        summary = validate_baseline(report, baseline, datetime.date.today())
+        validate_exit_status(arguments.exit_status, report)
+        summary = validate_baseline(report, baseline)
     except (OSError, ValueError, json.JSONDecodeError, BaselineFailure) as error:
         print(f"lint-baseline: FAIL: {error}", file=sys.stderr)
         return 1

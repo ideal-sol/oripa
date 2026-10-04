@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "management": {
     "owner": "platform-maintainers",
-    "reason": "Fresh ESLint review completed on 2026-09-25 JST (2026-09-24T23:33:23Z) in BASELINE-20260925 against protected main@07d091e27ef05a1b766a6f2b2052e9a880f02d95: all 9 approved findings (8 errors and 1 warning) match exactly, with no new, changed, missing, or suppressed fingerprint. Existing rules and findings are unchanged. Retains the established seven-day review window used by GOV-029, SEC-020, and AGENCYREADY-20260917; V1 application fixes remain outside this Change.",
-    "removal_condition": "Remove each fingerprint only with the approved application fix that makes the finding disappear.",
-    "expires_at": "2026-10-02",
-    "tracking_task": "BASELINE-20260925"
+    "reason": "CI-20261004 adopts Human-approved event-driven validation. Fresh lint confirms the same nine approved fingerprints (eight errors and one warning); no finding is added or suppressed. Every CI rejects new or changed fingerprints and allows resolved approved findings without time-based invalidation.",
+    "removal_condition": "Remove a fingerprint after fresh lint proves the finding resolved. Any new allowance requires separate Human review.",
+    "tracking_task": "CI-20261004"
   },
   "findings": [
     {
