@@ -242,12 +242,20 @@ jobs:
           pnpm --dir legacy/v1-frontend --ignore-workspace audit \
             --audit-level low --json > "$RUNNER_TEMP/pnpm-audit.json"
           pnpm_status=$?
+          pnpm audit --prod --audit-level low --json > "$RUNNER_TEMP/workspace-prod-audit.json"
+          workspace_prod_status=$?
+          pnpm --dir legacy/v1-frontend --ignore-workspace audit \
+            --prod --audit-level low --json > "$RUNNER_TEMP/legacy-prod-audit.json"
+          legacy_prod_status=$?
           set -e
           echo "composer audit raw exit status: $composer_status"
           echo "workspace pnpm audit raw exit status: $workspace_pnpm_status"
           echo "pnpm audit raw exit status: $pnpm_status"
-          printf '{"composer":%s,"workspace-pnpm":%s,"legacy-pnpm":%s}\n' \
+          echo "workspace production-only audit raw exit status: $workspace_prod_status"
+          echo "legacy production-only audit raw exit status: $legacy_prod_status"
+          printf '{"composer":%s,"workspace-pnpm":%s,"legacy-pnpm":%s,"workspace-prod":%s,"legacy-prod":%s}\n' \
             "$composer_status" "$workspace_pnpm_status" "$pnpm_status" \
+            "$workspace_prod_status" "$legacy_prod_status" \
             > "$RUNNER_TEMP/audit-statuses.json"
 
       - name: Run security checks
@@ -260,6 +268,8 @@ jobs:
             --composer-audit "$RUNNER_TEMP/composer-audit.json" \
             --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json" \
             --audit-statuses "$RUNNER_TEMP/audit-statuses.json" \
+            --workspace-prod-audit "$RUNNER_TEMP/workspace-prod-audit.json" \
+            --legacy-prod-audit "$RUNNER_TEMP/legacy-prod-audit.json" \
             --workspace-pnpm-audit "$RUNNER_TEMP/workspace-pnpm-audit.json"
 
       - name: Run Lite diff secret scan

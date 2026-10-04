@@ -255,6 +255,7 @@ class SecurityGateTest(unittest.TestCase):
                 "--baseline", str(ROOT / ".ci/baselines/dependency-advisories.json"),
                 "--composer-audit", str(audit), "--pnpm-audit", str(audit),
                 "--workspace-pnpm-audit", str(audit), "--audit-statuses", str(audit),
+                "--workspace-prod-audit", str(audit), "--legacy-prod-audit", str(audit),
             ]
             for content in (None, "{", "{}"):
                 with self.subTest(content=content):

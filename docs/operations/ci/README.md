@@ -57,8 +57,9 @@ dangerous workflow command checks, `.codex` safety checks, and Composer/pnpm
 audits.
 
 Every normal CI runs fresh `composer audit --locked`, workspace `pnpm audit`,
-and legacy `pnpm audit`. The approved Composer and legacy pnpm baseline arrays
-are empty: any actual advisory is blocking. New package/version/path, severity,
+and legacy `pnpm audit`, plus `--prod` audits for both pnpm scopes. The general
+Composer and legacy pnpm baseline arrays are empty: findings outside the exact
+dev-tool exception below are blocking. New package/version/path, severity,
 or advisory identity fingerprints fail, including advisory-database changes with
 unchanged source/locks. Resolved approved findings are informational, not
 regressions. A dependency or lock change alone does not invalidate the baseline
@@ -76,9 +77,35 @@ New baseline allowances require separate Human review; resolved entries may be
 removed after fresh evidence confirms improvement. Reports never authorize
 automatic baseline expansion, suppression, or weakening a severity threshold.
 
-The V2 Root Workspace uses exact patched overrides for transitive `postcss` and
-`sharp`、`js-yaml` versions identified by a Fresh Audit. Its audit must remain at zero
-findings and cannot inherit or extend the V1 baseline.
+### Human-approved exact dev-tool exception
+
+The dedicated `approved_dev_tool_advisories` field in schema 1.1 records Human
+approval for `GHSA-vfj7-8cjw-p6xm`, `braces@3.0.3`, High, with approved
+`patched_versions` equal to `<0.0.0`. The generic Composer/pnpm arrays and
+Dependency Review broad allowlist remain unchanged. Only these paths qualify:
+
+- Workspace: `apps__admin>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces`.
+- Legacy: `.>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces`.
+
+The validator checks `eslint-config-next` in `devDependencies`, absent from
+runtime/optional/peer dependencies, in `apps/admin/package.json` and
+`legacy/v1-frontend/package.json`. Both fresh production-only audits must have
+zero findings and exit 0. Full audit exit 1 is accepted only when consistent
+with parsed findings and the exact approved state. Do not rely on the audit
+service's `dev` flag alone to prove dependency scope.
+
+Full advisory metadata (excluding the separately validated finding paths and
+versions) must exactly equal the approved snapshot, including patched versions,
+severity, CVE/CWE/CVSS, vulnerability range and advisory identity. A changed
+snapshot is an event invalidation, not a clock comparison. A newly available
+fix, changed package/version/path, additional exposure or advisory fails closed.
+No runtime finding receives an exception. V2 runtime remains zero-finding, and
+unapproved V2 dev-tool findings still fail; the V1 baseline cannot authorize them.
+
+Advisory disappearance is resolved/non-blocking even if the exception metadata
+remains; no renewal is required. Security summaries expose actual findings,
+approved exact exceptions and unapproved findings separately for both scopes,
+plus the distinct advisory count. An excepted finding is never reported as zero.
 
 ## Integration gate
 

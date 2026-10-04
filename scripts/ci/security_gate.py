@@ -270,6 +270,141 @@ def validate_workspace_pnpm_audit(pnpm: list[dict]) -> int:
     return 0
 
 
+DEV_TOOL_SCOPES = {
+    "workspace": ("apps/admin/package.json", "apps__admin"),
+    "legacy": ("legacy/v1-frontend/package.json", "."),
+}
+DEV_TOOL_CHAIN = "eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces"
+
+
+def partition_dev_tool_findings(
+    repository: Path, scope: str, findings: list[dict], audit: dict, baseline: dict
+) -> tuple[list[dict], dict]:
+    exceptions = baseline.get("approved_dev_tool_advisories", [])
+    if not isinstance(exceptions, list) or len(exceptions) > 1:
+        raise SecurityFailure("dev-tool exception policy is malformed")
+    approved = []
+    remaining = list(findings)
+    for exception in exceptions:
+        fields = {
+            "source", "advisory_id", "audit_id", "package", "version", "severity",
+            "approval", "advisory_metadata", "paths",
+        }
+        if not isinstance(exception, dict) or set(exception) != fields:
+            raise SecurityFailure("dev-tool exception identity is incomplete")
+        identity = {
+            "source": "pnpm", "advisory_id": "GHSA-vfj7-8cjw-p6xm",
+            "audit_id": "1240992", "package": "braces", "version": "3.0.3",
+            "severity": "high",
+        }
+        paths = {
+            name: prefix + ">" + DEV_TOOL_CHAIN
+            for name, (_, prefix) in DEV_TOOL_SCOPES.items()
+        }
+        if (
+            any(exception[key] != value for key, value in identity.items())
+            or exception["paths"] != paths
+            or exception["approval"] != {
+                "status": "HUMAN_APPROVED", "task": "CI-20261004",
+                "scope": "DEV_TOOLING_ONLY",
+            }
+            or not isinstance(exception["advisory_metadata"], dict)
+            or exception["advisory_metadata"].get("patched_versions") != "<0.0.0"
+            or exception["advisory_metadata"].get("github_advisory_id") != identity["advisory_id"]
+            or exception["advisory_metadata"].get("module_name") != identity["package"]
+            or exception["advisory_metadata"].get("severity") != identity["severity"]
+        ):
+            raise SecurityFailure("dev-tool exception exceeds the Human-approved identity")
+        expected = {**identity, "path": paths[scope]}
+        if expected not in remaining:
+            continue
+        metadata = {
+            key: value for key, value in audit["advisories"][identity["audit_id"]].items()
+            if key != "findings"
+        }
+        if metadata != exception["advisory_metadata"]:
+            raise SecurityFailure("approved dev-tool advisory metadata changed; remediation required")
+        manifest_path = DEV_TOOL_SCOPES[scope][0]
+        manifest = json.loads((repository / manifest_path).read_text(encoding="utf-8"))
+        if (
+            not isinstance(manifest, dict)
+            or not isinstance(manifest.get("devDependencies"), dict)
+            or not isinstance(manifest["devDependencies"].get("eslint-config-next"), str)
+            or not manifest["devDependencies"]["eslint-config-next"].strip()
+            or any(
+                not isinstance(manifest.get(section, {}), dict)
+                or "eslint-config-next" in manifest.get(section, {})
+                for section in ("dependencies", "optionalDependencies", "peerDependencies")
+            )
+        ):
+            raise SecurityFailure("approved eslint-config-next chain is not dev-only")
+        remaining.remove(expected)
+        approved.append({
+            **expected, "scope": scope, "manifest": manifest_path,
+            "dependency_section": "devDependencies",
+            "patched_versions": metadata["patched_versions"],
+        })
+    return remaining, {
+        "current_findings": len(findings),
+        "approved_exact_exceptions": len(approved),
+        "unapproved_findings": len(remaining),
+        "resolved_exception_entries": len(exceptions) - len(approved),
+        "approved_dev_tool_advisories": approved,
+    }
+
+
+def validate_dependency_audits(
+    repository: Path, audits: dict, statuses: dict, baseline: dict
+) -> dict:
+    sources = {"composer", "workspace-pnpm", "legacy-pnpm", "workspace-prod", "legacy-prod"}
+    if (
+        not isinstance(audits, dict) or set(audits) != sources
+        or not isinstance(statuses, dict) or set(statuses) != sources
+    ):
+        raise SecurityFailure("audit reports or command statuses are missing or malformed")
+    composer = composer_findings(
+        audits["composer"],
+        json.loads((repository / "apps/api/composer.lock").read_text(encoding="utf-8")),
+    )
+    validate_audit_status(statuses["composer"], composer, "composer")
+    validate_dependency_baseline(composer, [], baseline)
+    remaining = {}
+    scopes = {}
+    for scope, lock_path in (
+        ("workspace", "pnpm-lock.yaml"), ("legacy", "legacy/v1-frontend/pnpm-lock.yaml")
+    ):
+        lock = (repository / lock_path).read_text(encoding="utf-8")
+        findings = pnpm_findings(audits[scope + "-pnpm"], lock)
+        runtime = pnpm_findings(audits[scope + "-prod"], lock)
+        validate_audit_status(statuses[scope + "-pnpm"], findings, scope)
+        validate_audit_status(statuses[scope + "-prod"], runtime, scope + "-prod")
+        if runtime:
+            raise SecurityFailure(f"{scope} runtime audit contains findings; no dev-tool exception applies")
+        remaining[scope], scopes[scope] = partition_dev_tool_findings(
+            repository, scope, findings, audits[scope + "-pnpm"], baseline
+        )
+        scopes[scope]["runtime_findings"] = len(runtime)
+    validate_workspace_pnpm_audit(remaining["workspace"])
+    summary = validate_dependency_baseline(composer, remaining["legacy"], baseline)
+    summary["pnpm_findings"] = scopes["legacy"]["current_findings"]
+    summary["pnpm"]["current_findings"] = scopes["legacy"]["current_findings"]
+    summary["pnpm"]["approved_exact_exceptions"] = scopes["legacy"]["approved_exact_exceptions"]
+    summary["workspace_pnpm_findings"] = scopes["workspace"]["current_findings"]
+    summary["dev_tool_scopes"] = scopes
+    summary["current_findings"] = len(composer) + sum(
+        item["current_findings"] for item in scopes.values()
+    )
+    summary["approved_exact_exceptions"] = sum(
+        item["approved_exact_exceptions"] for item in scopes.values()
+    )
+    summary["approved_dev_tool_advisories"] = len({
+        finding["advisory_id"] for item in scopes.values()
+        for finding in item["approved_dev_tool_advisories"]
+    })
+    summary["unapproved_findings"] = 0
+    return summary
+
+
 def load_policy_gate(repository: Path):
     path = repository / "scripts/ci/policy_gate.py"
     spec = importlib.util.spec_from_file_location("policy_gate_for_security", path)
@@ -342,6 +477,8 @@ def main() -> int:
     parser.add_argument("--composer-audit", type=Path, required=True)
     parser.add_argument("--pnpm-audit", type=Path, required=True)
     parser.add_argument("--workspace-pnpm-audit", type=Path, required=True)
+    parser.add_argument("--workspace-prod-audit", type=Path, required=True)
+    parser.add_argument("--legacy-prod-audit", type=Path, required=True)
     parser.add_argument("--audit-statuses", type=Path, required=True)
     arguments = parser.parse_args()
     repository = arguments.repository.resolve()
@@ -361,39 +498,21 @@ def main() -> int:
         validate_workflows(repository, paths)
         validate_codex_rules(repository)
         validate_remote(repository)
-        composer_audit = json.loads(arguments.composer_audit.read_text(encoding="utf-8"))
-        pnpm_audit = json.loads(arguments.pnpm_audit.read_text(encoding="utf-8"))
-        workspace_pnpm_audit = json.loads(
-            arguments.workspace_pnpm_audit.read_text(encoding="utf-8")
-        )
-        composer_lock = json.loads(
-            (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
-        )
+        audits = {
+            name: json.loads(path.read_text(encoding="utf-8"))
+            for name, path in (
+                ("composer", arguments.composer_audit),
+                ("workspace-pnpm", arguments.workspace_pnpm_audit),
+                ("legacy-pnpm", arguments.pnpm_audit),
+                ("workspace-prod", arguments.workspace_prod_audit),
+                ("legacy-prod", arguments.legacy_prod_audit),
+            )
+        }
         baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
         statuses = json.loads(arguments.audit_statuses.read_text(encoding="utf-8"))
-        composer = composer_findings(composer_audit, composer_lock)
-        pnpm = pnpm_findings(
-            pnpm_audit,
-            (repository / "legacy/v1-frontend/pnpm-lock.yaml").read_text(encoding="utf-8"),
+        dependency_summary = validate_dependency_audits(
+            repository, audits, statuses, baseline
         )
-        workspace = pnpm_findings(
-            workspace_pnpm_audit, (repository / "pnpm-lock.yaml").read_text(encoding="utf-8")
-        )
-        if not isinstance(statuses, dict) or set(statuses) != {
-            "composer", "workspace-pnpm", "legacy-pnpm",
-        }:
-            raise SecurityFailure("audit command statuses are missing or malformed")
-        for source, findings in (
-            ("composer", composer), ("workspace-pnpm", workspace), ("legacy-pnpm", pnpm)
-        ):
-            validate_audit_status(statuses[source], findings, source)
-        validate_workspace_pnpm_audit(workspace)
-        dependency_summary = validate_dependency_baseline(
-            composer,
-            pnpm,
-            baseline,
-        )
-        dependency_summary["workspace_pnpm_findings"] = 0
     except (
         OSError,
         ValueError,

@@ -35,8 +35,10 @@ Non-PR events resolve to Strict. The Required Check names do not change.
   findings are informational, not regressions.
 - `security_gate.py` performs repository security checks and compares fresh
   Composer and legacy pnpm advisories against approved fingerprints. New or
-  worsened findings fail; resolved entries do not. V2 workspace audits still
-  require zero findings.
+  worsened findings fail; resolved entries do not. Workspace and legacy runtime
+  audits require zero findings. A dedicated Human-approved dev-tool exception
+  permits only the exact braces advisory state documented in the CI runbook;
+  it never expands the general baseline or Dependency Review allowlist.
 - Both baselines use schema `1.1` with `owner`, `reason`, `tracking_task`, and
   `removal_condition`. They have no fixed expiry or required periodic renewal.
   Fresh lint/audits remain mandatory on normal CI. Invalid reports, command
