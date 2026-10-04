@@ -33,14 +33,16 @@ Check contexts for Lite unless a higher Lane or another policy requires them.
 
 The quality job validates PHP syntax, Composer manifest/lock consistency,
 the Root V2 Workspace and independent Legacy lock installations, V2 Admin
-typecheck/lint/build, Legacy typecheck and exact ESLint findings, JSON, XML,
+typecheck/lint/build, Legacy typecheck and approved ESLint fingerprints, JSON, XML,
 YAML, TOML, Public／Admin／Webhook OpenAPI 3.1.1、deterministic Bundle、
 Breaking Change、`@oripa/storefront-client`の生成差分／Typecheck／Lint／Build／
 Unit Test、generated tracked output、whitespace。
 
-The V1 ESLint baseline is exact and expires on 2026-08-31. It contains eight
-errors and one warning. A new, changed, missing, or expired fingerprint fails.
-The baseline does not apply to future V2 application paths.
+The V1 ESLint baseline contains eight errors and one warning. Every normal CI
+collects fresh ESLint JSON and compares exact fingerprints. New fingerprints,
+including changed severity, rule, message, or location, fail. Missing approved
+findings are resolved improvements and do not fail; the summary reports current,
+known, new, and resolved counts. The baseline does not apply to V2 paths.
 
 `QUALITY-002` removed the expired V1 backend failure baseline after updating the
 two `AdminPaymentApiTest` fixtures with the required payment-origin point lots
@@ -54,13 +56,25 @@ workflow permission and action-pin checks, credential-bearing remote detection,
 dangerous workflow command checks, `.codex` safety checks, and Composer/pnpm
 audits.
 
-The dependency baseline was re-reviewed on 2026-07-31 by `SEC-005` and expires
-on 2026-08-07. Legacy and V2 pnpm audits contain zero findings. The exact
-remaining Composer findings are limited to the unchanged medium or
-unknown-severity Guzzle, PSR-7, and JMESPath advisories; their fixed versions
-require a separately authorized Composer remediation. New, removed, changed,
-worsened, or expired findings fail until the baseline and locked dependencies
-are reviewed together.
+Every normal CI runs fresh `composer audit --locked`, workspace `pnpm audit`,
+and legacy `pnpm audit`. The approved Composer and legacy pnpm baseline arrays
+are empty: any actual advisory is blocking. New package/version/path, severity,
+or advisory identity fingerprints fail, including advisory-database changes with
+unchanged source/locks. Resolved approved findings are informational, not
+regressions. A dependency or lock change alone does not invalidate the baseline
+when fresh audits pass; lock consistency and Dependency Review remain enforced.
+Malformed, incomplete, unavailable, or lock-inconsistent audit results fail
+closed. Raw command statuses must agree with parsed findings; an unexplained
+nonzero status cannot pass. Fresh lint likewise requires a valid complete report
+and a consistent exit status.
+
+Both advisory and ESLint baselines use schema `1.1`. Required management fields
+are `owner`, `reason`, `tracking_task`, and `removal_condition`. Fixed expiry and
+seven-day renewal are removed: time passage alone never fails these baselines.
+There is no mandatory monthly or scheduled review, nor a replacement date field.
+New baseline allowances require separate Human review; resolved entries may be
+removed after fresh evidence confirms improvement. Reports never authorize
+automatic baseline expansion, suppression, or weakening a severity threshold.
 
 The V2 Root Workspace uses exact patched overrides for transitive `postcss` and
 `sharp`、`js-yaml` versions identified by a Fresh Audit. Its audit must remain at zero

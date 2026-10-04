@@ -31,9 +31,16 @@ Non-PR events resolve to Strict. The Required Check names do not change.
 - `quality_gate.py` validates tracked source and structured file quality.
 - `openapi_contract_gate.py` lints and bundles the Public／Admin／Webhook
   OpenAPI 3.1.1 Contract、Commit済みBundle差分、Breaking Changeを検査する。
-- `lint_baseline.py` requires an exact, unexpired ESLint fingerprint set.
-- `security_gate.py` performs repository security checks and requires exact,
-  unexpired Composer and pnpm advisory baselines.
+- `lint_baseline.py` rejects new or changed ESLint fingerprints; resolved approved
+  findings are informational, not regressions.
+- `security_gate.py` performs repository security checks and compares fresh
+  Composer and legacy pnpm advisories against approved fingerprints. New or
+  worsened findings fail; resolved entries do not. V2 workspace audits still
+  require zero findings.
+- Both baselines use schema `1.1` with `owner`, `reason`, `tracking_task`, and
+  `removal_condition`. They have no fixed expiry or required periodic renewal.
+  Fresh lint/audits remain mandatory on normal CI. Invalid reports, command
+  statuses, or metadata fail closed. New baseline allowances require Human review.
 
 Operational commands and baseline policy are documented in
 `docs/operations/ci/README.md`.

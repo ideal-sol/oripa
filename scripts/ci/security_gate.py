@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import datetime
+from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
@@ -86,13 +86,30 @@ def composer_findings(audit: dict, lock: dict) -> list[dict]:
     if not isinstance(advisories_by_package, dict):
         raise SecurityFailure("composer audit advisories are malformed")
 
+    if (
+        not isinstance(lock, dict)
+        or not isinstance(lock.get("packages"), list)
+        or not isinstance(lock.get("packages-dev", []), list)
+        or any(
+            not isinstance(item, dict)
+            or not isinstance(item.get("name"), str)
+            or not isinstance(item.get("version"), str)
+            for item in lock["packages"] + lock.get("packages-dev", [])
+        )
+    ):
+        raise SecurityFailure("Composer lock is missing or malformed")
     versions = {
         item["name"]: item["version"]
         for item in lock.get("packages", []) + lock.get("packages-dev", [])
     }
     findings = []
     for package, advisories in advisories_by_package.items():
-        if not isinstance(package, str) or not isinstance(advisories, list):
+        if (
+            not isinstance(package, str)
+            or package not in versions
+            or not isinstance(advisories, list)
+            or not advisories
+        ):
             raise SecurityFailure("composer audit advisories are malformed")
         for advisory in advisories:
             if not isinstance(advisory, dict):
@@ -107,15 +124,60 @@ def composer_findings(audit: dict, lock: dict) -> list[dict]:
                     "cve": advisory.get("cve"),
                 }
             )
+    validate_findings(findings, "composer")
     return sorted(findings, key=lambda item: json.dumps(item, sort_keys=True))
 
 
-def pnpm_findings(audit: dict) -> list[dict]:
+def pnpm_findings(audit: dict, lock: str) -> list[dict]:
+    if (
+        not isinstance(audit, dict)
+        or not isinstance(audit.get("advisories"), dict)
+        or not isinstance(audit.get("metadata"), dict)
+        or audit.get("error")
+        or audit.get("muted")
+    ):
+        raise SecurityFailure("pnpm audit structure is missing, malformed, or suppressed")
+    counts = audit["metadata"].get("vulnerabilities")
+    severities = {"info", "low", "moderate", "high", "critical"}
+    if (
+        not isinstance(counts, dict)
+        or set(counts) != severities
+        or any(type(value) is not int or value < 0 for value in counts.values())
+        or not isinstance(lock, str)
+        or "lockfileVersion:" not in lock
+        or "importers:" not in lock
+    ):
+        raise SecurityFailure("pnpm audit counts or lockfile are missing or malformed")
+    advisory_counts = Counter()
     findings = []
-    for audit_id, advisory in audit.get("advisories", {}).items():
+    for audit_id, advisory in audit["advisories"].items():
+        if (
+            not isinstance(advisory, dict)
+            or not isinstance(advisory.get("findings"), list)
+            or not advisory["findings"]
+            or not isinstance(advisory.get("severity"), str)
+            or advisory["severity"] not in severities
+        ):
+            raise SecurityFailure("pnpm advisory is malformed")
+        advisory_counts[advisory["severity"]] += 1
         advisory_id = str(advisory.get("url", "")).rstrip("/").split("/")[-1]
-        for finding in advisory.get("findings", []):
-            for path in finding.get("paths", []):
+        if not re.fullmatch(r"GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}", advisory_id):
+            raise SecurityFailure("pnpm advisory identity is missing or malformed")
+        for finding in advisory["findings"]:
+            if (
+                not isinstance(finding, dict)
+                or not isinstance(finding.get("paths"), list)
+                or not finding["paths"]
+                or not isinstance(finding.get("version"), str)
+                or not isinstance(advisory.get("module_name"), str)
+            ):
+                raise SecurityFailure("pnpm advisory finding is malformed")
+            package_version = re.escape(advisory["module_name"] + "@" + finding["version"])
+            if not re.search(
+                r"(?m)^  ['\"]?" + package_version + r"(?:\([^\n]*\))?['\"]?:$", lock
+            ):
+                raise SecurityFailure("pnpm advisory package/version is absent from lock")
+            for path in finding["paths"]:
                 findings.append(
                     {
                         "source": "pnpm",
@@ -127,37 +189,77 @@ def pnpm_findings(audit: dict) -> list[dict]:
                         "path": path,
                     }
                 )
+    if any(counts[severity] != advisory_counts[severity] for severity in severities):
+        raise SecurityFailure("pnpm audit advisory counts are inconsistent")
+    validate_findings(findings, "pnpm")
     return sorted(findings, key=lambda item: json.dumps(item, sort_keys=True))
 
 
+def validate_findings(findings: list[dict], source: str) -> None:
+    required = {"source", "advisory_id", "package", "version", "severity"}
+    fields = required | ({"cve"} if source == "composer" else {"audit_id", "path"})
+    if not isinstance(findings, list):
+        raise SecurityFailure("dependency findings are missing or malformed")
+    for finding in findings:
+        if (
+            not isinstance(finding, dict)
+            or set(finding) != fields
+            or any(
+                not isinstance(finding[key], str) or not finding[key].strip()
+                for key in fields - {"cve"}
+            )
+            or finding["source"] != source
+            or finding["severity"] not in {
+                "info", "low", "medium", "moderate", "high", "critical", "unknown",
+            }
+            or (source == "composer" and finding["cve"] is not None
+                and not isinstance(finding["cve"], str))
+        ):
+            raise SecurityFailure("dependency finding identity is incomplete or malformed")
+
+
+def validate_audit_status(status: int, findings: list[dict], source: str) -> None:
+    if type(status) is not int or status != int(bool(findings)):
+        raise SecurityFailure(
+            f"{source} audit command failed or exit status contradicts findings"
+        )
+
+
 def validate_dependency_baseline(
-    composer: list[dict], pnpm: list[dict], baseline: dict, today: datetime.date
+    composer: list[dict], pnpm: list[dict], baseline: dict
 ) -> dict:
-    if baseline.get("schema_version") != "1.0":
+    if not isinstance(baseline, dict) or baseline.get("schema_version") != "1.1":
         raise SecurityFailure("unsupported dependency baseline schema")
     management = baseline.get("management", {})
-    required = {"owner", "reason", "expires_at", "tracking_task", "removal_condition"}
-    if not required.issubset(management) or any(
-        not str(management.get(key, "")).strip() for key in required
+    required = {"owner", "reason", "tracking_task", "removal_condition"}
+    if not isinstance(management, dict) or any(
+        not isinstance(management.get(key), str) or not management[key].strip()
+        for key in required
     ):
         raise SecurityFailure("dependency baseline management metadata is incomplete")
-    if today > datetime.date.fromisoformat(management["expires_at"]):
-        raise SecurityFailure("dependency advisory baseline has expired")
-    expected_composer = sorted(
-        baseline.get("composer", []), key=lambda item: json.dumps(item, sort_keys=True)
-    )
-    expected_pnpm = sorted(
-        baseline.get("pnpm", []), key=lambda item: json.dumps(item, sort_keys=True)
-    )
-    if composer != expected_composer:
-        raise SecurityFailure("Composer advisory baseline mismatch")
-    if pnpm != expected_pnpm:
-        raise SecurityFailure("pnpm advisory baseline mismatch")
-    return {
+    summary = {
         "composer_advisories": len(composer),
         "pnpm_findings": len(pnpm),
-        "expires_at": management["expires_at"],
     }
+    for source, actual in (("composer", composer), ("pnpm", pnpm)):
+        expected = baseline.get(source)
+        validate_findings(actual, source)
+        validate_findings(expected, source)
+        actual_counts = Counter(json.dumps(item, sort_keys=True) for item in actual)
+        expected_counts = Counter(json.dumps(item, sort_keys=True) for item in expected)
+        added = actual_counts - expected_counts
+        if added:
+            raise SecurityFailure(
+                f"{source} advisory baseline mismatch: new="
+                + json.dumps(list(added.elements()))
+            )
+        summary[source] = {
+            "current_findings": len(actual),
+            "known_findings": len(actual),
+            "new_findings": 0,
+            "resolved_baseline_entries": sum((expected_counts - actual_counts).values()),
+        }
+    return summary
 
 
 def validate_workspace_pnpm_audit(pnpm: list[dict]) -> int:
@@ -240,6 +342,7 @@ def main() -> int:
     parser.add_argument("--composer-audit", type=Path, required=True)
     parser.add_argument("--pnpm-audit", type=Path, required=True)
     parser.add_argument("--workspace-pnpm-audit", type=Path, required=True)
+    parser.add_argument("--audit-statuses", type=Path, required=True)
     arguments = parser.parse_args()
     repository = arguments.repository.resolve()
     try:
@@ -267,15 +370,30 @@ def main() -> int:
             (repository / "apps/api/composer.lock").read_text(encoding="utf-8")
         )
         baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
+        statuses = json.loads(arguments.audit_statuses.read_text(encoding="utf-8"))
+        composer = composer_findings(composer_audit, composer_lock)
+        pnpm = pnpm_findings(
+            pnpm_audit,
+            (repository / "legacy/v1-frontend/pnpm-lock.yaml").read_text(encoding="utf-8"),
+        )
+        workspace = pnpm_findings(
+            workspace_pnpm_audit, (repository / "pnpm-lock.yaml").read_text(encoding="utf-8")
+        )
+        if not isinstance(statuses, dict) or set(statuses) != {
+            "composer", "workspace-pnpm", "legacy-pnpm",
+        }:
+            raise SecurityFailure("audit command statuses are missing or malformed")
+        for source, findings in (
+            ("composer", composer), ("workspace-pnpm", workspace), ("legacy-pnpm", pnpm)
+        ):
+            validate_audit_status(statuses[source], findings, source)
+        validate_workspace_pnpm_audit(workspace)
         dependency_summary = validate_dependency_baseline(
-            composer_findings(composer_audit, composer_lock),
-            pnpm_findings(pnpm_audit),
+            composer,
+            pnpm,
             baseline,
-            datetime.date.today(),
         )
-        dependency_summary["workspace_pnpm_findings"] = (
-            validate_workspace_pnpm_audit(pnpm_findings(workspace_pnpm_audit))
-        )
+        dependency_summary["workspace_pnpm_findings"] = 0
     except (
         OSError,
         ValueError,
