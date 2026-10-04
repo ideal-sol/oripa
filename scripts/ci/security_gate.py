@@ -277,6 +277,36 @@ DEV_TOOL_SCOPES = {
 DEV_TOOL_CHAIN = "eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces"
 
 
+def advisory_security_fingerprint(advisory: dict) -> dict:
+    fields = {
+        "id", "github_advisory_id", "module_name", "severity",
+        "vulnerable_versions", "patched_versions", "cves", "cwe", "cvss",
+    }
+    if not isinstance(advisory, dict) or not fields.issubset(advisory):
+        raise SecurityFailure("advisory security fingerprint is incomplete")
+    if (
+        type(advisory["id"]) is not int
+        or any(
+            not isinstance(advisory[key], str) or not advisory[key].strip()
+            for key in fields - {"id", "cves", "cwe", "cvss"}
+        )
+        or any(
+            not isinstance(advisory[key], list) or not advisory[key]
+            or any(not isinstance(value, str) or not value.strip() for value in advisory[key])
+            for key in ("cves", "cwe")
+        )
+        or not isinstance(advisory["cvss"], dict)
+        or type(advisory["cvss"].get("score")) not in (int, float)
+        or not isinstance(advisory["cvss"].get("vectorString"), str)
+        or not advisory["cvss"]["vectorString"].strip()
+    ):
+        raise SecurityFailure("advisory security fingerprint is malformed")
+    return {
+        **{key: advisory[key] for key in fields - {"cvss"}},
+        "cvss": {key: advisory["cvss"][key] for key in ("score", "vectorString")},
+    }
+
+
 def partition_dev_tool_findings(
     repository: Path, scope: str, findings: list[dict], audit: dict, baseline: dict
 ) -> tuple[list[dict], dict]:
@@ -288,7 +318,7 @@ def partition_dev_tool_findings(
     for exception in exceptions:
         fields = {
             "source", "advisory_id", "audit_id", "package", "version", "severity",
-            "approval", "advisory_metadata", "paths",
+            "approval", "security_fingerprint", "informational_metadata", "paths",
         }
         if not isinstance(exception, dict) or set(exception) != fields:
             raise SecurityFailure("dev-tool exception identity is incomplete")
@@ -308,22 +338,24 @@ def partition_dev_tool_findings(
                 "status": "HUMAN_APPROVED", "task": "CI-20261004",
                 "scope": "DEV_TOOLING_ONLY",
             }
-            or not isinstance(exception["advisory_metadata"], dict)
-            or exception["advisory_metadata"].get("patched_versions") != "<0.0.0"
-            or exception["advisory_metadata"].get("github_advisory_id") != identity["advisory_id"]
-            or exception["advisory_metadata"].get("module_name") != identity["package"]
-            or exception["advisory_metadata"].get("severity") != identity["severity"]
+            or not isinstance(exception["security_fingerprint"], dict)
+            or exception["security_fingerprint"].get("patched_versions") != "<0.0.0"
+            or exception["security_fingerprint"].get("github_advisory_id") != identity["advisory_id"]
+            or exception["security_fingerprint"].get("module_name") != identity["package"]
+            or exception["security_fingerprint"].get("severity") != identity["severity"]
         ):
             raise SecurityFailure("dev-tool exception exceeds the Human-approved identity")
+        fingerprint = advisory_security_fingerprint(exception["security_fingerprint"])
+        if fingerprint != exception["security_fingerprint"]:
+            raise SecurityFailure("dev-tool fingerprint contains non-security fields")
         expected = {**identity, "path": paths[scope]}
         if expected not in remaining:
             continue
-        metadata = {
-            key: value for key, value in audit["advisories"][identity["audit_id"]].items()
-            if key != "findings"
-        }
-        if metadata != exception["advisory_metadata"]:
-            raise SecurityFailure("approved dev-tool advisory metadata changed; remediation required")
+        actual_fingerprint = advisory_security_fingerprint(
+            audit["advisories"][identity["audit_id"]]
+        )
+        if actual_fingerprint != fingerprint:
+            raise SecurityFailure("approved dev-tool security fingerprint changed; remediation required")
         manifest_path = DEV_TOOL_SCOPES[scope][0]
         manifest = json.loads((repository / manifest_path).read_text(encoding="utf-8"))
         if (
@@ -342,7 +374,7 @@ def partition_dev_tool_findings(
         approved.append({
             **expected, "scope": scope, "manifest": manifest_path,
             "dependency_section": "devDependencies",
-            "patched_versions": metadata["patched_versions"],
+            "patched_versions": fingerprint["patched_versions"],
         })
     return remaining, {
         "current_findings": len(findings),

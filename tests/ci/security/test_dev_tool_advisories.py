@@ -37,7 +37,10 @@ class DevToolAdvisoryTest(unittest.TestCase):
         self.audits = {"composer": {"advisories": []}}
         self.statuses = {"composer": 0}
         for scope in ("workspace", "legacy"):
-            advisory = copy.deepcopy(self.exception["advisory_metadata"])
+            advisory = copy.deepcopy({
+                **self.exception["informational_metadata"],
+                **self.exception["security_fingerprint"],
+            })
             advisory["findings"] = [{
                 "version": "3.0.3", "paths": [self.exception["paths"][scope]],
             }]
@@ -142,20 +145,98 @@ class DevToolAdvisoryTest(unittest.TestCase):
                     self.validate(audits)
                 lock.write_text((ROOT / path).read_text())
 
-    def test_patched_versions_and_important_metadata_changes_fail(self):
+    def test_patched_versions_and_security_fingerprint_changes_fail(self):
         changes = {
             "patched_versions": ">=3.0.4", "vulnerable_versions": "<4",
             "github_advisory_id": "GHSA-abcd-1234-5678", "id": 1234,
             "cves": ["CVE-2099-0001"], "cwe": ["CWE-400"],
-            "cvss": {"score": 9.8}, "overview": "changed", "recommendation": "upgrade",
+            "cvss": {"score": 9.8, "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"},
         }
         for scope in ("workspace", "legacy"):
             for field, value in changes.items():
                 with self.subTest(scope=scope, field=field):
                     audits = copy.deepcopy(self.audits)
                     audits[scope + "-pnpm"]["advisories"]["1240992"][field] = value
-                    with self.assertRaisesRegex(security_gate.SecurityFailure, "metadata changed"):
+                    with self.assertRaisesRegex(security_gate.SecurityFailure, "security fingerprint changed"):
                         self.validate(audits)
+
+    def test_cvss_vector_only_change_fails(self):
+        for scope in ("workspace", "legacy"):
+            with self.subTest(scope=scope):
+                audits = copy.deepcopy(self.audits)
+                audits[scope + "-pnpm"]["advisories"]["1240992"]["cvss"]["vectorString"] = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+                with self.assertRaisesRegex(security_gate.SecurityFailure, "security fingerprint changed"):
+                    self.validate(audits)
+
+    def test_audit_record_key_change_fails(self):
+        for scope in ("workspace", "legacy"):
+            with self.subTest(scope=scope):
+                audits = copy.deepcopy(self.audits)
+                advisories = audits[scope + "-pnpm"]["advisories"]
+                advisories["9999"] = advisories.pop("1240992")
+                with self.assertRaises(security_gate.SecurityFailure):
+                    self.validate(audits)
+
+    def assert_informational_change_passes(self, field, value):
+        for scope in ("workspace", "legacy"):
+            with self.subTest(scope=scope, field=field):
+                audits = copy.deepcopy(self.audits)
+                audits[scope + "-pnpm"]["advisories"]["1240992"][field] = value
+                summary = self.validate(audits)
+                self.assertEqual(summary["current_findings"], 2)
+                self.assertEqual(summary["approved_exact_exceptions"], 2)
+                self.assertEqual(summary["unapproved_findings"], 0)
+
+    def test_overview_only_change_passes(self):
+        self.assert_informational_change_passes("overview", "Reworded description")
+
+    def test_references_only_change_passes(self):
+        self.assert_informational_change_passes("references", "Updated reference list")
+
+    def test_title_only_change_passes(self):
+        self.assert_informational_change_passes("title", "Updated advisory title")
+
+    def test_updated_timestamp_only_change_passes(self):
+        self.assert_informational_change_passes("updated", "2126-10-04T00:00:00Z")
+
+    def test_other_informational_changes_pass(self):
+        for field, value in {
+            "created": "2126-10-04T00:00:00Z", "found_by": "Changed attribution",
+            "reported_by": "Changed attribution", "access": "Changed label",
+            "recommendation": "Reworded recommendation", "description_extension": "New descriptive field",
+        }.items():
+            self.assert_informational_change_passes(field, value)
+
+    def test_missing_or_malformed_security_fingerprint_fails_closed(self):
+        for scope in ("workspace", "legacy"):
+            for field in self.exception["security_fingerprint"]:
+                for missing in (True, False):
+                    with self.subTest(scope=scope, field=field, missing=missing):
+                        audits = copy.deepcopy(self.audits)
+                        advisory = audits[scope + "-pnpm"]["advisories"]["1240992"]
+                        if missing:
+                            del advisory[field]
+                        else:
+                            advisory[field] = None
+                        with self.assertRaises(security_gate.SecurityFailure):
+                            self.validate(audits)
+
+    def test_missing_cvss_score_or_vector_fails_closed(self):
+        for scope in ("workspace", "legacy"):
+            for field in ("score", "vectorString"):
+                with self.subTest(scope=scope, field=field):
+                    audits = copy.deepcopy(self.audits)
+                    del audits[scope + "-pnpm"]["advisories"]["1240992"]["cvss"][field]
+                    with self.assertRaises(security_gate.SecurityFailure):
+                        self.validate(audits)
+
+    def test_baseline_keeps_informational_evidence_out_of_fingerprint(self):
+        self.assertEqual(set(self.exception["security_fingerprint"]), {
+            "id", "github_advisory_id", "module_name", "severity",
+            "vulnerable_versions", "patched_versions", "cves", "cwe", "cvss",
+        })
+        self.exception["informational_metadata"] = {"overview": "Reworded evidence"}
+        self.assertEqual(self.validate()["approved_exact_exceptions"], 2)
 
     def test_root_dependency_cannot_move_to_runtime_optional_or_peer_scope(self):
         for scope, (path, _) in security_gate.DEV_TOOL_SCOPES.items():

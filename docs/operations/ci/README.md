@@ -94,11 +94,18 @@ zero findings and exit 0. Full audit exit 1 is accepted only when consistent
 with parsed findings and the exact approved state. Do not rely on the audit
 service's `dev` flag alone to prove dependency scope.
 
-Full advisory metadata (excluding the separately validated finding paths and
-versions) must exactly equal the approved snapshot, including patched versions,
-severity, CVE/CWE/CVSS, vulnerability range and advisory identity. A changed
-snapshot is an event invalidation, not a clock comparison. A newly available
-fix, changed package/version/path, additional exposure or advisory fails closed.
+The explicit `security_fingerprint` must exactly match: advisory numeric ID,
+GitHub advisory ID, package, severity, vulnerable/patched versions, CVE, CWE,
+and CVSS score/vector. Source, audit record ID, locked version and both paths
+are also exact-bound; dev-only proof and zero production-only findings remain
+mandatory. A newly available fix, changed risk fingerprint, package/version/path,
+additional exposure or advisory fails closed.
+
+`informational_metadata` is evidence only. References, overview, title,
+created/updated timestamps, attribution, access labels, recommendation text
+and other descriptive fields do not participate in the blocking fingerprint.
+Description-only changes do not invalidate an otherwise exact approved exception.
+Missing or malformed security-relevant fields still fail closed.
 No runtime finding receives an exception. V2 runtime remains zero-finding, and
 unapproved V2 dev-tool findings still fail; the V1 baseline cannot authorize them.
 
