@@ -14,6 +14,7 @@ use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Identity\Services\V2SessionManager;
 use App\Domain\Mail\Services\V2IdentityMailOutboxWorker;
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Payment\V2\Services\V2PointPurchaseEligibilityService;
 use App\Models\V2\OutboxMessage;
 use App\Models\V2\User;
 use App\Models\V2\UserEmailChangeRequest;
@@ -172,6 +173,15 @@ final class AccountSecurityTest extends TestCase
         self::assertFalse($result['request_session_revoked']);
         self::assertSame('email-same-browser-new@example.test', $user->refresh()->email_normalized);
         self::assertTrue($user->first_registration_qualified_at->equalTo($qualifiedAt));
+        self::assertTrue($user->email_verified_at->greaterThan($qualifiedAt));
+        self::assertSame([
+            'eligible' => false,
+            'reason' => 'first_purchase_required',
+        ], app(V2PointPurchaseEligibilityService::class)->evaluate(
+            $user,
+            (object) ['audience_code' => 'first_purchase_users'],
+            CarbonImmutable::now('UTC')
+        ));
         self::assertNotNull(UserEmailChangeRequest::query()
             ->where('public_id', $started['request_id'])->value('used_at'));
         foreach ([$initiating['token'], $other['token']] as $oldToken) {

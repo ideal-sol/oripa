@@ -21,6 +21,7 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class AdminPointPurchasePlanManagementTest extends TestCase
@@ -213,18 +214,62 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         self::assertContains('PUT admin/api/v2/point-purchase-plans/{planId}', $routes);
     }
 
-    public function test_first_purchase_eligibility_uses_only_successful_payments(): void
+    #[DataProvider('firstUserWindowCases')]
+    public function test_first_user_window_boundaries_are_identical_for_read_and_creation(
+        string $asOf,
+        bool $qualified,
+        bool $expectedEligible
+    ): void {
+        $user = $this->user('window', $qualified);
+        $plan = $this->plan('first_purchase_users');
+        $instant = CarbonImmutable::parse($asOf);
+        $eligibility = app(V2PointPurchaseEligibilityService::class);
+        self::assertSame([
+            'eligible' => $expectedEligible,
+            'reason' => $expectedEligible ? null : 'first_purchase_required',
+        ], $eligibility->evaluate($user, $plan, $instant));
+
+        CarbonImmutable::setTestNow($instant);
+        $before = DB::table('payments')->count();
+        try {
+            $payment = app(V2PaymentService::class)->createPayment(
+                $user->id, $plan->id, 'mock', null, (string) Str::uuid7()
+            );
+            self::assertTrue($expectedEligible);
+            self::assertTrue(CarbonImmutable::parse($payment->created_at)->equalTo($instant));
+        } catch (V2PaymentException $exception) {
+            self::assertFalse($expectedEligible);
+            self::assertSame('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED', $exception->getMessage());
+            self::assertSame($before, DB::table('payments')->count());
+        }
+    }
+
+    public static function firstUserWindowCases(): array
+    {
+        return [
+            'before qualification' => ['2026-08-06T08:59:59Z', true, false],
+            'at qualification' => ['2026-08-06T09:00:00Z', true, true],
+            '23:59:59' => ['2026-08-07T08:59:59Z', true, true],
+            '24:00:00' => ['2026-08-07T09:00:00Z', true, false],
+            '25 hours' => ['2026-08-07T10:00:00Z', true, false],
+            'unknown qualification' => ['2026-08-06T09:00:00Z', false, false],
+            'same instant in JST' => ['2026-08-07T17:59:59+09:00', true, true],
+            'JST end instant' => ['2026-08-07T18:00:00+09:00', true, false],
+        ];
+    }
+
+    public function test_first_user_product_is_consumed_by_success_even_after_refund(): void
     {
         $user = $this->user('eligibility');
         $plan = $this->plan('first_purchase_users');
         $eligibility = app(V2PointPurchaseEligibilityService::class);
-        self::assertTrue($eligibility->eligible($user, $plan));
-        foreach (['created', 'processing', 'failed', 'canceled', 'expired'] as $status) {
+        self::assertTrue($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
+        foreach (['failed', 'canceled', 'expired'] as $status) {
             $this->payment($user, $plan, $status);
         }
-        self::assertTrue($eligibility->eligible($user, $plan));
+        self::assertTrue($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
         $this->payment($user, $plan, 'succeeded');
-        self::assertFalse($eligibility->eligible($user, $plan));
+        self::assertFalse($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
 
         DB::table('payment_adjustments')->insert([
             'public_id' => (string) Str::uuid7(),
@@ -238,7 +283,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        self::assertFalse($eligibility->eligible($user, $plan));
+        self::assertFalse($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
     }
 
     public function test_target_tag_is_public_versioned_and_inactive_tags_are_rejected(): void
@@ -285,27 +330,29 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         $extra = $this->tag('別タグ');
         $plan = $this->plan('all_users', $target->id);
         $eligibility = app(V2PointPurchaseEligibilityService::class);
-        self::assertFalse($eligibility->eligible($user, $plan));
+        self::assertFalse($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
         $this->assignTag($user, $extra);
-        self::assertFalse($eligibility->eligible($user, $plan));
+        self::assertFalse($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
         $this->assignTag($user, $target);
-        self::assertTrue($eligibility->eligible($user, $plan));
-        self::assertFalse($eligibility->eligible($other, $plan));
+        self::assertTrue($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
+        self::assertFalse($eligibility->eligible($other, $plan, CarbonImmutable::now('UTC')));
 
         DB::table('user_tags')->where('id', $target->id)->update(['is_active' => false]);
-        self::assertTrue($eligibility->eligible($user, $plan));
+        self::assertTrue($eligibility->eligible($user, $plan, CarbonImmutable::now('UTC')));
 
         $firstPurchasePlan = $this->plan('first_purchase_users', $target->id);
-        self::assertTrue($eligibility->eligible($user, $firstPurchasePlan));
+        self::assertTrue($eligibility->eligible($user, $firstPurchasePlan, CarbonImmutable::now('UTC')));
         $this->payment($user, $firstPurchasePlan, 'succeeded');
-        self::assertFalse($eligibility->eligible($user, $firstPurchasePlan));
+        self::assertFalse($eligibility->eligible($user, $firstPurchasePlan, CarbonImmutable::now('UTC')));
+        CarbonImmutable::setTestNow(CarbonImmutable::now('UTC')->addHours(24));
+        self::assertFalse($eligibility->eligible($user, $firstPurchasePlan, CarbonImmutable::now('UTC')));
     }
 
     public function test_payment_start_and_success_revalidate_current_tag_assignment(): void
     {
         $user = $this->user('tag-revalidation');
         $tag = $this->tag('購入対象');
-        $plan = $this->plan('all_users', $tag->id);
+        $plan = $this->plan('first_purchase_users', $tag->id);
         $service = app(V2PaymentService::class);
         try {
             $service->createPayment(
@@ -320,6 +367,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         $payment = $service->createPayment(
             $user->id, $plan->id, 'mock', 'tagged-user', (string) Str::uuid7()
         );
+        CarbonImmutable::setTestNow(CarbonImmutable::now('UTC')->addHours(25));
         DB::table('user_tag_assignments')->where([
             'user_id' => $user->id,
             'user_tag_id' => $tag->id,
@@ -336,9 +384,13 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         }
         self::assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'created']);
         self::assertDatabaseMissing('payment_point_grants', ['payment_id' => $payment->id]);
+        $this->assignTag($user, $tag);
+        $service->confirmSucceeded($event->id);
+        self::assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'succeeded']);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
     }
 
-    public function test_success_confirmation_rechecks_first_purchase_under_user_lock(): void
+    public function test_success_confirmation_allows_different_first_user_products(): void
     {
         $user = $this->user('completion');
         $plan = $this->plan('first_purchase_users');
@@ -348,7 +400,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             $user->id, $plan->id, 'mock', 'first-'.Str::uuid7(), (string) Str::uuid7()
         );
         $second = $service->createPayment(
-            $user->id, $plan->id, 'mock', 'second-'.Str::uuid7(), (string) Str::uuid7()
+            $user->id, $this->plan('first_purchase_users')->id, 'mock', 'second-'.Str::uuid7(), (string) Str::uuid7()
         );
         $firstEvent = $service->recordVerifiedProviderEvent(
             'mock', 'event-first-'.Str::uuid7(), 'payment.succeeded', '{}', [],
@@ -359,14 +411,35 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             $second->id, null, now()
         );
         $service->confirmSucceeded($firstEvent->id);
-        try {
-            $service->confirmSucceeded($secondEvent->id);
-            self::fail('A second first-purchase completion must fail.');
-        } catch (V2PaymentException $exception) {
-            self::assertSame('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED', $exception->getMessage());
-        }
-        self::assertDatabaseHas('payments', ['id' => $second->id, 'status' => 'created']);
-        self::assertSame($grantsBefore + 1, DB::table('payment_point_grants')->count());
+        $service->confirmSucceeded($secondEvent->id);
+        self::assertDatabaseHas('payments', ['id' => $second->id, 'status' => 'succeeded']);
+        self::assertSame($grantsBefore + 2, DB::table('payment_point_grants')->count());
+    }
+
+    #[DataProvider('legacyQualificationCases')]
+    public function test_existing_legacy_payment_settles_without_rechecking_registration(bool $qualified): void
+    {
+        $user = $this->user('legacy-pending', $qualified);
+        $plan = $this->plan('first_purchase_users');
+        CarbonImmutable::setTestNow(CarbonImmutable::now('UTC')->addHours(25));
+        $this->payment($user, $plan, 'created');
+        $payment = DB::table('payments')->where('user_id', $user->id)->sole();
+        self::assertFalse(app(V2PointPurchaseEligibilityService::class)->eligible($user, $plan, CarbonImmutable::now('UTC')));
+        $service = app(V2PaymentService::class);
+        $event = $service->recordVerifiedProviderEvent(
+            'mock', 'legacy-event-'.Str::uuid7(), 'payment.succeeded', '{}', [],
+            $payment->id, null, now()
+        );
+        $service->confirmSucceeded($event->id);
+        $service->confirmSucceeded($event->id);
+        self::assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'succeeded']);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
+    }
+
+    public static function legacyQualificationCases(): array
+    {
+        return ['expired at creation' => [true], 'unknown at creation' => [false]];
     }
 
     /** @return array<string, mixed> */
@@ -419,7 +492,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         );
     }
 
-    private function user(string $suffix): User
+    private function user(string $suffix, bool $qualified = true): User
     {
         $email = 'purchase-'.$suffix.'-'.Str::uuid7().'@example.test';
 
@@ -428,6 +501,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
+            'first_registration_qualified_at' => $qualified ? now() : null,
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid user password'),
             'state' => V2UserState::Active,
         ]);

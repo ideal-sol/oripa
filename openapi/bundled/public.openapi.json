@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.38",
+    "version": "2.0.0-alpha.39",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -5651,6 +5651,7 @@
           "string",
           "null"
         ],
+        "description": "first_purchase_requiredは初回商品の24時間・商品ごと1回・未確定決済条件を満たさない場合を含む互換identifier。",
         "enum": [
           "sale_not_started",
           "sale_ended",
@@ -5753,14 +5754,52 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "data"
+          "data",
+          "first_user_offer"
         ],
         "properties": {
+          "first_user_offer": {
+            "$ref": "#/components/schemas/FirstUserOffer"
+          },
           "data": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PointProduct"
             }
+          }
+        }
+      },
+      "FirstUserOffer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "expires_at",
+          "as_of"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "unauthenticated",
+              "unavailable"
+            ],
+            "description": "activeは24時間内で購入可能な初回商品あり、expiredは期限到達、unauthenticatedは匿名、unavailableはその他の購入不可。"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "初回登録資格確定から24時間後のUTC時刻。資格不明または匿名はnull。"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Collection全商品の購入資格とOfferを評価した共通UTC時刻。"
           }
         }
       },

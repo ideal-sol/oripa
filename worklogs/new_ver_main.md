@@ -1,3 +1,133 @@
+## POINT-FIRST-24H-ONCE-CONTRACT — Platform PR phase
+
+- Latest Human instruction supersedes the prior local-only stop only for Platform commit, normal task-branch push, an OPEN PR and Required Checks startup. Stop once checks have started; do not wait by advancing Storefront work. Merge/auto-merge, deployment, runtime changes and exact-head formal Contract Artifact generation remain explicitly prohibited.
+- Issue none; Risk R3; Lane Strict Change; Application Runtime Activation deferred; UI Verification NOT_APPLICABLE for this Platform-only phase. Machine Task ID `CONTRACT-20261005` uses the existing branch suffix accepted by the unchanged Gate; branch remains `feat/POINT-FIRST-24H-ONCE-CONTRACT-20261005`. Full Human Change name remains `POINT-FIRST-24H-ONCE-CONTRACT-20261005`; this is the same Change, not a new branch or implementation.
+- First local PR-body validation rejected the long feature-name Task ID under the existing uppercase-prefix/numeric-ID rule. Correct only operational metadata to `CONTRACT-20261005`, confirmed unused in policies and GitHub PR titles. No Gate, scope, assertions or branch naming protection is modified. The initial wrapper operation created the task Remote ref at the base only; correct the unpublished local Worklog commit before pushing implementation, without rewriting any shared ref. Superseded policy mutation permissions are removed; the new exact-scope policy owns further operations.
+- Reacquired protected main authority is `b0a0c28af4e3c69e7623512fda84d2cacb973183`, equal to original starting/base SHA, starting task HEAD and local/origin main. Drift NONE; no rebase or base synchronization needed. Existing dedicated worktree `POINT-FIRST-24H-ONCE-CONTRACT-20261005-platform` contains exactly the 20 recognized Platform paths from the prior handoff and no untracked additions. No old Task, other worktree or Storefront source was modified.
+- Select a root-owned, mode-0600 Task Policy for the payment-risk push/PR operations, with exactly those 20 paths and only task-branch push, PR create/body/ready and check-read operations. It does not authorize merge, check bypass, artifact publication, deployment or unrelated refs. Source Lock none; Migration Allocation Lock not applicable.
+- Business source is unchanged from the locally reviewed implementation: immutable first-registration authority and continuous half-open 24h window; per-user/canonical-plan-code once; Card/PayPay consume on success, asynchronous methods on proven provider start; unresolved same-product requests block under the existing user lock; existing pending settlement does not retroactively recheck new creation eligibility. Durable histories/session evidence distinguish successful asynchronous start from local-row creation or definite provider rejection.
+- Scope includes the Public OpenAPI schema/bundle, generated Platform-owned Client/Testkit source and fixtures, pending alpha.43 release-candidate metadata and its one-line Platform workspace lock update. These are source consistency inputs, not formal artifact production or Storefront dependency adoption. Latest immutable release remains alpha.42. No tarball, vendor directory, publication, final provenance or Site package/lockfile change is included.
+- Fresh final-diff PHP validation PASS: 163 focused tests / 1468 assertions plus six payment-safety tests / 36 assertions (169 distinct tests). Covers 24h exact boundaries/null/future qualification, email-change immutability, same code across versions, all four payment methods, definitive/uncertain failure, 23h start/47h settlement and grants, legacy pending, same/different-product concurrency, idempotency, rollback and Point Product Read metadata.
+- Fresh Contract validation PASS: `pnpm openapi:check`, `pnpm openapi:test` (27 tests), `pnpm storefront:check` (36 tests), `pnpm testkit:check` (50 tests). Includes committed generated-diff checks, package typecheck/lint/build, exports and network boundaries. These two local package builds do not generate or publish a formal Contract bundle. Repository policy validation PASS. Final PHP syntax (nine files), diff whitespace, exact-path/secret scan and binary/submodule review are required before commit; immutable file hashes bind this tested snapshot to the exact final commit and PR evidence.
+- Validation uses a newly created network-isolated disposable PostgreSQL container, schema-only synthetic reference and synthetic fixture, not shared runtime data or a live provider. Migrations created/applied NONE; new tables/columns NONE. No secrets/PII are recorded. All fresh runs above passed; historical corrected failures below belong to the previous phase.
+- NOT RUN in this phase: full Backend suite, Browser/E2E/visual verification, Storefront Site tests/build/integration, live-provider checks, deployed acceptance or completed GitHub CI. Required policy/quality/security/integration/ci checks will run through the normal PR event, with no skip or weakening. Fresh merge self-review and Source Review PASS are not claimed; merge is forbidden regardless of check status.
+- Rollback: no deployed state exists to revert; retain the OPEN unmerged PR and dedicated branch/worktree. Any future merge/release requires separate Human direction and revalidation, including reviewed exact-head formal artifact provenance and Storefront integration. Existing PR #139, earlier local-only artifact and Storefront worktree remain untouched; the old artifact is not authoritative for this upcoming commit.
+- Commit/head/tree, remote readback, PR number/URL, exact changed-file statistics and live check URLs will be recorded in the PR and Human report after creation so the reviewed source need not change merely to embed its own SHA. Local validation is bound by all 20 file hashes to the final commit; a changed source invalidates that evidence.
+- Phase metrics at handoff: no Human wait, no CI completion wait, no CI rerun requested, two local package builds, zero application builds, zero Runtime Activation, zero migrations. Dedicated validation container is cleaned up; task branch/worktree and evidence are retained. OLD Test NOT DEPLOYED; Runtime/Production/NEW NOT TOUCHED; exact-head final Artifact generation NOT PERFORMED; Storefront integration/PR NOT PERFORMED; PR #139 NOT MUTATED; main merge NOT PERFORMED.
+
+## POINT-FIRST-24H-ONCE-CONTRACT-20261005 — Local implementation handoff
+
+Result: `POINT_FIRST_USER_24H_ONCE_CONTRACT_IMPLEMENTATION_COMPLETE_LOCAL_ONLY`.
+
+### Authority and stop boundary
+
+- Human PF24OC instruction explicitly limits work to source, local contract artifacts, focused validation and review. Issue none; Risk R3; Lane Strict Change; Application Runtime Activation deferred. No commit, push, PR, merge, publication or deployment is authorized in this task.
+- Platform protected main, starting local/origin main, base and unchanged task HEAD: `b0a0c28af4e3c69e7623512fda84d2cacb973183`. New branch `feat/POINT-FIRST-24H-ONCE-CONTRACT-20261005`; dedicated worktree `POINT-FIRST-24H-ONCE-CONTRACT-20261005-platform`, initially clean.
+- Storefront protected main: `aec90bb24e02696d40afd3d19f6459b698ff4d59`. PR #139 exact head/base: `aa3b62b637933fe1b29563e1c8926251c3734486`. New branch `feat/FIRST-BUY-24H-20261005-integration`; dedicated worktree `FIRST-BUY-24H-20261005-integration`, initially clean. PR #139 remains open and unchanged; its branch was not edited.
+- Prior POINT-FIRST-24H-20261005 worktrees remain reference-only: Platform eight modified files, 285 insertions/51 deletions; Storefront two modified files, two insertions/two deletions. No commit, stash, reset, clean or write there. Unrelated primary-checkout changes remain untouched. Protected heads were rechecked without remote mutation.
+- No Source Lock needed: new isolated worktrees and no identified concurrent semantic owner. No Migration Allocation Lock needed because no migration is reserved or created. No remote task branch exists. Retain both new local branches/worktrees for Human review; do not perform normal merge/cleanup lifecycle.
+
+### Implementation inventory
+
+- `apps/api/app/Domain/Payment/V2/Services/V2PointPurchaseEligibilityService.php`: immutable qualification window, canonical user/plan-code consumption, unresolved-payment exclusion and durable asynchronous-start evidence; settlement preserves tag/transaction controls without retroactive window/once rejection.
+- `apps/api/app/Domain/Payment/V2/Services/V2PaymentService.php`: reload qualification under existing user lock, evaluate creation at a common UTC instant, use settlement-only checks on existing payments. Existing Admin version creation preserves plan code; public ID/version changes cannot restore the allowance.
+- `apps/api/app/Domain/Payment/V2/Services/V2PointProductReadService.php` and `apps/api/app/Http/Controllers/V2/V2PointProductController.php`: common-as-of collection metadata and authoritative per-product eligibility; retain private/no-store cookie-sensitive response behavior.
+- `apps/api/tests/V2/AccountSecurityTest.php`, `AdminPointPurchasePlanManagementTest.php`, `FincodePaymentBackendTest.php`, `PaymentModelFoundationTest.php`, `PointProductReadContractTest.php`: window, immutable email-change behavior, per-method history, provider failure, legacy settlement, metadata and real concurrent-process coverage.
+- `openapi/public/openapi.yaml`, `openapi/bundled/public.openapi.json`: additive FirstUserOffer schema; Public API alpha.39. `first_purchase_required` remains the compatible identifier, now explicitly means unmet first-user-product conditions, not globally absent purchase history.
+- `packages/storefront-client/package.json`, `src/constants.ts`, `src/generated/public.ts`; `packages/storefront-testkit/package.json`, `src/fixtures.ts`, `src/generated/public-contract.ts`; `manifests/storefront-contract-releases.json`; `pnpm-lock.yaml`: canonical alpha.43 candidate, generated types/fixtures and exact workspace dependency. Latest immutable alpha.42 and release history are unchanged; Site Schema remains alpha.23, Admin alpha.36 and Webhook alpha.34.
+- Storefront retains PR #139 layout: live presentation derivation and monotonic timer hooks; Home/Header/Point Page/Detail integration; generic ineligible wording; cheapest eligible lead distinct from maximum OFF; disabled expired/consumed detail. Full Storefront changed-file inventory is recorded in its `worklogs/new_ver_main.md`.
+
+### Eligibility matrix
+
+All new starts require qualification in `[qualified_at, qualified_at + 24h)`, existing sale/tag/ownership checks and no competing unresolved payment. Null/future qualification fails closed. Different canonical plan codes are independent.
+
+| Method | Active/processing/uncertain | Definitive failure | Permanent consumption | Later expired/canceled | Method change |
+| --- | --- | --- | --- | --- | --- |
+| credit_card | Block same product | Retry inside window | Successful settlement | Retry only if never succeeded | Allowed only after definitive failure, inside window |
+| paypay | Block same product | Retry inside window | Successful settlement | Retry only if never succeeded | Allowed only after definitive failure, inside window |
+| konbini | Block same product | Retry only if provider start never succeeded | Successful provider start | Remains consumed after successful start | Forbidden after successful start |
+| virtual_account | Block same product | Retry only if provider start never succeeded | Successful provider start | Remains consumed after successful start | Forbidden after successful start |
+
+- Existing evidence: persisted Fincode provider-session plus encrypted redirect URL, or provider-origin `requires_action`/`processing` status history. Local payment-row insertion alone is not permanent consumption. Provider rejection before successful start is retryable; uncertainty blocks. Immutable success history also survives later adjustments.
+- A valid existing payment may settle at 47 hours, or with legacy null qualification, under unchanged provider verification, status, expiry and tag controls. Settlement does not reapply new creation eligibility. Point grant remains exactly once and transactionally protected.
+
+### Contract and presentation
+
+- Required `PointProductCollection.first_user_offer`: `state` enum (`active`, `expired`, `unauthenticated`, `unavailable`), `expires_at` nullable RFC3339 date-time, `as_of` required RFC3339 date-time. Active means at least one currently eligible first-user product; expired means canonical deadline reached; unavailable includes null qualification/no eligible product; anonymous has no disclosed expiry. Product eligibility and collection state share one Backend instant. Registration timestamps themselves are not exposed.
+- Regular display price = `grant.total_points`; saving = `grant.bonus_points`; rate = integer floor of `(total_points - price.amount) * 100 / total_points`. Lead is cheapest currently eligible first-user product, preserving Backend tie order. Maximum OFF is independently derived across displayed products. No DB/Admin/contract discount-rate field.
+- Countdown starts from `expires_at - as_of`, subtracts `performance.now()` elapsed time, and refetches the existing Point Client at zero. Backend response alone changes eligibility. No wall-clock qualification decision, registration-time reconstruction or LocalStorage. Preview fixtures remain preview-only. Expired products never become regular-price sales.
+- Checked latest release manifest, pending worktrees and open PR candidates before choosing alpha.43/Public alpha.39. Canonical artifact generator produces a local-only bundle; Storefront exact-pins both tarballs. No publication or release reservation is claimed.
+- Artifact limitation: canonical manifest `source_commit` is the unchanged Platform BASE, not an implementation commit (Human forbids commits). `LOCAL_SOURCE.json` records actual input hashes, `source_commit_is_base_only=true`, `deployment_authorized=false` and `LOCAL_ONLY_UNCOMMITTED_NOT_RELEASED`; provenance and Storefront checker enforce that distinction. Canonical format publication labels do NOT mean this candidate was released. Rebuild against reviewed committed source before future release/deployment. Digests are recorded in Storefront `vendor/oripa/PF24OC-20261005/PROVENANCE.md`.
+
+### Required-case evidence
+
+All PASS below refer to executed local synthetic tests, not Browser/E2E, live provider or deployed acceptance. AP = AdminPointPurchasePlanManagementTest; FB = FincodePaymentBackendTest; PM = PaymentModelFoundationTest; PR = PointProductReadContractTest; SF = first-buy-contract.test.tsx; Detail = point-purchase-detail-ui.test.tsx.
+
+| Case | Result | Evidence |
+| --- | --- | --- |
+| 1: 23:59:59 eligible | PASS | AP window data provider, read and creation |
+| 2: 24:00:00 denied | PASS | AP exact boundary, read and creation |
+| 3: null qualification denied | PASS | AP null case |
+| 4: email change cannot extend | PASS | AccountSecurity same-browser qualification/expiry assertions |
+| 5: A success blocks A | PASS | AP success/refund; FB per-method success |
+| 6: A success permits B | PASS | AP different-product settlement; FB different products |
+| 7: same code/new version blocked | PASS | FB consumption/version data provider |
+| 8: failed Card retry | PASS | FB terminal-failure provider |
+| 9: Card success consumes | PASS | FB per-method successful settlement |
+| 10: Card active/unresolved blocks | PASS | FB initial/processing/uncertain-start cases |
+| 11: Card failure allows other method | PASS | FB retry through virtual_account/paypay |
+| 12: failed PayPay retry | PASS | FB terminal-failure provider |
+| 13: PayPay success consumes | PASS | FB per-method successful settlement |
+| 14: PayPay unresolved blocks | PASS | FB initial/processing/uncertain-start cases |
+| 15: Konbini successful start consumes | PASS | FB immediate repeat rejection |
+| 16: unpaid Konbini blocked | PASS | FB requires_action/processing repeat rejection |
+| 17: expired Konbini stays consumed | PASS | FB consumption/version provider |
+| 18: canceled Konbini stays consumed | PASS | FB terminal-failure provider |
+| 19: Konbini method change blocked | PASS | FB rejection through paypay after successful start |
+| 20: rejected provider start not consumed | PASS | FB rejected-start retry then uncertain block, all methods |
+| 21: Virtual Account consumes on start | PASS | FB immediate/processing repeat rejection |
+| 22: Virtual Account expiry stays consumed | PASS | FB consumption/version provider |
+| 23: Virtual Account method change blocked | PASS | FB paypay retry rejection |
+| 24: Konbini start at 23h | PASS | FB actual fake-provider start/resume scenario |
+| 25: settlement at 47h | PASS | Same FB verified-provider settlement scenario |
+| 26: successful point grant | PASS | Same FB wallet/grant assertions, exactly once |
+| 27: A consumed, B available | PASS | FB other-code start and PR partial-consumption metadata |
+| 28: same-product concurrent starts | PASS | PM two PHP processes, all four methods |
+| 29: different-product concurrent starts | PASS | PM independent products, both succeed |
+| 30: active state/expiry/as_of/products | PASS | PR authenticated-window assertions |
+| 31: expired metadata | PASS | PR expired scenario |
+| 32: anonymous metadata | PASS | PR anonymous scenario |
+| 33: null qualification unavailable | PASS | PR metadata scenario |
+| 34: all products consumed unavailable | PASS | PR all-consumed scenario |
+| 35: partial consumption active | PASS | PR used/unused eligibility and active state |
+| 36: shared response as_of | PASS | PR frozen Backend instant and exact expiry |
+| 37: reference = total | PASS | SF integer derivation |
+| 38: saving = bonus | PASS | SF integer derivation |
+| 39: derived rate formula | PASS | SF 100/333 example |
+| 40: floor fractional rate | PASS | SF exact 69 percent assertion |
+| 41: cheapest eligible lead | PASS | SF cheapest/consumed exclusion/tie-order assertions |
+| 42: lead differs from maximum | PASS | SF rendered 50-percent lead and 90-percent maximum |
+| 43: expired hidden/detail disabled | PASS | SF expired model, Detail disabled purchase |
+| 44: consumed ineligible/detail disabled | PASS | PR eligibility, Detail disabled purchase |
+| 45: anonymous no clock/register/session | PASS | SF anonymous Hero and session UI regression |
+| 46: countdown refetch/Backend authority | PASS | SF monotonic fake timer, wall-clock perturbation, Point Client refetch |
+| 47: obsolete normal-price wording absent | PASS | Source search and rendered SF assertion |
+| 48: Payment/Save Card/3DS/Wallet/Page | PASS | FB existing provider/security cases; payment-purchase, payment-fincode, card-registration-resume, point-read, point-purchase UI regression |
+
+### Validation, safety and non-actions
+
+- Executed PASS: final focused Backend suite 163 tests/1468 assertions; separate PM safety selection six tests/36 assertions (169 distinct Backend tests total). Client `storefront:check` (36 tests), Testkit `testkit:check` (50 tests), `openapi:check`, `openapi:test` (27 tests), canonical artifact validate-source/build/verify; all generated drift, type, lint and export/network checks passed.
+- Storefront final combined focused UI/contract/session regression: 17 files/223 tests PASS. TypeScript `tsc --noEmit`, targeted ESLint, artifact integrity, point/payment boundary checks PASS. No test assertion, security control, CI gate or provider behavior was weakened.
+- Initial failures are retained as failures, not omitted: disposable DB readiness/schema setup errors; one immutable-qualification fixture and one new collection expectation; old artifact-version literals; an unstable mock-client identity in the newly added hook test; pre-adoption generated-type errors. These were fixed in setup/fixtures/pin assertions and rerun successfully. No known unresolved focused-test failure.
+- Test DBs are dedicated disposable, network-isolated synthetic databases populated with schema-only reference and synthetic fixtures; no shared runtime data, customer PII or live-provider traffic. No migration was applied even to these test DBs; restoring a test schema is not migration application.
+- Diff whitespace, changed-path/secret scan, PHP syntax (nine files), artifact archive checks, generated files and contract scope reviewed. No known SEV-0/SEV-1 finding in this local review. This is not fixed-commit machine-readable merge evidence: implementation remains uncommitted; no CI/merge approval is claimed.
+- NOT RUN: full Backend/Storefront suites, Browser/E2E/visual acceptance, application production build, CI Required Checks, live-provider/payment acceptance and deployed smoke checks, because this task stops at focused local source validation. No Backend-wide, Browser, Production or release PASS is claimed.
+- DB: migrations created NONE; migrations applied NONE; new tables/columns NONE. API impact limited to collection metadata and first-user eligibility. Auth/qualification writing, point accounting/expiry, provider contract, Draw, probability, Shipping, Save Card/card deletion, Limited Bonus, tags, ENV, infrastructure, runtime routing, gates, PR #137 and 10-digit task remain unchanged. Contract-only regression pin updates do not alter those domains.
+- OLD Test NOT DEPLOYED; Runtime NOT TOUCHED; Production NOT TOUCHED; NEW server NOT TOUCHED; commit/push NOT PERFORMED; PR NOT CREATED; main merge NOT PERFORMED; PR #139 NOT MUTATED. Merge actor/squash SHA/self-review publication none. New task Remote SHA none; local HEAD remains base, not an implementation commit. No Stable Tag/Release created or changed.
+- Rollback: no deployed state exists to revert. Retain isolated uncommitted worktrees for Human review; any later integration must recheck protected refs, version availability, exact committed provenance and every applicable gate. No destructive rollback or worktree removal is authorized here.
+- Final readback: both protected main SHAs and PR #139 exact open head remain unchanged. Platform local main = origin/main = protected main. Storefront origin/main = protected main; its pre-existing local main remains `c911155f2fff5aea0f0b3df4f3184aa4081b6203` in another worktree, intentionally NOT synchronized or disturbed by this local-only task. Task HEADs remain their declared bases. Dedicated disposable test DB container was stopped and removed; task worktrees and evidence retained. Final changed-path scan: Platform 20 files, Storefront 32 files, zero secret/path findings; whitespace and PHP syntax PASS.
+- Metrics: CI wait 0; CI reruns 0; Human wait 0; Runtime Activation count 0; application Build count 0; local package Build invocations 5 (Site Schema once, Client/Testkit twice each). Local corrective reruns are described separately above, not reported as CI reruns. Task elapsed approximately 30 minutes including focused reruns and handoff; no runtime operation time.
+
 ## GACHA-NOTICE-DEFAULT-20261005 — Gacha notice defaults
 
 - Human-approved identifier mapping: Human / Feature name GACHA-NOTICE-DEFAULT-20261005; Machine Task ID GND-20261005 for CI, GitHub App, PR and artifacts. Task branch renamed to feat/GND-20261005 with implementation and evidence preserved. No classifier, CI or Gate semantics change is made for this mapping.

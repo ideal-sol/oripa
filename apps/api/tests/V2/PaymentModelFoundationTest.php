@@ -303,6 +303,52 @@ final class PaymentModelFoundationTest extends TestCase
             ->value('balance'));
     }
 
+    public function test_first_user_concurrent_creation_blocks_same_code_for_every_method(): void
+    {
+        foreach (['credit_card', 'paypay', 'konbini', 'virtual_account'] as $method) {
+            $user = $this->user('once-concurrent-'.$method);
+            $user->forceFill(['first_registration_qualified_at' => now()])->save();
+            $plan = $this->plan(1000, 100, 'first_purchase_users');
+            $statuses = $this->parallelProcesses($this->firstUserStartScript(), [
+                [(string) $user->id, (string) $plan->id, $method],
+                [(string) $user->id, (string) $plan->id, $method],
+            ]);
+            sort($statuses);
+            self::assertSame([0, 3], $statuses);
+            self::assertSame(1, DB::table('payments')->where('user_id', $user->id)->count());
+        }
+    }
+
+    public function test_first_user_concurrent_different_products_remain_independent(): void
+    {
+        $user = $this->user('once-concurrent-independent');
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $first = $this->plan(1000, 100, 'first_purchase_users');
+        $second = $this->plan(2000, 200, 'first_purchase_users');
+        self::assertSame([0, 0], $this->parallelProcesses($this->firstUserStartScript(), [
+            [(string) $user->id, (string) $first->id, 'paypay'],
+            [(string) $user->id, (string) $second->id, 'paypay'],
+        ]));
+        self::assertSame(2, DB::table('payments')->where('user_id', $user->id)->count());
+    }
+
+    private function firstUserStartScript(): string
+    {
+        return <<<'PHP'
+            require 'vendor/autoload.php';
+            $app = require 'bootstrap/app.php';
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            try {
+                app(App\Domain\Payment\V2\Services\V2PaymentService::class)->createPayment(
+                    (int) $argv[1], (int) $argv[2], 'fincode',
+                    (string) Illuminate\Support\Str::uuid(), (string) Illuminate\Support\Str::uuid(), $argv[3]
+                );
+            } catch (App\Domain\Payment\V2\Exceptions\V2PaymentException $exception) {
+                exit(in_array($exception->getMessage(), ['POINT_PURCHASE_FIRST_PURCHASE_REQUIRED', 'KONBINI_UNPAID_LIMIT_REACHED'], true) ? 3 : 4);
+            }
+            PHP;
+    }
+
     public function test_full_unused_refund_reserves_and_consumes_lots(): void
     {
         [$payment, $event] = $this->paymentWithVerifiedEvent('refund-unused');
@@ -714,13 +760,14 @@ final class PaymentModelFoundationTest extends TestCase
         );
     }
 
-    private function plan(int $paid, int $free): object
+    private function plan(int $paid, int $free, string $audience = 'all_users'): object
     {
         $id = DB::table('point_purchase_plans')->insertGetId([
             'public_id' => (string) Str::uuid7(),
             'code' => 'plan-'.Str::uuid(),
             'version_no' => 1,
             'name' => 'Test Plan',
+            'audience_code' => $audience,
             'amount' => $paid,
             'paid_point_amount' => $paid,
             'free_point_amount' => $free,
