@@ -1079,13 +1079,22 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.43')
-        self.assertEqual(value['candidate']['contract_versions']['public'], '2.0.0-alpha.39')
-        self.assertEqual(value['candidate']['public_api_operation_count'], 78)
-        self.assertEqual(value['candidate']['packages']['@oripa/storefront-client']['version'], '2.0.0-alpha.43')
-        self.assertEqual(value['candidate']['packages']['@oripa/storefront-testkit']['version'], '2.0.0-alpha.43')
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        released = value['immutable_history'][-1]
+        self.assertEqual(released, value['latest_immutable'])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.43')
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-additive')
+        self.assertFalse(released['breaking_change'])
+        self.assertEqual(released['contract_versions']['public'], '2.0.0-alpha.39')
+        self.assertEqual(released['public_openapi']['operation_count'], 78)
+        self.assertEqual(released['source_commit'], '0ce41ab473fd5a4fb44773041ae097ffb40b14ce')
+        self.assertEqual(released['manifest_sha256'], '1951edf44ef275e3c9bf85ac0ce1417a27bc64e982a607d0a72e49186eb09e74')
+        self.assertEqual(released['publication']['artifact_id'], 11349442812)
+        self.assertEqual(released['packages']['@oripa/storefront-client']['version'], '2.0.0-alpha.43')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['version'], '2.0.0-alpha.43')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertIsNone(value['candidate'])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])

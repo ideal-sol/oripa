@@ -628,3 +628,44 @@ all 76 predecessor path contracts are unchanged. Eligibility remains private.
 All predecessors including alpha.41 remain immutable. This reconciliation clears
 the candidate and records exact publication bytes. No runtime activation,
 Provider, business logic, migration, Production or NEW operation occurs.
+
+## First-user 24h per-product contract release — REL-043
+
+Human-authorized CONTRACT-20261005 PR [540](https://github.com/ideal-sol/oripa/pull/540)
+was squash merged from reviewed head `e54aff48ac53ba687c1ee9877cab7dbd0538a9b4`
+to exact protected main `0ce41ab473fd5a4fb44773041ae097ffb40b14ce` after all
+Required Checks and fresh fixed-head self-review passed. Reviewed and merged
+trees both equal `2cfc6b0b7c84ab57520dba80cf37ba4677958888`; content diff is zero.
+
+Canonical contract-only workflow
+[37319224331](https://github.com/ideal-sol/oripa/actions/runs/37319224331), attempt 1,
+passed authorization, publication and readback. Immutable Artifact `11349442812`,
+`oripa-storefront-contract-2.0.0-alpha.43`, is the sole published alpha.43
+authority. Independent exact-ID readback also passed outer digest, five-file
+inventory, inner checksums, manifest, package and Public OpenAPI verification.
+
+- outer_sha256: `53fb939978eabbf9b636369b15c81369d18305890891715f7bbd864e9b197d14`
+- manifest_sha256: `1951edf44ef275e3c9bf85ac0ce1417a27bc64e982a607d0a72e49186eb09e74`
+- client_sha256: `9f14026a53d24413d860975d5c012988a5381771600b81e8309e5119a10792b0`
+- testkit_sha256: `d5bb5b0d785437e0f400b369ff97663a6c69d4a329c1b82710017087a92af9fb`
+- public_openapi_sha256: `37cdeb7a214d42f0f69458d578a81c5c7869132e2a6cbd02ca8d150f1abf6faa`
+- sha256sums_sha256: `c7027c25f1a9c8070061ff75767e9483eef7732c9ab2240c7d787b89b6487fac`
+
+Client/Testkit alpha.43, Public Contract alpha.39 and 78 operations are recorded
+as `contract-additive`, `breaking_change=false`, `handoff_status=released`.
+The predecessor is alpha.42; immutable Site Schema alpha.23 is referenced, not
+republished. Required `first_user_offer` remains response-only additive using
+the canonical marker, with unchanged state, expires_at and as_of semantics.
+
+This metadata-only reconciliation appends alpha.43, updates `latest_immutable`
+and clears `candidate`; alpha.42 and all earlier immutable records are preserved.
+Publication is complete, but the REL-043 reconciliation PR remains open for
+Human review. Storefront adoption must wait for its subsequent approved merge.
+Artifact Release Lock remains reserved through that review. Never rebuild,
+overwrite, delete/reupload or substitute this published version. The prior
+local-only alpha.43 bundle is not publication authority.
+
+No Storefront integration/pin/PR, PR #139 mutation, OLD Test deployment, runtime
+activation, migration execution, Production or NEW operation is performed.
+Rollback requires a reviewed metadata correction or new-version source change;
+it must not rewrite the published Artifact or immutable predecessor records.
