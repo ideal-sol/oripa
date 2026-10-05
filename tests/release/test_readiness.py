@@ -321,6 +321,166 @@ class ReadinessTests(unittest.TestCase):
         self.add("step.platform_build", "REUSE")
         self.assertEqual(gate.step_matrix(self.candidate, gate.AUTHORITY)["platform_build"]["disposition"], "REUSE")
 
+    def prepare_storefront_record(self, lane=gate.STRICT_FALLBACK):
+        self.candidate["repository"] = "ideal-sol/luxe-pack-storefront"
+        self.candidate["change_classes"] = ["storefront_gate_tooling"]
+        for entry in self.candidate["facts"].values():
+            entry["identity"] = gate.identity(self.candidate)
+        checks = copy.deepcopy(self.candidate["required_check_evidence"][0])
+        checks["repository"] = self.candidate["repository"]
+        self.candidate["required_check_evidence"].append(checks)
+        self.add("platform_impact", "NONE")
+        self.add("classification_baseline", {key: self.candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
+        classification = records.seal({
+            "schema_version": "1.0",
+            **{key: self.candidate[key] for key in ("repository", "base_sha", "head_sha", "tree_sha")},
+            "policy_version": "1.0-shadow-proposal", "policy_digest": DIGEST,
+            "impact_map_version": "1.0", "impact_map_digest": DIGEST,
+            "policy_approval": "PENDING_HUMAN_APPROVAL", "candidate_lane": lane,
+            "fallback_lane": gate.STRICT_FALLBACK if lane == gate.STRICT_FALLBACK else gate.NORMAL,
+            "classification_reason": "GATE_POLICY_CHANGE", "evidence": [],
+            "unknown_reasons": ["GATE_POLICY_CHANGE"], "change_classes": [],
+            "affected_modules": [], "affected_routes": [], "affected_states": [],
+            "production_impact": "NONE", "blocking_authority": False, "ci_skip": False,
+        }, "record_digest")
+        self.add("storefront_minor_classification", classification)
+        return classification
+
+    def test_storefront_strict_propagates_without_policy_approval(self):
+        classification = self.prepare_storefront_record()
+        for effective in (False, True):
+            with self.subTest(effective_lane_present=effective):
+                if effective:
+                    classification["effective_lane"] = gate.STRICT_FALLBACK
+                self.add("storefront_minor_classification", records.seal(classification, "record_digest"))
+                evaluated = self.evaluate()
+                self.assertEqual(evaluated["classification"]["candidate_lane"], gate.STRICT_FALLBACK)
+                self.assertEqual(evaluated["lane"], gate.STRICT_FALLBACK)
+                self.assertEqual(evaluated["fallback_lane"], gate.STRICT_FALLBACK)
+                matrix = evaluated["production_step_matrix"]
+                self.assertEqual(matrix, gate.step_matrix(self.candidate, gate.STRICT_FALLBACK))
+                self.assertEqual(matrix, gate.step_matrix(self.candidate, gate.FULL))
+                for step in ("platform_build", "platform_stage", "platform_activation", "storefront_build"):
+                    self.assertEqual(matrix[step]["policy_modes"], ["CONDITIONAL"])
+                self.assertEqual(matrix["required_security_policy"]["disposition"], "REQUIRED")
+                self.assertTrue(all(not row["operation_executed"] for row in matrix.values()))
+                self.assertEqual(evaluated["production_impact"], "NONE")
+                self.assertFalse(evaluated["blocking_authority"])
+                self.assertEqual(evaluated["shadow_final_status"], "SHADOW_READY")
+
+    def test_storefront_minor_still_requires_approval_and_no_unknowns(self):
+        classification = self.prepare_storefront_record(gate.MINOR)
+        for approval, unknowns, expected in (
+            ("HUMAN_APPROVED", [], gate.MINOR),
+            ("PENDING_HUMAN_APPROVAL", [], gate.NORMAL),
+            ("HUMAN_APPROVED", ["MISSING_PROOF"], gate.NORMAL),
+        ):
+            with self.subTest(approval=approval, unknowns=unknowns):
+                classification.update(policy_approval=approval, unknown_reasons=unknowns)
+                self.add("storefront_minor_classification", records.seal(classification, "record_digest"))
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], expected)
+
+    def test_storefront_normal_classification_is_preserved(self):
+        self.prepare_storefront_record(gate.NORMAL)
+        evaluated = self.evaluate()
+        self.assertEqual(evaluated["lane"], gate.NORMAL)
+        self.assertEqual(evaluated["fallback_lane"], gate.NORMAL)
+        self.assertEqual(evaluated["production_step_matrix"], gate.step_matrix(self.candidate, gate.NORMAL))
+
+    def test_storefront_minor_still_requires_exact_record_binding(self):
+        original = self.prepare_storefront_record(gate.MINOR)
+        original.update(policy_approval="HUMAN_APPROVED", unknown_reasons=[])
+        for key, value in (
+            ("record_digest", "sha256:" + "c" * 64), ("repository", "ideal-sol/oripa"),
+            ("base_sha", "c" * 40), ("head_sha", "c" * 40), ("tree_sha", "c" * 40),
+            ("production_impact", "CHANGED"),
+        ):
+            with self.subTest(key=key):
+                classification = {**original, key: value}
+                if key != "record_digest":
+                    classification = records.seal(classification, "record_digest")
+                self.add("storefront_minor_classification", classification)
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+
+    def test_storefront_strict_cannot_override_full_preconditions(self):
+        self.prepare_storefront_record()
+        for name in ("platform_impact", "complete_diff", "classification_baseline"):
+            for status in ("UNKNOWN", "HOLD"):
+                with self.subTest(name=name, status=status):
+                    self.candidate["facts"][name]["status"] = status
+                    self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.FULL)
+                    self.candidate["facts"][name]["status"] = "PASS"
+        for value in ("PRESENT", "UNKNOWN", None):
+            with self.subTest(platform_impact=value):
+                self.add("platform_impact", value)
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.FULL)
+
+    def test_storefront_strict_rejects_invalid_record_binding_and_schema(self):
+        original = self.prepare_storefront_record()
+        invalid = {
+            "record_digest": "sha256:" + "c" * 64, "repository": "ideal-sol/oripa",
+            "base_sha": "c" * 40, "head_sha": "c" * 40, "tree_sha": "c" * 40,
+            "production_impact": "CHANGED", "candidate_lane": "UNSUPPORTED_LANE",
+            "fallback_lane": gate.NORMAL, "effective_lane": gate.NORMAL,
+            "schema_version": "unsupported", "policy_approval": "APPROVED",
+            "policy_version": None, "policy_digest": "invalid", "impact_map_version": None,
+            "impact_map_digest": "invalid", "classification_reason": None,
+            "evidence": "invalid", "unknown_reasons": "invalid", "change_classes": "invalid",
+            "affected_modules": None, "affected_routes": None, "affected_states": None,
+            "blocking_authority": True, "ci_skip": True,
+        }
+        for key, value in invalid.items():
+            with self.subTest(key=key):
+                classification = {**original, key: value}
+                if key != "record_digest":
+                    classification = records.seal(classification, "record_digest")
+                self.add("storefront_minor_classification", classification)
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+        for key in original:
+            with self.subTest(missing=key):
+                classification = {name: value for name, value in original.items() if name != key}
+                if key != "record_digest":
+                    classification = records.seal(classification, "record_digest")
+                self.add("storefront_minor_classification", classification)
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+
+    def test_storefront_strict_requires_exact_candidate_fact(self):
+        self.prepare_storefront_record()
+        proof = self.candidate["facts"]["storefront_minor_classification"]
+        for key in gate.identity(self.candidate):
+            with self.subTest(identity=key):
+                original = proof["identity"][key]
+                proof["identity"][key] = "mismatched"
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+                proof["identity"][key] = original
+        for status in ("UNKNOWN", "HOLD", "N/A"):
+            proof["status"] = status
+            self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+        proof["status"] = "PASS"
+        proof["evidence_reference"] = ""
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+
+    def test_storefront_strict_evidence_entries_keep_v1_shape(self):
+        original = self.prepare_storefront_record()
+        entry = {"path": "src/components/example.tsx", "classes": ["literal_className"],
+                 "before_digest": "a" * 64, "after_digest": "b" * 64}
+        classification = records.seal({**original, "evidence": [entry]}, "record_digest")
+        self.add("storefront_minor_classification", classification)
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.STRICT_FALLBACK)
+        for invalid in (None, {}, {**entry, "path": None}, {**entry, "classes": "invalid"},
+                        {**entry, "before_digest": "bad"}, {**entry, "after_digest": None}):
+            with self.subTest(entry=invalid):
+                classification = records.seal({**original, "evidence": [invalid]}, "record_digest")
+                self.add("storefront_minor_classification", classification)
+                self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.NORMAL)
+
+    def test_storefront_strict_does_not_override_authority_classification(self):
+        self.prepare_storefront_record()
+        self.prepare_authority_candidate()
+        self.assertEqual(gate.classify(self.candidate)["candidate_lane"], gate.AUTHORITY)
+        self.candidate["facts"].pop("runtime_delta.application")
+        self.assert_strict_authority_fallback()
+
     def test_human_go_validator_does_not_generate_approval(self):
         record = records.seal({"schema_version": "1.0", "candidate_id": self.candidate["candidate_id"],
             "approved_at": STAMP, "service_scope": ["api"], "source": self.candidate["source"],

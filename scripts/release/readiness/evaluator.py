@@ -114,6 +114,32 @@ def validate_candidate(candidate):
         require(all(text(value) for value in contract.values()) and matches(DIGEST, contract["manifest_digest"]), "TARGET_CONTRACT_IDENTITY_INVALID")
 
 
+def storefront_strict_record(classification):
+    return (
+        classification.get("schema_version") == "1.0"
+        and classification.get("candidate_lane") == STRICT_FALLBACK
+        and classification.get("fallback_lane") == STRICT_FALLBACK
+        and classification.get("effective_lane", STRICT_FALLBACK) == STRICT_FALLBACK
+        and classification.get("policy_approval") in ("HUMAN_APPROVED", "PENDING_HUMAN_APPROVAL")
+        and classification.get("blocking_authority") is False
+        and classification.get("ci_skip") is False
+        and all(text(classification.get(key)) for key in (
+            "policy_version", "impact_map_version", "classification_reason",
+        ))
+        and all(matches(DIGEST, classification.get(key)) for key in ("policy_digest", "impact_map_digest"))
+        and all(strings(classification.get(key)) for key in (
+            "unknown_reasons", "change_classes", "affected_modules", "affected_routes", "affected_states",
+        ))
+        and isinstance(classification.get("evidence"), list)
+        and all(
+            isinstance(entry, dict) and text(entry.get("path")) and strings(entry.get("classes"), nonempty=True)
+            and all(isinstance(entry.get(key), str) and matches(DIGEST, "sha256:" + entry[key])
+                    for key in ("before_digest", "after_digest"))
+            for entry in classification["evidence"]
+        )
+    )
+
+
 def classify(candidate):
     evidence = []
     unknown = []
@@ -142,22 +168,28 @@ def classify(candidate):
             minor = fact(candidate, "storefront_minor_classification")
             classification = candidate.get("facts", {}).get("storefront_minor_classification", {}).get("value", {})
             valid_minor = False
+            valid_strict = False
             if minor["status"] == "PASS" and isinstance(classification, dict):
                 try:
                     check_digest(classification, "record_digest")
-                    valid_minor = (
-                        classification.get("candidate_lane") == MINOR
-                        and classification.get("repository") == candidate["repository"]
+                    bound = (
+                        classification.get("repository") == candidate["repository"]
                         and classification.get("base_sha") == candidate["base_sha"]
                         and classification.get("head_sha") == candidate["head_sha"]
                         and classification.get("tree_sha") == candidate["tree_sha"]
-                        and classification.get("policy_approval") == "HUMAN_APPROVED"
                         and classification.get("production_impact") == "NONE"
+                    )
+                    valid_minor = (
+                        bound and classification.get("candidate_lane") == MINOR
+                        and classification.get("policy_approval") == "HUMAN_APPROVED"
                         and classification.get("unknown_reasons") == []
                     )
+                    valid_strict = bound and storefront_strict_record(classification)
                 except (RecordError, TypeError, ValueError):
                     valid_minor = False
             lane, reason = (MINOR, "EXACT_STOREFRONT_CLASSIFIER_EVIDENCE") if valid_minor else (NORMAL, "MINOR_NOT_PROVEN")
+            if valid_strict:
+                lane, reason = STRICT_FALLBACK, "EXACT_STOREFRONT_STRICT_FALLBACK_EVIDENCE"
             evidence.extend(minor["evidence"])
     return {
         "candidate_lane": lane, "classification_reason": reason, "evidence": evidence,
