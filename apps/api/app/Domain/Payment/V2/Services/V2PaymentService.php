@@ -81,7 +81,7 @@ final class V2PaymentService
                     ->where('public_id', $claim->record->resource_public_id)
                     ->firstOrFail();
             }
-            DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             if ($paymentMethod === 'konbini' && DB::table('payments')
                 ->where('user_id', $user->id)
                 ->where('payment_method', 'konbini')
@@ -102,13 +102,13 @@ final class V2PaymentService
             if ($plan === null) {
                 throw new V2PaymentException('PURCHASE_PLAN_NOT_AVAILABLE');
             }
-            $this->purchaseEligibility->assertEligible($user, $plan);
             $campaigns = DB::table('point_purchase_plan_limited_bonus_campaigns')
                 ->where('point_purchase_plan_id', $plan->id)
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
-            $now = now()->startOfSecond();
+            $now = CarbonImmutable::now('UTC')->startOfSecond();
+            $this->purchaseEligibility->assertEligible($user, $plan, $now);
             $publicId = (string) Str::uuid7();
             $paymentId = DB::table('payments')->insertGetId([
                 'public_id' => $publicId,
@@ -445,7 +445,7 @@ final class V2PaymentService
                 ->lockForUpdate()
                 ->firstOrFail();
             $user = User::query()->findOrFail($payment->user_id);
-            $this->purchaseEligibility->assertEligible($user, $plan, (int) $payment->id);
+            $this->purchaseEligibility->assertSettlementEligible($user, $plan);
             $limitedBonus = $this->limitedBonusAt((int) $payment->id, $succeededAt);
             $succeededPayment = $this->transitionPayment(
                 $payment,

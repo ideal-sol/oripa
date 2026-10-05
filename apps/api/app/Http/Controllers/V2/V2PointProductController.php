@@ -18,9 +18,7 @@ final class V2PointProductController
     public function index(Request $request): JsonResponse
     {
         $user = Auth::guard('v2_user')->user();
-        $response = response()->json([
-            'data' => $this->products->listing($user),
-        ], 200, [
+        $response = response()->json($this->products->listing($user), 200, [
             'Cache-Control' => $user === null
                 ? (string) config('v2_payment.point_product_collection_cache_control')
                 : 'private, no-store',

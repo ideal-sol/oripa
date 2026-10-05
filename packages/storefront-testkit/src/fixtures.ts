@@ -455,6 +455,7 @@ const firstPurchasePointProduct = {
 
 export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
   anonymous: {
+    first_user_offer: { state: "unauthenticated", expires_at: null, as_of: "2026-08-15T00:00:00Z" },
     data: [
       {
         ...allUsersPointProduct,
@@ -480,11 +481,13 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
       },
     ],
   },
-  anonymous_empty: { data: [] },
+  anonymous_empty: { data: [], first_user_offer: { state: "unauthenticated", expires_at: null, as_of: "2026-08-15T00:00:00Z" } },
   authenticated_eligible: {
+    first_user_offer: { state: "active", expires_at: "2026-08-16T00:00:00Z", as_of: "2026-08-15T00:00:00Z" },
     data: [allUsersPointProduct, firstPurchasePointProduct],
   },
   authenticated_after_first_purchase: {
+    first_user_offer: { state: "unavailable", expires_at: "2026-08-16T00:00:00Z", as_of: "2026-08-15T00:00:00Z" },
     data: [
       allUsersPointProduct,
       {
@@ -500,6 +503,7 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
     ],
   },
   unavailable: {
+    first_user_offer: { state: "expired", expires_at: "2026-08-15T00:00:00Z", as_of: "2026-08-15T00:00:00Z" },
     data: [
       {
         ...allUsersPointProduct,

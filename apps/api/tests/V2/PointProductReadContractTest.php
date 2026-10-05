@@ -39,6 +39,8 @@ final class PointProductReadContractTest extends TestCase
             ->assertOk()
             ->assertHeader('Vary', 'Cookie')
             ->assertJsonCount(2, 'data')
+            ->assertJsonPath('first_user_offer.state', 'unauthenticated')
+            ->assertJsonPath('first_user_offer.expires_at', null)
             ->assertJsonPath('data.0.id', $first->public_id)
             ->assertJsonPath('data.0.audience.code', 'first_purchase_users')
             ->assertJsonPath('data.0.audience.label', '初回ユーザー')
@@ -64,7 +66,7 @@ final class PointProductReadContractTest extends TestCase
         }
     }
 
-    public function test_authenticated_first_purchase_uses_only_succeeded_payments(): void
+    public function test_authenticated_first_user_uses_registration_window_and_product_history(): void
     {
         $allUsers = $this->plan('全員向け', 'all_users', 1);
         $firstPurchase = $this->plan('初回限定', 'first_purchase_users', 2);
@@ -80,6 +82,9 @@ final class PointProductReadContractTest extends TestCase
             ->assertJsonPath('data.1.id', $firstPurchase->public_id)
             ->assertJsonPath('data.1.eligible', true)
             ->assertJsonPath('data.1.ineligible_reason', null);
+        $eligible->assertJsonPath('first_user_offer.state', 'active')
+            ->assertJsonPath('first_user_offer.expires_at', '2026-08-15T00:00:00Z')
+            ->assertJsonPath('first_user_offer.as_of', '2026-08-14T00:00:00Z');
         $cacheControl = (string) $eligible->headers->get('Cache-Control');
         self::assertStringContainsString('private', $cacheControl);
         self::assertStringContainsString('no-store', $cacheControl);
@@ -90,13 +95,47 @@ final class PointProductReadContractTest extends TestCase
             ->assertJsonPath('data.1.eligible', true);
 
         $this->payment($user, $allUsers, 'succeeded');
+        CarbonImmutable::setTestNow('2026-08-14T23:59:59Z');
         $this->getJson('/api/v2/point-products')
             ->assertOk()
+            ->assertJsonPath('data.1.eligible', true)
+            ->assertJsonPath('data.1.ineligible_reason', null)
+            ->assertJsonPath('data.1.cta.state', 'enabled')
+            ->assertJsonPath('data.1.limited_bonus.as_of', '2026-08-14T23:59:59Z');
+
+        CarbonImmutable::setTestNow('2026-08-15T00:00:00Z');
+        $this->getJson('/api/v2/point-products')
+            ->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'expired')
             ->assertJsonPath('data.0.eligible', true)
             ->assertJsonPath('data.1.eligible', false)
             ->assertJsonPath('data.1.ineligible_reason', 'first_purchase_required')
             ->assertJsonPath('data.1.cta.state', 'disabled')
             ->assertJsonPath('data.1.cta.action', 'purchase');
+    }
+
+    public function test_offer_metadata_tracks_partial_and_all_consumption_and_unknown_qualification(): void
+    {
+        $first = $this->plan('A', 'first_purchase_users', 1);
+        $second = $this->plan('B', 'first_purchase_users', 2);
+        $user = $this->user();
+        Auth::guard('v2_user')->setUser($user);
+        $this->payment($user, $first, 'succeeded');
+        $response = $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'active')
+            ->assertJsonPath('data.0.eligible', false)
+            ->assertJsonPath('data.1.eligible', true);
+        foreach ($response->json('data') as $product) {
+            self::assertSame($response->json('first_user_offer.as_of'), $product['limited_bonus']['as_of']);
+        }
+        $this->payment($user, $second, 'succeeded');
+        $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'unavailable')
+            ->assertJsonPath('data.1.cta.state', 'disabled');
+        Auth::guard('v2_user')->setUser($this->user(false));
+        $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'unavailable')
+            ->assertJsonPath('first_user_offer.expires_at', null);
     }
 
     public function test_sale_period_and_target_tag_are_backend_authoritative(): void
@@ -143,7 +182,9 @@ final class PointProductReadContractTest extends TestCase
     {
         $this->getJson('/api/v2/point-products')
             ->assertOk()
-            ->assertExactJson(['data' => []]);
+            ->assertExactJson(['data' => [], 'first_user_offer' => [
+                'state' => 'unauthenticated', 'expires_at' => null, 'as_of' => '2026-08-14T00:00:00Z',
+            ]]);
     }
 
     public function test_limited_bonus_state_and_exact_boundaries_are_backend_canonical(): void
@@ -274,7 +315,7 @@ final class PointProductReadContractTest extends TestCase
         ]);
     }
 
-    private function user(): User
+    private function user(bool $qualified = true): User
     {
         $email = 'point-read-'.Str::uuid7().'@example.test';
 
@@ -283,6 +324,7 @@ final class PointProductReadContractTest extends TestCase
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
+            'first_registration_qualified_at' => $qualified ? now() : null,
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid user password'),
             'state' => V2UserState::Active,
         ]);

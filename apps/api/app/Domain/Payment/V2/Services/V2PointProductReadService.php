@@ -13,7 +13,7 @@ final class V2PointProductReadService
     ) {
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return array<string, mixed> */
     public function listing(?User $user): array
     {
         $asOf = CarbonImmutable::now('UTC')->startOfSecond();
@@ -33,6 +33,7 @@ final class V2PointProductReadService
             ->orderBy('plan.id')
             ->get([
                 'plan.id',
+                'plan.code',
                 'plan.public_id',
                 'plan.name',
                 'plan.amount',
@@ -52,7 +53,7 @@ final class V2PointProductReadService
             ->get()
             ->groupBy('point_purchase_plan_id');
 
-        return $rows->map(
+        $products = $rows->map(
             fn (object $plan): array => $this->present(
                 $plan,
                 $user,
@@ -60,6 +61,29 @@ final class V2PointProductReadService
                 $campaigns->get($plan->id, collect())->all()
             )
         )->values()->all();
+
+        $expiresAt = $user?->first_registration_qualified_at?->utc()->addHours(24);
+        $hasEligibleOffer = collect($products)->contains(
+            fn (array $product): bool => $product['audience']['code']
+                === V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE
+                && $product['eligible']
+        );
+        $state = match (true) {
+            $user === null => 'unauthenticated',
+            $expiresAt === null => 'unavailable',
+            $asOf->greaterThanOrEqualTo($expiresAt) => 'expired',
+            $hasEligibleOffer => 'active',
+            default => 'unavailable',
+        };
+
+        return [
+            'data' => $products,
+            'first_user_offer' => [
+                'state' => $state,
+                'expires_at' => $expiresAt?->toIso8601ZuluString(),
+                'as_of' => $asOf->toIso8601ZuluString(),
+            ],
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -71,7 +95,7 @@ final class V2PointProductReadService
     ): array
     {
         $saleState = $this->saleState($plan, $now);
-        $reason = $this->reason($plan, $user, $saleState);
+        $reason = $this->reason($plan, $user, $saleState, $now);
 
         return [
             'id' => $plan->public_id,
@@ -158,7 +182,7 @@ final class V2PointProductReadService
         return 'available';
     }
 
-    private function reason(object $plan, ?User $user, string $saleState): ?string
+    private function reason(object $plan, ?User $user, string $saleState, CarbonImmutable $asOf): ?string
     {
         if ($saleState !== 'available') {
             return $saleState === 'coming_soon' ? 'sale_not_started' : 'sale_ended';
@@ -167,7 +191,7 @@ final class V2PointProductReadService
             return 'authentication_required';
         }
 
-        return $this->eligibility->evaluate($user, $plan)['reason'];
+        return $this->eligibility->evaluate($user, $plan, $asOf)['reason'];
     }
 
     /** @return array{state: string, action: string, reason: ?string} */

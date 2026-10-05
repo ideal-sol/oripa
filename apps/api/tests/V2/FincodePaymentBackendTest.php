@@ -1566,6 +1566,234 @@ final class FincodePaymentBackendTest extends TestCase
             ->where('user_id', $user->id)->where('payment_method', 'virtual_account')->count());
     }
 
+    public function test_first_user_konbini_created_at_23_hours_resumes_and_settles_at_47_hours(): void
+    {
+        $this->fakeFincode('CAPTURED');
+        $this->travelTo(Carbon::parse('2026-08-22T04:00:00Z'));
+        $user = $this->user('first-user-async');
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $service = app(V2FincodePaymentService::class);
+
+        $this->travelTo(Carbon::parse('2026-08-23T03:00:00Z'));
+        $payment = $service->start($user, $plan->public_id, 'konbini', 'first-user-async');
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        self::assertSame('requires_action', $row->status);
+        self::assertTrue(Carbon::parse($row->created_at)->equalTo(now()));
+
+        $this->travelTo(Carbon::parse('2026-08-24T03:00:00Z'));
+        $providerCalls = Http::recorded()->count();
+        $before = $this->paymentMutationCounts();
+        self::assertSame($payment['next_action']['url'], $service->resume($user, $payment['id'])['next_action']['url']);
+        self::assertSame($payment['id'], $service->start($user, $plan->public_id, 'konbini', 'first-user-async')['id']);
+        self::assertSame($providerCalls, Http::recorded()->count());
+        self::assertSame($before, $this->paymentMutationCounts());
+
+        $raw = json_encode([
+            'event' => 'payments.konbini.complete',
+            'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Konbini',
+            'status' => 'CAPTURED',
+            'transaction_date' => '2026/08/24 12:00:00.000',
+        ], JSON_THROW_ON_ERROR);
+        $webhooks = app(V2FincodeWebhookService::class);
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        self::assertDatabaseHas('payments', ['id' => $row->id, 'status' => 'succeeded']);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
+        self::assertSame(100, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+    }
+
+    public function test_first_user_new_konbini_at_25_hours_is_denied_before_provider_mutation(): void
+    {
+        Http::fake();
+        $this->travelTo(Carbon::parse('2026-08-22T04:00:00Z'));
+        $user = $this->user('first-user-expired');
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $before = $this->paymentMutationCounts();
+        $this->travel(25)->hours();
+
+        try {
+            app(V2FincodePaymentService::class)->start($user, $plan->public_id, 'konbini', 'first-user-expired');
+            self::fail('A new first-user Payment must be rejected outside the window.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('PAYMENT_START_REJECTED', $exception->errorCode);
+        }
+        Http::assertNothingSent();
+        self::assertSame($before, $this->paymentMutationCounts());
+    }
+
+    public function test_first_user_different_successful_konbini_products_inside_24_hours_are_allowed(): void
+    {
+        $this->fakeFincode('CAPTURED');
+        $this->travelTo(Carbon::parse('2026-08-24T00:00:00Z'));
+        $user = $this->user('first-user-repeat');
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $service = app(V2FincodePaymentService::class);
+        $this->travel(3)->hours();
+
+        foreach (range(1, 3) as $purchaseNumber) {
+            $plan = $this->plan(audience: 'first_purchase_users');
+            $payment = $service->start($user, $plan->public_id, 'konbini', 'first-user-repeat-'.$purchaseNumber);
+            $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+            $raw = json_encode([
+                'event' => 'payments.konbini.complete',
+                'order_id' => $row->provider_payment_id,
+                'pay_type' => 'Konbini',
+                'status' => 'CAPTURED',
+                'transaction_date' => '2026/08/24 12:00:00.000',
+            ], JSON_THROW_ON_ERROR);
+            self::assertSame('processed', app(V2FincodeWebhookService::class)->process($raw, 'test-webhook-signature')['status']);
+            self::assertDatabaseHas('payments', ['id' => $row->id, 'status' => 'succeeded']);
+        }
+        self::assertSame(3000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
+        self::assertSame(300, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame(3, DB::table('payment_point_grants')->count());
+    }
+
+    #[DataProvider('firstUserMethods')]
+    public function test_first_user_method_consumption_survives_terminal_status_and_version_change(string $method): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('once-'.$method);
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $service = app(V2FincodePaymentService::class);
+        $started = $service->start($user, $plan->public_id, $method, 'once-'.$method,
+            $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null);
+        $payment = DB::table('payments')->where('public_id', $started['id'])->firstOrFail();
+        $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        $payments = app(V2PaymentService::class);
+        $processing = $payments->recordVerifiedProviderEvent('fincode', 'processing-'.$method,
+            'payment.status_changed', '{}', [], $payment->id);
+        $payments->applyVerifiedStatus($processing->id, 'processing', 'AWAITING_CUSTOMER_PAYMENT');
+        $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        $event = $payments->recordVerifiedProviderEvent('fincode', 'terminal-'.$method,
+            'payment.status_changed', '{}', [], $payment->id);
+        $payments->applyVerifiedStatus($event->id, 'expired', 'EXPIRED');
+        if (in_array($method, ['konbini', 'virtual_account'], true)) {
+            $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        } else {
+            $retry = $service->start($user, $plan->public_id, 'paypay', 'retry-'.$method);
+            $retryId = DB::table('payments')->where('public_id', $retry['id'])->value('id');
+            $success = $payments->recordVerifiedProviderEvent('fincode', 'success-'.$method,
+                'payment.succeeded', '{}', [], $retryId, null, now());
+            $payments->confirmSucceeded($success->id);
+            $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        }
+        $version = (array) $plan;
+        unset($version['id']);
+        $version['public_id'] = (string) Str::uuid7();
+        $version['version_no'] = 2;
+        DB::table('point_purchase_plans')->insert($version);
+        $this->assertFirstUserStartBlocked($user, $version['public_id']);
+        $other = $this->plan(audience: 'first_purchase_users');
+        self::assertSame('requires_action', $service->start($user, $other->public_id, 'paypay', 'other-'.$method)['status']);
+    }
+
+    #[DataProvider('firstUserFailureCases')]
+    public function test_first_user_terminal_failure_only_releases_card_and_paypay(string $method, string $terminal): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('failure-'.$method);
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $service = app(V2FincodePaymentService::class);
+        $started = $service->start($user, $plan->public_id, $method, 'failure-start',
+            $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null);
+        $paymentId = DB::table('payments')->where('public_id', $started['id'])->value('id');
+        $payments = app(V2PaymentService::class);
+        $event = $payments->recordVerifiedProviderEvent('fincode', 'failure-event',
+            'payment.status_changed', '{}', [], $paymentId);
+        $payments->applyVerifiedStatus($event->id, $terminal, strtoupper($terminal));
+        if (in_array($method, ['konbini', 'virtual_account'], true)) {
+            $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        } else {
+            self::assertSame('requires_action', $service->start($user, $plan->public_id, 'virtual_account', 'failure-retry')['status']);
+        }
+    }
+
+    #[DataProvider('firstUserMethods')]
+    public function test_first_user_rejected_start_is_retryable_but_uncertain_start_blocks(string $method): void
+    {
+        $user = $this->user('provider-failure-'.$method);
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $service = app(V2FincodePaymentService::class);
+        Http::fake(fn () => Http::response(['errors' => [['error_code' => 'E000000001']]], 400));
+        try {
+            $service->start($user, $plan->public_id, $method, 'provider-rejected',
+                $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null);
+            self::fail('Provider rejection must fail.');
+        } catch (V2FincodeException $exception) {
+            self::assertFalse($exception->retryable);
+        }
+        self::assertSame('failed', DB::table('payments')->where('user_id', $user->id)->sole()->status);
+        Http::swap(new Factory());
+        Http::fake(fn () => Http::failedConnection());
+        try {
+            $service->start($user, $plan->public_id, 'paypay', 'uncertain-retry');
+            self::fail('Uncertain start must be reported.');
+        } catch (V2FincodeException $exception) {
+            self::assertTrue($exception->retryable);
+        }
+        self::assertSame(2, DB::table('payments')->where('user_id', $user->id)->count());
+        $this->assertFirstUserStartBlocked($user, $plan->public_id);
+    }
+
+    #[DataProvider('firstUserMethods')]
+    public function test_first_user_success_permanently_consumes_each_method(string $method): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('success-'.$method);
+        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $plan = $this->plan(audience: 'first_purchase_users');
+        $payment = app(V2FincodePaymentService::class)->start(
+            $user, $plan->public_id, $method, 'success-start',
+            $method === 'credit_card' ? ['source' => 'new', 'save' => false] : null
+        );
+        $paymentId = DB::table('payments')->where('public_id', $payment['id'])->value('id');
+        $payments = app(V2PaymentService::class);
+        $event = $payments->recordVerifiedProviderEvent('fincode', 'success-event',
+            'payment.succeeded', '{}', [], $paymentId, null, now());
+        $payments->confirmSucceeded($event->id);
+        $this->assertFirstUserStartBlocked($user, $plan->public_id);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $paymentId)->count());
+    }
+
+    public static function firstUserMethods(): array
+    {
+        return array_map(fn (string $method): array => [$method], ['credit_card', 'paypay', 'konbini', 'virtual_account']);
+    }
+
+    public static function firstUserFailureCases(): array
+    {
+        $cases = [];
+        foreach (self::firstUserMethods() as [$method]) {
+            foreach (['failed', 'canceled'] as $terminal) {
+                $cases[$method.'-'.$terminal] = [$method, $terminal];
+            }
+        }
+        return $cases;
+    }
+
+    private function assertFirstUserStartBlocked(User $user, string $productId): void
+    {
+        $before = $this->paymentMutationCounts();
+        $calls = Http::recorded()->count();
+        try {
+            app(V2FincodePaymentService::class)->start($user, $productId, 'paypay', (string) Str::uuid7());
+            self::fail('Consumed or unresolved product must reject a new payment.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('PAYMENT_START_REJECTED', $exception->errorCode);
+        }
+        self::assertSame($calls, Http::recorded()->count());
+        self::assertSame($before, $this->paymentMutationCounts());
+    }
+
     public function test_canonical_card_registration_uses_fixed_three_d_secure_contract_and_is_exactly_once(): void
     {
         $this->fakeFincode();
@@ -2870,6 +3098,7 @@ final class FincodePaymentBackendTest extends TestCase
         int $amount = 1000,
         int $paidPointAmount = 1000,
         int $freePointAmount = 100,
+        string $audience = 'all_users',
     ): object
     {
         $id = DB::table('point_purchase_plans')->insertGetId([
@@ -2877,6 +3106,7 @@ final class FincodePaymentBackendTest extends TestCase
             'code' => 'fincode-'.Str::uuid(),
             'version_no' => 1,
             'name' => 'fincode Test Plan',
+            'audience_code' => $audience,
             'amount' => $amount,
             'paid_point_amount' => $paidPointAmount,
             'free_point_amount' => $freePointAmount,

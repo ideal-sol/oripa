@@ -1879,7 +1879,10 @@ export interface components {
         PointProductSaleState: "coming_soon" | "available" | "ended";
         /** @enum {string} */
         PointProductUserState: "unauthenticated" | "authenticated";
-        /** @enum {string|null} */
+        /**
+         * @description first_purchase_requiredは初回商品の24時間・商品ごと1回・未確定決済条件を満たさない場合を含む互換identifier。
+         * @enum {string|null}
+         */
         PointProductIneligibleReason: "sale_not_started" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "first_purchase_required" | null;
         PointProductCta: {
             /** @enum {string} */
@@ -1903,7 +1906,25 @@ export interface components {
             cta: components["schemas"]["PointProductCta"];
         };
         PointProductCollection: {
+            first_user_offer: components["schemas"]["FirstUserOffer"];
             data: components["schemas"]["PointProduct"][];
+        };
+        FirstUserOffer: {
+            /**
+             * @description activeは24時間内で購入可能な初回商品あり、expiredは期限到達、unauthenticatedは匿名、unavailableはその他の購入不可。
+             * @enum {string}
+             */
+            state: "active" | "expired" | "unauthenticated" | "unavailable";
+            /**
+             * Format: date-time
+             * @description 初回登録資格確定から24時間後のUTC時刻。資格不明または匿名はnull。
+             */
+            expires_at: string | null;
+            /**
+             * Format: date-time
+             * @description Collection全商品の購入資格とOfferを評価した共通UTC時刻。
+             */
+            as_of: string;
         };
         CursorPageMeta: {
             page_size: number;
