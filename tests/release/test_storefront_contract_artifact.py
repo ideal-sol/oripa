@@ -140,13 +140,22 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = copy.deepcopy(artifact.validate_governance(self.governance()))
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.43')
-        self.assertEqual(value['candidate']['contract_versions']['public'], '2.0.0-alpha.39')
-        self.assertEqual(value['candidate']['public_api_operation_count'], 78)
-        self.assertEqual(value['candidate']['packages']['@oripa/storefront-client']['version'], '2.0.0-alpha.43')
-        self.assertEqual(value['candidate']['packages']['@oripa/storefront-testkit']['version'], '2.0.0-alpha.43')
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        released = value['immutable_history'][-1]
+        self.assertEqual(released, value['latest_immutable'])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.43')
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-additive')
+        self.assertFalse(released['breaking_change'])
+        self.assertEqual(released['contract_versions']['public'], '2.0.0-alpha.39')
+        self.assertEqual(released['public_openapi']['operation_count'], 78)
+        self.assertEqual(released['source_commit'], '0ce41ab473fd5a4fb44773041ae097ffb40b14ce')
+        self.assertEqual(released['manifest_sha256'], '1951edf44ef275e3c9bf85ac0ce1417a27bc64e982a607d0a72e49186eb09e74')
+        self.assertEqual(released['publication']['artifact_id'], 11349442812)
+        self.assertEqual(released['packages']['@oripa/storefront-client']['version'], '2.0.0-alpha.43')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['version'], '2.0.0-alpha.43')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertIsNone(value['candidate'])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])
@@ -218,6 +227,29 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         target = artifact.verification_target(value)
 
         self.assertFalse(target["breaking_change"])
+
+    def test_released_alpha_43_has_exact_publication_evidence_and_no_republish_candidate(self):
+        value = artifact.validate_governance(self.governance())
+        self.assertIsNone(value['candidate'])
+        released = value['latest_immutable']
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.43')
+        self.assertEqual(value['immutable_history'][-2]['bundle_version'], '2.0.0-alpha.42')
+        self.assertEqual(released['publication'], {
+            'workflow_run_id': 37319224331,
+            'workflow_run_attempt': 1,
+            'artifact_id': 11349442812,
+            'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.43',
+            'github_digest': 'sha256:53fb939978eabbf9b636369b15c81369d18305890891715f7bbd864e9b197d14',
+            'sha256sums_sha256': 'c7027c25f1a9c8070061ff75767e9483eef7732c9ab2240c7d787b89b6487fac',
+        })
+        self.assertEqual(released['public_openapi']['sha256'], '37cdeb7a214d42f0f69458d578a81c5c7869132e2a6cbd02ca8d150f1abf6faa')
+        self.assertEqual(released['packages']['@oripa/storefront-client']['sha256'], '9f14026a53d24413d860975d5c012988a5381771600b81e8309e5119a10792b0')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['sha256'], 'd5bb5b0d785437e0f400b369ff97663a6c69d4a329c1b82710017087a92af9fb')
+        target = artifact.verification_target(value)
+        self.assertEqual(target['source_commit'], '0ce41ab473fd5a4fb44773041ae097ffb40b14ce')
+        self.assertFalse(target['breaking_change'])
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+            artifact.pending_candidate(ROOT)
 
     def test_released_alpha_37_has_no_republish_candidate(self):
         value = self.governance()
