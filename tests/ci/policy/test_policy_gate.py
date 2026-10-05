@@ -1725,6 +1725,26 @@ jobs:
     def test_dependency_review_allowlist_matches_exact_security_baseline(self):
         policy_gate.validate_dependency_review_allowlist(ROOT)
 
+    def test_event_driven_dependency_schema_and_allowlist_stay_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline_path = root / ".ci/baselines/dependency-advisories.json"
+            baseline_path.parent.mkdir(parents=True)
+            workflow = root / ".github/workflows/dependency-review.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text("allow-ghsas: GHSA-1234-5678-9abc\n", encoding="utf-8")
+            baseline = json.loads((ROOT / ".ci/baselines/dependency-advisories.json").read_text())
+            baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "must exactly match"):
+                policy_gate.validate_dependency_review_allowlist(root)
+            baseline["pnpm"] = [{"advisory_id": "GHSA-1234-5678-9abc", "severity": "high"}]
+            baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+            policy_gate.validate_dependency_review_allowlist(root)
+            for key, value in (("schema_version", "1.0"), ("management", None), ("pnpm", None)):
+                with self.subTest(key=key), self.assertRaises(policy_gate.PolicyFailure):
+                    baseline_path.write_text(json.dumps({**baseline, key: value}), encoding="utf-8")
+                    policy_gate.validate_dependency_review_allowlist(root)
+
     def make_v2_database_boundary(self, root):
         migration = root / "apps/api/database/migrations/2026_01_01_000000_v1.php"
         migration.parent.mkdir(parents=True, exist_ok=True)

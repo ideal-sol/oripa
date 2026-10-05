@@ -1,12 +1,63 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "management": {
     "owner": "security-owners",
-    "reason": "Fresh locked dependency audits completed on 2026-09-25 JST (2026-09-24T23:33:23Z) in BASELINE-20260925 against protected main@07d091e27ef05a1b766a6f2b2052e9a880f02d95: Composer, workspace pnpm, and legacy pnpm findings are all zero and exactly match the approved empty baseline. No new regression, dependency, finding, severity, or gate change. Retains the established seven-day review window used by SEC-011, SEC-013, GOV-029, SEC-020, and AGENCYREADY-20260917.",
-    "removal_condition": "Keep the Composer and pnpm baseline arrays empty; any future finding requires remediation or a separately reviewed, exact-fingerprint security task before this review expires.",
-    "expires_at": "2026-10-02",
-    "tracking_task": "BASELINE-20260925"
+    "reason": "CI-20261004 uses Human-approved event-driven validation. General Composer/pnpm baselines remain empty. Additional Human approval permits only the dedicated exact braces@3.0.3 dev-tool advisory state; every CI rechecks full and production-only audits, manifests, paths and security-relevant advisory fingerprints.",
+    "removal_condition": "Keep the general Composer and pnpm arrays empty. Remove the dedicated exception after fresh evidence proves resolution. Any identity, security-relevant fingerprint or exposure change requires remediation or a separate Human decision.",
+    "tracking_task": "CI-20261004"
   },
   "composer": [],
-  "pnpm": []
+  "pnpm": [],
+  "approved_dev_tool_advisories": [
+    {
+      "source": "pnpm",
+      "advisory_id": "GHSA-vfj7-8cjw-p6xm",
+      "audit_id": "1240992",
+      "package": "braces",
+      "version": "3.0.3",
+      "severity": "high",
+      "approval": {
+        "status": "HUMAN_APPROVED",
+        "task": "CI-20261004",
+        "scope": "DEV_TOOLING_ONLY"
+      },
+      "paths": {
+        "workspace": "apps__admin>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces",
+        "legacy": ".>eslint-config-next>@next/eslint-plugin-next>fast-glob>micromatch>braces"
+      },
+      "security_fingerprint": {
+        "id": 1240992,
+        "cves": [
+          "CVE-2026-93687"
+        ],
+        "severity": "high",
+        "module_name": "braces",
+        "vulnerable_versions": "<=3.0.3",
+        "github_advisory_id": "GHSA-vfj7-8cjw-p6xm",
+        "patched_versions": "<0.0.0",
+        "cvss": {
+          "score": 7.5,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        },
+        "cwe": [
+          "CWE-674"
+        ]
+      },
+      "informational_metadata": {
+        "found_by": null,
+        "deleted": null,
+        "references": "- https://nvd.nist.gov/vuln/detail/CVE-2026-93687\n- https://github.com/micromatch/braces/issues/70\n- https://github.com/micromatch/braces/blob/3.0.3/lib/compile.js#L49-L53\n- https://github.com/micromatch/braces/blob/3.0.3/lib/expand.js#L102-L105\n- https://github.com/micromatch/braces/blob/3.0.3/lib/parse.js#L38-L40\n- https://www.vulncheck.com/advisories/braces-through-3.0.3-stack-overflow-via-deeply-nested-patterns\n- https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+        "created": "2026-09-18T18:31:41.000Z",
+        "npm_advisory_id": null,
+        "overview": "braces through 3.0.3 contains a stack overflow vulnerability in the recursive AST walkers that lack depth guards. Attackers can supply deeply nested brace patterns under the character limit to exhaust the call stack and terminate the Node.js process with an uncaught RangeError.",
+        "reported_by": null,
+        "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+        "metadata": null,
+        "access": "public",
+        "recommendation": "None",
+        "updated": "2026-10-02T22:36:34.000Z",
+        "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+      }
+    }
+  ]
 }

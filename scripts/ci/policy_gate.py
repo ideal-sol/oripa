@@ -6201,6 +6201,20 @@ def validate_governance_statements(repository: Path, paths: Iterable[str]) -> No
 
 def validate_dependency_review_allowlist(repository: Path) -> None:
     baseline = load_json(repository, ".ci/baselines/dependency-advisories.json")
+    if not isinstance(baseline, dict) or baseline.get("schema_version") != "1.1":
+        raise PolicyFailure("dependency advisory baseline schema is invalid")
+    management = baseline.get("management")
+    if not isinstance(management, dict) or any(
+        not isinstance(management.get(key), str) or not management[key].strip()
+        for key in ("owner", "reason", "tracking_task", "removal_condition")
+    ):
+        raise PolicyFailure("dependency advisory baseline metadata is invalid")
+    if any(
+        not isinstance(baseline.get(source), list)
+        or any(not isinstance(item, dict) for item in baseline[source])
+        for source in ("composer", "pnpm")
+    ):
+        raise PolicyFailure("dependency advisory baseline findings are invalid")
     expected = {
         item.get("advisory_id")
         for item in baseline.get("pnpm", [])
@@ -6214,7 +6228,7 @@ def validate_dependency_review_allowlist(repository: Path) -> None:
     actual = set(re.findall(r"GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}", workflow))
     if actual != expected:
         raise PolicyFailure(
-            "dependency-review allow-ghsas must exactly match the expiring "
+            "dependency-review allow-ghsas must exactly match the approved event-driven "
             "high-severity pnpm baseline"
         )
 
