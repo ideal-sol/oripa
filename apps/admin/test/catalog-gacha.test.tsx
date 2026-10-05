@@ -90,10 +90,14 @@ describe("Admin Gacha Draft management", () => {
 
   it("creates only a Draft core with audience and daily limit fields", async () => {
     mockMasterSelections();
+    vi.mocked(AdminApiClient.prototype.getGachaNoticeDefaults).mockResolvedValue({ data: { standard: { default_notices: "Default A", revision: 1 }, login: { default_notices: "Login", revision: 1 } }, request_id: "request" });
+    const updateDefault = vi.spyOn(AdminApiClient.prototype, "updateGachaNoticeDefaults");
     const submit = vi.fn().mockResolvedValue(undefined);
     render(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
 
     await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByLabelText("注意事項")).toHaveValue("Default A");
+    fireEvent.change(screen.getByLabelText("注意事項"), { target: { value: "Individual B" } });
     fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
       target: { value: "新しいガチャ" },
     });
@@ -139,6 +143,7 @@ describe("Admin Gacha Draft management", () => {
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
         audienceCode: "first_time_users",
+        notices: "Individual B",
         allowedDrawCounts: [1, 10, 100],
         categoryId: CATEGORY_ID,
         dailyDrawLimit: 10,
@@ -153,6 +158,27 @@ describe("Admin Gacha Draft management", () => {
     );
     expect(screen.getByLabelText("状態")).toHaveValue("下書き");
     expect(screen.queryByRole("button", { name: /公開/u })).not.toBeInTheDocument();
+    expect(updateDefault).not.toHaveBeenCalled();
+  });
+
+  it("snapshots the default once per blank form and blocks failed default loads", async () => {
+    mockMasterSelections();
+    const defaults = vi.mocked(AdminApiClient.prototype.getGachaNoticeDefaults);
+    defaults.mockRejectedValueOnce(new Error("offline"));
+    const submit = vi.fn();
+    const view = render(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
+    await screen.findByText("注意事項のデフォルト設定を取得できませんでした。");
+    expect(screen.queryByRole("button", { name: "下書きを登録" })).toBeNull();
+    defaults.mockResolvedValue({ data: { standard: { default_notices: "A", revision: 1 }, login: { default_notices: null, revision: 1 } }, request_id: "request" });
+    fireEvent.click(screen.getByRole("button", { name: "再試行" }));
+    expect(await screen.findByLabelText("注意事項")).toHaveValue("A");
+    defaults.mockResolvedValue({ data: { standard: { default_notices: "B", revision: 2 }, login: { default_notices: null, revision: 2 } }, request_id: "request" });
+    view.rerender(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
+    expect(screen.getByLabelText("注意事項")).toHaveValue("A");
+    expect(defaults).toHaveBeenCalledTimes(2);
+    view.unmount();
+    render(<CatalogGachaCoreForm onCancel={vi.fn()} onSubmit={submit} />);
+    expect(await screen.findByLabelText("注意事項")).toHaveValue("B");
   });
 
   it("keeps the current thumbnail when editing without a new file", async () => {
@@ -169,6 +195,8 @@ describe("Admin Gacha Draft management", () => {
 
     await screen.findByRole("option", { name: "Category A" });
     expect(screen.getByAltText("現在のサムネイル")).toBeInTheDocument();
+    expect(screen.getByLabelText("注意事項")).toHaveValue("注意");
+    expect(AdminApiClient.prototype.getGachaNoticeDefaults).not.toHaveBeenCalled();
     expect(screen.getByRole("checkbox", { name: "1回" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "5回" })).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("ガチャタイトル"), {
@@ -261,6 +289,7 @@ describe("Admin Gacha Draft management", () => {
 });
 
 function mockMasterSelections() {
+  vi.spyOn(AdminApiClient.prototype, "getGachaNoticeDefaults").mockResolvedValue({ data: { standard: { default_notices: null, revision: 1 }, login: { default_notices: null, revision: 1 } }, request_id: "request" });
   vi.spyOn(AdminApiClient.prototype, "listCatalogCategories").mockResolvedValue({
     items: [
       {

@@ -33,11 +33,13 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
   const [defaultVideoId, setDefaultVideoId] = useState<string | null>(null);
+  const noticeDefault = useRef<{ type: AdminGachaType; value: string | null } | null>(null);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [inventory, setInventory] = useState<AdminGachaVersionPrize[]>([]);
   const [adjustments, setAdjustments] = useState<Record<string, { quantity: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AdminApiError | null>(null);
   const [notice, setNotice] = useState("");
@@ -60,6 +62,14 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         client.listCatalogTags({ limit: 100, archive: "active" }, controller.signal),
       ]);
       let nextDraft = emptyGachaComposition(type);
+      if (!sourceId && !copy) {
+        if (noticeDefault.current?.type !== type) {
+          const defaults = await client.getGachaNoticeDefaults(controller.signal);
+          if (controller.signal.aborted) return;
+          noticeDefault.current = { type, value: defaults.data[type === "standard" ? "standard" : "login"].default_notices };
+        }
+        nextDraft.notices = noticeDefault.current.value;
+      }
       let defaultVideo: string | null = null;
       if (!sourceId) {
         let cursor: string | undefined;
@@ -97,13 +107,13 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       setDefaultVideoId(defaultVideo);
       setThumbnailFile(null); thumbnailUpload.current = null;
       setPrizeKeys(nextDraft.prizes.map(() => crypto.randomUUID()));
-      setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false);
+      setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false); setLoadFailed(false);
     }
     load().catch((cause: unknown) => {
       if (controller.signal.aborted) return;
       const next = normalizeError(cause);
       if (next.isSessionExpired) expireSession();
-      setError(next); setLoading(false);
+      setError(next); setLoading(false); setLoadFailed(true);
     });
     return () => controller.abort();
   }, [client, sourceId, copy, type, reload, expireSession]);
@@ -222,7 +232,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       description={draft.gacha_type === "signup_once" ? "開始日時以降に本登録が完了したユーザーが、期限なしで1回だけ無料で引けます。" : login ? "ログイン済みユーザーがJSTの1日に1回。残り在庫で確率は変わりません。" : "コピー元とは独立した新しい下書きを作成します。"} />
     <Link className="table-link" href="/catalog/gachas">ガチャ一覧に戻る</Link>
     {copy ? <p role="status">コピーは未保存です。公開期間を入力して保存するまでガチャは作成されません。</p> : null}
-    {loading ? <p role="status">読み込み中…</p> : <>
+    {loading ? <p role="status">読み込み中…</p> : loadFailed && error ? <CatalogApiErrorBoundary error={error} retry={() => { setLoading(true); setError(null); setReload((value) => value + 1); }} /> : <>
       {error ? <CatalogApiErrorBoundary error={error} retry={() => setReload((value) => value + 1)} /> : null}
       {notice ? <p role="alert">{notice}</p> : null}
       {gacha && !copy ? <section className="catalog-detail"><p>状態: {gacha.publication_status} / {locked ? "構成は参照専用" : "下書き編集中"}</p>

@@ -17,6 +17,7 @@ vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({
 afterEach(() => { vi.restoreAllMocks(); });
 
 function selections() {
+  vi.spyOn(AdminApiClient.prototype, "getGachaNoticeDefaults").mockResolvedValue({ data: { standard: { default_notices: null, revision: 1 }, login: { default_notices: null, revision: 1 } }, request_id: "request" });
   vi.spyOn(AdminApiClient.prototype, "listRankEffects").mockResolvedValue({ items: [], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [] });
   vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [], next_cursor: null });
@@ -27,6 +28,26 @@ function selections() {
 }
 
 describe("Login Gacha composition", () => {
+  it.each(["login_daily", "signup_once"] as const)("snapshots the shared login default for %s and retries load errors", async (type) => {
+    selections();
+    const defaults = vi.mocked(AdminApiClient.prototype.getGachaNoticeDefaults);
+    defaults.mockRejectedValueOnce(new Error("offline"));
+    const view = render(<LoginGachaWorkspace type={type} />);
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText("注意事項")).toBeNull();
+    defaults.mockResolvedValue({ data: { standard: { default_notices: "Standard", revision: 1 }, login: { default_notices: "Login A", revision: 1 } }, request_id: "request" });
+    fireEvent.click(screen.getByRole("button", { name: /再/u }));
+    expect(await screen.findByLabelText("注意事項")).toHaveValue("Login A");
+    defaults.mockResolvedValue({ data: { standard: { default_notices: "Standard", revision: 2 }, login: { default_notices: "Login B", revision: 2 } }, request_id: "request" });
+    view.rerender(<LoginGachaWorkspace type={type} />);
+    expect(screen.getByLabelText("注意事項")).toHaveValue("Login A");
+    expect(defaults).toHaveBeenCalledTimes(2);
+    fireEvent.change(screen.getByLabelText("注意事項"), { target: { value: "Individual" } });
+    expect(screen.getByLabelText("注意事項")).toHaveValue("Individual");
+    view.unmount();
+    render(<LoginGachaWorkspace type={type} />);
+    expect(await screen.findByLabelText("注意事項")).toHaveValue("Login B");
+  });
   it("narrows standard capacity without turning a login null into a numeric fallback", () => {
     const core: AdminCatalogGachaCoreVersion = {
       id: "version", version_number: 1, status: "draft", title: "Standard", description: null, notices: null,
@@ -128,6 +149,16 @@ function prizeBanner(categoryId: string, assetId: string): AdminManagedBanner {
 }
 
 describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picker", (type) => {
+  it.each(["draft", "published", "sales_paused"] as const)("preserves %s notices without loading defaults", async (status) => {
+    thumbnailFixture(type, status);
+    const projection = await vi.mocked(AdminApiClient.prototype.getGachaComposition)("source", false);
+    projection.data.notices = "Existing OLD";
+    vi.mocked(AdminApiClient.prototype.getGachaComposition).mockResolvedValue(projection);
+    vi.mocked(AdminApiClient.prototype.getGachaNoticeDefaults).mockRejectedValue(new Error("Must not fetch"));
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    expect(await screen.findByLabelText("注意事項")).toHaveValue("Existing OLD");
+    expect(AdminApiClient.prototype.getGachaNoticeDefaults).not.toHaveBeenCalled();
+  });
   it("loads category-scoped paginated Banners and saves only the selected Asset without changing the thumbnail", async () => {
     const { update, upload } = thumbnailFixture(type);
     vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }, { id: "empty", name: "Empty" }] });
@@ -157,13 +188,19 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
 
   it("keeps an unresolved existing Copy Asset unless a different Banner is selected", async () => {
     const { create, upload } = thumbnailFixture(type, "published", true);
+    const projection = await vi.mocked(AdminApiClient.prototype.getGachaComposition)("source", true);
+    projection.data.notices = "Copied OLD";
+    vi.mocked(AdminApiClient.prototype.getGachaComposition).mockResolvedValue(projection);
     vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
     render(<LoginGachaWorkspace type={type} sourceId="source" copy />);
     await screen.findByText(/一意に特定できませんでした/u);
+    expect(screen.getByLabelText("注意事項")).toHaveValue("Copied OLD");
+    expect(AdminApiClient.prototype.getGachaNoticeDefaults).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-02T00:00" } });
     fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
     await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({
       presentation_asset_id: thumbnail.id, prizes: [expect.objectContaining({ presentation_asset_id: thumbnail.id })],
+      notices: "Copied OLD",
     }), expect.any(String)));
     expect(upload).not.toHaveBeenCalled();
   });

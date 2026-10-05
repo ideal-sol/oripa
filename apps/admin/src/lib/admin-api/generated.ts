@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7f892611f1cb68eb6b6dff549028c287d3baf13b1982a10314f5cc4ae84e8698
+// Contract SHA-256: a6513b7431316caa2b13dc47abd479b469426ef3cd25ab1e55b91c98d5a7977a
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -813,6 +813,35 @@ export interface AdminLineMessagingMutationResult {
   data: AdminLineMessagingSetting;
   idempotent_replay: boolean;
   request_id: string;
+}
+
+export interface AdminGachaNoticeDefault {
+  default_notices: string | null;
+  revision: number;
+}
+
+export interface AdminGachaNoticeDefaults {
+  standard: AdminGachaNoticeDefault;
+  login: AdminGachaNoticeDefault;
+}
+
+export interface AdminGachaNoticeDefaultUpdate {
+  default_notices: string | null;
+  expected_revision: number;
+}
+
+export interface AdminGachaNoticeDefaultsUpdate {
+  standard: AdminGachaNoticeDefaultUpdate;
+  login: AdminGachaNoticeDefaultUpdate;
+}
+
+export interface AdminGachaNoticeDefaultsResponse {
+  data: AdminGachaNoticeDefaults;
+  request_id: string;
+}
+
+export interface AdminGachaNoticeDefaultsMutationResult extends AdminGachaNoticeDefaultsResponse {
+  idempotent_replay: boolean;
 }
 
 export interface AdminReferralPointSetting {

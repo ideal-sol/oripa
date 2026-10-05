@@ -53,6 +53,7 @@ use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
 use App\Http\Controllers\V2\V2AdminMailTemplateController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
+use App\Http\Controllers\V2\V2AdminGachaNoticeDefaultController;
 use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
 use App\Http\Controllers\V2\V2AdminPaymentController;
 
@@ -153,6 +154,10 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.preview');
         Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])
             ->name('v2.admin.settings.referral-points.show');
+        Route::get('/settings/gacha-notices', [V2AdminGachaNoticeDefaultController::class, 'show'])
+            ->name('v2.admin.settings.gacha-notices.show');
+        Route::put('/settings/gacha-notices', [V2AdminGachaNoticeDefaultController::class, 'update'])
+            ->name('v2.admin.settings.gacha-notices.update');
         Route::put('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'update'])
             ->name('v2.admin.settings.referral-points.update');
         Route::get('/point-purchase-plans', [V2AdminPointPurchasePlanController::class, 'index'])

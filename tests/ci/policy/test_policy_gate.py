@@ -158,6 +158,45 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_gacha_notice_defaults_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000080" if change == "duplicate_number" else "000081"
+                    unexpected = migration.with_name(f"2026_10_05_{number}_unregistered.php")
+                    shutil.copy2(migration, unexpected)
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_gacha_notice_admin_exact_paths_and_current_tree_pass(self):
+        expected = {
+            "apps/admin/e2e/admin-gacha-notices.spec.ts",
+            "apps/admin/src/app/settings/gacha-notices/page.tsx",
+            "apps/admin/src/components/settings/gacha-notice-settings.tsx",
+            "apps/admin/test/gacha-notice-settings.test.tsx",
+        }
+        self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "gacha-notice" in path}, expected)
+        policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
+
+    def test_gacha_notice_admin_registration_keeps_unregistered_paths_rejected(self):
+        paths = set(policy_gate.tracked_paths(ROOT))
+        for relative in (
+            "apps/admin/src/components/settings/gacha-notice-unregistered.tsx",
+            "apps/admin/src/app/settings/gacha-notices/extra/page.tsx",
+            "apps/admin/src/components/settings/*",
+        ):
+            with self.subTest(path=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+
     def test_login_gacha_catalog_registration_requires_each_new_operation(self):
         operations = (
             ("admin", "/catalog/gacha-compositions", "post"),

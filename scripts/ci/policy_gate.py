@@ -287,6 +287,7 @@ ACCT_001_V2_IDENTITY_FILES = {
 }
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php",
+    "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php",
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
     "apps/api/database/migrations-v2/2026_10_02_000076_add_v2_contact_reply_and_follow_up.php",
     "apps/api/database/migrations-v2/2026_10_03_000077_add_v2_shipping_only_prizes.php",
@@ -959,6 +960,10 @@ LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES = {
 }
 
 ADMIN_SKELETON_FILES = {
+    "apps/admin/e2e/admin-gacha-notices.spec.ts",
+    "apps/admin/src/app/settings/gacha-notices/page.tsx",
+    "apps/admin/src/components/settings/gacha-notice-settings.tsx",
+    "apps/admin/test/gacha-notice-settings.test.tsx",
     "apps/admin/src/app/agencies/aggregates/users/page.tsx",
     "apps/admin/src/app/agencies/aggregates/sales/page.tsx",
     "apps/admin/src/components/agencies/agency-aggregate-table.tsx",
@@ -3073,6 +3078,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_03_000077_add_v2_shipping_only_prizes.php",
         "2026_10_04_000078_add_v2_login_gachas.php",
         "2026_10_05_000079_add_v2_rank_video_default.php",
+        "2026_10_05_000080_create_v2_gacha_notice_defaults.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

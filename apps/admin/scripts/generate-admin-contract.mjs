@@ -143,6 +143,8 @@ const operations = {
     "/identity/line-messaging/preview",
   ],
   getAdminReferralPointSetting: ["get", "/settings/referral-points"],
+  getAdminGachaNoticeDefaults: ["get", "/settings/gacha-notices"],
+  updateAdminGachaNoticeDefaults: ["put", "/settings/gacha-notices"],
   updateAdminReferralPointSetting: ["put", "/settings/referral-points"],
   listAdminPointPurchasePlans: ["get", "/point-purchase-plans"],
   createAdminPointPurchasePlan: ["post", "/point-purchase-plans"],
@@ -524,6 +526,12 @@ const requiredSchemas = [
   "AdminLineMessagingPreview",
   "AdminLineMessagingMutationResult",
   "AdminReferralPointSetting",
+  "AdminGachaNoticeDefault",
+  "AdminGachaNoticeDefaults",
+  "AdminGachaNoticeDefaultUpdate",
+  "AdminGachaNoticeDefaultsUpdate",
+  "AdminGachaNoticeDefaultsResponse",
+  "AdminGachaNoticeDefaultsMutationResult",
   "AdminReferralPointSettingResponse",
   "AdminReferralPointSettingUpdate",
   "AdminReferralPointSettingMutationResult",
@@ -1441,6 +1449,35 @@ export interface AdminLineMessagingMutationResult {
   data: AdminLineMessagingSetting;
   idempotent_replay: boolean;
   request_id: string;
+}
+
+export interface AdminGachaNoticeDefault {
+  default_notices: string | null;
+  revision: number;
+}
+
+export interface AdminGachaNoticeDefaults {
+  standard: AdminGachaNoticeDefault;
+  login: AdminGachaNoticeDefault;
+}
+
+export interface AdminGachaNoticeDefaultUpdate {
+  default_notices: string | null;
+  expected_revision: number;
+}
+
+export interface AdminGachaNoticeDefaultsUpdate {
+  standard: AdminGachaNoticeDefaultUpdate;
+  login: AdminGachaNoticeDefaultUpdate;
+}
+
+export interface AdminGachaNoticeDefaultsResponse {
+  data: AdminGachaNoticeDefaults;
+  request_id: string;
+}
+
+export interface AdminGachaNoticeDefaultsMutationResult extends AdminGachaNoticeDefaultsResponse {
+  idempotent_replay: boolean;
 }
 
 export interface AdminReferralPointSetting {
