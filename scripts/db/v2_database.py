@@ -98,6 +98,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.fincode_customers",
     "public.fincode_payment_attempts",
     "public.gacha_draw_states",
+    "public.gacha_notice_defaults",
     "public.idempotency_records",
     "public.line_friendships",
     "public.line_messaging_settings",

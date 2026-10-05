@@ -19,6 +19,18 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_gacha_notice_default_schema_inventory_is_exact(self):
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertIn("public.gacha_notice_defaults", inventory)
+        self.assertEqual(sorted(inventory), inventory)
+        v2_database.validate_schema_inventory(inventory)
+        for invalid in (
+            [table for table in inventory if table != "public.gacha_notice_defaults"],
+            sorted([*inventory, "public.gacha_notice_unregistered"]),
+        ):
+            with self.assertRaisesRegex(v2_database.GuardFailure, "Unexpected V2 schema inventory"):
+                v2_database.validate_schema_inventory(invalid)
+
     def test_gacha_notice_default_forward_migration_refuses_rollback(self):
         migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_05_000080_create_v2_gacha_notice_defaults.php"
         migration.touch()
