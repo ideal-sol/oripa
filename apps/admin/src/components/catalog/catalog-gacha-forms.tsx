@@ -72,6 +72,10 @@ export function CatalogGachaCoreForm({
   onCancel: () => void;
   onSubmit: (draft: GachaCoreDraft) => Promise<void>;
 }) {
+  const blankNew = mode === "create" && !current;
+  const [defaultNotices, setDefaultNotices] = useState<string | null | undefined>(undefined);
+  const [defaultLoadError, setDefaultLoadError] = useState(false);
+  const [defaultLoadAttempt, setDefaultLoadAttempt] = useState(0);
   const initial = useMemo<GachaCoreDraft>(() => ({
     allowedDrawCounts: current?.current_version?.allowed_draw_counts ?? [1, 5, 10],
     audienceCode: current?.current_version?.audience_code ?? "all_users",
@@ -79,7 +83,7 @@ export function CatalogGachaCoreForm({
     dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
     firstTimeEligibleDays: current?.current_version?.first_time_eligible_days ?? 7,
     description: current?.current_version?.description ?? null,
-    notices: current?.current_version?.notices ?? null,
+    notices: current ? current.current_version?.notices ?? null : defaultNotices ?? null,
     presentationAssetId: current?.current_version?.presentation_asset?.id ?? null,
     pricePoints: current?.current_version?.price_points ?? 1,
     publishEndAt: current?.current_version?.publish_end_at ?? null,
@@ -89,7 +93,7 @@ export function CatalogGachaCoreForm({
     thumbnailFile: null,
     totalCount: current?.current_version ? standardCoreVersion(current.current_version).total_count : 1,
     managementStatus: current?.publication_status ?? "draft",
-  }), [current]);
+  }), [current, defaultNotices]);
   const [draft, setDraft] = useState<GachaCoreDraft>(initial);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
@@ -105,6 +109,20 @@ export function CatalogGachaCoreForm({
     ...draft,
     thumbnailFile: null,
   }) !== JSON.stringify(initial);
+
+  useEffect(() => {
+    if (!blankNew) return;
+    const controller = new AbortController();
+    new AdminApiClient().getGachaNoticeDefaults(controller.signal).then((response) => {
+      if (controller.signal.aborted) return;
+      setDefaultNotices(response.data.standard.default_notices);
+      setDraft((previous) => ({ ...previous, notices: response.data.standard.default_notices }));
+      setDefaultLoadError(false);
+    }).catch(() => {
+      if (!controller.signal.aborted) setDefaultLoadError(true);
+    });
+    return () => controller.abort();
+  }, [blankNew, defaultLoadAttempt]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
@@ -135,6 +153,7 @@ export function CatalogGachaCoreForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (blankNew && defaultNotices === undefined) return;
     const nextErrors: Record<string, string> = {};
     if (!draft.title.trim()) nextErrors.title = "ガチャタイトルは必須です。";
     if (!draft.categoryId) nextErrors.category = "カテゴリを選択してください。";
@@ -185,6 +204,13 @@ export function CatalogGachaCoreForm({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (blankNew && defaultNotices === undefined) {
+    return defaultLoadError ? <div className="notice notice-error" role="alert">
+      <p>注意事項のデフォルト設定を取得できませんでした。</p>
+      <button className="secondary-button" type="button" onClick={() => { setDefaultLoadError(false); setDefaultLoadAttempt((attempt) => attempt + 1); }}>再試行</button>
+    </div> : <p role="status">注意事項のデフォルト設定を読み込んでいます</p>;
   }
 
   return (

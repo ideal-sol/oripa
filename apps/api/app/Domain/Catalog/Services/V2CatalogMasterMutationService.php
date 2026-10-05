@@ -18,7 +18,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Normalizer;
 
 final class V2CatalogMasterMutationService
 {
@@ -5773,21 +5772,7 @@ final class V2CatalogMasterMutationService
 
     private function plainText(mixed $value, int $minimum, int $maximum): string
     {
-        if (! is_string($value)) {
-            throw $this->validationException();
-        }
-        $normalized = Normalizer::normalize($value, Normalizer::FORM_C);
-        if (
-            ! is_string($normalized)
-            || mb_strlen($normalized) < $minimum
-            || mb_strlen($normalized) > $maximum
-            || preg_match('/[<>]/u', $normalized) === 1
-            || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $normalized) === 1
-        ) {
-            throw $this->validationException();
-        }
-
-        return $normalized;
+        return V2CatalogPlainText::normalize($value, $minimum, $maximum);
     }
 
     private function nullablePlainText(mixed $value, int $maximum): ?string

@@ -126,6 +126,9 @@ import {
   type AdminLimitedBonusCampaignInput,
   type AdminLimitedBonusCampaignMutationResult,
   type AdminReferralPointSettingMutationResult,
+  type AdminGachaNoticeDefaultsMutationResult,
+  type AdminGachaNoticeDefaultsResponse,
+  type AdminGachaNoticeDefaultsUpdate,
   type AdminReferralPointSettingResponse,
   type AdminReferralPointSettingUpdate,
   type AdminPointPurchasePlanCollection,
@@ -771,6 +774,21 @@ export class AdminApiClient {
     signal?: AbortSignal,
   ): Promise<AdminReferralPointSettingResponse> {
     return this.request("GET", "/settings/referral-points", { signal });
+  }
+
+  getGachaNoticeDefaults(signal?: AbortSignal): Promise<AdminGachaNoticeDefaultsResponse> {
+    return this.request("GET", "/settings/gacha-notices", { signal });
+  }
+
+  updateGachaNoticeDefaults(
+    body: AdminGachaNoticeDefaultsUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaNoticeDefaultsMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(new AdminApiError(422, "CATALOG_MUTATION_INVALID", null, null, false));
+    }
+    return this.request("PUT", "/settings/gacha-notices", { body, idempotencyKey, signal });
   }
 
   listPointPurchasePlans(
@@ -3070,6 +3088,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | "/settings/gacha-notices"
       | `/shipping-requests${string}`
       | `/user-prizes${string}`
       | `/user-tags${string}`
@@ -3095,6 +3114,7 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        path !== "/settings/gacha-notices" &&
         !path.startsWith("/shipping-requests") &&
         path !== "/user-prizes" &&
         !path.startsWith("/user-prizes?") &&

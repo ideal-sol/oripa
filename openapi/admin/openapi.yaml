@@ -371,6 +371,49 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminLineMessagingPreview'}
         default: {$ref: '#/components/responses/Problem'}
+  /settings/gacha-notices:
+    get:
+      operationId: getAdminGachaNoticeDefaults
+      summary: ガチャ注意事項デフォルト設定を取得する
+      description: catalog.read権限。新規の空フォーム開始時だけコピーし、編集・コピーには適用しない。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: 通常用とログイン・新規登録限定用の現在値。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminGachaNoticeDefaultsResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminGachaNoticeDefaults
+      summary: ガチャ注意事項デフォルト設定を更新する
+      description: catalog.manage権限。両scopeを同一transactionで更新する。いずれかのrevisionが古い場合は409で全体を拒否する。既存ガチャ・開いているフォームへ遡及しない。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminGachaNoticeDefaultsUpdate'}
+      responses:
+        '200':
+          description: 原子的に更新された両scope。冪等再送ではrevisionを再加算しない。
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminGachaNoticeDefaultsMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
   /settings/referral-points:
     get:
       operationId: getAdminReferralPointSetting
@@ -5050,6 +5093,55 @@ components:
         data: {$ref: '#/components/schemas/AdminLimitedBonusCampaign'}
         idempotent_replay: {type: boolean}
         request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminGachaNoticeDefault:
+      type: object
+      additionalProperties: false
+      required: [default_notices, revision]
+      properties:
+        default_notices:
+          type: [string, 'null']
+          maxLength: 10000
+          description: Plain text。NFC正規化・trim後、空文字はnull。
+        revision: {type: integer, minimum: 1}
+    AdminGachaNoticeDefaults:
+      type: object
+      additionalProperties: false
+      required: [standard, login]
+      properties:
+        standard: {$ref: '#/components/schemas/AdminGachaNoticeDefault'}
+        login: {$ref: '#/components/schemas/AdminGachaNoticeDefault'}
+    AdminGachaNoticeDefaultUpdate:
+      type: object
+      additionalProperties: false
+      required: [default_notices, expected_revision]
+      properties:
+        default_notices:
+          type: [string, 'null']
+          maxLength: 10000
+          description: Plain text。NFC正規化・trim後、空文字はnull。HTML不可。
+        expected_revision: {type: integer, minimum: 1}
+    AdminGachaNoticeDefaultsUpdate:
+      type: object
+      additionalProperties: false
+      required: [standard, login]
+      properties:
+        standard: {$ref: '#/components/schemas/AdminGachaNoticeDefaultUpdate'}
+        login: {$ref: '#/components/schemas/AdminGachaNoticeDefaultUpdate'}
+    AdminGachaNoticeDefaultsResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaNoticeDefaults'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminGachaNoticeDefaultsMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, request_id, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminGachaNoticeDefaults'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+        idempotent_replay: {type: boolean}
     AdminReferralPointSetting:
       type: object
       additionalProperties: false

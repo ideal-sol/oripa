@@ -598,6 +598,45 @@ final class LoginGachaTest extends TestCase
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
+    public function test_notice_defaults_never_override_saved_draft_published_paused_or_copy_values(): void
+    {
+        $settingsPath = '/admin/api/v2/settings/gacha-notices';
+        $this->mutate('PUT', $settingsPath, [
+            'standard' => ['default_notices' => 'Default A', 'expected_revision' => 1],
+            'login' => ['default_notices' => 'Default A', 'expected_revision' => 1],
+        ])->assertOk();
+        foreach (['standard', 'login_daily', 'signup_once'] as $type) {
+            $input = $this->input($type);
+            $input['notices'] = 'Individual OLD';
+            if ($type === 'standard') {
+                $input['price_points'] = 1;
+                $input['total_count'] = 6;
+                $input['category_id'] = '0198a001-0000-7000-8000-000000000001';
+                foreach ($input['prizes'] as &$prize) $prize['percentage'] = null;
+                unset($prize);
+            }
+            $created = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertCreated()->json('data');
+            $settings = DB::table('gacha_notice_defaults')->orderBy('scope')->get();
+            self::assertSame(['Default A', 'Default A'], $settings->pluck('default_notices')->all());
+            $payload = [];
+            foreach ($settings as $setting) $payload[$setting->scope] = ['default_notices' => 'Default NEW', 'expected_revision' => (int) $setting->revision];
+            $this->mutate('PUT', $settingsPath, $payload)->assertOk();
+            foreach ([false, true] as $copy) self::assertSame('Individual OLD', app(V2GachaCopyService::class)->projection($created['id'], $copy)['notices']);
+            $this->mutate('POST', '/admin/api/v2/catalog/gachas/'.$created['id'].'/versions/'.$created['current_version']['id'].'/publish', [
+                'expected_revision' => $created['current_version']['revision'], 'expected_gacha_revision' => $created['revision'],
+            ])->assertOk();
+            foreach ([false, true] as $copy) self::assertSame('Individual OLD', app(V2GachaCopyService::class)->projection($created['id'], $copy)['notices']);
+            $revision = (int) DB::table('catalog_gachas')->where('public_id', $created['id'])->value('revision');
+            $this->mutate('POST', '/admin/api/v2/catalog/gachas/'.$created['id'].'/sales-pause', [
+                'expected_gacha_revision' => $revision, 'reason_code' => 'operations_review',
+            ])->assertOk();
+            self::assertSame('Individual OLD', app(V2GachaCopyService::class)->projection($created['id'], true)['notices']);
+            foreach ($payload as &$row) { $row['expected_revision']++; $row['default_notices'] = 'Default A'; }
+            unset($row);
+            $this->mutate('PUT', $settingsPath, $payload)->assertOk();
+        }
+    }
+
     private function input(string $type = 'login_daily'): array
     {
         $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');

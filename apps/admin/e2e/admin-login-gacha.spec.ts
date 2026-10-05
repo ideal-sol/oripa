@@ -127,6 +127,7 @@ async function installApi(page: Page) {
     if (path.endsWith("/catalog/gachas")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/ranks")) return json(route, { items: [{ id: rankId, rank_name: "A", status: "active" }], next_cursor: null });
     if (path.endsWith("/catalog/rank-effects")) return json(route, { items: [], next_cursor: null });
+    if (path.endsWith("/settings/gacha-notices")) return json(route, { data: { standard: { default_notices: "Standard QA notice", revision: 1 }, login: { default_notices: "Login QA notice", revision: 1 } }, request_id: rankId });
     if (path.endsWith(`/catalog/presentation-assets/${videoId}/content`)) return route.fulfill({ contentType: "video/webm", body: videoBytes });
     if (path.endsWith("/content") && path.includes("/catalog/presentation-assets/")) return route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") });
     if (path.endsWith("/catalog/presentation-assets")) return json(route, { items: [

@@ -55,6 +55,7 @@ const groups = [
     "/catalog/ranks",
     "/catalog/presentation-assets",
     "/settings/referral",
+    "/settings/gacha-notices",
     "/settings/line",
   ]],
 ] as const;
