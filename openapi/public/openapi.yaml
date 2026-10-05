@@ -3378,6 +3378,8 @@ components:
       type: object
       additionalProperties: false
       required: [data, first_user_offer]
+      x-oripa-response-required-additions:
+        - first_user_offer
       properties:
         first_user_offer:
           $ref: '#/components/schemas/FirstUserOffer'
