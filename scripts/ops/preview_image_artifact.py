@@ -182,8 +182,8 @@ def package_images(arguments: argparse.Namespace) -> dict:
         fail("output_directory_not_empty")
     output.mkdir(parents=True, exist_ok=True)
     image_names = IMAGE_MODES[arguments.image_mode]
-    if arguments.artifact_kind == "old-test" and image_names != ("api",):
-        fail("old_test_api_only_required")
+    if arguments.artifact_kind == "old-test" and image_names not in (("api",), ("api", "admin")):
+        fail("old_test_image_inventory_invalid")
     archives = archive_names(arguments.architecture)
     references = {"api": arguments.api_image, "admin": arguments.admin_image, "agency": getattr(arguments, 'agency_image', None)}
     if (arguments.image_mode in {"normal", "agency"}) != (arguments.admin_image is not None):
@@ -401,8 +401,8 @@ def verify_artifact(
     ) if isinstance(images, list) else ()
     if image_names not in IMAGE_MODES.values() or len(image_names) != len(images):
         fail("manifest_images_invalid")
-    if artifact_kind == "old-test" and image_names != ("api",):
-        fail("old_test_api_only_required")
+    if artifact_kind == "old-test" and image_names not in (("api",), ("api", "admin")):
+        fail("old_test_image_inventory_invalid")
 
     archives = archive_names(architecture)
     expected_files = {archives[name] for name in image_names} | {"manifest.json"}

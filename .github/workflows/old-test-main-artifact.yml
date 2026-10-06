@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Build and verify OLD Test AMD64 API artifact
+      - name: Build and verify approved OLD Test AMD64 images
         working-directory: payload
         env:
           INPUT_TASK_ID: ${{ inputs.task_id }}
@@ -66,18 +66,31 @@ jobs:
           python3 "$helper" host-check --architecture amd64
           command -v zstd >/dev/null
           created_at="$(git show -s --format=%cI "$INPUT_SOURCE_SHA")"
+          image_mode="$(python3 -c 'import json, os; print(json.load(open(os.environ["RUNNER_TEMP"] + "/source-authority.json"))["image_mode"])')"
+          test "$image_mode" = api-only || test "$image_mode" = normal
           api_image="oripa-v2-api:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
           docker build --platform linux/amd64 --target preview \
             --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
             --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
             --build-arg "OCI_CREATED=${created_at}" \
             --file infra/docker/backend/Dockerfile --tag "$api_image" .
-          python3 "$helper" package \
-            --output "$RUNNER_TEMP/old-test-images" \
-            --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER" \
-            --source-sha "$INPUT_SOURCE_SHA" --created-at "$created_at" \
-            --artifact-kind old-test --architecture amd64 \
-            --image-mode api-only --api-image "$api_image"
+          package_arguments=(
+            --output "$RUNNER_TEMP/old-test-images"
+            --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER"
+            --source-sha "$INPUT_SOURCE_SHA" --created-at "$created_at"
+            --artifact-kind old-test --architecture amd64
+            --image-mode "$image_mode" --api-image "$api_image"
+          )
+          if [[ "$image_mode" == normal ]]; then
+            admin_image="oripa-v2-admin:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
+            docker build --platform linux/amd64 \
+              --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
+              --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
+              --build-arg "OCI_CREATED=${created_at}" \
+              --file apps/admin/Dockerfile --tag "$admin_image" .
+            package_arguments+=(--admin-image "$admin_image")
+          fi
+          python3 "$helper" package "${package_arguments[@]}"
           python3 "$helper" verify \
             --directory "$RUNNER_TEMP/old-test-images" \
             --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER" \

@@ -4,7 +4,7 @@
 
 Platform API and Admin PR Preview images are built only by
 `.github/workflows/preview-image-build.yml` on GitHub-hosted
-`ubuntu-24.04` x64. The separate OLD Test merged-main API-only path below uses
+`ubuntu-24.04` x64. The separate OLD Test merged-main path below uses
 the same native runner and artifact verifier. The Preview host must never run `docker build`.
 
 This workflow owns Preview image build only. It never builds, uploads, or
@@ -153,13 +153,17 @@ that kind and architecture. Cross-architecture loading remains fail closed.
 
 ## OLD Test Exact Merged-Main Payload
 
-`.github/workflows/old-test-main-artifact.yml` is a separate, API-only AMD64
+`.github/workflows/old-test-main-artifact.yml` is a separate AMD64
 build control plane. It does not replace or relax the PR Preview head guard,
 and does not change Production ARM64 behavior. It neither deploys nor migrates.
 
 The reviewed `manifests/platform-old-test-approved-source.json` binds an
 explicit Human-approved artifact Task, merged source PR, exact payload SHA,
-`old-test` target, `linux/amd64`, and `api-only`. Future payload approvals require
+`old-test` target, `linux/amd64`, and either `api-only` or `normal` (API/Admin).
+Agency and Admin-only artifact inventories remain prohibited. The approved mode
+must match both provenance and the verified ordered image inventory; a caller
+cannot omit Admin from an approved normal artifact or add an unapproved image.
+Future payload approvals require
 a separately reviewed change; a caller cannot request an arbitrary main ancestor.
 
 Build Control Authority is the current protected `main` workflow SHA. Application
@@ -203,7 +207,7 @@ SHA. Main drift requires revalidation, not a permissive fallback.
 The GitHub artifact is `oripa-old-test-images-<TASK_ID>-<PAYLOAD_SHA>` and the image
 is `oripa-v2-api:old-test-<TASK_ID>-<PAYLOAD_SHA_PREFIX12>`. Its manifest uses
 `artifact_kind=old-test`, never a Production or PR Preview tag. `source-authority.json`
-records source/reviewed tree, control SHA, Task, source PR, run ID and attempt.
+records source/reviewed tree, control SHA, Task, source PR, image mode, run ID and attempt.
 The GitHub outer digest authenticates the exact provenance and archive file set;
 inner checksums and Docker image ID/OCI labels are verified independently.
 
@@ -214,7 +218,18 @@ Use that exact verifier's `load` command with `--artifact-kind old-test`,
 `--architecture amd64`, and the same Task/PR/payload identity. Import does not build.
 
 Activation requires separate explicit Human OLD Test approval and an immediate
-Task Activation phase after artifact verification. Only the existing 8611 `api`
+Task Activation phase after artifact verification. An API/Admin artifact does
+not require activating both images. For SEC-20261006, retain exact payload
+`4b7d00e8e31223136cd0b70134916d091dfea6cb` independently of the newer control main;
+activate only the existing Admin with an external image-only Compose override
+and `--no-build --no-deps admin`. Preserve its configuration, network and routes,
+retain its prior image for rollback, and leave API, Agency, Worker, Scheduler,
+Storefront and migrations unchanged. `activation_authorized` remains false;
+the explicit Human task supplies the bounded OLD Test activation permission,
+not Production permission. Stop after technical rich-text and layout acceptance;
+focused Browser acceptance remains Human-only.
+
+For separately approved API activation, only the existing 8611 `api`
 and 8621 `test-api` services are eligible. Record current image IDs, ordered Compose
 chain, ports, mounts, config-source paths and networks without exposing Secrets.
 Append an external image-only override; preserve the chain and TEST credentials.

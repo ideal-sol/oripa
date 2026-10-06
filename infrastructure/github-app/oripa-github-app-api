@@ -319,7 +319,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         or approval.get("source_sha") != source_sha
         or approval.get("target") != "old-test"
         or approval.get("platform") != "linux/amd64"
-        or approval.get("image_mode") != "api-only"
+        or approval.get("image_mode") not in {"api-only", "normal"}
         or approval.get("activation_authorized") is not False
         or not str(approval.get("authority", "")).startswith("Human-approved exact OLD Test payload:")
     ):
@@ -359,7 +359,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
     return {
         "task_id": task_id, "source_pr": int(pr_number), "source_sha": source_sha,
         "source_tree": tree, "reviewed_sha": reviewed_sha, "control_sha": control_sha,
-        "target": "old-test", "platform": "linux/amd64", "image_mode": "api-only",
+        "target": "old-test", "platform": "linux/amd64", "image_mode": approval["image_mode"],
         "authority_path": OLD_AUTHORITY_PATH,
     }
 
@@ -524,7 +524,10 @@ def safe_extract(source: Path, destination: Path, old_test: bool = False) -> Non
         common | {"oripa-v2-admin-linux-amd64.docker.tar.zst", "oripa-v2-agency-linux-amd64.docker.tar.zst"},
     )
     if old_test:
-        allowed_sets = (common | {"source-authority.json"},)
+        allowed_sets = (
+            common | {"source-authority.json"},
+            common | {"source-authority.json", "oripa-v2-admin-linux-amd64.docker.tar.zst"},
+        )
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
         filenames = {item.filename for item in files}
@@ -602,6 +605,15 @@ def download_preview_artifact(
             expected = {**authority, "run_id": run_id, "run_attempt": run.get("run_attempt")}
             if provenance != expected:
                 fail("old_test_provenance_mismatch")
+            manifest = json.loads((payload / "manifest.json").read_text())
+            images = manifest.get("images") if isinstance(manifest, dict) else None
+            expected_images = ["api", "admin"] if authority["image_mode"] == "normal" else ["api"]
+            if (
+                not isinstance(images, list)
+                or any(not isinstance(item, dict) for item in images)
+                or [item.get("name") for item in images] != expected_images
+            ):
+                fail("old_test_approved_inventory_mismatch")
             helper = staging / "verified-control-artifact-helper.py"
             control_source = subprocess.run(
                 ["git", "-C", "/var/www/oripa", "show", f"{control}:scripts/ops/preview_image_artifact.py"],
