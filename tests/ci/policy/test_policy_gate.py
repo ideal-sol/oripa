@@ -3166,7 +3166,9 @@ This is a non-Production Skeleton and contains no application implementation.
                             "minimatch": "10.2.5",
                             "nanoid": "3.3.18",
                             "postcss": "8.5.23",
+                            "prosemirror-view": "1.42.3",
                             "sharp": "0.35.4",
+                            "source-map-js": "1.2.2",
                         }
                     },
                     "devDependencies": policy_gate.ROOT_DEV_DEPENDENCY_VERSIONS,
@@ -3640,6 +3642,10 @@ services:
             ("fast-uri", "3.1.7"),
             ("brace-expansion", "^5.0.12"),
             ("fast-uri", "^3.1.8"),
+            ("source-map-js", "1.2.1"),
+            ("source-map-js", "^1.2.2"),
+            ("prosemirror-view", "1.42.2"),
+            ("prosemirror-view", "^1.42.3"),
         ]:
             with self.subTest(package=package_name, version=invalid_version):
                 with tempfile.TemporaryDirectory() as temporary:
