@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OPS-20260929",
-  "source_pr": 515,
-  "source_sha": "62c3c813081cf0ea526c66e7e4131c6816de2449",
+  "task_id": "CONTRACT-20261005",
+  "source_pr": 540,
+  "source_sha": "0ce41ab473fd5a4fb44773041ae097ffb40b14ce",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "api-only",
-  "authority": "Human-approved exact OLD Test payload: PR #515 squash merge",
+  "authority": "Human-approved exact OLD Test payload: PR #540 squash merge",
   "activation_authorized": false
 }
