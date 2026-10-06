@@ -38,6 +38,30 @@ ancestor, malformed/missing commit, tree mismatch or failed check is rejected.
 Contact preparation does not dispatch this workflow; see
 [the preparation review](contact-production-preparation.md).
 
+## Current Approved Source — PRODAUTH-20261006
+
+Human acceptance fixes Runtime Source
+`4b7d00e8e31223136cd0b70134916d091dfea6cb`, tree
+`cf4e79bbd47fdd89af6b5a6b3134f12869bf50ae`, Security PR #543.
+Dispatch uses `change_id=SEC-20261006` and `pr_number=543`. Neither OLD Test
+Control Authority `75395ded58c0924d39441f51fd351c03ad12e908`, the reviewed PR
+head, nor this Production Authority merge substitutes for that Runtime Source.
+
+Application business, Contract/package and migration sources are byte-identical
+to accepted application payload `0ce41ab473fd5a4fb44773041ae097ffb40b14ce`.
+Exact source-map-js 1.2.2 and prosemirror-view 1.42.3 remediation has
+target-specific Security PASS, OLD Test Technical PASS and Human Focused Browser
+PASS. Immutable Contract alpha.43 remains Artifact `11349442812` from that
+accepted application payload; do not rebuild or republish it.
+
+This authority-only Strict change preserves all source helper/workflow semantics
+and keeps `activation_authorized=false`. Human separately authorizes one fresh
+canonical ARM64 Production Artifact build after merge and current checks pass.
+Its source, tree, Workflow Authority and digests must remain separate from CI
+verification artifacts. NEW/Production connections, Snapshot, Migration, DB
+writes, ENV changes and Runtime Activation remain prohibited. Stop at artifact
+preparation; Candidate bind is a later phase. The updates below are historical.
+
 ## Approved Source Update — PRODAUTH-20260924
 
 Human acceptance approves Runtime Source
