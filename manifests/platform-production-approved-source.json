@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "538a208c025fcc5a7d6f9914d3c428b9ef702dbe",
-  "change_id": "SECINT-20260930",
-  "pr_number": 523,
-  "authority": "Human-approved exact Runtime Source: PR #523 Integrated Security merged source; includes previously approved Application content and all Composer/pnpm remediation with target-specific Security PASS; Contract 2.0.0-alpha.41 unchanged; authority sync has no Application Runtime delta; prior vulnerable target 62c3c813081cf0ea526c66e7e4131c6816de2449 is not approved; deployable Production Build, NEW server operations and Production activation remain unauthorized",
+  "source_sha": "4b7d00e8e31223136cd0b70134916d091dfea6cb",
+  "change_id": "SEC-20261006",
+  "pr_number": 543,
+  "authority": "Human-approved exact Runtime Source: PR #543 Security merge; Application business Source unchanged from accepted application payload 0ce41ab473fd5a4fb44773041ae097ffb40b14ce; source-map-js 1.2.2 and prosemirror-view 1.42.3 with target-specific Security PASS; Contract 2.0.0-alpha.43 unchanged; OLD Test Technical PASS and Human Focused Browser PASS; authority sync has no Application Runtime delta; Production Artifact Build is separately authorized through its canonical workflow; NEW operations, Migration and Activation are separate and remain unauthorized",
   "activation_authorized": false
 }

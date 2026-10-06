@@ -10,13 +10,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "538a208c025fcc5a7d6f9914d3c428b9ef702dbe"
-PREFLIGHT_AUTHORITY = "60da22cf83c8f65242fb5c0b121a73fa96b396c8"
+APPROVED = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
+PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "SECINT-20260930"
-SOURCE_PR = 523
+SOURCE_CHANGE = "SEC-20261006"
+SOURCE_PR = 543
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -122,6 +122,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             ("CATALOG-20260924", 503), ("REL-040", 507),
             ("ASSETURL-20260925", 508), ("OPS-20260929", 516),
             ("PAY-20260928C", 515), ("PRODAUTH-20260930", 519),
+            ("SECINT-20260930", 523), ("OTSEC-20261006", 544),
         ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
@@ -192,6 +193,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "538a208c025fcc5a7d6f9914d3c428b9ef702dbe",
+                "75395ded58c0924d39441f51fd351c03ad12e908",
+                "0ce41ab473fd5a4fb44773041ae097ffb40b14ce",
                 "62c3c813081cf0ea526c66e7e4131c6816de2449",
                 "60da22cf83c8f65242fb5c0b121a73fa96b396c8",
                 "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
@@ -205,6 +209,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                     ValueError, "Human-approved source authority mismatch"
                 ):
                     AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+            with self.assertRaisesRegex(ValueError, "source commit missing or not protected-main ancestor"):
+                AUTHORIZE(ROOT, "2c8e360b978273803b9f1ac478132530835f32ad",
+                          PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
@@ -216,55 +223,66 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         root = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:package.json"))
         self.assertEqual(root["pnpm"]["overrides"]["brace-expansion"], "5.0.12")
         self.assertEqual(root["pnpm"]["overrides"]["fast-uri"], "3.1.8")
+        self.assertEqual(root["pnpm"]["overrides"]["source-map-js"], "1.2.2")
+        self.assertEqual(root["pnpm"]["overrides"]["prosemirror-view"], "1.42.3")
         legacy = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/package.json"))
         self.assertEqual(legacy["pnpm"]["overrides"]["brace-expansion"], "5.0.12")
+        self.assertEqual(legacy["pnpm"]["overrides"]["source-map-js"], "1.2.2")
         workspace_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:pnpm-lock.yaml")
         self.assertIn("  brace-expansion@5.0.12:", workspace_lock)
         self.assertIn("  fast-uri@3.1.8:", workspace_lock)
+        self.assertIn("  source-map-js@1.2.2:", workspace_lock)
+        self.assertIn("  prosemirror-view@1.42.3:", workspace_lock)
+        self.assertNotIn("source-map-js@1.2.1", workspace_lock)
+        self.assertNotIn("prosemirror-view@1.42.2", workspace_lock)
         legacy_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/pnpm-lock.yaml")
         self.assertIn("  brace-expansion@5.0.12:", legacy_lock)
+        self.assertIn("  source-map-js@1.2.2:", legacy_lock)
+        self.assertNotIn("source-map-js@1.2.1", legacy_lock)
 
     def test_approved_source_to_preflight_authority_has_only_metadata_delta(self):
         subprocess.run([
             "git", "-C", str(ROOT), "merge-base", "--is-ancestor",
-            "62c3c813081cf0ea526c66e7e4131c6816de2449", APPROVED,
+            "0ce41ab473fd5a4fb44773041ae097ffb40b14ce", APPROVED,
         ], check=True)
         paths = MODULE["git"](ROOT, "diff", "--name-only", APPROVED, PREFLIGHT_AUTHORITY).splitlines()
         self.assertEqual(set(paths), {
-            "manifests/platform-production-approved-source.json",
-            "tests/ops/test_production_source_authority.py",
+            "manifests/platform-old-test-approved-source.json",
+            "tests/ops/test_old_test_source_authority.py",
+            ".github/workflows/old-test-main-artifact.yml",
+            "scripts/ops/preview_image_artifact.py",
+            "infrastructure/github-app/oripa-github-app-api",
+            "docs/operations/deployment/preview-image-build.md",
             "worklogs/new_ver_main.md",
         })
 
     def test_storefront_contract_artifact_source_remains_distinct_from_runtime_target(self):
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
-        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.41"]
+        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.43"]
         self.assertEqual(len(contracts), 1)
         contract = contracts[0]
-        artifact_source = "e2b30805704ed5b9c3fd54492fb86f8b8549bde5"
-        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.41")
+        artifact_source = "0ce41ab473fd5a4fb44773041ae097ffb40b14ce"
+        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.43")
         self.assertEqual(contract["source_commit"], artifact_source)
-        self.assertEqual(contract["publication"]["artifact_id"], 10900150259)
+        self.assertEqual(contract["publication"]["artifact_id"], 11349442812)
+        self.assertEqual(contract["manifest_sha256"], "1951edf44ef275e3c9bf85ac0ce1417a27bc64e982a607d0a72e49186eb09e74")
         self.assertNotEqual(artifact_source, APPROVED)
         subprocess.run([
             "git", "-C", str(ROOT), "merge-base", "--is-ancestor", artifact_source, APPROVED,
         ], check=True)
         subprocess.run([
             "git", "-C", str(ROOT), "diff", "--exit-code", artifact_source, APPROVED,
-            "--", "openapi/public", "openapi/admin", "openapi/bundled/public.openapi.json",
-            "openapi/bundled/admin.openapi.json", "packages",
+            "--", "apps", "openapi", "packages", "infra/docker",
         ], check=True)
         contract_changes = MODULE["git"](
             ROOT, "diff", "--name-only", artifact_source, APPROVED, "--", "openapi", "packages",
         ).splitlines()
-        self.assertEqual(set(contract_changes), {
-            "openapi/webhook/openapi.yaml", "openapi/bundled/webhook.openapi.json",
-        })
+        self.assertEqual(contract_changes, [])
         for package in ["storefront-client", "storefront-testkit"]:
             manifest = json.loads(MODULE["git"](
                 ROOT, "show", f"{APPROVED}:packages/{package}/package.json",
             ))
-            self.assertEqual(manifest["version"], "2.0.0-alpha.41")
+            self.assertEqual(manifest["version"], "2.0.0-alpha.43")
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
         self.authority["activation_authorized"] = True
