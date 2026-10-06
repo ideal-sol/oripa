@@ -12,15 +12,15 @@ from unittest import mock
 import zipfile
 
 from tests.ops.test_preview_image_pipeline import (
-    ROOT, TASK, PR, HEAD, artifact, wrapper, create_artifact,
+    ROOT, TASK, PR, HEAD, artifact, wrapper, create_artifact, create_docker_archive,
 )
 
 
-PAYLOAD = "0ce41ab473fd5a4fb44773041ae097ffb40b14ce"
+PAYLOAD = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
 CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
-TASK_ID = "CONTRACT-20261005"
+TASK_ID = "SEC-20261006"
 
 
 class GithubReadTransportTest(unittest.TestCase):
@@ -138,7 +138,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             return {"encoding": "base64", "content": base64.b64encode(json.dumps(self.approval).encode()).decode()}
         if "/compare/" in path:
             return self.comparison
-        if path.endswith("/pulls/540"):
+        if path.endswith("/pulls/543"):
             return self.pull
         if "/git/commits/" in path:
             return {"sha": path.rsplit("/", 1)[1], "tree": {"sha": TREE}}
@@ -154,13 +154,13 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         raise AssertionError(path)
 
     def authorize(self, source=PAYLOAD, control=CONTROL):
-        return wrapper.authorize_old_test_source(TASK_ID, "540", source, control, get=self.get)
+        return wrapper.authorize_old_test_source(TASK_ID, "543", source, control, get=self.get)
 
     def test_ci_injected_read_transport_does_not_use_host_credentials(self):
         transport = mock.Mock(side_effect=self.get)
         with mock.patch.object(wrapper, "installation_token") as credential, \
              mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
-            result = wrapper.authorize_old_test_source(TASK_ID, "540", PAYLOAD, CONTROL, get=transport)
+            result = wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=transport)
         self.assertEqual(result["source_sha"], PAYLOAD)
         transport.assert_any_call(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1")
         credential.assert_not_called()
@@ -174,7 +174,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             return io.BytesIO(json.dumps(self.get(path)).encode())
         with mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
              mock.patch.object(wrapper.urllib.request, "urlopen", side_effect=respond):
-            result = wrapper.authorize_old_test_source(TASK_ID, "540", PAYLOAD, CONTROL)
+            result = wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL)
         self.assertEqual(result["source_sha"], PAYLOAD)
         self.assertEqual(requests.count(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1"), 1)
 
@@ -189,6 +189,17 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         self.main["commit"]["sha"] = PAYLOAD
         self.comparison["status"] = "identical"
         self.assertEqual(self.authorize(control=PAYLOAD)["source_sha"], PAYLOAD)
+
+    def test_only_explicitly_approved_api_or_api_admin_inventory_is_authority(self):
+        for mode in ("api-only", "normal"):
+            self.approval["image_mode"] = mode
+            with self.subTest(mode=mode):
+                result = self.authorize()
+                self.assertEqual(result["image_mode"], mode)
+                self.assertEqual(result["source_sha"], PAYLOAD)
+        for source in (REVIEWED, CONTROL, "0ce41ab473fd5a4fb44773041ae097ffb40b14ce"):
+            with self.subTest(source=source), self.assertRaisesRegex(wrapper.WrapperError, "approval_mismatch"):
+                self.authorize(source=source)
 
     def test_malformed_unknown_and_unapproved_sha_rejected_before_build(self):
         for source in ("main", "", "abc123", "f" * 40, "../main"):
@@ -216,6 +227,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
     def test_target_architecture_identity_and_activation_scope_fail_closed(self):
         for field, value in (("target", "production"), ("target", "new-server"),
                              ("platform", "linux/arm64"), ("image_mode", "agency"),
+                             ("image_mode", "admin-only"), ("image_mode", ""),
                              ("task_id", "OTHER-123"), ("source_pr", 514),
                              ("activation_authorized", True), ("authority", "arbitrary")):
             original = self.approval[field]
@@ -243,7 +255,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
                 result["tree"]["sha"] = "f" * 40
             return result
         with self.assertRaisesRegex(wrapper.WrapperError, "tree_mismatch"):
-            wrapper.authorize_old_test_source(TASK_ID, "540", PAYLOAD, CONTROL, get=changed)
+            wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=changed)
         calls = []
         def moved(path):
             result = original(path)
@@ -253,7 +265,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
                     result["commit"]["sha"] = "f" * 40
             return result
         with self.assertRaisesRegex(wrapper.WrapperError, "control_moved"):
-            wrapper.authorize_old_test_source(TASK_ID, "540", PAYLOAD, CONTROL, get=moved)
+            wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=moved)
 
     def test_failed_or_untrusted_required_checks_are_rejected(self):
         self.check_conclusion = "failure"
@@ -270,29 +282,69 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
              mock.patch.object(wrapper, "api_get", side_effect=self.get), \
              mock.patch.object(wrapper, "api_compare", return_value=self.comparison), \
              mock.patch.object(wrapper.runpy, "run_path", return_value={"request": transport}):
-            result = wrapper.dispatch_old_test_artifact(TASK_ID, "540", PAYLOAD)
+            result = wrapper.dispatch_old_test_artifact(TASK_ID, "543", PAYLOAD)
         self.assertEqual(result["status"], "dispatched")
         transport.assert_called_once_with("POST", "/repos/ideal-sol/oripa/actions/workflows/old-test-main-artifact.yml/dispatches",
-                                          {"ref": "main", "inputs": {"task_id": TASK_ID, "pr_number": "540", "source_sha": PAYLOAD}})
+                                          {"ref": "main", "inputs": {"task_id": TASK_ID, "pr_number": "543", "source_sha": PAYLOAD}})
         self.assertNotIn("token", json.dumps(result).lower())
 
     def test_dispatch_never_writes_when_approval_or_policy_fails(self):
         with mock.patch.object(wrapper, "secure_policy", return_value={"lane": "Lite Maintenance", "activation": "none"}), \
              mock.patch.object(wrapper.runpy, "run_path") as transport:
             with self.assertRaises(wrapper.WrapperError):
-                wrapper.dispatch_old_test_artifact(TASK_ID, "540", PAYLOAD)
+                wrapper.dispatch_old_test_artifact(TASK_ID, "543", PAYLOAD)
             transport.assert_not_called()
 
 
 class OldTestArtifactBoundaryTest(unittest.TestCase):
+    def test_builder_packages_api_admin_and_rejects_agency_before_docker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            fixtures = {name: create_docker_archive(directory, name, artifact_kind="old-test")
+                        for name in ("api", "admin")}
+            arguments = artifact.parser().parse_args([
+                "package", "--output", str(directory / "output"), "--task-id", TASK,
+                "--pr-number", str(PR), "--source-sha", HEAD,
+                "--created-at", "2026-08-12T00:00:00Z", "--artifact-kind", "old-test",
+                "--image-mode", "normal", "--api-image", fixtures["api"]["reference"],
+                "--admin-image", fixtures["admin"]["reference"],
+            ])
+            def inspect(reference):
+                metadata = next(item for item in fixtures.values() if item["reference"] == reference)
+                return {"Architecture": "amd64", "Os": "linux", "Id": metadata["image_id"],
+                        "Config": {"Labels": metadata["labels"]}}
+            def run(command, **options):
+                if command[:3] == ["docker", "image", "save"]:
+                    metadata = next(item for item in fixtures.values() if item["reference"] == command[-1])
+                    with Path(command[command.index("--output") + 1]).open("wb") as output:
+                        subprocess.run(["zstd", "--decompress", "--stdout", str(directory / metadata["archive"])], stdout=output, check=True)
+                else:
+                    self.assertEqual(command[0], "zstd")
+                    subprocess.run(command, check=True)
+                return ""
+            with mock.patch.object(artifact, "docker_inspect", side_effect=inspect), \
+                 mock.patch.object(artifact, "run", side_effect=run):
+                artifact.package_images(arguments)
+            result = artifact.verify_artifact(arguments.output, task_id=TASK, pr_number=PR,
+                                              source_sha=HEAD, artifact_kind="old-test")
+            self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
+            arguments.output = directory / "rejected"
+            arguments.image_mode = "agency"
+            with mock.patch.object(artifact, "docker_inspect") as docker, \
+                 self.assertRaisesRegex(artifact.ArtifactError, "old_test_image_inventory_invalid"):
+                artifact.package_images(arguments)
+            docker.assert_not_called()
+
     def test_download_binds_outer_digest_provenance_control_and_inner_verifier(self):
-        authority = {"task_id": TASK_ID, "source_sha": PAYLOAD, "source_pr": 540,
+        authority = {"task_id": TASK_ID, "source_sha": PAYLOAD, "source_pr": 543,
                      "control_sha": CONTROL, "target": "old-test", "platform": "linux/amd64"}
         run = {"event": "workflow_dispatch", "status": "completed", "conclusion": "success",
                "path": wrapper.OLD_WORKFLOW_PATH, "head_branch": "main", "head_sha": CONTROL,
                "run_attempt": 1}
-        for mutation in ("none", "source", "control", "attempt", "outer"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+        for image_mode, mutation in ((mode, change) for mode in ("api-only", "normal")
+                                     for change in ("none", "source", "control", "attempt", "outer", "inventory", "mode")):
+            authority["image_mode"] = image_mode
+            with self.subTest(mode=image_mode, mutation=mutation), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 archive = directory / "test.zip"
                 provenance = {**authority, "run_id": 123, "run_attempt": 1}
@@ -300,9 +352,14 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     provenance[mutation + "_sha"] = "f" * 40
                 if mutation == "attempt":
                     provenance["run_attempt"] = 2
+                if mutation == "mode":
+                    provenance["image_mode"] = "normal" if image_mode == "api-only" else "api-only"
+                image_names = ["api", "admin"] if image_mode == "normal" else ["api"]
+                manifest_names = image_names if mutation != "inventory" else list(reversed(image_names)) + ["agency"]
                 with zipfile.ZipFile(archive, "w") as bundle:
-                    for name in ("manifest.json", "SHA256SUMS", "oripa-v2-api-linux-amd64.docker.tar.zst"):
+                    for name in ["SHA256SUMS"] + [f"oripa-v2-{image}-linux-amd64.docker.tar.zst" for image in image_names]:
                         bundle.writestr(name, "fixture")
+                    bundle.writestr("manifest.json", json.dumps({"images": [{"name": name} for name in manifest_names]}))
                     bundle.writestr("source-authority.json", json.dumps(provenance))
                 digest = hashlib.sha256(archive.read_bytes()).hexdigest()
                 metadata = {"name": wrapper.artifact_name(TASK_ID, PAYLOAD, True), "expired": False,
@@ -326,14 +383,14 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                      mock.patch.object(wrapper, "download_to", side_effect=download), \
                      mock.patch.object(wrapper.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"control helper")) as runner:
                     if mutation == "none":
-                        result = wrapper.download_preview_artifact(TASK_ID, "540", PAYLOAD, "456", str(destination), old_test=True)
+                        result = wrapper.download_preview_artifact(TASK_ID, "543", PAYLOAD, "456", str(destination), old_test=True)
                         self.assertEqual(result["status"], "verified")
                         self.assertEqual(result["control_sha"], CONTROL)
                         self.assertIn(f"{CONTROL}:scripts/ops/preview_image_artifact.py", runner.call_args_list[0].args[0])
                         self.assertEqual(runner.call_args_list[1].args[0][-4:], ["--artifact-kind", "old-test", "--architecture", "amd64"])
                     else:
                         with self.assertRaises(wrapper.WrapperError):
-                            wrapper.download_preview_artifact(TASK_ID, "540", PAYLOAD, "456", str(destination), old_test=True)
+                            wrapper.download_preview_artifact(TASK_ID, "543", PAYLOAD, "456", str(destination), old_test=True)
                         runner.assert_not_called()
                         self.assertFalse(destination.exists())
 
@@ -349,15 +406,46 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
                                              source_sha=HEAD, artifact_kind=kind)
 
-    def test_old_test_rejects_arm64_and_non_api_inventory(self):
-        with self.assertRaisesRegex(artifact.ArtifactError, "architecture_invalid"):
-            artifact.validate_target("old-test", "arm64")
+    def test_old_test_api_admin_archive_verifies_but_not_as_preview_or_production(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            create_artifact(directory, artifact_kind="old-test")
-            with self.assertRaisesRegex(artifact.ArtifactError, "api_only"):
-                artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
-                                         source_sha=HEAD, artifact_kind="old-test")
+            create_artifact(directory, ("api", "admin"), artifact_kind="old-test")
+            result = artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                              source_sha=HEAD, artifact_kind="old-test")
+            self.assertEqual([item["name"] for item in result["images"]], ["api", "admin"])
+            for kind in ("preview", "production-candidate"):
+                with self.subTest(kind=kind), self.assertRaises(artifact.ArtifactError):
+                    artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                             source_sha=HEAD, artifact_kind=kind)
+
+    def test_old_test_rejects_arm64_agency_admin_only_and_reordered_inventory(self):
+        with self.assertRaisesRegex(artifact.ArtifactError, "architecture_invalid"):
+            artifact.validate_target("old-test", "arm64")
+        for names in (("api", "admin", "agency"), ("admin",), ("admin", "api")):
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                create_artifact(directory, names, artifact_kind="old-test")
+                with self.assertRaises(artifact.ArtifactError):
+                    artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                             source_sha=HEAD, artifact_kind="old-test")
+
+    def test_old_test_api_admin_zip_preserves_exact_inventory_and_provenance(self):
+        for extra in (None, "oripa-v2-agency-linux-amd64.docker.tar.zst", "unexpected"):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                archive = directory / "test.zip"
+                names = {"manifest.json", "SHA256SUMS", "source-authority.json",
+                         "oripa-v2-api-linux-amd64.docker.tar.zst", "oripa-v2-admin-linux-amd64.docker.tar.zst"}
+                if extra:
+                    names.add(extra)
+                with zipfile.ZipFile(archive, "w") as bundle:
+                    for name in names:
+                        bundle.writestr(name, "fixture")
+                if extra:
+                    with self.assertRaises(wrapper.WrapperError):
+                        wrapper.safe_extract(archive, directory, True)
+                else:
+                    wrapper.safe_extract(archive, directory, True)
 
     def test_preview_run_cannot_supply_old_test_artifact_and_vice_versa(self):
         run = {"event": "workflow_dispatch", "status": "completed", "conclusion": "success",
@@ -401,10 +489,13 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                          "control/scripts/ops/old_test_source_authority.py",
                          "--platform linux/amd64 --target preview", "--artifact-kind old-test",
                          'OCI_REVISION=${INPUT_SOURCE_SHA}', "persist-credentials: false",
-                         "source-authority.json"):
+                         "source-authority.json", 'if [[ "$image_mode" == normal ]]; then',
+                         '--file apps/admin/Dockerfile', '--admin-image "$admin_image"',
+                         '--image-mode "$image_mode"', 'test "$image_mode" = api-only || test "$image_mode" = normal'):
             self.assertIn(required, workflow)
         for forbidden in ("continue-on-error", "secrets.", "docker run", "docker compose",
-                          "--platform linux/arm64", "environment: production", "actions: write"):
+                          "--platform linux/arm64", "environment: production", "actions: write",
+                          "apps/agency/Dockerfile", "--agency-image"):
             self.assertNotIn(forbidden, workflow)
         preview = (ROOT / ".github/workflows/preview-image-build.yml").read_text()
         self.assertIn('if head.get("sha") != head_sha:', preview)
