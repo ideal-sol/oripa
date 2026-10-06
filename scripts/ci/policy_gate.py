@@ -1932,7 +1932,9 @@ def validate_workspace_configuration(repository: Path) -> None:
             "minimatch": "10.2.5",
             "nanoid": "3.3.18",
             "postcss": "8.5.23",
+            "prosemirror-view": "1.42.3",
             "sharp": "0.35.4",
+            "source-map-js": "1.2.2",
         }
     }:
         raise PolicyFailure("package.json: audited exact pnpm overrides are invalid")

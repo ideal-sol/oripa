@@ -29,7 +29,8 @@
       "minimatch": "10.2.5",
       "nanoid": "3.3.18",
       "postcss": "8.5.23",
-      "sharp": "0.35.4"
+      "sharp": "0.35.4",
+      "source-map-js": "1.2.2"
     }
   },
   "packageManager": "pnpm@10.12.1"
