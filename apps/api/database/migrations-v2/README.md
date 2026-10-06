@@ -36,7 +36,10 @@ devices, and Admin MFA credential storage.
 
 This append-only root contains the current V2 migration source through
 `2026_10_06_000081_add_v2_prize_banner_external_ids.php`. Migration 000081 adds nullable,
-case-sensitive external IDs to existing Banners and Prizes without backfill. Its
+case-sensitive external IDs to existing Banners and Prizes without data backfill.
+It preserves the Login mutation guard except for a published Prize's one-time
+null-to-valid external ID update with its revision/timestamp; all other Prize
+columns must remain byte-equivalent. Existing migration 000078 is unchanged. Its
 rollback is application-only with the additive columns retained; schema changes
 require a forward correction. Runtime applied/pending state
 must always be read from the guarded environment migration ledger; source

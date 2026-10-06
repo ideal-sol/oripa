@@ -1426,7 +1426,7 @@ paths:
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes/{prize_id}:
     put:
       operationId: updateAdminGachaRankPrize
-      description: 管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。公開歴のあるGachaの既存非null管理IDの変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。
+      description: catalog.manage必須。通常Gachaは通常更新入力を使用。公開履歴のあるlogin_daily/signup_onceはAdminPrizeExternalIdUpdateの3項目だけで管理IDを後付けできる。構成・経済条件等の変更は禁止。管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。公開歴のあるGachaの既存非null管理IDの変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE、同一値は許可。Prize/Version revision不一致は409 CATALOG_REVISION_CONFLICT。
       summary: 押下元Rank固定で景品を更新する
       x-idempotency: required
       x-rate-limit: none
@@ -1441,7 +1441,12 @@ paths:
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionPrizeUpdate'}}}
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - {$ref: '#/components/schemas/AdminGachaVersionPrizeUpdate'}
+                - {$ref: '#/components/schemas/AdminPrizeExternalIdUpdate'}
       responses:
         '200': {description: 景品更新結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminCatalogPrizeMutationResult'}}}}
         default: {$ref: '#/components/responses/Problem'}
@@ -4780,9 +4785,18 @@ components:
       minLength: 1
       maxLength: 64
       pattern: '^[A-Za-z0-9._-]{1,64}$'
-      description: 管理ID。前後空白除去後に検証し、空文字はnullへ正規化。大文字小文字を区別。作成時省略はnull、更新時省略は既存値維持、明示nullは解除。Prizeは同一Version内で一意。first_published_at設定済みGachaでは既存非null値の変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。同一値は許可。
+      description: 管理ID。前後空白除去後に検証し、空文字はnullへ正規化。大文字小文字を区別。省略・更新の意味は各入力Contextに従う。Prizeは同一Version内で一意。first_published_at設定済みGachaでは既存非null値の変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。同一値は許可。
+    AdminPrizeExternalIdUpdate:
+      type: object
+      additionalProperties: false
+      required: [external_id, expected_revision, expected_version_revision]
+      properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
+        expected_revision: {type: integer, minimum: 1}
+        expected_version_revision: {type: integer, minimum: 1}
     AdminCompositionPrize:
       type: object
+      description: Composition置換は新しいPrize行を作成する。external_id省略・null・空文字は新しい行のnullとなり、以前の行の管理IDを引き継がない。公開履歴のあるCompositionの編集は禁止。
       additionalProperties: false
       required: [name, presentation_asset_id, rank_id, exchange_points, cost_price, initial_inventory, shipping_only, percentage]
       properties:
@@ -5557,6 +5571,7 @@ components:
         expected_version_revision: {type: integer, minimum: 1}
     AdminGachaVersionPrizeUpdate:
       type: object
+      description: external_id省略は既存値を維持。明示null・空文字は解除要求であり、公開履歴のある設定済みPrizeでは拒否。
       additionalProperties: false
       required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
       properties:
@@ -7295,6 +7310,7 @@ components:
         idempotent_replay: {type: boolean}
     AdminManagedBannerInput:
       type: object
+      description: external_idは作成時省略でnull。更新時省略は既存値維持、明示null・空文字は解除。
       additionalProperties: false
       required: [category_id, title]
       properties:

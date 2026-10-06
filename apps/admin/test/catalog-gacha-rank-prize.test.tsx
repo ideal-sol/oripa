@@ -57,16 +57,17 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Canonical Gacha Rank and Prize manager", () => {
-  it("suggests the selected Banner external ID once and preserves manual edits", async () => {
+  it("follows Banner reselection until manually edited, including missing IDs and manual clears", async () => {
     vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
       items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
     });
     const category = { id: RANK_ID, name: "Cards", created_at: "2026-10-06T00:00:00Z" };
     vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [category] });
     vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
-      items: [{ id: PRIZE_ID, title: "Card Banner", external_id: "CARD-0001", category,
-        status: "draft", show_on_top: false, link_url: null, asset: { id: VIDEO_ASSET_ID, public_url: "https://example.test/card.png" },
-        version_id: VERSION_ID, version_number: 1, created_at: "2026-10-06T00:00:00Z", updated_at: "2026-10-06T00:00:00Z" }],
+      items: [["Card Banner", "CARD-0001"], ["Other Banner", "CARD-0002"], ["No ID Banner", null]].map(([title, external_id], index) => ({
+        id: String(index), title: title!, external_id, category,
+        status: "draft" as const, show_on_top: false, link_url: null, asset: { id: VIDEO_ASSET_ID, public_url: "https://example.test/card.png" },
+        version_id: VERSION_ID, version_number: 1, created_at: "2026-10-06T00:00:00Z", updated_at: "2026-10-06T00:00:00Z" })),
       next_cursor: null,
     });
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
@@ -77,6 +78,10 @@ describe("Canonical Gacha Rank and Prize manager", () => {
     fireEvent.click(await within(dialog).findByRole("button", { name: "Card Banner" }));
     expect(field).toHaveValue("CARD-0001");
     expect(field).not.toHaveAttribute("readonly");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Other Banner" }));
+    expect(field).toHaveValue("CARD-0002");
+    fireEvent.click(within(dialog).getByRole("button", { name: "No ID Banner" }));
+    expect(field).toHaveValue("");
     fireEvent.change(field, { target: { value: "MANUAL" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Card Banner" }));
     expect(field).toHaveValue("MANUAL");

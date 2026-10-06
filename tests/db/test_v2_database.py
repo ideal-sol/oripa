@@ -19,6 +19,23 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_external_id_migration_preserves_other_login_guard_branches(self):
+        migrations = MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH
+        original = (migrations / "2026_10_04_000078_add_v2_login_gachas.php").read_text()
+        updated = (migrations / "2026_10_06_000081_add_v2_prize_banner_external_ids.php").read_text()
+        marker = "CREATE OR REPLACE FUNCTION v2_login_guard_mutation()"
+        original_guard = original.split(marker, 1)[1].split("$$;", 1)[0]
+        updated_guard = updated.split(marker, 1)[1].split("$$;", 1)[0]
+        start = updated_guard.index("                    ELSIF TG_TABLE_NAME = 'catalog_prizes' AND TG_OP = 'UPDATE' THEN")
+        end = updated_guard.index("                    ELSIF TG_TABLE_NAME = 'prize_inventories' THEN", start)
+        backfill = updated_guard[start:end]
+        self.assertIn("OLD.external_id IS NOT NULL OR NEW.external_id IS NULL", backfill)
+        self.assertIn("NEW.revision IS DISTINCT FROM OLD.revision + 1", backfill)
+        self.assertIn("to_jsonb(NEW) - ARRAY['external_id', 'revision', 'updated_at']", backfill)
+        self.assertIn("to_jsonb(OLD) - ARRAY['external_id', 'revision', 'updated_at']", backfill)
+        self.assertIn("NEW.external_id !~ '^[A-Za-z0-9._-]{1,64}$'", backfill)
+        self.assertEqual(original_guard, updated_guard[:start] + updated_guard[end:])
+
     def test_gacha_notice_default_schema_inventory_is_exact(self):
         inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
         self.assertIn("public.gacha_notice_defaults", inventory)

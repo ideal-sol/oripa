@@ -621,6 +621,7 @@ const requiredSchemas = [
   "AdminGachaRankMutationResult",
   "AdminGachaVersionPrizeCreate",
   "AdminGachaVersionPrizeUpdate",
+  "AdminPrizeExternalIdUpdate",
   "AdminGachaVersionPrizeCollection",
   "AdminGachaPublishedProbabilityCandidate",
   "AdminGachaPublishedProbabilityCandidateCollection",
@@ -2110,6 +2111,12 @@ export interface AdminGachaVersionPrizeCreate {
   shipping_only?: boolean;
   cost_price: number;
   is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminPrizeExternalIdUpdate {
+  external_id: string | null;
+  expected_revision: number;
   expected_version_revision: number;
 }
 

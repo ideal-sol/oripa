@@ -29,3 +29,16 @@ class ExternalIdContractTest(unittest.TestCase):
         detail = admin['paths']['/banner-management/banners/{banner_id}']['get']
         self.assertEqual(detail['operationId'], 'getManagedAdminBanner')
         self.assertEqual(detail['security'], [{'adminSession': []}])
+        update = schemas['AdminPrizeExternalIdUpdate']
+        self.assertFalse(update['additionalProperties'])
+        self.assertEqual(set(update['required']), {'external_id', 'expected_revision', 'expected_version_revision'})
+        self.assertEqual(set(update['properties']), set(update['required']))
+        operation = admin['paths']['/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes/{prize_id}']['put']
+        self.assertEqual(operation['operationId'], 'updateAdminGachaRankPrize')
+        self.assertEqual(operation['requestBody']['content']['application/json']['schema']['oneOf'],
+                         [{'$ref': '#/components/schemas/AdminGachaVersionPrizeUpdate'},
+                          {'$ref': '#/components/schemas/AdminPrizeExternalIdUpdate'}])
+        self.assertEqual(operation['x-idempotency'], 'required')
+        self.assertEqual(operation['security'], [{'adminSession': []}])
+        self.assertNotIn('更新時省略は既存値維持', external['description'])
+        self.assertIn('引き継がない', schemas['AdminCompositionPrize']['description'])

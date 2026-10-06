@@ -2108,6 +2108,63 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    private function updatePrizeExternalId(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $rankMasterPublicId,
+        string $prizePublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_prize');
+        $fields = ['external_id', 'expected_revision', 'expected_version_revision'];
+        $this->assertFields($input, $fields, $fields);
+        $payload = [
+            'external_id' => \App\Support\V2ExternalId::normalize($input['external_id'], $this->validationException()),
+            'expected_revision' => $this->revision($input['expected_revision']),
+            'expected_version_revision' => $this->revision($input['expected_version_revision']),
+        ];
+
+        return $this->execute($context, $admin, 'prize', 'update', $idempotencyKey,
+            ['mutation' => 'external_id', 'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId, 'rank_id' => $rankMasterPublicId, 'prize_id' => $prizePublicId, ...$payload], 200,
+            function () use ($context, $gachaPublicId, $versionPublicId, $rankMasterPublicId, $prizePublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                $prize = $this->find('catalog_prizes', $prizePublicId, true);
+                if ((int) $version->gacha_id !== (int) $gacha->id || (int) $prize->gacha_id !== (int) $gacha->id
+                    || ! DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)
+                        ->where('prize_id', $prize->id)->lockForUpdate()->first()) {
+                    throw $this->notFound();
+                }
+                if (! in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true)
+                    || $gacha->first_published_at === null || $gacha->archived_at !== null || $version->archived_at !== null) {
+                    throw $this->immutableException();
+                }
+                if (! DB::table('catalog_gacha_ranks as rank')->join('catalog_rank_masters as master', 'master.id', '=', 'rank.rank_master_id')
+                    ->where('rank.id', $prize->gacha_rank_id)->where('rank.gacha_id', $gacha->id)->where('master.public_id', $rankMasterPublicId)->exists()) {
+                    throw $this->notFound();
+                }
+                $this->assertMutable($prize, $payload['expected_revision']);
+                if ((int) $version->revision !== $payload['expected_version_revision']) {
+                    throw new V2CatalogException('CATALOG_REVISION_CONFLICT', 409, 'The Catalog record has changed.');
+                }
+                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
+                if ($payload['external_id'] === null) {
+                    throw $this->validationException();
+                }
+                if ($prize->external_id !== $payload['external_id']) {
+                    DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                        'external_id' => $payload['external_id'], 'revision' => (int) $prize->revision + 1,
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                    ]);
+                }
+
+                return $this->find('catalog_prizes', $prizePublicId, false);
+            });
+    }
+
     public function updateGachaRankPrize(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -2117,6 +2174,9 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if (array_diff(array_keys($input), ['external_id', 'expected_revision', 'expected_version_revision']) === []) {
+            return $this->updatePrizeExternalId($context, $gachaPublicId, $versionPublicId, $rankMasterPublicId, $prizePublicId, $idempotencyKey, $input);
+        }
         $admin = $this->authorize($context, 'update', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize(
             ['rank_id' => $rankMasterPublicId, ...$input],

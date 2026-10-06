@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7b9b6ceab13c5d631e8444687176e615b6e42f4f4b6afbea20723aae650ba73e
+// Contract SHA-256: 9d2511cbb61bc7391cd80064aca12ec88428321c496a2cd82af9a6a23fa082df
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1473,6 +1473,12 @@ export interface AdminGachaVersionPrizeCreate {
   shipping_only?: boolean;
   cost_price: number;
   is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminPrizeExternalIdUpdate {
+  external_id: string | null;
+  expected_revision: number;
   expected_version_revision: number;
 }
 

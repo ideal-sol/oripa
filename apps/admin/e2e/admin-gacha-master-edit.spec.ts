@@ -112,6 +112,12 @@ for (const width of [1440, 390]) {
     await expect(first.locator("img")).toBeVisible();
     await first.click();
     await expect(dialog.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-0001");
+    await category.selectOption(tagId);
+    await dialog.getByRole("button", { name: "Other Banner", exact: true }).click();
+    await expect(dialog.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-0002");
+    await category.selectOption(categoryId);
+    await first.click();
+    await expect(dialog.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-0001");
     await dialog.getByLabel("管理ID", { exact: true }).fill("MANUAL-0001");
     await expect(first).toHaveAttribute("aria-pressed", "true");
     await category.selectOption(tagId);

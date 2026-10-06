@@ -335,7 +335,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
     <label>ランク<input readOnly value={rankName} /></label>
     <ExternalIdField disabled={busy} value={externalId} onChange={(value) => { externalIdTouched.current = true; setExternalId(value); }} />
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
-    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); if (!externalIdTouched.current && externalId.trim() === "" && selection.externalId) setExternalId(selection.externalId); }} />
+    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); if (!externalIdTouched.current) setExternalId(selection.externalId ?? ""); }} />
     <input name="presentation_asset_id" type="hidden" value={presentationAssetId ?? ""} />
     {bannerPickerError ? <p className="form-field-error" role="alert">{bannerPickerError}</p> : null}
     <div className="catalog-form-grid">

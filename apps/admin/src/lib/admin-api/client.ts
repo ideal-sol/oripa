@@ -20,6 +20,7 @@ import {
   type AdminGachaCompositionSave,
   type AdminGachaCompositionUpdate,
   type AdminLoginInventoryUpdate,
+  type AdminPrizeExternalIdUpdate,
   type AdminCatalogGachaCoreCreate,
   type AdminCatalogGachaCreate,
   type AdminCatalogGachaUpdate,
@@ -1780,6 +1781,12 @@ export class AdminApiClient {
     return this.gachaRankPrizeMutation(
       "POST", gachaId, versionId, rankId, null, body, idempotencyKey, signal,
     );
+  }
+
+  updatePrizeExternalId(gachaId: string, versionId: string, rankId: string, prizeId: string,
+    body: AdminPrizeExternalIdUpdate, idempotencyKey: string,
+  ): Promise<AdminCatalogMutationResult<AdminCatalogPrize>> {
+    return this.request("PUT", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/ranks/${encodeURIComponent(rankId)}/prizes/${encodeURIComponent(prizeId)}`, { body, idempotencyKey });
   }
 
   updateGachaRankPrize(

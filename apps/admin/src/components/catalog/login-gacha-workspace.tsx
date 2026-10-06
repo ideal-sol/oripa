@@ -39,6 +39,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [inventory, setInventory] = useState<AdminGachaVersionPrize[]>([]);
   const [adjustments, setAdjustments] = useState<Record<string, { quantity: string; reason: string }>>({});
+  const [externalIds, setExternalIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,7 +110,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       setDefaultVideoId(defaultVideo);
       setThumbnailFile(null); thumbnailUpload.current = null;
       setPrizeKeys(nextDraft.prizes.map(() => crypto.randomUUID()));
-      setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setLoading(false); setLoadFailed(false);
+      setDraft(nextDraft); setGacha(current); setInventory(currentInventory); setAdjustments({}); setExternalIds({}); setLoading(false); setLoadFailed(false);
     }
     load().catch((cause: unknown) => {
       if (controller.signal.aborted) return;
@@ -279,7 +280,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             <ExternalIdField value={prize.external_id ?? ""} onChange={(value) => { externalIdTouched.current.add(prizeKeys[index]); updatePrize(index, { external_id: value }); }} />
             <label>景品名<input required maxLength={191} value={prize.name} onChange={(event) => updatePrize(index, { name: event.target.value })} /></label>
             <CatalogBannerAssetPicker assetId={prize.presentation_asset_id || null} disabled={locked || busy}
-              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "", ...(!externalIdTouched.current.has(prizeKeys[index]) && !prize.external_id?.trim() && selection.externalId ? { external_id: selection.externalId } : {}) })} />
+              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "", ...(!externalIdTouched.current.has(prizeKeys[index]) ? { external_id: selection.externalId ?? "" } : {}) })} />
             <label>ランク<select aria-label="ランク" required value={prize.rank_id} onChange={(event) => {
               const rankId = event.target.value;
               setDraft((current) => ({ ...current, prizes: current.prizes.map((item, position) => position === index ? { ...item, rank_id: rankId } : item),
@@ -313,6 +314,25 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         {!locked ? <div className="catalog-dialog-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => router.push("/catalog/gachas")}>取り消し</button><button type="submit" className="primary-button" disabled={busy || (login && !total.valid) || !draft.prizes.length}>構成を一括保存</button></div> : null}
       </form>
       </CatalogGachaFormCard>
+      {login && sourceId && !copy && gacha?.first_published_at ? <section className="catalog-detail" aria-label="公開済み景品の管理ID"><h2>景品の管理ID</h2><p>未設定の場合のみ設定できます。設定後の変更・解除はできません。構成は変更しません。</p>
+        {inventory.map((prize) => <form key={prize.id} className="catalog-toolbar" aria-label={`${prize.name}の管理ID`} onSubmit={(event) => {
+          event.preventDefault();
+          const version = gacha.current_version;
+          const externalId = externalIds[prize.id]?.trim();
+          if (!canManage || prize.external_id != null || !externalId || typeof version?.revision !== "number") return;
+          void act(async () => {
+            const body = { external_id: externalId, expected_revision: prize.revision, expected_version_revision: version.revision! };
+            const result = await client.updatePrizeExternalId(sourceId, version.id, prize.rank.id, prize.id, body, mutationKey(JSON.stringify({ prize: prize.id, ...body })));
+            setInventory((current) => current.map((item) => item.id === prize.id ? { ...item, external_id: result.data.external_id } : item));
+            setReload((value) => value + 1);
+          });
+        }}><strong>{prize.name}</strong>
+          {prize.external_id != null ? <span>{prize.external_id}</span> : <>
+            <ExternalIdField disabled={busy || !canManage} value={externalIds[prize.id] ?? ""} onChange={(value) => setExternalIds((current) => ({ ...current, [prize.id]: value }))} />
+            <button type="submit" className="secondary-button" disabled={busy || !canManage || !externalIds[prize.id]?.trim() || typeof gacha.current_version?.revision !== "number"}>管理IDを設定</button>
+          </>}
+        </form>)}
+      </section> : null}
       {sourceId && !copy && gacha?.first_published_at ? <section className="catalog-detail"><h2>運用在庫</h2><p>初期在庫は変更しません。いずれかの景品が0になるとTOP非表示・抽選停止になり、補充で自動復帰します。販売停止中は編集できません。在庫0でも販売再開でき、補充までは非表示・抽選不可です。</p>
         {inventory.map((prize) => <form key={prize.id} className="catalog-toolbar" onSubmit={(event) => {
           event.preventDefault();

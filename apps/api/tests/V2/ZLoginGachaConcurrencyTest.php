@@ -44,6 +44,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
                 'publish_start_at' => '2026-07-01T00:00:00Z', 'publish_end_at' => null];
             foreach ($input['prizes'] as &$prize) {
                 $prize['percentage'] = '50';
+                $prize['external_id'] = null;
                 $prize['initial_inventory'] = $scenario === 'last_inventory' ? 1 : 3;
             }
             unset($prize);
@@ -52,6 +53,9 @@ final class ZLoginGachaConcurrencyTest extends TestCase
             $version = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)->firstOrFail();
             app(V2CatalogMasterMutationService::class)->publishGachaVersionImmediately($context, $gacha->public_id, $version->public_id,
                 'publish-'.$scenario, ['expected_revision' => (int) $version->revision, 'expected_gacha_revision' => (int) $gacha->revision]);
+            if (in_array($scenario, ['daily', 'signup'], true)) {
+                $this->raceExternalIds($context, $gacha->public_id);
+            }
             $firstUser = $this->user();
             $secondUser = $scenario === 'last_inventory' ? $this->user() : $firstUser;
             $workers = [
@@ -76,9 +80,9 @@ final class ZLoginGachaConcurrencyTest extends TestCase
         }
     }
 
-    private function raceExternalIds(V2AdminAuthorizationContext $context): void
+    private function raceExternalIds(V2AdminAuthorizationContext $context, string $gachaId = '0198a001-0000-7000-8000-000000000011'): void
     {
-        $gacha = DB::table('catalog_gachas')->where('public_id', '0198a001-0000-7000-8000-000000000011')->firstOrFail();
+        $gacha = DB::table('catalog_gachas')->where('public_id', $gachaId)->firstOrFail();
         $version = DB::table('catalog_gacha_versions')->where('id', $gacha->published_version_id)->firstOrFail();
         $listing = app(\App\Domain\Catalog\Services\V2AdminCatalogReadService::class)
             ->gachaVersionPrizes($context, $gacha->public_id, $version->public_id);
@@ -97,15 +101,23 @@ final class ZLoginGachaConcurrencyTest extends TestCase
                 }
                 DB::reconnect();
                 try {
-                    app(V2CatalogMasterMutationService::class)->updateGachaRankPrize(
-                        $context, $gacha->public_id, $version->public_id, $prize['rank']['id'], $prize['id'], (string) Str::uuid7(), [
-                            'external_id' => 'RACE-CARD', 'presentation_asset_id' => $prize['presentation_asset']['id'],
-                            'name' => $prize['name'], 'exchange_points' => $prize['exchange_points'],
-                            'shipping_only' => $prize['shipping_only'], 'cost_price' => $prize['cost_price'],
-                            'is_active' => $prize['is_visible'], 'total_inventory' => $prize['total_inventory'],
-                            'expected_revision' => $prize['revision'], 'expected_version_revision' => $listing['version_revision'],
-                        ]
-                    );
+                    if ($gacha->gacha_type !== 'standard') {
+                        app(V2CatalogMasterMutationService::class)->updateGachaRankPrize(
+                            $context, $gacha->public_id, $version->public_id, $prize['rank']['id'], $prize['id'], (string) Str::uuid7(),
+                            ['external_id' => 'RACE-CARD', 'expected_revision' => $prize['revision'],
+                                'expected_version_revision' => $listing['version_revision']]
+                        );
+                    } else {
+                        app(V2CatalogMasterMutationService::class)->updateGachaRankPrize(
+                            $context, $gacha->public_id, $version->public_id, $prize['rank']['id'], $prize['id'], (string) Str::uuid7(), [
+                                'external_id' => 'RACE-CARD', 'presentation_asset_id' => $prize['presentation_asset']['id'],
+                                'name' => $prize['name'], 'exchange_points' => $prize['exchange_points'],
+                                'shipping_only' => $prize['shipping_only'], 'cost_price' => $prize['cost_price'],
+                                'is_active' => $prize['is_visible'], 'total_inventory' => $prize['total_inventory'],
+                                'expected_revision' => $prize['revision'], 'expected_version_revision' => $listing['version_revision'],
+                            ]
+                        );
+                    }
                     $outcome = 'completed';
                 } catch (\App\Domain\Catalog\Exceptions\V2CatalogException $exception) {
                     $outcome = $exception->errorCode;
