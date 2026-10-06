@@ -73,7 +73,7 @@ test("desktop banner management renders exact columns, filter, and dialogs", asy
   expect((await page.goto("/banners"))?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "バナー管理" })).toBeVisible();
   await expect(page.getByRole("columnheader")).toHaveText([
-    "アップロード画像", "タイトル", "カテゴリ", "状態", "Version", "トップ表示", "画像URL", "登録日", "公開", "編集", "削除",
+    "アップロード画像", "タイトル", "管理ID", "カテゴリ", "状態", "Version", "トップ表示", "画像URL", "登録日", "公開", "編集", "削除",
   ]);
   await expect(page.getByText("Draft")).toBeVisible();
   await expect(page.getByText("v1")).toBeVisible();
@@ -84,6 +84,12 @@ test("desktop banner management renders exact columns, filter, and dialogs", asy
   await expect(page.getByRole("dialog", { name: "バナー編集" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "バナー編集" }).getByLabel("トップに表示")).toBeChecked();
   await expect(page.getByRole("dialog", { name: "バナー編集" }).getByLabel("クリック先URL")).toHaveValue("/gachas");
+  const externalId = page.getByRole("dialog", { name: "バナー編集" }).getByLabel("管理ID");
+  await externalId.fill("CARD-0001");
+  await expect(externalId).toHaveValue("CARD-0001");
+  await externalId.fill("日本語");
+  await expect(externalId).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("dialog", { name: "バナー編集" }).getByRole("alert")).toContainText("半角英数字");
   await page.getByRole("button", { name: "バナー編集を閉じる" }).click();
   await page.getByRole("button", { name: "公開する" }).click();
   await expect(page.getByText("Published")).toBeVisible();
@@ -98,6 +104,7 @@ test("mobile banner form and table stay inside the viewport", async ({ page }) =
   const errors = observeErrors(page);
   await page.goto("/banners#banner-create");
   await expect(page.getByRole("heading", { name: "バナー登録" })).toBeVisible();
+  await expect(page.getByLabel("管理ID")).toBeEditable();
   await page.getByRole("button", { name: "カテゴリ追加" }).click();
   await expect(page.getByRole("dialog", { name: "カテゴリ追加" })).toBeVisible();
   await page.keyboard.press("Escape");

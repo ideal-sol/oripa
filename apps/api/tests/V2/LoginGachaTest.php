@@ -433,7 +433,7 @@ final class LoginGachaTest extends TestCase
         self::assertNull($projection['publish_start_at']);
         self::assertNull($projection['publish_end_at']);
         self::assertSame($type, $projection['gacha_type']);
-        self::assertEquals($input['prizes'], $projection['prizes']);
+        self::assertEquals(array_map(fn (array $prize): array => [...$prize, 'external_id' => null], $input['prizes']), $projection['prizes']);
         $projection['publish_start_at'] = '2026-07-01T00:00:00Z';
         $copy = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $projection)->assertCreated()->json('data');
         self::assertNotSame($source['id'], $copy['id']);
@@ -634,6 +634,38 @@ final class LoginGachaTest extends TestCase
             foreach ($payload as &$row) { $row['expected_revision']++; $row['default_notices'] = 'Default A'; }
             unset($row);
             $this->mutate('PUT', $settingsPath, $payload)->assertOk();
+        }
+    }
+
+    public function test_external_ids_round_trip_copy_and_replacement_ignore_old_orphan_prizes(): void
+    {
+        foreach (['standard', 'login_daily', 'signup_once'] as $type) {
+            $input = $this->input($type);
+            if ($type === 'standard') {
+                $input = [...$input, 'price_points' => 1, 'category_id' => '0198a001-0000-7000-8000-000000000001', 'total_count' => 6];
+                $input['prizes'] = array_map(fn (array $prize): array => [...$prize, 'percentage' => null], $input['prizes']);
+            }
+            $input['prizes'][0]['external_id'] = ' CARD-0001 ';
+            $input['prizes'][1]['external_id'] = 'card-0001';
+            $gacha = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertCreated()->json('data');
+            $projection = app(V2GachaCopyService::class)->projection($gacha['id'], false);
+            self::assertSame(['CARD-0001', 'card-0001'], array_column($projection['prizes'], 'external_id'));
+            $copy = app(V2GachaCopyService::class)->projection($gacha['id'], true);
+            $copy['publish_start_at'] = $input['publish_start_at'];
+            $copied = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $copy)->assertCreated()->json('data');
+            self::assertSame(['CARD-0001', 'card-0001'], array_column(app(V2GachaCopyService::class)->projection($copied['id'], false)['prizes'], 'external_id'));
+            $this->mutate('PUT', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/composition', [
+                'expected_revision' => $gacha['revision'], 'expected_version_revision' => $gacha['current_version']['revision'],
+                'composition' => $projection,
+            ])->assertOk();
+            self::assertSame(['CARD-0001', 'card-0001'], array_column(app(V2GachaCopyService::class)->projection($gacha['id'], false)['prizes'], 'external_id'));
+            $internal = DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('id');
+            self::assertSame(4, DB::table('catalog_prizes')->where('gacha_id', $internal)->count());
+            $input['prizes'][1]['external_id'] = 'CARD-0001';
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)
+                ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_CONFLICT');
+            $input['prizes'][1]['external_id'] = 'invalid/id';
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertUnprocessable();
         }
     }
 

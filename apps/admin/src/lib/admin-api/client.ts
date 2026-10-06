@@ -140,6 +140,7 @@ import {
   type AdminPaymentMethod,
   type AdminPaymentStatus,
   type AdminMfaVerifyRequest,
+  type AdminManagedBanner,
   type AdminManagedBannerCollection,
   type AdminManagedBannerCreate,
   type AdminManagedBannerDeleteResult,
@@ -313,6 +314,7 @@ export interface AdminContactQuery {
 }
 
 export interface AdminBannerQuery {
+  external_id?: string;
   category_id?: string;
   cursor?: string;
   status?: "draft" | "published";
@@ -875,6 +877,7 @@ export class AdminApiClient {
   ): Promise<AdminManagedBannerCollection> {
     const parameters = new URLSearchParams({ limit: "20" });
     if (query.category_id) parameters.set("category_id", query.category_id);
+    if ("external_id" in query && query.external_id) parameters.set("external_id", query.external_id);
     if (query.cursor) parameters.set("cursor", query.cursor);
     if (query.status) parameters.set("status", query.status);
     return this.request(
@@ -882,6 +885,11 @@ export class AdminApiClient {
       `/banner-management/banners?${parameters.toString()}`,
       { signal },
     );
+  }
+
+  getManagedBanner(id: string, signal?: AbortSignal): Promise<AdminManagedBanner> {
+    if (!isOpaqueId(id)) return Promise.reject(new AdminApiError(422, "BANNER_REQUEST_INVALID", null, null, false));
+    return this.request("GET", `/banner-management/banners/${encodeURIComponent(id)}`, { signal });
   }
 
   createManagedBanner(

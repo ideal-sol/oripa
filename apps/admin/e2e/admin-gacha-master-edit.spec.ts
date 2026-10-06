@@ -93,7 +93,7 @@ for (const width of [1440, 390]) {
     await page.route("**/banner-management/banners?*", (route) => {
       const selected = new URL(route.request().url()).searchParams.get("category_id");
       expect([categoryId, tagId]).toContain(selected);
-      return json(route, { items: [{ id: `banner-${selected}`, title: selected === categoryId ? "Card Banner" : "Other Banner",
+      return json(route, { items: [{ id: `banner-${selected}`, external_id: selected === categoryId ? "CARD-0001" : "CARD-0002", title: selected === categoryId ? "Card Banner" : "Other Banner",
         category: { id: selected, name: selected === categoryId ? "Cards" : "Other" },
         asset: { id: selected === categoryId ? assetId : uploadedAssetId, public_url: image.path },
       }], next_cursor: null });
@@ -111,6 +111,8 @@ for (const width of [1440, 390]) {
     const first = dialog.getByRole("button", { name: "Card Banner", exact: true });
     await expect(first.locator("img")).toBeVisible();
     await first.click();
+    await expect(dialog.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-0001");
+    await dialog.getByLabel("管理ID", { exact: true }).fill("MANUAL-0001");
     await expect(first).toHaveAttribute("aria-pressed", "true");
     await category.selectOption(tagId);
     await expect(first).toHaveCount(0);
@@ -123,7 +125,7 @@ for (const width of [1440, 390]) {
     await dialog.screenshot({ path: testInfo.outputPath(`standard-prize-${width}.png`) });
     await dialog.getByRole("button", { name: "保存", exact: true }).click();
     await expect.poll(() => saved.length).toBe(1);
-    expect(saved[0]).toMatchObject({ presentation_asset_id: uploadedAssetId, name: "QA Banner prize" });
+    expect(saved[0]).toMatchObject({ presentation_asset_id: uploadedAssetId, name: "QA Banner prize", external_id: "MANUAL-0001" });
     expect(errors).toEqual([]);
   });
 }
@@ -394,6 +396,12 @@ async function installApi(
       return json(route, {
         data: { ...gacha(), current_version: { ...gacha().current_version, title: body.title } },
         idempotent_replay: false,
+        request_id: uuid("9"),
+      });
+    }
+    if (path.endsWith("/settings/gacha-notices") && request.method() === "GET") {
+      return json(route, {
+        data: { standard: { default_notices: null, revision: 1 }, login: { default_notices: null, revision: 1 } },
         request_id: uuid("9"),
       });
     }

@@ -23,7 +23,7 @@ final class V2GachaCopyService
                 ->when(! $published, fn ($query) => $query->where('status', 'draft'))->orderByDesc('version_number')->firstOrFail();
             $relations = DB::table('catalog_gacha_version_prizes as relation')->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
                 ->where('relation.gacha_version_id', $version->id)->orderBy('relation.sort_order')->orderBy('relation.id')
-                ->get(['relation.*', 'prize.display_name as current_name', 'prize.presentation_asset_id as current_asset_id']);
+                ->get(['relation.*', 'prize.external_id', 'prize.display_name as current_name', 'prize.presentation_asset_id as current_asset_id']);
             $ranks = [];
             $prizes = [];
             $probabilityId = $gacha->gacha_type === 'standard' ? null : DB::table('catalog_probability_versions')
@@ -50,6 +50,7 @@ final class V2GachaCopyService
                     ],
                 ];
                 $prizes[] = [
+                    'external_id' => $relation->external_id,
                     'name' => $published ? $relation->current_name : $relation->display_name,
                     'presentation_asset_id' => $this->publicId('catalog_presentation_assets', $published ? $relation->current_asset_id : $relation->presentation_asset_id),
                     'rank_id' => $master->public_id, 'exchange_points' => (int) $relation->exchange_points,

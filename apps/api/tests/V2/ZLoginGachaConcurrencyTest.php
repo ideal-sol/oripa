@@ -33,6 +33,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
         self::assertSame(0, DB::table('catalog_gachas')->count(), 'Use an empty isolated task database.');
         app(V2CatalogFixtureImporter::class)->import(json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR));
         $context = $this->adminContext();
+        $this->raceExternalIds($context);
         $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(static fn (): int => 1));
         foreach (['daily', 'signup', 'same_key', 'last_inventory'] as $scenario) {
             $input = app(V2GachaCopyService::class)->projection('0198a001-0000-7000-8000-000000000011', true);
@@ -47,7 +48,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
             }
             unset($prize);
             $composition = app(V2GachaCompositionService::class);
-            $gacha = DB::transaction(fn (): object => $composition->save($composition->validate($input)));
+            $gacha = DB::transaction(fn (): object => $composition->save($composition->validate($input), null, null, $context));
             $version = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)->firstOrFail();
             app(V2CatalogMasterMutationService::class)->publishGachaVersionImmediately($context, $gacha->public_id, $version->public_id,
                 'publish-'.$scenario, ['expected_revision' => (int) $version->revision, 'expected_gacha_revision' => (int) $gacha->revision]);
@@ -73,6 +74,64 @@ final class ZLoginGachaConcurrencyTest extends TestCase
                 DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)->select('id'))->sum('awarded_count'));
             self::assertSame(0, DB::table('wallets')->whereIn('user_id', [$firstUser->id, $secondUser->id])->count());
         }
+    }
+
+    private function raceExternalIds(V2AdminAuthorizationContext $context): void
+    {
+        $gacha = DB::table('catalog_gachas')->where('public_id', '0198a001-0000-7000-8000-000000000011')->firstOrFail();
+        $version = DB::table('catalog_gacha_versions')->where('id', $gacha->published_version_id)->firstOrFail();
+        $listing = app(\App\Domain\Catalog\Services\V2AdminCatalogReadService::class)
+            ->gachaVersionPrizes($context, $gacha->public_id, $version->public_id);
+        self::assertGreaterThanOrEqual(2, count($listing['items']));
+        $prizes = array_slice($listing['items'], 0, 2);
+        $startAt = microtime(true) + 0.5;
+        $processes = [];
+        DB::disconnect();
+        foreach ($prizes as $prize) {
+            $path = tempnam(sys_get_temp_dir(), 'external-id-concurrency-');
+            $processId = pcntl_fork();
+            self::assertNotSame(-1, $processId);
+            if ($processId === 0) {
+                while (microtime(true) < $startAt) {
+                    usleep(1000);
+                }
+                DB::reconnect();
+                try {
+                    app(V2CatalogMasterMutationService::class)->updateGachaRankPrize(
+                        $context, $gacha->public_id, $version->public_id, $prize['rank']['id'], $prize['id'], (string) Str::uuid7(), [
+                            'external_id' => 'RACE-CARD', 'presentation_asset_id' => $prize['presentation_asset']['id'],
+                            'name' => $prize['name'], 'exchange_points' => $prize['exchange_points'],
+                            'shipping_only' => $prize['shipping_only'], 'cost_price' => $prize['cost_price'],
+                            'is_active' => $prize['is_visible'], 'total_inventory' => $prize['total_inventory'],
+                            'expected_revision' => $prize['revision'], 'expected_version_revision' => $listing['version_revision'],
+                        ]
+                    );
+                    $outcome = 'completed';
+                } catch (\App\Domain\Catalog\Exceptions\V2CatalogException $exception) {
+                    $outcome = $exception->errorCode;
+                } catch (\Throwable $exception) {
+                    $outcome = get_class($exception);
+                }
+                file_put_contents($path, $outcome);
+                DB::disconnect();
+                exit(0);
+            }
+            $processes[] = [$processId, $path];
+        }
+        $outcomes = [];
+        foreach ($processes as [$processId, $path]) {
+            pcntl_waitpid($processId, $status);
+            self::assertTrue(pcntl_wifexited($status));
+            self::assertSame(0, pcntl_wexitstatus($status));
+            $outcomes[] = file_get_contents($path);
+            unlink($path);
+        }
+        DB::reconnect();
+        sort($outcomes);
+        self::assertSame(['CATALOG_PRIZE_EXTERNAL_ID_CONFLICT', 'completed'], $outcomes);
+        self::assertSame(1, DB::table('catalog_gacha_version_prizes as relation')
+            ->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('relation.gacha_version_id', $version->id)->where('prize.external_id', 'RACE-CARD')->count());
     }
 
     private function race(string $gachaId, array $workers): array

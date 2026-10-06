@@ -14,10 +14,12 @@ use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\ValueObjects\V2IdempotencyClaim;
 use App\Models\V2\Admin;
 use App\Support\V2DatabaseTimestamp;
+use App\Support\V2ExternalId;
 use App\Support\V2HmacKeyring;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -421,9 +423,11 @@ final class V2ContentContactAdminService
         ?string $cursor,
         int $limit,
         ?string $categoryPublicId,
-        ?string $status = null
+        ?string $status = null,
+        mixed $externalId = null
     ): array {
         $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $externalId = V2ExternalId::normalize($externalId, $this->invalid('BANNER_EXTERNAL_ID_INVALID'));
         $after = $this->cursor->decode($cursor);
         $limit = $this->limit($limit);
         $statuses = $this->statusFilter($status, ['draft', 'published']);
@@ -454,6 +458,7 @@ final class V2ContentContactAdminService
             })
             ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
             ->where('banner.status', '<>', 'archived')
+            ->when($externalId !== null, fn (Builder $query) => $query->where('banner.external_id', $externalId))
             ->when($statuses !== null, fn (Builder $query) => $query->whereIn('banner.status', $statuses))
             ->when($categoryId !== null, fn (Builder $query) =>
                 $query->where('version.banner_category_id', $categoryId))
@@ -462,6 +467,7 @@ final class V2ContentContactAdminService
             ->get([
                 'banner.id as internal_cursor',
                 'banner.public_id',
+                'banner.external_id',
                 'banner.status',
                 'banner.created_at',
                 'banner.updated_at',
@@ -521,7 +527,7 @@ final class V2ContentContactAdminService
         $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
         $payload = $this->bannerInput($input, true);
 
-        return DB::transaction(function () use (
+        return $this->bannerExternalIdMutation(fn (): array => DB::transaction(function () use (
             $context,
             $admin,
             $idempotencyKey,
@@ -539,6 +545,7 @@ final class V2ContentContactAdminService
             $parentId = DB::table('content_banners')->insertGetId([
                 'public_id' => $publicId,
                 'code' => 'banner-'.str_replace('-', '', $publicId),
+                'external_id' => $payload['external_id'] ?? null,
                 'status' => 'draft',
                 'created_at' => V2DatabaseTimestamp::format($now),
                 'updated_at' => V2DatabaseTimestamp::format($now),
@@ -555,12 +562,14 @@ final class V2ContentContactAdminService
                 'version_public_id' => $version['id'],
                 'category_public_id' => $payload['category_id'],
                 'show_on_top' => $payload['show_on_top'],
+                'external_id_before' => null,
+                'external_id_after' => $payload['external_id'] ?? null,
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result, 201);
 
             return [...$result, 'idempotent_replay' => false];
-        }, 3);
+        }, 3));
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */
@@ -574,7 +583,7 @@ final class V2ContentContactAdminService
         $this->uuid($publicId);
         $payload = $this->bannerInput($input, false);
 
-        return DB::transaction(function () use (
+        return $this->bannerExternalIdMutation(fn (): array => DB::transaction(function () use (
             $context,
             $admin,
             $idempotencyKey,
@@ -621,18 +630,21 @@ final class V2ContentContactAdminService
                 $admin
             );
             DB::table('content_banners')->where('id', $parent->id)->update([
+                'external_id' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $parent->external_id,
                 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->auditContent('content.banner_updated', $context, 'banner', $publicId, [
                 'version_public_id' => $version['id'],
                 'category_public_id' => $payload['category_id'],
                 'show_on_top' => $payload['show_on_top'],
+                'external_id_before' => $parent->external_id,
+                'external_id_after' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $parent->external_id,
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result);
 
             return [...$result, 'idempotent_replay' => false];
-        }, 3);
+        }, 3));
     }
 
     /** @return array<string, mixed> */
@@ -1613,7 +1625,7 @@ final class V2ContentContactAdminService
             : ['category_id', 'title'];
         $this->assertFields(
             $input,
-            ['category_id', 'title', 'asset_id', 'show_on_top', 'link_url'],
+            ['category_id', 'title', 'asset_id', 'show_on_top', 'link_url', 'external_id'],
             $required
         );
         $showOnTop = $input['show_on_top'] ?? false;
@@ -1626,6 +1638,9 @@ final class V2ContentContactAdminService
         }
 
         return [
+            ...(array_key_exists('external_id', $input) ? [
+                'external_id' => V2ExternalId::normalize($input['external_id'], $this->invalid('BANNER_EXTERNAL_ID_INVALID')),
+            ] : []),
             'category_id' => $this->uuid($input['category_id'], 'BANNER_CATEGORY_INVALID'),
             'title' => $this->plainText($input['title'], 1, 191),
             'asset_id' => array_key_exists('asset_id', $input) && $input['asset_id'] !== null
@@ -1794,6 +1809,26 @@ final class V2ContentContactAdminService
     }
 
     /** @return array<string, mixed> */
+    public function managedBannerDetail(V2AdminAuthorizationContext $context, string $publicId): array
+    {
+        $this->authorizer->authorizePermission($context, V2Permission::ReadContent);
+        $this->uuid($publicId);
+
+        return $this->managedBannerByPublicId($publicId);
+    }
+
+    private function bannerExternalIdMutation(callable $mutation): array
+    {
+        try {
+            return $mutation();
+        } catch (QueryException $exception) {
+            if ($exception->getCode() === '23505' && str_contains($exception->getMessage(), 'content_banners_external_id_active_unique')) {
+                throw $this->conflict('BANNER_EXTERNAL_ID_CONFLICT');
+            }
+            throw $exception;
+        }
+    }
+
     private function managedBannerByPublicId(string $publicId): array
     {
         $latest = DB::table('content_versions')
@@ -1814,9 +1849,11 @@ final class V2ContentContactAdminService
             })
             ->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
             ->where('banner.public_id', $publicId)
+            ->where('banner.status', '<>', 'archived')
             ->first([
                 'banner.id as internal_cursor',
                 'banner.public_id',
+                'banner.external_id',
                 'banner.status',
                 'banner.created_at',
                 'banner.updated_at',
@@ -1840,6 +1877,7 @@ final class V2ContentContactAdminService
     private function managedBanner(object $row): array
     {
         return [
+            'external_id' => $row->external_id,
             'id' => $row->public_id,
             'title' => $row->title,
             'status' => $row->status,
@@ -2232,6 +2270,10 @@ final class V2ContentContactAdminService
             'target_public_id' => $publicId,
             'outcome' => 'success',
             'metadata' => $metadata,
+            ...(array_key_exists('external_id_before', $metadata) ? [
+                'before' => ['external_id' => $metadata['external_id_before']],
+                'after' => ['external_id' => $metadata['external_id_after']],
+            ] : []),
         ]);
     }
 

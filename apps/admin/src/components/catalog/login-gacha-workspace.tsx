@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
+import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
@@ -46,6 +47,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [reload, setReload] = useState(0);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const thumbnailUpload = useRef<{ file: File; key: string; asset?: AdminCatalogPresentationAsset } | null>(null);
+  const externalIdTouched = useRef(new Set<string>());
   const pending = useRef<{ fingerprint: string; key: string } | null>(null);
   const canManage = hasPermission("catalog.manage");
   const locked = !canManage || !!gacha && !copy && (gacha.first_published_at !== null || gacha.publication_status !== "draft");
@@ -274,9 +276,10 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         <fieldset disabled={locked || busy}><legend>景品と演出</legend>
           {draft.prizes.map((prize, index) => <section className="catalog-prize-fieldset" key={prizeKeys[index]}>
             <h3>景品 {index + 1}</h3>
+            <ExternalIdField value={prize.external_id ?? ""} onChange={(value) => { externalIdTouched.current.add(prizeKeys[index]); updatePrize(index, { external_id: value }); }} />
             <label>景品名<input required maxLength={191} value={prize.name} onChange={(event) => updatePrize(index, { name: event.target.value })} /></label>
             <CatalogBannerAssetPicker assetId={prize.presentation_asset_id || null} disabled={locked || busy}
-              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "" })} />
+              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "", ...(!externalIdTouched.current.has(prizeKeys[index]) && !prize.external_id?.trim() && selection.externalId ? { external_id: selection.externalId } : {}) })} />
             <label>ランク<select aria-label="ランク" required value={prize.rank_id} onChange={(event) => {
               const rankId = event.target.value;
               setDraft((current) => ({ ...current, prizes: current.prizes.map((item, position) => position === index ? { ...item, rank_id: rankId } : item),

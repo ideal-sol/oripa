@@ -149,8 +149,18 @@ final class V2AdminContentContactController
                     $request->filled('category_id')
                         ? (string) $request->query('category_id')
                         : null,
-                    $request->filled('status') ? (string) $request->query('status') : null
+                    $request->filled('status') ? (string) $request->query('status') : null,
+                    $request->query('external_id')
                 )
+        );
+    }
+
+    public function managedBannerDetail(Request $request, string $bannerId): JsonResponse
+    {
+        return $this->handle(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->service->managedBannerDetail($context, $bannerId)
         );
     }
 

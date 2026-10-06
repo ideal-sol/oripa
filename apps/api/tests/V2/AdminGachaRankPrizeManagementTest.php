@@ -444,6 +444,118 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
         self::assertSame((array) $drawStateBefore, (array) $drawStateAfter);
     }
 
+    public function test_external_id_create_list_change_clear_case_and_version_uniqueness(): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->createGacha($owner, 'External IDs');
+        $versionId = $gacha['current_version']['id'];
+        $rank = $this->createRankMaster($owner, 'External rank');
+        $this->setRankVideo($owner, $gacha['id'], $rank['id']);
+        $uri = $this->rankPrizeUri($gacha['id'], $versionId, $rank['id']);
+        $prize = $this->mutate($owner, 'POST', $uri, [...$this->prizeInput(1), 'external_id' => ' CARD-0001 '])
+            ->assertCreated()->assertJsonPath('data.external_id', 'CARD-0001')->json('data');
+        $this->mutate($owner, 'POST', $uri, [...$this->prizeInput(2), 'external_id' => 'CARD-0001'])
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_CONFLICT');
+        $this->mutate($owner, 'POST', $uri, [...$this->prizeInput(2), 'external_id' => 'card-0001'])
+            ->assertCreated()->assertJsonPath('data.external_id', 'card-0001');
+        $listing = $this->getJson('/admin/api/v2/catalog/gachas/'.$gacha['id'].'/versions/'.$versionId.'/prizes')
+            ->assertOk()->json();
+        self::assertSame(['CARD-0001', 'card-0001'], array_column($listing['items'], 'external_id'));
+        $versionRevision = 3;
+        $prizeRevision = 1;
+        foreach (['abc.DEF_123-xyz', null, 'CARD-0002', ''] as $externalId) {
+            $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], [
+                ...$this->prizeInput($versionRevision++), 'expected_revision' => $prizeRevision++, 'external_id' => $externalId,
+            ])->assertOk()->assertJsonPath('data.external_id', $externalId === '' ? null : $externalId);
+        }
+        $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], [
+            ...$this->prizeInput($versionRevision++), 'expected_revision' => $prizeRevision++, 'external_id' => 'CARD-0001',
+        ])->assertOk();
+        $this->mutate($owner, 'PUT', $uri.'/'.$prize['id'], [
+            ...$this->prizeInput($versionRevision), 'expected_revision' => $prizeRevision,
+        ])->assertOk()->assertJsonPath('data.external_id', 'CARD-0001');
+        $otherVersion = (array) DB::table('catalog_gacha_versions')->where('public_id', $versionId)->firstOrFail();
+        unset($otherVersion['id']);
+        $otherVersion['public_id'] = (string) Str::uuid7();
+        $otherVersion['version_number'] = 2;
+        $otherVersion['revision'] = 1;
+        DB::table('catalog_gacha_versions')->insert($otherVersion);
+        $this->mutate($owner, 'POST', $this->rankPrizeUri($gacha['id'], $otherVersion['public_id'], $rank['id']),
+            [...$this->prizeInput(1), 'external_id' => 'CARD-0001'])->assertCreated();
+        $other = $this->createGacha($owner, 'Independent external IDs');
+        $this->setRankVideo($owner, $other['id'], $rank['id']);
+        $this->mutate($owner, 'POST', $this->rankPrizeUri($other['id'], $other['current_version']['id'], $rank['id']),
+            [...$this->prizeInput(1), 'external_id' => 'CARD-0001'])->assertCreated();
+        $audit = DB::table('audit_logs')->where('target_public_id', $prize['id'])
+            ->where('action_code', 'catalog.prize.external_id_changed')->orderByDesc('id')->firstOrFail();
+        self::assertSame(['external_id' => null], json_decode($audit->before_redacted, true));
+        self::assertSame(['external_id' => 'CARD-0001'], json_decode($audit->after_redacted, true));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('externalIdInputs')]
+    public function test_prize_external_id_validation(mixed $value, ?string $normalized, bool $valid): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = $this->createGacha($owner, 'External validation');
+        $rank = $this->createRankMaster($owner, 'External validation rank');
+        $this->setRankVideo($owner, $gacha['id'], $rank['id']);
+        $response = $this->mutate($owner, 'POST', $this->rankPrizeUri($gacha['id'], $gacha['current_version']['id'], $rank['id']),
+            [...$this->prizeInput(1), 'external_id' => $value]);
+        if ($valid) {
+            $response->assertCreated()->assertJsonPath('data.external_id', $normalized);
+        } else {
+            $response->assertUnprocessable();
+        }
+    }
+
+    public static function externalIdInputs(): array
+    {
+        return AdminBannerManagementTest::externalIdInputs();
+    }
+
+    public static function publishedExternalIdStates(): array
+    {
+        return [[false], [true]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('publishedExternalIdStates')]
+    public function test_previously_published_external_id_can_only_be_set_once(bool $draft): void
+    {
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $gacha = DB::table('catalog_gachas')->where('public_id', self::PUBLISHED_GACHA_ID)->firstOrFail();
+        self::assertNotNull($gacha->first_published_at);
+        $version = DB::table('catalog_gacha_versions')->where('id', $gacha->published_version_id)->firstOrFail();
+        if ($draft) {
+            $cloned = $this->mutate($owner, 'POST', '/admin/api/v2/catalog/gachas/'.$gacha->public_id.'/versions/'.$version->public_id.'/clone', [])
+                ->assertCreated()->json('data');
+            $version = DB::table('catalog_gacha_versions')->where('public_id', $cloned['id'])->firstOrFail();
+            self::assertSame('draft', $version->status);
+        }
+        $root = '/admin/api/v2/catalog/gachas/'.$gacha->public_id.'/versions/'.$version->public_id;
+        Auth::forgetGuards();
+        $listing = $this->withCredentials()->withUnencryptedCookie('__Host-oripa_admin_session', $owner)
+            ->getJson($root.'/prizes')->assertOk()->json();
+        $prize = $listing['items'][0];
+        self::assertNull($prize['external_id']);
+        $uri = $this->rankPrizeUri($gacha->public_id, $version->public_id, $prize['rank']['id']).'/'.$prize['id'];
+        $input = [
+            'presentation_asset_id' => $prize['presentation_asset']['id'], 'name' => $prize['name'],
+            'total_inventory' => $prize['total_inventory'], 'exchange_points' => $prize['exchange_points'],
+            'cost_price' => $prize['cost_price'], 'is_active' => $prize['is_visible'],
+            'expected_revision' => $prize['revision'], 'expected_version_revision' => $listing['version_revision'],
+        ];
+        $assigned = $this->mutate($owner, 'PUT', $uri, [...$input, 'external_id' => 'CARD-0001'])
+            ->assertOk()->assertJsonPath('data.external_id', 'CARD-0001')->json('data');
+        $input['expected_version_revision'] = (int) DB::table('catalog_gacha_versions')->where('id', $version->id)->value('revision');
+        foreach (['CARD-0002', null, ''] as $forbidden) {
+            $this->mutate($owner, 'PUT', $uri, [...$input, 'expected_revision' => $assigned['revision'], 'external_id' => $forbidden])
+                ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE');
+        }
+        $this->mutate($owner, 'PUT', $uri, [...$input, 'expected_revision' => $assigned['revision'], 'external_id' => ' CARD-0001 '])
+            ->assertOk()->assertJsonPath('data.external_id', 'CARD-0001');
+        self::assertStringNotContainsString('external_id', $this->getJson('/api/v2/gachas/'.$gacha->public_code)->assertOk()->getContent());
+    }
+
     /** @return array<string, mixed> */
     private function createGacha(string $token, string $title): array
     {

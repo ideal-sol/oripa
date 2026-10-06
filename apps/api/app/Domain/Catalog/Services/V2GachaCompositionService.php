@@ -3,7 +3,9 @@
 namespace App\Domain\Catalog\Services;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Support\V2DatabaseTimestamp;
+use App\Support\V2ExternalId;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -50,7 +52,7 @@ final class V2GachaCompositionService
             'ranks.*.rank_id' => 'required|uuid|distinct', 'ranks.*.rank_revision_number' => 'present|nullable|integer|min:1',
             'ranks.*.video_asset_id' => 'present|nullable|uuid',
             'prizes' => 'required|array|min:1|max:1000',
-            'prizes.*' => 'array:name,presentation_asset_id,rank_id,exchange_points,cost_price,initial_inventory,shipping_only,percentage',
+            'prizes.*' => 'array:external_id,name,presentation_asset_id,rank_id,exchange_points,cost_price,initial_inventory,shipping_only,percentage',
             'prizes.*.name' => 'required|string|max:191', 'prizes.*.presentation_asset_id' => 'required|uuid',
             'prizes.*.rank_id' => 'required|uuid', 'prizes.*.exchange_points' => 'required|integer|min:0|max:9007199254740991',
             'prizes.*.cost_price' => 'required|integer|min:0|max:9007199254740991',
@@ -100,6 +102,10 @@ final class V2GachaCompositionService
         } elseif ($input['price_points'] < 1 || $input['total_count'] === null || $input['category_id'] === null || $input['minimum_exchange_points'] !== null) {
             throw $this->invalid();
         }
+        foreach ($input['prizes'] as $index => $prize) {
+            $input['prizes'][$index]['external_id'] = V2ExternalId::normalize($prize['external_id'] ?? null, $this->invalid());
+        }
+        app(V2PrizeExternalIdService::class)->assertDistinct(array_column($input['prizes'], 'external_id'));
         $rates = [];
         foreach ($input['prizes'] as $prize) {
             if (! in_array($prize['rank_id'], array_column($input['ranks'], 'rank_id'), true)
@@ -130,7 +136,7 @@ final class V2GachaCompositionService
         return [...$input, 'use_default_rank_video' => $useDefault];
     }
 
-    public function save(array $payload, ?object $gacha = null, ?int $expectedVersionRevision = null): object
+    public function save(array $payload, ?object $gacha, ?int $expectedVersionRevision, V2AdminAuthorizationContext $context): object
     {
         $now = V2DatabaseTimestamp::format(now()->startOfSecond());
         $category = $payload['category_id'] === null ? null : $this->reference('catalog_categories', $payload['category_id']);
@@ -205,8 +211,14 @@ final class V2GachaCompositionService
                 'cost_price' => $prizeInput['cost_price'], 'is_visible' => true, 'created_at' => $now, 'updated_at' => $now,
             ];
             $prizeId = DB::table('catalog_prizes')->insertGetId($content + [
+                'external_id' => $prizeInput['external_id'] ?? null,
                 'public_id' => $publicId, 'code' => 'prize-'.str_replace('-', '', $publicId), 'gacha_id' => $gacha->id, 'revision' => 1,
             ]);
+            app(V2PrizeExternalIdService::class)->checkAndAudit(
+                $gacha, (object) ['id' => $versionId],
+                DB::table('catalog_prizes')->where('id', $prizeId)->firstOrFail(),
+                $prizeInput['external_id'] ?? null, $context, true
+            );
             $relationId = DB::table('catalog_gacha_version_prizes')->insertGetId($content + [
                 'gacha_version_id' => $versionId, 'prize_id' => $prizeId,
                 'initial_inventory' => $prizeInput['initial_inventory'], 'sort_order' => $index + 1,

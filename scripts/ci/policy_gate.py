@@ -286,6 +286,7 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_10_06_000081_add_v2_prize_banner_external_ids.php",
     "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php",
     "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php",
     "apps/api/database/migrations-v2/2026_10_01_000075_add_v2_external_identity_advertising_candidate.php",
@@ -1029,6 +1030,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-mutation-form.tsx",
     "apps/admin/src/components/catalog/catalog-overview.tsx",
     "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
+    "apps/admin/src/components/catalog/external-id-field.tsx",
     "apps/admin/src/components/catalog/catalog-section-navigation.tsx",
     "apps/admin/src/components/catalog/catalog-workspace.tsx",
     "apps/admin/src/components/catalog/cursor-pagination.tsx",
@@ -3081,6 +3083,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_04_000078_add_v2_login_gachas.php",
         "2026_10_05_000079_add_v2_rank_video_default.php",
         "2026_10_05_000080_create_v2_gacha_notice_defaults.php",
+        "2026_10_06_000081_add_v2_prize_banner_external_ids.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

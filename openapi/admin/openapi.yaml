@@ -133,7 +133,7 @@ paths:
     post:
       operationId: createAdminGachaComposition
       summary: 景品構成と設定を一括保存し新しいCanonical Draftを作成する
-      description: login系の固定率は十進文字列、小数最大10桁、各率正数、合計100%ちょうど。コピーも表示した入力だけを保存し元ガチャを再読込しない。
+      description: login系の固定率は十進文字列、小数最大10桁、各率正数、合計100%ちょうど。コピーも表示した入力だけを保存し元ガチャを再読込しない。管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。
       x-idempotency: required
       x-rate-limit: none
       x-cache-policy: no-store
@@ -163,6 +163,7 @@ paths:
         default: {$ref: '#/components/responses/Problem'}
     put:
       operationId: updateAdminGachaComposition
+      description: 管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。公開歴のあるGachaの既存非null管理IDの変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。
       summary: 未公開login Draftの全景品と固定率を一括更新する
       x-idempotency: required
       x-rate-limit: none
@@ -1404,6 +1405,7 @@ paths:
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes:
     post:
       operationId: createAdminGachaRankPrize
+      description: 管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。公開歴のあるGachaの既存非null管理IDの変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。
       summary: 押下元Rank固定で景品を追加する
       x-idempotency: required
       x-rate-limit: none
@@ -1424,6 +1426,7 @@ paths:
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes/{prize_id}:
     put:
       operationId: updateAdminGachaRankPrize
+      description: 管理IDの同一Version内重複は409 CATALOG_PRIZE_EXTERNAL_ID_CONFLICT。不正値は422。公開歴のあるGachaの既存非null管理IDの変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。
       summary: 押下元Rank固定で景品を更新する
       x-idempotency: required
       x-rate-limit: none
@@ -2232,12 +2235,14 @@ paths:
         - {$ref: '#/components/parameters/PageCursor'}
         - {name: category_id, in: query, required: false, schema: {$ref: '#/components/schemas/OpaqueId'}}
         - {name: status, in: query, required: false, schema: {type: string, enum: [draft, published]}}
+        - {name: external_id, in: query, required: false, description: 管理IDの大文字小文字を区別する完全一致検索。, schema: {$ref: '#/components/schemas/AdminExternalId'}}
       responses:
         '200': {description: 管理用バナー一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedBannerCollection'}}}}
         '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
     post:
       operationId: createManagedAdminBanner
+      description: external_id省略は既存値維持（作成時null）、nullは解除。非archived内重複は409 BANNER_EXTERNAL_ID_CONFLICT、不正値は422。
       summary: 管理用バナーを作成する
       x-idempotency: required
       x-rate-limit: none
@@ -2251,8 +2256,22 @@ paths:
         '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /banner-management/banners/{banner_id}:
+    get:
+      operationId: getManagedAdminBanner
+      summary: 管理用バナー詳細を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {name: banner_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
+      responses:
+        '200': {description: 管理用バナー詳細。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedBanner'}}}}
+        default: {$ref: '#/components/responses/Problem'}
     put:
       operationId: updateManagedAdminBanner
+      description: external_id省略は既存値維持（作成時null）、nullは解除。非archived内重複は409 BANNER_EXTERNAL_ID_CONFLICT、不正値は422。
       summary: 管理用バナーを編集する
       x-idempotency: required
       x-rate-limit: none
@@ -4756,11 +4775,18 @@ components:
             name: {type: string}
             lineup_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
             result_image: {$ref: '#/components/schemas/AdminCanonicalAssetSnapshot'}
+    AdminExternalId:
+      type: [string, 'null']
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9._-]{1,64}$'
+      description: 管理ID。前後空白除去後に検証し、空文字はnullへ正規化。大文字小文字を区別。作成時省略はnull、更新時省略は既存値維持、明示nullは解除。Prizeは同一Version内で一意。first_published_at設定済みGachaでは既存非null値の変更・解除は409 CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE。同一値は許可。
     AdminCompositionPrize:
       type: object
       additionalProperties: false
       required: [name, presentation_asset_id, rank_id, exchange_points, cost_price, initial_inventory, shipping_only, percentage]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         name: {type: string, minLength: 1, maxLength: 191}
         presentation_asset_id: {type: string, format: uuid}
         rank_id: {type: string, format: uuid}
@@ -5514,6 +5540,7 @@ components:
       additionalProperties: false
       required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_version_revision]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         shipping_only:
           type: boolean
           default: false
@@ -5533,6 +5560,7 @@ components:
       additionalProperties: false
       required: [presentation_asset_id, name, total_inventory, exchange_points, cost_price, is_active, expected_revision, expected_version_revision]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         shipping_only:
           type: boolean
           description: 配送のみ・ポイント交換不可。省略時は現在値を維持する。公開後変更不可。
@@ -5674,6 +5702,7 @@ components:
       additionalProperties: false
       required: [id, code, name, description, display_price, exchange_points, is_visible, rank, presentation_asset, created_at, updated_at]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         shipping_only: {type: boolean}
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
@@ -5784,6 +5813,7 @@ components:
       additionalProperties: false
       required: [id, code, name, exchange_points, cost_price, is_visible, rank, presentation_asset, total_inventory, available_inventory, version_sort_order, revision, created_at, updated_at]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         shipping_only: {type: boolean}
         id: {$ref: '#/components/schemas/OpaqueId'}
         code: {type: string, maxLength: 64}
@@ -7268,6 +7298,7 @@ components:
       additionalProperties: false
       required: [category_id, title]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         category_id: {$ref: '#/components/schemas/OpaqueId'}
         title: {type: string, minLength: 1, maxLength: 191}
         show_on_top: {type: boolean, default: false}
@@ -7291,6 +7322,7 @@ components:
       additionalProperties: false
       required: [id, title, status, category, asset, version_id, version_number, created_at, updated_at]
       properties:
+        external_id: {$ref: '#/components/schemas/AdminExternalId'}
         id: {$ref: '#/components/schemas/OpaqueId'}
         title: {type: string}
         status: {type: string, enum: [draft, published]}

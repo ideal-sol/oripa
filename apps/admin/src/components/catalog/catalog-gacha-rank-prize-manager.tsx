@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
+import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { assetContentPath, PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -158,6 +159,7 @@ export function CatalogGachaRankPrizeManager({
     if (!prizeRank) return;
     const data = new FormData(form);
     const common = {
+      external_id: nullable(String(data.get("external_id") ?? "").trim()),
       presentation_asset_id: nullable(String(data.get("presentation_asset_id") ?? "")),
       name: String(data.get("name") ?? "").trim(),
       total_inventory: Number(data.get("total_inventory")),
@@ -253,11 +255,11 @@ export function CatalogGachaRankPrizeManager({
       {prizes.length > 0 ? (
         <div className="catalog-table-wrap">
           <table className="catalog-table catalog-prize-media-table">
-            <thead><tr><th>ランク</th><th>景品名</th><th>サムネイル</th><th>交換ポイント</th><th>状態</th><th>登録日</th><th>編集</th></tr></thead>
+            <thead><tr><th>ランク</th><th>景品名</th><th>管理ID</th><th>サムネイル</th><th>交換ポイント</th><th>状態</th><th>登録日</th><th>編集</th></tr></thead>
             <tbody>{prizes.map((prize) => (
               <tr key={prize.id}>
                 <td>{prize.rank.name}</td>
-                <td>{prize.name}</td>
+                <td>{prize.name}</td><td>{prize.external_id ?? "—"}</td>
                 <td><PublicAssetPreview allowAuthenticatedContent asset={prize.presentation_asset} /></td>
                 <td>{prize.exchange_points.toLocaleString()}</td>
                 <td>{prize.is_visible ? "有効" : "無効"}</td>
@@ -304,6 +306,8 @@ function Dialog({ children, onClose, title }: { children: React.ReactNode; onClo
 }
 
 function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, published, rankName, totalCount }: { busy: boolean; current: AdminGachaVersionPrize | null; inputRef: React.RefObject<HTMLInputElement | null>; onCancel: () => void; onSubmit: (form: HTMLFormElement) => Promise<void>; prizes: AdminGachaVersionPrize[]; published: boolean; rankName: string; totalCount: number }) {
+  const [externalId, setExternalId] = useState(current?.external_id ?? "");
+  const externalIdTouched = useRef(false);
   const [presentationAssetId, setPresentationAssetId] = useState(current?.presentation_asset?.id ?? null);
   const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
   const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
@@ -329,8 +333,9 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
   return <form className="catalog-mutation-form" onSubmit={submit}>
     <div className="catalog-dialog-body">
     <label>ランク<input readOnly value={rankName} /></label>
+    <ExternalIdField disabled={busy} value={externalId} onChange={(value) => { externalIdTouched.current = true; setExternalId(value); }} />
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
-    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); }} />
+    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); if (!externalIdTouched.current && externalId.trim() === "" && selection.externalId) setExternalId(selection.externalId); }} />
     <input name="presentation_asset_id" type="hidden" value={presentationAssetId ?? ""} />
     {bannerPickerError ? <p className="form-field-error" role="alert">{bannerPickerError}</p> : null}
     <div className="catalog-form-grid">
