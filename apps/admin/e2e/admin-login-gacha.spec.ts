@@ -10,6 +10,40 @@ const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
 const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
 
 for (const type of ["login_daily", "signup_once"] as const) {
+  test(`${type} published external ID backfill leaves composition locked`, async ({ page }) => {
+    await installApi(page);
+    await page.setViewportSize({ width: 390, height: 900 });
+    let externalId: string | null = null;
+    const saved: { body: unknown; key: string | undefined }[] = [];
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: {
+      id: rankId, public_code: gachaId, gacha_type: type, publication_status: "published",
+      first_published_at: "2026-07-01T00:00:00Z", revision: 1,
+      current_version: { id: videoId, revision: 1 },
+    } }));
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: projection(type) }));
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/versions/${videoId}/prizes`, (route) => json(route, {
+      items: [{ id: imageId, name: "Backfill prize", rank: { id: rankId }, external_id: externalId, revision: externalId ? 2 : 1, available_inventory: 3 }],
+      version_revision: 1,
+    }));
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/versions/${videoId}/ranks/${rankId}/prizes/${imageId}`, (route) => {
+      saved.push({ body: route.request().postDataJSON(), key: route.request().headers()["idempotency-key"] });
+      externalId = "CARD-BACKFILL";
+      return json(route, { data: { id: imageId, external_id: externalId, revision: 2 }, idempotent_replay: false });
+    });
+    await page.goto(`/catalog/gachas/${gachaId}`);
+    const section = page.getByRole("region", { name: "公開済み景品の管理ID" });
+    await section.getByLabel("管理ID", { exact: true }).fill("CARD-BACKFILL");
+    await section.getByRole("button", { name: "管理IDを設定" }).click();
+    await expect(section.getByText("CARD-BACKFILL", { exact: true })).toBeVisible();
+    await expect(section.getByRole("textbox")).toHaveCount(0);
+    await expect(section.getByRole("button")).toHaveCount(0);
+    expect(saved).toEqual([{ body: { external_id: "CARD-BACKFILL", expected_revision: 1, expected_version_revision: 1 }, key: expect.any(String) }]);
+    await expect(page.getByLabel("景品名", { exact: true }).first()).toBeDisabled();
+    await expect(page.getByLabel("交換ポイント", { exact: true }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: "構成を一括保存" })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   for (const width of [1440, 390]) {
     test(`default video and authenticated Preview for ${type} at ${width}px`, async ({ page }, testInfo) => {
       await installApi(page);
@@ -118,7 +152,7 @@ async function installApi(page: Page) {
     if (path.endsWith("/banner-management/banners")) {
       const categoryId = new URL(route.request().url()).searchParams.get("category_id");
       expect([bannerCategoryId, otherBannerCategoryId, "empty"]).toContain(categoryId);
-      return json(route, { items: categoryId === "empty" ? [] : [{ id: `banner-${categoryId}`, title: categoryId === bannerCategoryId ? "Card Banner" : "Other Banner",
+      return json(route, { items: categoryId === "empty" ? [] : [{ id: `banner-${categoryId}`, external_id: categoryId === bannerCategoryId ? "CARD-A" : "CARD-B", title: categoryId === bannerCategoryId ? "Card Banner" : "Other Banner",
         category: { id: categoryId, name: categoryId === bannerCategoryId ? "Cards" : "Other" },
         asset: { id: categoryId === bannerCategoryId ? imageId : otherBannerAssetId, public_url: "/synthetic-banner-image.png" },
       }], next_cursor: null });
@@ -239,6 +273,12 @@ for (const type of ["login_daily", "signup_once"]) {
       const category = prize.getByRole("combobox", { name: "Banner Category", exact: true });
       await expect(category).toHaveValue(bannerCategoryId);
       await expect(prize.getByRole("button", { name: "Card Banner", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await prize.getByRole("button", { name: "Card Banner", exact: true }).click();
+      await expect(prize.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-A");
+      await category.selectOption(otherBannerCategoryId);
+      await prize.getByRole("button", { name: "Other Banner", exact: true }).click();
+      await expect(prize.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-B");
+      await prize.getByLabel("管理ID", { exact: true }).fill("MANUAL");
       await expect(page.getByLabel(/サムネイル画像/u)).toHaveAttribute("type", "file");
       await expect(page.getByLabel("景品画像", { exact: true })).toHaveCount(0);
       await page.getByLabel("公開開始日時（JST）").fill("2026-10-02T00:00");
@@ -258,7 +298,7 @@ for (const type of ["login_daily", "signup_once"]) {
       await page.getByRole("button", { name: "構成を一括保存" }).click();
       await expect.poll(() => saved.length).toBe(1);
       expect(saved[0]).toMatchObject({ gacha_type: type, presentation_asset_id: imageId, prizes: [
-        { presentation_asset_id: otherBannerAssetId, percentage: "0.0000000001" },
+        { presentation_asset_id: otherBannerAssetId, external_id: "MANUAL", percentage: "0.0000000001" },
         { presentation_asset_id: imageId, percentage: "99.9999999999" },
       ] });
       expect(uploads).toHaveLength(0);

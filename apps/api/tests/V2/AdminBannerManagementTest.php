@@ -253,6 +253,95 @@ final class AdminBannerManagementTest extends TestCase
         self::assertContains('DELETE admin/api/v2/banner-management/banners/{bannerId}', $methods);
     }
 
+    public function test_external_id_normalization_conflicts_archive_reuse_filter_and_audit(): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $category = $service->createBannerCategory($context, ['name' => 'External IDs'], (string) Str::uuid7());
+        $asset = $service->uploadBannerAsset($context, $this->imageInput('external.png'), (string) Str::uuid7());
+        $input = ['title' => 'External banner', 'category_id' => $category['id'], 'asset_id' => $asset['id']];
+        $empty = $service->createManagedBanner($context, $input, (string) Str::uuid7());
+        self::assertNull($empty['external_id']);
+        $first = $service->createManagedBanner($context, [...$input, 'external_id' => ' CARD-0001 '], (string) Str::uuid7());
+        self::assertSame('CARD-0001', $first['external_id']);
+        self::assertSame('CARD-0001', $service->managedBannerDetail($context, $first['id'])['external_id']);
+        self::assertSame([$first['id']], array_column($service->managedBanners($context, null, 20, null, null, 'CARD-0001')['items'], 'id'));
+        self::assertSame([], $service->managedBanners($context, null, 20, null, null, 'CARD')['items']);
+        $case = $service->createManagedBanner($context, [...$input, 'external_id' => 'card-0001'], (string) Str::uuid7());
+        self::assertSame('card-0001', $case['external_id']);
+        foreach ([null, $empty['id']] as $updateId) {
+            try {
+                $updateId === null
+                    ? $service->createManagedBanner($context, [...$input, 'external_id' => 'CARD-0001'], (string) Str::uuid7())
+                    : $service->updateManagedBanner($context, $updateId, [...$input, 'external_id' => 'CARD-0001'], (string) Str::uuid7());
+                self::fail('A duplicate active Banner external ID must be rejected.');
+            } catch (V2ContentContactException $exception) {
+                self::assertSame(409, $exception->status);
+                self::assertSame('BANNER_EXTERNAL_ID_CONFLICT', $exception->errorCode);
+            }
+        }
+        self::assertSame('CARD-0001', $service->updateManagedBanner($context, $first['id'], $input, (string) Str::uuid7())['external_id']);
+        self::assertSame('abc.DEF_123-xyz', $service->updateManagedBanner($context, $first['id'], [...$input, 'external_id' => 'abc.DEF_123-xyz'], (string) Str::uuid7())['external_id']);
+        self::assertNull($service->updateManagedBanner($context, $first['id'], [...$input, 'external_id' => ''], (string) Str::uuid7())['external_id']);
+        $service->updateManagedBanner($context, $first['id'], [...$input, 'external_id' => 'CARD-0001'], (string) Str::uuid7());
+        self::assertNull($service->updateManagedBanner($context, $first['id'], [...$input, 'external_id' => null], (string) Str::uuid7())['external_id']);
+        $service->updateManagedBanner($context, $first['id'], [...$input, 'external_id' => 'CARD-0001'], (string) Str::uuid7());
+        $service->deleteManagedBanner($context, $first['id'], (string) Str::uuid7());
+        self::assertSame('CARD-0001', $service->createManagedBanner($context, [...$input, 'external_id' => 'CARD-0001'], (string) Str::uuid7())['external_id']);
+        $audit = DB::table('audit_logs')->where('target_public_id', $first['id'])
+            ->where('action_code', 'content.banner_updated')->orderByDesc('id')->firstOrFail();
+        self::assertSame(['external_id' => null], json_decode($audit->before_redacted, true));
+        self::assertSame(['external_id' => 'CARD-0001'], json_decode($audit->after_redacted, true));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('externalIdInputs')]
+    public function test_external_id_validation(mixed $value, ?string $normalized, bool $valid): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $category = $service->createBannerCategory($context, ['name' => 'External validation'], (string) Str::uuid7());
+        $asset = $service->uploadBannerAsset($context, $this->imageInput('validation.png'), (string) Str::uuid7());
+        try {
+            $result = $service->createManagedBanner($context, [
+                'title' => 'Validation', 'category_id' => $category['id'], 'asset_id' => $asset['id'], 'external_id' => $value,
+            ], (string) Str::uuid7());
+            self::assertTrue($valid);
+            self::assertSame($normalized, $result['external_id']);
+        } catch (V2ContentContactException $exception) {
+            self::assertFalse($valid);
+            self::assertSame(422, $exception->status);
+            self::assertSame('BANNER_EXTERNAL_ID_INVALID', $exception->errorCode);
+        }
+    }
+
+    public function test_external_id_columns_are_nullable_and_only_banners_have_partial_uniqueness(): void
+    {
+        foreach (['content_banners', 'catalog_prizes'] as $table) {
+            $column = DB::table('information_schema.columns')->where('table_schema', 'public')
+                ->where('table_name', $table)->where('column_name', 'external_id')->firstOrFail();
+            self::assertSame('YES', $column->is_nullable);
+            self::assertSame(64, (int) $column->character_maximum_length);
+            self::assertSame('C', $column->collation_name);
+        }
+        $bannerIndex = DB::table('pg_indexes')->where('indexname', 'content_banners_external_id_active_unique')->value('indexdef');
+        self::assertStringContainsString('UNIQUE INDEX', $bannerIndex);
+        self::assertStringContainsString("(status)::text <> 'archived'::text", $bannerIndex);
+        $prizeIndex = DB::table('pg_indexes')->where('indexname', 'catalog_prizes_external_id_index')->value('indexdef');
+        self::assertStringNotContainsString('UNIQUE', $prizeIndex);
+        self::assertStringContainsString('(external_id)', $prizeIndex);
+    }
+
+    public static function externalIdInputs(): array
+    {
+        return [
+            ['CARD-0001', 'CARD-0001', true], [' abc.DEF_123-xyz ', 'abc.DEF_123-xyz', true],
+            ['', null, true], [null, null, true], ['   ', null, true],
+            [str_repeat('a', 64), str_repeat('a', 64), true], [str_repeat('a', 65), null, false],
+            ['日本語', null, false], ['ＡＢＣ１２３', null, false], ['CARD 001', null, false],
+            ['CARD/001', null, false], ['CARD@001', null, false], [123, null, false], [[], null, false],
+        ];
+    }
+
     /** @return array<string, string> */
     private function imageInput(string $name): array
     {

@@ -50,6 +50,30 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Banner management", () => {
+  it("shows, edits and clears the external ID and reports conflicts", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
+      items: [{ ...banner(), external_id: "CARD-0001" }], next_cursor: null,
+    });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner")
+      .mockRejectedValueOnce(new AdminApiError(409, "BANNER_EXTERNAL_ID_CONFLICT", null, null, false))
+      .mockResolvedValue({ ...banner(), external_id: null, idempotent_replay: false });
+    render(<BannerManagementWorkspace />);
+    expect(await screen.findByText("CARD-0001")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "メインバナーを編集" }));
+    const dialog = screen.getByRole("dialog", { name: "バナー編集" });
+    const field = within(dialog).getByLabelText("管理ID");
+    expect(field).toHaveValue("CARD-0001");
+    fireEvent.change(field, { target: { value: " CARD-0002 " } });
+    fireEvent.submit(field.closest("form")!);
+    await waitFor(() => expect(update).toHaveBeenCalledOnce());
+    expect(update.mock.calls[0][1].external_id).toBe("CARD-0002");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("この管理IDは別のバナーで使用されています。");
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.submit(field.closest("form")!);
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(update.mock.calls[1][1].external_id).toBeNull();
+  });
+
   it.each([undefined, "all", "published", "draft", ["draft", "published"]])("honors the page status query %j", async (status) => {
     const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners");
     render(await BannersPage({ searchParams: Promise.resolve({ status }) }));
@@ -129,6 +153,7 @@ describe("Banner management", () => {
       asset_id: uuid("6"),
       category_id: category.id,
       title: "Preview Banner",
+      external_id: null,
     });
   });
 
@@ -139,7 +164,7 @@ describe("Banner management", () => {
     expect(await screen.findByRole("heading", { name: "バナー管理" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "バナー登録" })).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "アップロード画像", "タイトル", "カテゴリ", "状態", "Version", "トップ表示", "画像URL", "登録日", "公開", "編集", "削除",
+      "アップロード画像", "タイトル", "管理ID", "カテゴリ", "状態", "Version", "トップ表示", "画像URL", "登録日", "公開", "編集", "削除",
     ]);
     expect(screen.getByText("Draft")).toBeVisible();
     expect(screen.getByText("v1")).toBeVisible();

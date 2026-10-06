@@ -686,6 +686,7 @@ final class V2AdminCatalogReadService
             ->get([
                 'prize.public_id',
                 'prize.code',
+                'prize.external_id',
                 'relation.display_name',
                 'prize.display_name as current_display_name',
                 'relation.description',
@@ -1158,6 +1159,7 @@ final class V2AdminCatalogReadService
             ->select([
                 'prize.public_id',
                 'prize.code',
+                'prize.external_id',
                 'prize.display_name',
                 'prize.description',
                 'prize.display_price',
@@ -1241,6 +1243,7 @@ final class V2AdminCatalogReadService
             ->select([
                 'prize.public_id',
                 'prize.code',
+                'prize.external_id',
                 'prize.display_name',
                 'prize.description',
                 'prize.display_price',
@@ -2194,6 +2197,7 @@ final class V2AdminCatalogReadService
     private function mapPrize(object $row): array
     {
         return [
+            'external_id' => $row->external_id,
             'id' => $row->public_id,
             'code' => $row->code,
             'name' => $row->display_name,

@@ -40,6 +40,10 @@ export function CatalogApiErrorBoundary({
 
 export function catalogProblemMessage(error: AdminApiError): string {
   switch (error.code) {
+    case "CATALOG_PRIZE_EXTERNAL_ID_CONFLICT":
+      return "この管理IDは同じガチャVersionの別の景品で使用されています。";
+    case "CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE":
+      return "一度公開したガチャの設定済み管理IDは変更・解除できません。";
     case "CATALOG_REVISION_CONFLICT":
       return error.message;
     case "CATALOG_GACHA_PUBLISH_INPUT_REQUIRED":

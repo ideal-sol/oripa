@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: a6513b7431316caa2b13dc47abd479b469426ef3cd25ab1e55b91c98d5a7977a
+// Contract SHA-256: 9d2511cbb61bc7391cd80064aca12ec88428321c496a2cd82af9a6a23fa082df
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1288,6 +1288,7 @@ export interface AdminCatalogAssetReference {
 }
 
 export interface AdminCatalogPrize {
+  external_id?: string | null;
   id: string;
   code: string;
   name: string;
@@ -1464,6 +1465,7 @@ export interface AdminGachaVersionPrize extends AdminCatalogPrize {
 }
 
 export interface AdminGachaVersionPrizeCreate {
+  external_id?: string | null;
   presentation_asset_id: string | null;
   name: string;
   total_inventory: number;
@@ -1471,6 +1473,12 @@ export interface AdminGachaVersionPrizeCreate {
   shipping_only?: boolean;
   cost_price: number;
   is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminPrizeExternalIdUpdate {
+  external_id: string | null;
+  expected_revision: number;
   expected_version_revision: number;
 }
 
@@ -1528,6 +1536,7 @@ export interface AdminCompositionRank {
 }
 
 export interface AdminCompositionPrize {
+  external_id?: string | null;
   name: string;
   presentation_asset_id: string;
   rank_id: string;
@@ -2283,6 +2292,7 @@ export interface AdminBannerAssetMutationResult {
 }
 
 export interface AdminManagedBannerInput {
+  external_id?: string | null;
   category_id: string;
   title: string;
   asset_id?: string | null;
@@ -2297,6 +2307,7 @@ export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
 export type AdminManagedBannerUpdate = AdminManagedBannerInput;
 
 export interface AdminManagedBanner {
+  external_id?: string | null;
   id: string;
   title: string;
   status: "draft" | "published";

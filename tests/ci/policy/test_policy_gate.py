@@ -158,6 +158,41 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_external_id_admin_registration_is_exact(self):
+        relative = "apps/admin/src/components/catalog/external-id-field.tsx"
+        self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "external-id" in path}, {relative})
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for unexpected in (
+            "apps/admin/src/components/catalog/external-id-other.tsx",
+            "apps/admin/src/components/catalog/external-id-field/extra.tsx",
+            "apps/admin/src/components/catalog/*",
+            "apps/admin/src/components/catalog/",
+        ):
+            with self.subTest(path=unexpected):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths | {unexpected})
+        self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("PRIZECSV-20261006"))
+        for invalid in ("PRIZECSV-F1-20261006", "PRIZECSV-*", "PRIZECSV-20261006-EXTRA"):
+            self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+
+    def test_external_id_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_06_000081_add_v2_prize_banner_external_ids.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000081" if change == "duplicate_number" else "000082"
+                    shutil.copy2(migration, migration.with_name(f"2026_10_06_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
     def test_gacha_notice_defaults_migration_inventory_remains_exact(self):
         relative = "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php"
         self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)

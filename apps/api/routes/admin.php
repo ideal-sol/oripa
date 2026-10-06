@@ -375,6 +375,7 @@ Route::prefix('v2')
         Route::get('/banner-management/assets/{assetId}/content', [V2AdminContentContactController::class, 'bannerAssetContent'])->whereUuid('assetId');
         Route::get('/banner-management/banners', [V2AdminContentContactController::class, 'managedBanners']);
         Route::post('/banner-management/banners', [V2AdminContentContactController::class, 'createManagedBanner']);
+        Route::get('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'managedBannerDetail'])->whereUuid('bannerId');
         Route::put('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'updateManagedBanner'])->whereUuid('bannerId');
         Route::delete('/banner-management/banners/{bannerId}', [V2AdminContentContactController::class, 'deleteManagedBanner'])->whereUuid('bannerId');
         Route::get('/page-management/categories', [V2AdminContentContactController::class, 'pageCategories']);

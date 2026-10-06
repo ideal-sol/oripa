@@ -433,7 +433,7 @@ final class LoginGachaTest extends TestCase
         self::assertNull($projection['publish_start_at']);
         self::assertNull($projection['publish_end_at']);
         self::assertSame($type, $projection['gacha_type']);
-        self::assertEquals($input['prizes'], $projection['prizes']);
+        self::assertEquals(array_map(fn (array $prize): array => [...$prize, 'external_id' => null], $input['prizes']), $projection['prizes']);
         $projection['publish_start_at'] = '2026-07-01T00:00:00Z';
         $copy = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $projection)->assertCreated()->json('data');
         self::assertNotSame($source['id'], $copy['id']);
@@ -637,6 +637,114 @@ final class LoginGachaTest extends TestCase
         }
     }
 
+    public function test_external_ids_round_trip_copy_and_replacement_ignore_old_orphan_prizes(): void
+    {
+        foreach (['standard', 'login_daily', 'signup_once'] as $type) {
+            $input = $this->input($type);
+            if ($type === 'standard') {
+                $input = [...$input, 'price_points' => 1, 'category_id' => '0198a001-0000-7000-8000-000000000001', 'total_count' => 6];
+                $input['prizes'] = array_map(fn (array $prize): array => [...$prize, 'percentage' => null], $input['prizes']);
+            }
+            $input['prizes'][0]['external_id'] = ' CARD-0001 ';
+            $input['prizes'][1]['external_id'] = 'card-0001';
+            $gacha = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertCreated()->json('data');
+            $projection = app(V2GachaCopyService::class)->projection($gacha['id'], false);
+            self::assertSame(['CARD-0001', 'card-0001'], array_column($projection['prizes'], 'external_id'));
+            $copy = app(V2GachaCopyService::class)->projection($gacha['id'], true);
+            $copy['publish_start_at'] = $input['publish_start_at'];
+            $copied = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $copy)->assertCreated()->json('data');
+            self::assertSame(['CARD-0001', 'card-0001'], array_column(app(V2GachaCopyService::class)->projection($copied['id'], false)['prizes'], 'external_id'));
+            $this->mutate('PUT', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/composition', [
+                'expected_revision' => $gacha['revision'], 'expected_version_revision' => $gacha['current_version']['revision'],
+                'composition' => $projection,
+            ])->assertOk();
+            self::assertSame(['CARD-0001', 'card-0001'], array_column(app(V2GachaCopyService::class)->projection($gacha['id'], false)['prizes'], 'external_id'));
+            $internal = DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('id');
+            self::assertSame(4, DB::table('catalog_prizes')->where('gacha_id', $internal)->count());
+            $input['prizes'][1]['external_id'] = 'CARD-0001';
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)
+                ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_CONFLICT');
+            $input['prizes'][1]['external_id'] = 'invalid/id';
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertUnprocessable();
+        }
+    }
+
+    #[DataProvider('externalIdBackfillTypes')]
+    public function test_published_external_id_backfill_is_narrow_audited_and_immutable(string $type): void
+    {
+        $gacha = $this->createPublished($type);
+        $root = '/admin/api/v2/catalog/gachas/'.$gacha['id'];
+        $version = DB::table('catalog_gacha_versions')->where('public_id', $gacha['current_version']['id'])->first();
+        $prizes = DB::table('catalog_prizes')->where('gacha_id', $version->gacha_id)->orderBy('id')->get();
+        $prize = $prizes[0];
+        $rankId = $this->input($type)['prizes'][0]['rank_id'];
+        $prizeRoot = $root.'/versions/'.$version->public_id.'/ranks/'.$rankId.'/prizes/';
+        $uri = $prizeRoot.$prize->public_id;
+        $payload = ['external_id' => ' CARD-0001 ', 'expected_revision' => $prize->revision, 'expected_version_revision' => $version->revision];
+        foreach (['exchange_points' => 999, 'cost_price' => 999, 'display_name' => 'Changed',
+            'presentation_asset_id' => null, 'gacha_rank_id' => null] as $field => $value) {
+            $this->databaseRejects(fn () => DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                'external_id' => 'CARD-0001', 'revision' => $prize->revision + 1, $field => $value,
+            ]));
+        }
+        $unchanged = [];
+        foreach (['catalog_gachas', 'catalog_gacha_version_prizes', 'prize_inventories', 'catalog_probability_versions', 'catalog_probability_entries'] as $table) {
+            $unchanged[$table] = DB::table($table)->orderBy('id')->get()->toJson();
+        }
+        foreach (['percentage' => '50', 'available_inventory' => 999, 'initial_inventory' => 999,
+            'exchange_points' => 999, 'cost_price' => 999, 'rank_id' => (string) Str::uuid7(),
+            'presentation_asset_id' => null, 'audience_code' => 'all_users', 'publish_start_at' => null] as $field => $value) {
+            $this->mutate('PUT', $uri, [...$payload, $field => $value])->assertUnprocessable();
+        }
+        $this->mutate('PUT', $uri, [...$payload, 'expected_version_revision' => $version->revision + 1])
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        $this->mutate('PUT', $uri, [...$payload, 'expected_revision' => $prize->revision + 1])
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        $key = (string) Str::uuid7();
+        $result = $this->mutate('PUT', $uri, $payload, $key);
+        self::assertSame(200, $result->status(), $result->getContent());
+        $result->assertJsonPath('data.external_id', 'CARD-0001');
+        $this->mutate('PUT', $uri, $payload, $key)->assertOk()->assertJsonPath('idempotent_replay', true);
+        $payload = [...$payload, 'external_id' => 'CARD-0001', 'expected_revision' => $prize->revision + 1];
+        $this->mutate('PUT', $uri, $payload)->assertOk()->assertJsonPath('data.external_id', 'CARD-0001');
+        foreach (['CARD-0002', null, '', '   '] as $externalId) {
+            $this->mutate('PUT', $uri, [...$payload, 'external_id' => $externalId])
+                ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_IMMUTABLE');
+            $this->databaseRejects(fn () => DB::table('catalog_prizes')->where('id', $prize->id)
+                ->update(['external_id' => $externalId, 'revision' => $prize->revision + 2]));
+        }
+        $this->mutate('PUT', $prizeRoot.$prizes[1]->public_id,
+            [...$payload, 'expected_revision' => $prizes[1]->revision])
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_PRIZE_EXTERNAL_ID_CONFLICT');
+        $currentGacha = DB::table('catalog_gachas')->where('id', $version->gacha_id)->first();
+        $this->mutate('PUT', $root.'/composition', ['expected_revision' => $currentGacha->revision,
+            'expected_version_revision' => $version->revision, 'composition' => $this->input($type)])->assertConflict();
+        foreach ($unchanged as $table => $snapshot) {
+            self::assertSame($snapshot, DB::table($table)->orderBy('id')->get()->toJson(), $table);
+        }
+        $updated = (array) DB::table('catalog_prizes')->where('id', $prize->id)->first();
+        self::assertEquals($version, DB::table('catalog_gacha_versions')->where('id', $version->id)->first());
+        self::assertSame(array_diff_key((array) $prize, array_flip(['external_id', 'revision', 'updated_at'])),
+            array_diff_key($updated, array_flip(['external_id', 'revision', 'updated_at'])));
+        $audit = DB::table('audit_logs')->where('action_code', 'catalog.prize.external_id_changed')->where('target_public_id', $prize->public_id)->get();
+        self::assertCount(1, $audit);
+        self::assertSame(['external_id' => null], json_decode($audit[0]->before_redacted, true));
+        self::assertSame(['external_id' => 'CARD-0001'], json_decode($audit[0]->after_redacted, true));
+        $this->getJson($root.'/versions/'.$version->public_id.'/prizes')->assertOk()->assertJsonPath('items.0.external_id', 'CARD-0001');
+        Auth::forgetGuards();
+        $this->flushHeaders();
+        $this->withUnencryptedCookie('__Host-oripa_admin_session', '');
+        Auth::guard('v2_user')->setUser($this->user());
+        $public = $this->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertOk();
+        self::assertStringNotContainsString('external_id', $public->getContent());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public static function externalIdBackfillTypes(): array
+    {
+        return [['login_daily'], ['signup_once']];
+    }
+
     private function input(string $type = 'login_daily'): array
     {
         $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');
@@ -696,14 +804,14 @@ final class LoginGachaTest extends TestCase
         }
     }
 
-    private function mutate(string $method, string $uri, array $payload)
+    private function mutate(string $method, string $uri, array $payload, ?string $key = null)
     {
         Auth::forgetGuards();
         $csrf = str_repeat('a', 64);
         $request = $this->withCredentials()->withUnencryptedCookie('__Host-oripa_admin_session', $this->adminToken)
             ->withServerVariables(['HTTPS' => 'on'])->withUnencryptedCookie('__Host-oripa_admin_xsrf', $csrf)
             ->withHeaders(['Origin' => 'https://admin.example.test', 'Sec-Fetch-Site' => 'same-origin',
-                'X-XSRF-TOKEN' => $csrf, 'Idempotency-Key' => (string) Str::uuid7()]);
+                'X-XSRF-TOKEN' => $csrf, 'Idempotency-Key' => $key ?? (string) Str::uuid7()]);
 
         return $method === 'PUT' ? $request->putJson($uri, $payload) : $request->postJson($uri, $payload);
     }

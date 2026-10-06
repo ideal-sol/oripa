@@ -555,13 +555,13 @@ final class V2CatalogMasterMutationService
 
         return $this->execute($context, $admin, 'gacha', $identifier === null ? 'create' : 'update', $key,
             ['gacha_id' => $identifier, ...$input], $identifier === null ? 201 : 200,
-            function () use ($identifier, $input, $payload, $service): object {
+            function () use ($context, $identifier, $input, $payload, $service): object {
                 $gacha = $identifier === null ? null : $this->find('catalog_gachas', $identifier, true);
                 if ($gacha !== null) {
                     $this->assertMutable($gacha, $input['expected_revision']);
                 }
 
-                return $service->save($payload, $gacha, $input['expected_version_revision'] ?? null);
+                return $service->save($payload, $gacha, $input['expected_version_revision'] ?? null, $context);
             });
     }
 
@@ -1731,8 +1731,8 @@ final class V2CatalogMasterMutationService
             $idempotencyKey,
             ['gacha_id' => $gachaPublicId, 'version_id' => $versionPublicId, ...$payload],
             201,
-            function () use ($gachaPublicId, $versionPublicId, $payload): object {
-                [, $version] = $this->editableGachaVersion(
+            function () use ($context, $gachaPublicId, $versionPublicId, $payload): object {
+                [$gacha, $version] = $this->editableGachaVersion(
                     $gachaPublicId,
                     $versionPublicId,
                     $payload['expected_version_revision']
@@ -1755,6 +1755,7 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_prizes')->insert([
                     'public_id' => $publicId,
                     'code' => $code,
+                    'external_id' => $payload['external_id'] ?? null,
                     'gacha_id' => $version->gacha_id,
                     'rank_id' => $rank->id,
                     'presentation_asset_id' => $asset?->id,
@@ -1771,6 +1772,7 @@ final class V2CatalogMasterMutationService
                     'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $prize = $this->find('catalog_prizes', $publicId, true);
+                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'] ?? null, $context, true);
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
                     ->where('gacha_version_id', $version->id)
                     ->max('sort_order') + 1;
@@ -1841,6 +1843,7 @@ final class V2CatalogMasterMutationService
             ],
             201,
             function () use (
+                $context,
                 $gachaPublicId,
                 $versionPublicId,
                 $rankMasterPublicId,
@@ -1887,6 +1890,7 @@ final class V2CatalogMasterMutationService
                 DB::table('catalog_prizes')->insert([
                     'public_id' => $publicId,
                     'code' => $code,
+                    'external_id' => $payload['external_id'] ?? null,
                     'gacha_id' => $gacha->id,
                     'rank_id' => null,
                     'gacha_rank_id' => $gachaRank->id,
@@ -1904,6 +1908,7 @@ final class V2CatalogMasterMutationService
                     'updated_at' => V2DatabaseTimestamp::format($now),
                 ]);
                 $prize = $this->find('catalog_prizes', $publicId, true);
+                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'] ?? null, $context, true);
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
                     ->where('gacha_version_id', $version->id)
                     ->max('sort_order') + 1;
@@ -2007,6 +2012,15 @@ final class V2CatalogMasterMutationService
                 if ($relation === null) {
                     throw $this->notFound();
                 }
+                if (array_key_exists('external_id', $payload)) {
+                    app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
+                }
+                if ($this->isPublishedDraftExternalIdOnlyEdit($gacha, $version, $prize, $relation, $payload)
+                    && DB::table('catalog_ranks')->where('id', $relation->rank_id)->value('public_id') === $payload['rank_id']) {
+                    $this->updatePrizeExternalIdOnly($version, $prize, $payload);
+
+                    return $this->find('catalog_prizes', $prizePublicId, false);
+                }
                 if (
                     $version->status === 'published'
                     && (int) ($gacha->published_version_id ?? 0) ===
@@ -2061,6 +2075,7 @@ final class V2CatalogMasterMutationService
                     $idempotencyKey
                 );
                 DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                    'external_id' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $prize->external_id,
                     'rank_id' => $rank->id,
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
@@ -2093,6 +2108,63 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $input */
+    private function updatePrizeExternalId(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $rankMasterPublicId,
+        string $prizePublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_prize');
+        $fields = ['external_id', 'expected_revision', 'expected_version_revision'];
+        $this->assertFields($input, $fields, $fields);
+        $payload = [
+            'external_id' => \App\Support\V2ExternalId::normalize($input['external_id'], $this->validationException()),
+            'expected_revision' => $this->revision($input['expected_revision']),
+            'expected_version_revision' => $this->revision($input['expected_version_revision']),
+        ];
+
+        return $this->execute($context, $admin, 'prize', 'update', $idempotencyKey,
+            ['mutation' => 'external_id', 'gacha_id' => $gachaPublicId,
+                'version_id' => $versionPublicId, 'rank_id' => $rankMasterPublicId, 'prize_id' => $prizePublicId, ...$payload], 200,
+            function () use ($context, $gachaPublicId, $versionPublicId, $rankMasterPublicId, $prizePublicId, $payload): object {
+                $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
+                $version = $this->find('catalog_gacha_versions', $versionPublicId, true);
+                $prize = $this->find('catalog_prizes', $prizePublicId, true);
+                if ((int) $version->gacha_id !== (int) $gacha->id || (int) $prize->gacha_id !== (int) $gacha->id
+                    || ! DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)
+                        ->where('prize_id', $prize->id)->lockForUpdate()->first()) {
+                    throw $this->notFound();
+                }
+                if (! in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true)
+                    || $gacha->first_published_at === null || $gacha->archived_at !== null || $version->archived_at !== null) {
+                    throw $this->immutableException();
+                }
+                if (! DB::table('catalog_gacha_ranks as rank')->join('catalog_rank_masters as master', 'master.id', '=', 'rank.rank_master_id')
+                    ->where('rank.id', $prize->gacha_rank_id)->where('rank.gacha_id', $gacha->id)->where('master.public_id', $rankMasterPublicId)->exists()) {
+                    throw $this->notFound();
+                }
+                $this->assertMutable($prize, $payload['expected_revision']);
+                if ((int) $version->revision !== $payload['expected_version_revision']) {
+                    throw new V2CatalogException('CATALOG_REVISION_CONFLICT', 409, 'The Catalog record has changed.');
+                }
+                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
+                if ($payload['external_id'] === null) {
+                    throw $this->validationException();
+                }
+                if ($prize->external_id !== $payload['external_id']) {
+                    DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                        'external_id' => $payload['external_id'], 'revision' => (int) $prize->revision + 1,
+                        'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+                    ]);
+                }
+
+                return $this->find('catalog_prizes', $prizePublicId, false);
+            });
+    }
+
     public function updateGachaRankPrize(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -2102,6 +2174,9 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
+        if (array_diff(array_keys($input), ['external_id', 'expected_revision', 'expected_version_revision']) === []) {
+            return $this->updatePrizeExternalId($context, $gachaPublicId, $versionPublicId, $rankMasterPublicId, $prizePublicId, $idempotencyKey, $input);
+        }
         $admin = $this->authorize($context, 'update', 'gacha_prize');
         $payload = $this->validateGachaDraftPrize(
             ['rank_id' => $rankMasterPublicId, ...$input],
@@ -2175,10 +2250,14 @@ final class V2CatalogMasterMutationService
                 if ($relation === null) {
                     throw $this->notFound();
                 }
+                $externalIdOnly = $this->isPublishedDraftExternalIdOnlyEdit($gacha, $version, $prize, $relation, $payload);
+                if (array_key_exists('external_id', $payload)) {
+                    app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
+                }
                 if (
-                    $version->status !== 'draft'
+                    ! $externalIdOnly && ($version->status !== 'draft'
                     || $version->archived_at !== null
-                    || $gacha->first_published_at !== null
+                    || $gacha->first_published_at !== null)
                 ) {
                     if (
                         $version->status !== 'published'
@@ -2195,6 +2274,11 @@ final class V2CatalogMasterMutationService
                             'Published Prize economic fields are immutable.'
                         );
                     }
+                }
+                if ($externalIdOnly) {
+                    $this->updatePrizeExternalIdOnly($version, $prize, $payload);
+
+                    return $this->find('catalog_prizes', $prizePublicId, false);
                 }
                 $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
                 if ($asset !== null && $asset->media_type !== 'image') {
@@ -2223,6 +2307,7 @@ final class V2CatalogMasterMutationService
                     $idempotencyKey
                 );
                 DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                    'external_id' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $prize->external_id,
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
@@ -5336,6 +5421,38 @@ final class V2CatalogMasterMutationService
     }
 
     /** @param array<string, mixed> $payload */
+    private function isPublishedDraftExternalIdOnlyEdit(object $gacha, object $version, object $prize, object $relation, array $payload): bool
+    {
+        if ($gacha->first_published_at === null || $version->status !== 'draft'
+            || $version->archived_at !== null || ! array_key_exists('external_id', $payload)) {
+            return false;
+        }
+        $inventory = DB::table('prize_inventories')->where('gacha_version_prize_id', $relation->id)->lockForUpdate()->first();
+
+        return (! $payload['adjust_inventory'] || (
+                $payload['available_inventory'] === (int) ($inventory?->available_quantity ?? $relation->initial_inventory)
+                && $payload['expected_inventory_revision'] === (int) ($inventory?->lock_version ?? 0)
+            ))
+            && $payload['name'] === $prize->display_name
+            && $payload['presentation_asset_id'] === ($prize->presentation_asset_id === null ? null
+                : DB::table('catalog_presentation_assets')->where('id', $prize->presentation_asset_id)->value('public_id'))
+            && $payload['exchange_points'] === (int) $relation->exchange_points
+            && ($payload['shipping_only'] ?? (bool) $relation->shipping_only) === (bool) $relation->shipping_only
+            && $payload['cost_price'] === (int) $relation->cost_price
+            && $payload['is_active'] === (bool) $relation->is_visible
+            && $payload['total_inventory'] === (int) ($inventory?->total_quantity ?? $relation->initial_inventory);
+    }
+
+    private function updatePrizeExternalIdOnly(object $version, object $prize, array $payload): void
+    {
+        DB::table('catalog_prizes')->where('id', $prize->id)->update([
+            'external_id' => $payload['external_id'],
+            'revision' => (int) $prize->revision + 1,
+            'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
+        ]);
+        $this->incrementGachaVersionRevision($version);
+    }
+
     private function updatePublishedPrizePresentation(
         object $gacha,
         object $version,
@@ -5393,6 +5510,7 @@ final class V2CatalogMasterMutationService
             throw $this->validationException();
         }
         DB::table('catalog_prizes')->where('id', $prize->id)->update([
+            'external_id' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $prize->external_id,
             'display_name' => $payload['name'],
             'presentation_asset_id' => $asset?->id,
             'revision' => (int) $prize->revision + 1,
@@ -5628,7 +5746,7 @@ final class V2CatalogMasterMutationService
             'cost_price',
             'is_active',
         ];
-        $allowed = [...$required, 'shipping_only'];
+        $allowed = [...$required, 'shipping_only', 'external_id'];
         $adjustInventory = false;
         if ($updating) {
             $required[] = 'expected_revision';
@@ -5667,6 +5785,9 @@ final class V2CatalogMasterMutationService
             'name' => $this->plainText($input['name'], 1, 191),
             'total_inventory' => $this->nonNegativeInteger($input['total_inventory']),
             'adjust_inventory' => $adjustInventory,
+            ...(array_key_exists('external_id', $input) ? [
+                'external_id' => \App\Support\V2ExternalId::normalize($input['external_id'], $this->validationException()),
+            ] : []),
             ...(array_key_exists('shipping_only', $input) ? [
                 'shipping_only' => $this->boolean($input['shipping_only']),
             ] : []),
@@ -6214,6 +6335,8 @@ final class V2CatalogMasterMutationService
      */
     private function replaceGachaVersionPrizes(int $versionId, array $prizes): void
     {
+        app(V2PrizeExternalIdService::class)->assertDistinct(DB::table('catalog_prizes')
+            ->whereIn('id', array_column($prizes, 'prize_id'))->pluck('external_id')->all());
         DB::table('catalog_gacha_version_prizes')
             ->where('gacha_version_id', $versionId)
             ->delete();
@@ -9387,6 +9510,7 @@ final class V2CatalogMasterMutationService
                 ->firstOrFail();
 
         return [
+            'external_id' => $row->external_id,
             'id' => $row->public_id,
             'code' => $row->code,
             'name' => $row->display_name,

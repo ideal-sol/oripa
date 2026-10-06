@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import GachaCreatePage from "@/app/catalog/gachas/new/page";
 import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
 import { AdminApiClient } from "@/lib/admin-api/client";
-import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType, AdminManagedBanner } from "@/lib/admin-api/generated";
+import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType, AdminGachaVersionPrize, AdminManagedBanner } from "@/lib/admin-api/generated";
 import { drawStateCountLabel, emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits, standardCoreVersion, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
 const callbacks = vi.hoisted(() => ({ expireSession: vi.fn(), push: vi.fn() }));
@@ -149,6 +149,62 @@ function prizeBanner(categoryId: string, assetId: string): AdminManagedBanner {
 }
 
 describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picker", (type) => {
+  it("follows every Banner ID until the Human edits, preserving manual values and clears", async () => {
+    thumbnailFixture(type);
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
+    vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
+      { ...prizeBanner("cards", "first"), external_id: "CARD-A" },
+      { ...prizeBanner("cards", "second"), external_id: "CARD-B" },
+      { ...prizeBanner("cards", "missing"), external_id: null },
+    ], next_cursor: null });
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    await screen.findByText(/一意に特定できませんでした/u);
+    fireEvent.change(screen.getByLabelText("Banner Category"), { target: { value: "cards" } });
+    const field = screen.getByLabelText("管理ID");
+    fireEvent.click(await screen.findByRole("button", { name: "Banner first" }));
+    expect(field).toHaveValue("CARD-A");
+    fireEvent.click(screen.getByRole("button", { name: "Banner second" }));
+    expect(field).toHaveValue("CARD-B");
+    fireEvent.click(screen.getByRole("button", { name: "Banner missing" }));
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "MANUAL" } });
+    fireEvent.click(screen.getByRole("button", { name: "Banner first" }));
+    expect(field).toHaveValue("MANUAL");
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Banner second" }));
+    expect(field).toHaveValue("");
+  });
+
+  it("backfills only the unset published Prize ID without enabling composition edits", async () => {
+    const { update } = thumbnailFixture(type, "published");
+    const prize: AdminGachaVersionPrize = {
+      id: "prize", code: "prize", name: "QA prize", external_id: null, description: null,
+      display_price: 0, exchange_points: 1, cost_price: 0, is_visible: true,
+      rank: { id: "rank", name: "A", sort_order: 0 }, presentation_asset: thumbnail, revision: 1,
+      archived_at: null, is_archived: false, created_at: "", updated_at: "",
+      total_inventory: 1, available_inventory: 1, version_sort_order: 0,
+    };
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [prize], version_revision: 1 });
+    const backfill = vi.spyOn(AdminApiClient.prototype, "updatePrizeExternalId").mockImplementation(async () => {
+      const saved = { ...prize, external_id: "CARD-A", revision: 2 };
+      vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [saved], version_revision: 1 });
+      return { data: saved, idempotent_replay: false };
+    });
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    const section = await screen.findByRole("region", { name: "公開済み景品の管理ID" });
+    expect(screen.getByLabelText("景品名")).toBeDisabled();
+    expect(screen.getByLabelText("交換ポイント")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "構成を一括保存" })).not.toBeInTheDocument();
+    fireEvent.change(within(section).getByLabelText("管理ID"), { target: { value: "CARD-A" } });
+    fireEvent.click(within(section).getByRole("button", { name: "管理IDを設定" }));
+    await waitFor(() => expect(backfill).toHaveBeenCalledWith("source", "version", "rank", "prize",
+      { external_id: "CARD-A", expected_revision: 1, expected_version_revision: 1 }, expect.any(String)));
+    await within(section).findByText("CARD-A");
+    expect(within(section).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(section).queryByRole("button")).not.toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it.each(["draft", "published", "sales_paused"] as const)("preserves %s notices without loading defaults", async (status) => {
     thumbnailFixture(type, status);
     const projection = await vi.mocked(AdminApiClient.prototype.getGachaComposition)("source", false);

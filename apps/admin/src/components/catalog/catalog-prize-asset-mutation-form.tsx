@@ -215,6 +215,7 @@ export function CatalogBannerAssetPicker({
   onSelectionChange: (selection: {
     assetId: string | null;
     bannerId: string | null;
+    externalId?: string | null;
     changed: boolean;
   }) => void;
 }) {
@@ -289,7 +290,7 @@ export function CatalogBannerAssetPicker({
   function selectBanner(banner: AdminManagedBanner) {
     selectionChanged.current = true;
     setSelectedBannerId(banner.id);
-    onSelectionChange({ assetId: banner.asset.id, bannerId: banner.id, changed: true });
+    onSelectionChange({ assetId: banner.asset.id, bannerId: banner.id, externalId: banner.external_id ?? null, changed: true });
   }
 
   return (

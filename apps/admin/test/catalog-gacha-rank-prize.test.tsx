@@ -57,6 +57,52 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Canonical Gacha Rank and Prize manager", () => {
+  it("follows Banner reselection until manually edited, including missing IDs and manual clears", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
+      items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
+    });
+    const category = { id: RANK_ID, name: "Cards", created_at: "2026-10-06T00:00:00Z" };
+    vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [category] });
+    vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
+      items: [["Card Banner", "CARD-0001"], ["Other Banner", "CARD-0002"], ["No ID Banner", null]].map(([title, external_id], index) => ({
+        id: String(index), title: title!, external_id, category,
+        status: "draft" as const, show_on_top: false, link_url: null, asset: { id: VIDEO_ASSET_ID, public_url: "https://example.test/card.png" },
+        version_id: VERSION_ID, version_number: 1, created_at: "2026-10-06T00:00:00Z", updated_at: "2026-10-06T00:00:00Z" })),
+      next_cursor: null,
+    });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "景品登録" }));
+    const dialog = screen.getByRole("dialog", { name: "新規景品登録" });
+    const field = within(dialog).getByLabelText("管理ID");
+    fireEvent.change(await within(dialog).findByLabelText("Banner Category"), { target: { value: RANK_ID } });
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Card Banner" }));
+    expect(field).toHaveValue("CARD-0001");
+    expect(field).not.toHaveAttribute("readonly");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Other Banner" }));
+    expect(field).toHaveValue("CARD-0002");
+    fireEvent.click(within(dialog).getByRole("button", { name: "No ID Banner" }));
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "MANUAL" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Card Banner" }));
+    expect(field).toHaveValue("MANUAL");
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Card Banner" }));
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "日本語" } });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("半角英数字");
+  });
+
+  it("displays an existing Prize external ID in its list and form", async () => {
+    vi.spyOn(AdminApiClient.prototype, "listGachaVersionPrizes").mockResolvedValue({
+      items: [{ ...gachaPrize(), external_id: "CARD-0001" }], version_revision: 3,
+    });
+    render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
+    expect(await screen.findByText("CARD-0001")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: `${gachaPrize().name}を編集` }));
+    expect(within(screen.getByRole("dialog", { name: "景品編集" })).getByLabelText("管理ID")).toHaveValue("CARD-0001");
+  });
+
   it("renders Rank Master Public snapshots through authenticated Admin asset URLs", async () => {
     render(<RankMasterWorkspace />);
 
@@ -221,6 +267,7 @@ describe("Canonical Gacha Rank and Prize manager", () => {
       RANK_ID,
       expect.objectContaining({
         cost_price: 5000,
+        external_id: null,
         exchange_points: 8000,
         shipping_only: true,
         expected_version_revision: 3,

@@ -94,6 +94,7 @@ const operations = {
   uploadAdminBannerAsset: ["post", "/banner-management/assets"],
   showAdminBannerAssetContent: ["get", "/banner-management/assets/{asset_id}/content"],
   listManagedAdminBanners: ["get", "/banner-management/banners"],
+  getManagedAdminBanner: ["get", "/banner-management/banners/{banner_id}"],
   createManagedAdminBanner: ["post", "/banner-management/banners"],
   updateManagedAdminBanner: ["put", "/banner-management/banners/{banner_id}"],
   deleteManagedAdminBanner: ["delete", "/banner-management/banners/{banner_id}"],
@@ -620,6 +621,7 @@ const requiredSchemas = [
   "AdminGachaRankMutationResult",
   "AdminGachaVersionPrizeCreate",
   "AdminGachaVersionPrizeUpdate",
+  "AdminPrizeExternalIdUpdate",
   "AdminGachaVersionPrizeCollection",
   "AdminGachaPublishedProbabilityCandidate",
   "AdminGachaPublishedProbabilityCandidateCollection",
@@ -1924,6 +1926,7 @@ export interface AdminCatalogAssetReference {
 }
 
 export interface AdminCatalogPrize {
+  external_id?: string | null;
   id: string;
   code: string;
   name: string;
@@ -2100,6 +2103,7 @@ export interface AdminGachaVersionPrize extends AdminCatalogPrize {
 }
 
 export interface AdminGachaVersionPrizeCreate {
+  external_id?: string | null;
   presentation_asset_id: string | null;
   name: string;
   total_inventory: number;
@@ -2107,6 +2111,12 @@ export interface AdminGachaVersionPrizeCreate {
   shipping_only?: boolean;
   cost_price: number;
   is_active: boolean;
+  expected_version_revision: number;
+}
+
+export interface AdminPrizeExternalIdUpdate {
+  external_id: string | null;
+  expected_revision: number;
   expected_version_revision: number;
 }
 
@@ -2164,6 +2174,7 @@ export interface AdminCompositionRank {
 }
 
 export interface AdminCompositionPrize {
+  external_id?: string | null;
   name: string;
   presentation_asset_id: string;
   rank_id: string;
@@ -2919,6 +2930,7 @@ export interface AdminBannerAssetMutationResult {
 }
 
 export interface AdminManagedBannerInput {
+  external_id?: string | null;
   category_id: string;
   title: string;
   asset_id?: string | null;
@@ -2933,6 +2945,7 @@ export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
 export type AdminManagedBannerUpdate = AdminManagedBannerInput;
 
 export interface AdminManagedBanner {
+  external_id?: string | null;
   id: string;
   title: string;
   status: "draft" | "published";
