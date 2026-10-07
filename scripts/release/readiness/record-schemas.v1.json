@@ -3,6 +3,36 @@
   "title": "Production Readiness Phase 1 offline records v1.0",
   "description": "Shape contract only. records.py enforces digests, ordering, evidence-backed N/A and exact candidate correspondence. Digests are integrity checks, not signatures.",
   "$defs": {
+    "canonical_change": {
+      "type": "object",
+      "description": "Source-bound Development/Readiness record. change.validate_change enforces byte inventories, class derivation and digest consistency; a digest is not authentication.",
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "producer": {"const": "scripts.release.readiness.change/v1"},
+        "repository": {"const": "ideal-sol/oripa"},
+        "deltas": {
+          "type": "object",
+          "additionalProperties": {"enum": ["NONE", "PRESENT", "UNKNOWN"]},
+          "required": ["application_delta", "dependency_delta", "migration_delta", "contract_delta", "authority_delta", "security_policy_delta", "runtime_config_delta", "api_write_path_delta", "test_delta", "docs_delta", "ci_governance_delta"]
+        },
+        "validation_path": {"enum": ["NORMAL_STRICT_CI", "AUTHORITY_FOCUSED"]},
+        "reuse": {"const": "NOT_PROVEN"}
+      },
+      "required": ["schema_version", "producer", "repository", "base_sha", "head_sha", "tree_sha", "base_tree_sha", "evidence_reference", "changed_paths", "unknown_paths", "deltas", "change_classes", "base_components", "head_components", "delta_components", "dependency_inputs", "authority_records", "reuse", "validation_path", "record_digest"]
+    },
+    "current_security_posture": {
+      "type": "object",
+      "description": "Current fresh audit observation. Development PASS is not Production Security PASS. change.security_posture validates counts, identity and digest.",
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "producer": {"const": "scripts.ci.security_gate/v1"},
+        "current_security_posture": {"enum": ["PASS_APPROVED_POLICY", "HOLD_UNAPPROVED_FINDING"]},
+        "current_security_findings": {"type": "array", "items": {"type": "object"}},
+        "security_maintenance_required": {"type": "boolean"},
+        "reuse": {"const": "NOT_PROVEN"}
+      },
+      "required": ["schema_version", "producer", "repository", "base_sha", "head_sha", "tree_sha", "change_digest", "dependency_fingerprint", "audit_input_digest", "observed_at", "evidence_reference", "dependency_delta", "development_security_result", "current_security_posture", "current_security_findings", "current_findings", "unapproved_findings", "security_maintenance_required", "record_digest"]
+    },
     "snapshot": {
       "type": "object",
       "properties": {

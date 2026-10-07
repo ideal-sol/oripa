@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import runpy
 
+from .change import security_posture, validate_change
 from .records import (
     DIGEST, SHA, RecordError, check_digest, continuity, fields, matches, require,
     seal, snapshot, strings, text, timestamp,
@@ -145,6 +146,23 @@ def classify(candidate):
     unknown = []
     classes = candidate.get("change_classes", [])
     authority_candidate = strings(classes, nonempty=True) and set(classes) <= AUTHORITY_CLASSES
+    shared = candidate.get("facts", {}).get("canonical_change")
+    if shared is not None:
+        try:
+            require(fact(candidate, "canonical_change")["status"] == "PASS", "CANONICAL_CHANGE_UNBOUND")
+            classification = validate_change(shared.get("value"), {
+                key: candidate[key] for key in ("repository", "base_sha", "head_sha", "tree_sha")
+            })
+            if "AUTHORITY_ONLY" not in classification["change_classes"]:
+                return {"candidate_lane": FULL, "fallback_lane": FULL,
+                        "classification_reason": "CANONICAL_PLATFORM_CHANGE_REQUIRES_FULL",
+                        "evidence": [shared["evidence_reference"]], "unknown_reasons": [],
+                        "canonical_change": classification}
+            authority_candidate = True
+        except (RecordError, TypeError, ValueError):
+            return {"candidate_lane": STRICT_FALLBACK, "fallback_lane": STRICT_FALLBACK,
+                    "classification_reason": "CANONICAL_CHANGE_INVALID", "evidence": [],
+                    "unknown_reasons": ["CANONICAL_CHANGE_INVALID"]}
     completeness = fact(candidate, "complete_diff", True)
     baseline = fact(candidate, "classification_baseline", {key: candidate[key] for key in ("base_sha", "head_sha", "tree_sha")})
     platform = fact(candidate, "platform_impact", "NONE")
@@ -230,6 +248,27 @@ def required_checks(candidate):
                              repository + ":REQUIRED_CHECKS:" + (",".join(failures) or "PASS"),
                              [row["evidence_reference"]] + ([row["tree_evidence_reference"]] if row["head_sha"] != head else [])))
     return checks
+
+
+def current_security(candidate):
+    proof = fact(candidate, "current_security_posture")
+    if proof["status"] != "PASS":
+        return proof
+    try:
+        record = candidate["facts"]["current_security_posture"]["value"]
+        binding = {
+            key: candidate[key] for key in ("repository", "base_sha", "head_sha", "tree_sha")
+        }
+        status = security_posture(record, binding)
+        if "canonical_change" in candidate["facts"]:
+            require(fact(candidate, "canonical_change")["status"] == "PASS", "CANONICAL_CHANGE_UNBOUND")
+            classification = validate_change(candidate["facts"]["canonical_change"].get("value"), binding)
+            require(record.get("change_digest") == classification["record_digest"]
+                    and record.get("dependency_fingerprint") == classification["head_components"]["dependency"],
+                    "SECURITY_CLASSIFICATION_MISMATCH")
+    except (RecordError, TypeError, ValueError):
+        return result("UNKNOWN", "CURRENT_SECURITY_POSTURE_INVALID", proof["evidence"])
+    return result(status, "CURRENT_SECURITY_POSTURE:" + status, proof["evidence"])
 
 
 def artifact_verification(candidate):
@@ -380,7 +419,8 @@ def evaluate(candidate, authority_snapshot, continuity_record, *, generated_at=N
         plan_checks.append(result("UNKNOWN", "CURRENT_MIGRATION_AUTHORITY_UNKNOWN"))
     plan_checks.append(result({"ROLLBACK_READY": "PASS", "ROLLBACK_HOLD": "HOLD", "ROLLBACK_UNKNOWN": "UNKNOWN"}[rollback_result["status"]], rollback_result["status"]))
     plan_checks.extend(fact(candidate, "stage." + service, candidate["artifacts"].get(service)) for service in candidate["activation_scope"])
-    for number, checks in enumerate((source_checks, service_checks, contract_checks, required_checks(candidate), delta_checks, plan_checks), 1):
+    for number, checks in enumerate((source_checks, service_checks, contract_checks,
+                                    required_checks(candidate) + [current_security(candidate)], delta_checks, plan_checks), 1):
         requirements["R" + str(number)] = {
             "status": "N/A" if checks and all(check["status"] == "N/A" for check in checks) else aggregate(checks),
             "results": checks,

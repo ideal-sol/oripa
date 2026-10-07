@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
   group: platform-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,10 +25,13 @@ jobs:
       lane_key: ${{ steps.lane-policy.outputs.lane_key }}
       minimum_lane: ${{ steps.lane-policy.outputs.minimum_lane }}
       activation: ${{ steps.lane-policy.outputs.activation }}
+      validation_path: ${{ steps.lane-policy.outputs.validation_path }}
+      change_digest: ${{ steps.lane-policy.outputs.change_digest }}
     steps:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -38,12 +42,23 @@ jobs:
 
       - name: Resolve lane and activation policy
         id: lane-policy
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >-
           python3 scripts/ci/lane_policy.py
           --repository .
           --event-name "${{ github.event_name }}"
           --event-path "${{ github.event_path }}"
           --github-output "$GITHUB_OUTPUT"
+          --change-output "$RUNNER_TEMP/canonical-change.json"
+
+      - name: Preserve exact-head classification
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-change
+          path: ${{ runner.temp }}/canonical-change*.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Test the policy gate
         run: python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
@@ -72,6 +87,7 @@ jobs:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -93,21 +109,29 @@ jobs:
           tools: composer:v2
           coverage: none
 
+      - name: Validate Authority-only source and continuity
+        if: needs.policy-gate.outputs.validation_path == 'AUTHORITY_FOCUSED'
+        run: |
+          python3 -m unittest tests.ops.test_old_test_source_authority tests.ops.test_production_source_authority tests.release.test_readiness
+          python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
+          python3 scripts/ci/quality_gate.py --repository .
+          git diff --check
+
       - name: Enable pinned pnpm
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           corepack enable
           corepack prepare pnpm@10.12.1 --activate
 
       - name: Verify manifests and install locked workspace dependencies
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           composer --working-dir=apps/api validate --strict --no-check-publish
           pnpm install --frozen-lockfile
           pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Run quality structure and unit checks
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           python3 -m unittest discover -s tests/ci/quality -p 'test_*.py'
           python3 -m unittest tests.ops.test_preview_image_pipeline
@@ -116,35 +140,35 @@ jobs:
           python3 scripts/ci/quality_gate.py --repository .
 
       - name: Validate OpenAPI contracts and committed bundles
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           pnpm openapi:test
           pnpm openapi:check
 
       - name: Validate Storefront Client Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: pnpm storefront:check
 
       - name: Validate Site Schema Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: pnpm site-schema:check
 
       - name: Validate Storefront Testkit Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: pnpm testkit:check
 
       - name: Validate Platform Alpha Artifact foundation
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           pnpm release:test
           pnpm release:validate
 
       - name: Typecheck legacy frontend
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
       - name: Validate V2 Admin Auth Shell
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           pnpm admin:generate:check
           pnpm admin:typecheck
@@ -153,11 +177,11 @@ jobs:
           pnpm admin:build
 
       - name: Validate Agency Portal and generated contract
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: pnpm agency:check
 
       - name: Compare legacy frontend lint findings with the approved baseline
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           set +e
           (
@@ -173,7 +197,7 @@ jobs:
             --baseline .ci/baselines/frontend-eslint.json
 
       - name: Verify tracked generated output and whitespace
-        if: needs.policy-gate.outputs.lane_key != 'lite'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
         run: |
           git diff --check
           git diff --exit-code
@@ -203,6 +227,7 @@ jobs:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -258,12 +283,24 @@ jobs:
             "$workspace_prod_status" "$legacy_prod_status" \
             > "$RUNNER_TEMP/audit-statuses.json"
 
+      - name: Recompute exact-head change evidence for security
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/ci/lane_policy.py
+          --repository .
+          --event-name "${{ github.event_name }}"
+          --event-path "${{ github.event_path }}"
+          --change-output "$RUNNER_TEMP/canonical-change.json"
+
       - name: Run security checks
         if: needs.policy-gate.outputs.lane_key != 'lite'
         run: |
           python3 -m unittest discover -s tests/ci/security -p 'test_*.py'
           python3 scripts/ci/security_gate.py \
             --repository . \
+            --change-evidence "$RUNNER_TEMP/canonical-change.json" \
+            --evidence-output "$RUNNER_TEMP/current-security-posture.json" \
             --baseline .ci/baselines/dependency-advisories.json \
             --composer-audit "$RUNNER_TEMP/composer-audit.json" \
             --pnpm-audit "$RUNNER_TEMP/pnpm-audit.json" \
@@ -271,6 +308,15 @@ jobs:
             --workspace-prod-audit "$RUNNER_TEMP/workspace-prod-audit.json" \
             --legacy-prod-audit "$RUNNER_TEMP/legacy-prod-audit.json" \
             --workspace-pnpm-audit "$RUNNER_TEMP/workspace-pnpm-audit.json"
+
+      - name: Preserve current Security posture including blocked findings
+        if: always() && needs.policy-gate.outputs.lane_key != 'lite'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: current-security-posture
+          path: ${{ runner.temp }}/current-security-posture.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Run Lite diff secret scan
         if: needs.policy-gate.outputs.lane_key == 'lite'
@@ -284,7 +330,7 @@ jobs:
   integration-suite:
     name: integration-suite
     needs: policy-gate
-    if: needs.policy-gate.outputs.lane_key != 'lite'
+    if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     services:
@@ -333,6 +379,7 @@ jobs:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -434,7 +481,7 @@ jobs:
   production-arm64-artifact:
     name: production-arm64-artifact
     needs: policy-gate
-    if: needs.policy-gate.outputs.lane_key == 'strict' && github.event_name == 'pull_request'
+    if: needs.policy-gate.outputs.lane_key == 'strict' && github.event_name == 'pull_request' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -547,11 +594,16 @@ jobs:
         env:
           POLICY_GATE_RESULT: ${{ needs.policy-gate.result }}
           LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          VALIDATION_PATH: ${{ needs.policy-gate.outputs.validation_path }}
           INTEGRATION_SUITE_RESULT: ${{ needs.integration-suite.result }}
         run: |
           if [ "$POLICY_GATE_RESULT" != "success" ]; then
             echo "Policy gate did not succeed"
             exit 1
+          fi
+          if [ "$VALIDATION_PATH" = "AUTHORITY_FOCUSED" ] && [ "$INTEGRATION_SUITE_RESULT" = "skipped" ]; then
+            echo "Exact-head canonical classification proves Application integration is not applicable"
+            exit 0
           fi
           if [ "$LANE_KEY" = "lite" ] && [ "$INTEGRATION_SUITE_RESULT" = "skipped" ]; then
             echo "Lite Maintenance: full integration suite is not applicable"
@@ -582,6 +634,7 @@ jobs:
           INTEGRATION_GATE_RESULT: ${{ needs.integration-gate.result }}
           PRODUCTION_ARM64_RESULT: ${{ needs.production-arm64-artifact.result }}
           LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          VALIDATION_PATH: ${{ needs.policy-gate.outputs.validation_path }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           for result in \
@@ -594,7 +647,7 @@ jobs:
               exit 1
             fi
           done
-          if [ "$LANE_KEY" = "strict" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+          if [ "$LANE_KEY" = "strict" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$VALIDATION_PATH" != "AUTHORITY_FOCUSED" ]; then
             if [ "$PRODUCTION_ARM64_RESULT" != "success" ]; then
               echo "Strict pull request ARM64 artifact verification did not succeed"
               exit 1

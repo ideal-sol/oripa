@@ -71,6 +71,15 @@ def fixture():
     add("stage.api", candidate["artifacts"]["api"])
     add("artifact.api", {"status": "VERIFIED", "artifact": candidate["artifacts"]["api"], "source_sha": SHA,
                          "architecture": "arm64", "validator": "fixture:canonical-validator"})
+    add("current_security_posture", records.seal({
+        "schema_version": "1.0", "producer": "scripts.ci.security_gate/v1",
+        **{key: candidate[key] for key in ("repository", "base_sha", "head_sha", "tree_sha")},
+        "dependency_fingerprint": DIGEST, "audit_input_digest": DIGEST, "change_digest": DIGEST,
+        "observed_at": STAMP, "evidence_reference": "fixture:current-audit", "dependency_delta": "NONE",
+        "development_security_result": "PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION",
+        "current_security_findings": [], "current_findings": 0, "unapproved_findings": 0,
+        "current_security_posture": "PASS_APPROVED_POLICY", "security_maintenance_required": False,
+    }, "record_digest"))
     return {"candidate": candidate, "snapshot": snapshot, "continuity": continuity}
 
 
@@ -100,6 +109,22 @@ class ReadinessTests(unittest.TestCase):
                 original = self.candidate["facts"].pop(name)
                 self.assertEqual(self.evaluate()["shadow_final_status"], "SHADOW_UNKNOWN")
                 self.candidate["facts"][name] = original
+
+    def test_development_pass_does_not_establish_production_security_pass(self):
+        posture = self.candidate["facts"]["current_security_posture"]["value"]
+        posture.update(development_security_result="PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION",
+                       current_security_posture="HOLD_UNAPPROVED_FINDING",
+                       security_maintenance_required=True, current_findings=1, unapproved_findings=1,
+                       current_security_findings=[{
+                           "advisory_id": "GHSA-wq5f-xc86-pv6w", "package": "sharp", "version": "0.35.4",
+                           "path": "fixture>sharp", "severity": "high", "runtime_scope": "RUNTIME", "approved": False,
+                       }])
+        self.add("current_security_posture", records.seal(posture, "record_digest"))
+        self.assertEqual(self.evaluate()["shadow_final_status"], "SHADOW_HOLD")
+        self.assertFalse(self.evaluate()["blocking_authority"])
+        posture["current_security_findings"] = []
+        self.add("current_security_posture", records.seal(posture, "record_digest"))
+        self.assertEqual(self.evaluate()["shadow_final_status"], "SHADOW_UNKNOWN")
 
     def test_r1_states_and_na_requires_evidence(self):
         for status in ("PASS", "HOLD", "UNKNOWN", "N/A"):
@@ -326,6 +351,9 @@ class ReadinessTests(unittest.TestCase):
         self.candidate["change_classes"] = ["storefront_gate_tooling"]
         for entry in self.candidate["facts"].values():
             entry["identity"] = gate.identity(self.candidate)
+        posture = self.candidate["facts"]["current_security_posture"]["value"]
+        posture["repository"] = self.candidate["repository"]
+        self.add("current_security_posture", records.seal(posture, "record_digest"))
         checks = copy.deepcopy(self.candidate["required_check_evidence"][0])
         checks["repository"] = self.candidate["repository"]
         self.candidate["required_check_evidence"].append(checks)
