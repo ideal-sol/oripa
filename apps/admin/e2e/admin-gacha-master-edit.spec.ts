@@ -502,6 +502,19 @@ for (const width of [1440, 390]) {
   });
 }
 
+test("F3 Operator with catalog.read cannot see import or history operations", async ({ page }) => {
+  await page.route("**/auth/permissions", (route) => json(route, { permissions: ["catalog.read"], request_id: uuid("9"), role: "operator" }));
+  await page.route("**/auth/session", (route) => json(route, {
+    admin: { id: uuid("9"), mfa_verified: true, role: "operator", state: "active" },
+    authenticated: true, mfa_required: false, requires_mfa_enrollment: false,
+  }));
+  await page.goto(`/catalog/gachas/${gachaCode}`);
+  await expect(page.getByRole("heading", { level: 1, name: "編集対象ガチャ", exact: true })).toBeVisible();
+  await expect(page.getByText("CSVで取り込む", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "取込履歴" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "景品Sを編集" })).toHaveCount(0);
+});
+
 test("F3 CSV validation blocks apply and replacing file invalidates preview", async ({ page }) => {
   await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, (route) => json(route, { data: { ...gacha(), first_published_at: null } }));
   let previews = 0;

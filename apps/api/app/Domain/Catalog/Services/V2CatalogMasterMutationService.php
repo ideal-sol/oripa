@@ -5472,7 +5472,8 @@ final class V2CatalogMasterMutationService
         array $payload,
         V2AdminAuthorizationContext $context,
         Admin $admin,
-        string $idempotencyKey
+        string $idempotencyKey,
+        ?array &$auditBatch = null
     ): void {
         if (
             $gacha->archived_at !== null
@@ -5610,7 +5611,8 @@ final class V2CatalogMasterMutationService
                 'after_withdrawn_quantity' => $withdrawn,
                 'after_lock_version' => $afterLockVersion,
                 'reason' => $payload['inventory_reason'],
-            ]
+            ],
+            $auditBatch
         );
     }
 
@@ -9865,9 +9867,10 @@ final class V2CatalogMasterMutationService
         string $outcome,
         string $reason,
         ?string $targetPublicId = null,
-        array $metadata = []
+        array $metadata = [],
+        ?array &$auditBatch = null
     ): void {
-        $this->audit->record($event, [
+        $attributes = [
             'request_id' => $context->requestId,
             'actor_type' => 'admin',
             'actor_public_id' => $admin->public_id,
@@ -9880,7 +9883,12 @@ final class V2CatalogMasterMutationService
             'outcome' => $outcome,
             'reason_code' => $reason,
             'metadata' => $metadata,
-        ]);
+        ];
+        if ($auditBatch !== null) {
+            $auditBatch[] = ['action_code' => $event, 'attributes' => [...$attributes, 'occurred_at' => now()]];
+        } else {
+            $this->audit->record($event, $attributes);
+        }
     }
 
     private function rankVideoDefaultConflict(): V2CatalogException

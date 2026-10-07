@@ -3791,7 +3791,7 @@
       "get": {
         "operationId": "listAdminGachaPrizeImports",
         "summary": "景品CSV取込の成功履歴を参照する",
-        "description": "catalog.read必須。既存Auditに保存した実行者・日時・ファイル名・件数のみ。CSV本文は保存しない。最新から50件ずつ取得する。",
+        "description": "catalog.manage必須。既存Auditに保存した実行者・日時・ファイル名・件数のみ。CSV本文は保存しない。最新から50件ずつ取得する。",
         "x-idempotency": "safe",
         "x-rate-limit": "admin-read",
         "x-cache-policy": "no-store",

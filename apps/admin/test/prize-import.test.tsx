@@ -4,7 +4,7 @@ import { CatalogPrizeImport } from "@/components/catalog/catalog-prize-import";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 
 const plan = { plan_checksum: "a".repeat(64), summary: { create: 1, update: 0, unchanged: 0 }, rows: [], warnings: [] };
-const props = { gachaId: "gacha", versionId: "version", revision: 4, enabled: true, onApplied: vi.fn(async () => {}) };
+const props = { gachaId: "gacha", versionId: "version", revision: 4, canManage: true, enabled: true, onApplied: vi.fn(async () => {}) };
 
 beforeEach(() => {
   vi.spyOn(AdminApiClient.prototype, "previewPrizeImport").mockResolvedValue(plan);
@@ -13,6 +13,18 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 });
 afterEach(() => vi.restoreAllMocks());
+
+it("hides import and history for catalog.read-only operators", () => {
+  const view = render(<CatalogPrizeImport {...props} canManage={false} enabled={false} />);
+  expect(view.container).toBeEmptyDOMElement();
+  expect(AdminApiClient.prototype.listPrizeImports).not.toHaveBeenCalled();
+});
+
+it("permits managers to view history even when the draft cannot be imported", () => {
+  render(<CatalogPrizeImport {...props} enabled={false} />);
+  expect(screen.queryByText("CSVで取り込む")).toBeNull();
+  expect(screen.getByRole("button", { name: "取込履歴" })).toBeEnabled();
+});
 
 async function selectFile() {
   const file = new File(["synthetic csv"], "prizes.csv", { type: "text/csv" });

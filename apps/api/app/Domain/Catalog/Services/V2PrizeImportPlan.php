@@ -84,6 +84,9 @@ final class V2PrizeImportPlan
                     continue;
                 }
                 $value = $values[$column];
+                if ($column === '表示順' && $value === '') {
+                    continue;
+                }
                 $normalized = ltrim($value, '0');
                 if (! preg_match('/\A[0-9]+\z/', $value) || strlen($normalized) > strlen((string) PHP_INT_MAX)
                     || (strlen($normalized) === strlen((string) PHP_INT_MAX) && strcmp($normalized, (string) PHP_INT_MAX) > 0)
@@ -93,7 +96,7 @@ final class V2PrizeImportPlan
                     $after[$field] = (int) $value;
                 }
             }
-            if (array_key_exists('発送のみ', $values)) {
+            if (isset($values['発送のみ']) && $values['発送のみ'] !== '') {
                 if (! in_array($values['発送のみ'], ['1', '0', 'TRUE', 'FALSE'], true)) {
                     $errors[] = $this->message($row, '発送のみ', 'VALUE_INVALID', '発送のみは1、0、TRUE、FALSEのいずれかです。');
                 } else {
@@ -137,7 +140,7 @@ final class V2PrizeImportPlan
             if ($after['quantity'] === 0) {
                 $warnings[] = $this->message($row, '枚数', 'ZERO_QUANTITY', '枚数が0です。');
             }
-            if (isset($values['カード名']) && $values['カード名'] !== $entry['version']->title) {
+            if (isset($values['カード名']) && $values['カード名'] !== '' && $values['カード名'] !== $entry['version']->title) {
                 $warnings[] = $this->message($row, 'カード名', 'CARD_NAME_MISMATCH', 'カード名がライブラリのタイトルと異なります。');
             }
             if ($prize !== null && $relation->display_name !== $entry['version']->title) {

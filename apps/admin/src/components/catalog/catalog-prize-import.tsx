@@ -5,8 +5,8 @@ import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminPrizeImportInput, AdminPrizeImportPlan, AdminPrizeImportHistory, AdminPrizeImportValidation } from "@/lib/admin-api/generated";
 import styles from "./catalog-prize-import.module.css";
 
-export function CatalogPrizeImport({ gachaId, versionId, revision, enabled, onApplied }: {
-  gachaId: string; versionId: string; revision: number; enabled: boolean; onApplied: () => Promise<void>;
+export function CatalogPrizeImport({ gachaId, versionId, revision, canManage, enabled, onApplied }: {
+  gachaId: string; versionId: string; revision: number; canManage: boolean; enabled: boolean; onApplied: () => Promise<void>;
 }) {
   const client = useMemo(() => new AdminApiClient(), []);
   const confirmationId = useId();
@@ -78,6 +78,8 @@ export function CatalogPrizeImport({ gachaId, versionId, revision, enabled, onAp
     } catch (cause) { failure(cause); }
     finally { setBusy(false); }
   }
+
+  if (!canManage) return null;
 
   return <div className={styles.root}>
     {enabled ? <details>

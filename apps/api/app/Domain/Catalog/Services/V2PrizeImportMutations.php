@@ -54,13 +54,14 @@ trait V2PrizeImportMutations
                             'total_inventory' => $after['quantity'], 'is_active' => true]];
                 }
             }
+            $externalIdChanges = [];
             foreach (array_chunk($creates, 100) as $chunk) {
                 foreach ($this->insertRankPrizes($gacha, $version, $chunk) as $prize) {
-                    DB::statement('SAVEPOINT prize_import_audit');
-                    app(V2PrizeExternalIdService::class)->recordChange($prize, null, $prize->external_id, $context);
-                    DB::statement('RELEASE SAVEPOINT prize_import_audit');
+                    $externalIdChanges[] = ['prize' => $prize, 'before' => null, 'after' => $prize->external_id];
                 }
             }
+            app(V2PrizeExternalIdService::class)->recordChanges($externalIdChanges, $context);
+            $inventoryAudits = [];
             foreach ($plan['operations'] as $operation) {
                 if ($operation['action'] !== 'update') {
                     continue;
@@ -78,14 +79,12 @@ trait V2PrizeImportMutations
                 $inventory = $operation['inventory'];
                 $quantityChanged = $after['quantity'] !== (int) ($inventory?->total_quantity ?? $relation->initial_inventory);
                 if ($quantityChanged) {
-                    DB::statement('SAVEPOINT prize_import_audit');
                     $this->adjustOperationalInventory($gacha, $version, $prize, $relation, $inventory, [
                         ...$payload, 'adjust_inventory' => true,
                         'available_inventory' => $after['quantity'] - (int) ($inventory?->awarded_count ?? 0) - (int) ($inventory?->withdrawn_quantity ?? 0),
                         'expected_inventory_revision' => (int) ($inventory?->lock_version ?? 0),
                         'inventory_reason' => 'CSV取込（'.$importId.'）',
-                    ], $context, $admin, 'prize-import:'.$importId.':'.$prize->public_id);
-                    DB::statement('RELEASE SAVEPOINT prize_import_audit');
+                    ], $context, $admin, 'prize-import:'.$importId.':'.$prize->public_id, $inventoryAudits);
                 }
                 $now = V2DatabaseTimestamp::format(now()->startOfSecond());
                 $economics = ['exchange_points' => $after['exchange_points'], 'cost_price' => $after['cost_price'],
@@ -97,6 +96,7 @@ trait V2PrizeImportMutations
                     ...$economics, 'initial_inventory' => $after['quantity'], 'sort_order' => $after['sort_order'],
                 ]);
             }
+            $this->audit->recordBatch($inventoryAudits);
             $this->assertGachaInventoryCapacity((int) $version->id, (int) $version->total_count);
             $this->incrementGachaVersionRevision($version);
             $summary = $plan['public']['summary'];
@@ -112,7 +112,7 @@ trait V2PrizeImportMutations
 
     public function prizeImportHistory(V2AdminAuthorizationContext $context, string $gachaId, string $versionId, mixed $before): array
     {
-        $this->authorization->authorizePermission($context, V2Permission::ReadCatalog);
+        $this->authorization->authorizePermission($context, V2Permission::ManageCatalog);
         $gacha = $this->find('catalog_gachas', $gachaId, false);
         $version = $this->find('catalog_gacha_versions', $versionId, false);
         if ((int) $version->gacha_id !== (int) $gacha->id) {

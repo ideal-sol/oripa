@@ -2,6 +2,8 @@
 
 namespace Tests\V2;
 
+use App\Domain\Audit\V2\Services\V2AuditChainVerifier;
+use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
@@ -146,9 +148,56 @@ final class PrizeImportTest extends TestCase
             ['CARD-001,CSV賞,"1,000",3,4', 'VALUE_INVALID'], ['CARD-001,CSV賞,1.5,3,4', 'VALUE_INVALID'],
             ['CARD-001,CSV賞,２,3,4', 'VALUE_INVALID'], ['CARD-001,CSV賞,2,¥100,4', 'VALUE_INVALID'],
             ['CARD-001,CSV賞,2,3,-1', 'VALUE_INVALID'], ['CARD-001,CSV賞,2,3,+1', 'VALUE_INVALID'],
-            ['CARD-001,CSV賞,2,3,4,', 'VALUE_INVALID', ',発送のみ'],
+            ['CARD-001,CSV賞,2,3,4,YES', 'VALUE_INVALID', ',発送のみ'],
             ['CARD-001,CSV賞,2,3,4,0', 'VALUE_INVALID', ',表示順'],
+            [',CSV賞,2,3,4', 'EXTERNAL_ID_INVALID'], ['CARD-001,,2,3,4', 'RANK_NOT_FOUND'],
+            ['CARD-001,CSV賞,,3,4', 'VALUE_INVALID'], ['CARD-001,CSV賞,2,,4', 'VALUE_INVALID'],
+            ['CARD-001,CSV賞,2,3,', 'VALUE_INVALID'],
         ];
+    }
+
+    #[DataProvider('optionalCells')]
+    public function test_optional_cells_create_and_existing_update(string $headers, string $cells, bool $specified): void
+    {
+        $input = $this->input('CARD-001,CSV賞,2,3,4'.$cells, $headers);
+        $plan = $this->preview($input);
+        self::assertSame($specified ? ['CARD_NAME_MISMATCH'] : [], array_column($plan['warnings'], 'code'));
+        $this->apply([...$input, 'plan_checksum' => $plan['plan_checksum']]);
+        self::assertDatabaseHas('catalog_gacha_version_prizes', ['gacha_version_id' => $this->version()->id,
+            'shipping_only' => $specified, 'sort_order' => $specified ? 7 : 1]);
+        $explicit = $this->input('CARD-001,CSV賞,2,3,4,TRUE,9,Library name', ',発送のみ,表示順,カード名');
+        $this->apply([...$explicit, 'plan_checksum' => $this->preview($explicit)['plan_checksum']]);
+        $input = $this->input('CARD-001,CSV賞,2,5,6'.str_replace('TRUE', 'FALSE', $cells), $headers);
+        $plan = $this->preview($input);
+        self::assertSame($specified ? ['CARD_NAME_MISMATCH'] : [], array_column($plan['warnings'], 'code'));
+        $this->apply([...$input, 'plan_checksum' => $plan['plan_checksum']]);
+        self::assertDatabaseHas('catalog_gacha_version_prizes', ['gacha_version_id' => $this->version()->id,
+            'exchange_points' => 5, 'cost_price' => 6, 'shipping_only' => ! $specified, 'sort_order' => $specified ? 7 : 9]);
+    }
+
+    public static function optionalCells(): array
+    {
+        return [['', '', false], [',発送のみ,表示順,カード名', ',TRUE,7,Different', true],
+            [',発送のみ,表示順,カード名', ',,,', false]];
+    }
+
+    public function test_blank_sort_appends_new_prizes_in_csv_order_after_existing_tail(): void
+    {
+        $input = $this->input('CARD-001,CSV賞,2,3,4,TRUE,7', ',発送のみ,表示順');
+        $this->apply([...$input, 'plan_checksum' => $this->preview($input)['plan_checksum']]);
+        foreach (['CARD-002', 'CARD-003'] as $externalId) {
+            app(V2ContentContactAdminService::class)->createManagedBanner($this->context,
+                [...$this->bannerInput, 'external_id' => $externalId], (string) Str::uuid7());
+        }
+        $input = $this->input("CARD-003,CSV賞,2,3,4,,,\nCARD-001,CSV賞,2,3,4,,,\nCARD-002,CSV賞,2,3,4,,,", ',発送のみ,表示順,カード名');
+        $plan = $this->preview($input);
+        self::assertSame([], $plan['warnings']);
+        $this->apply([...$input, 'plan_checksum' => $plan['plan_checksum']]);
+        $rows = DB::table('catalog_gacha_version_prizes as relation')->join('catalog_prizes as prize', 'prize.id', '=', 'relation.prize_id')
+            ->where('relation.gacha_version_id', $this->version()->id)->orderBy('relation.sort_order')->get(['prize.external_id', 'relation.sort_order', 'relation.shipping_only']);
+        self::assertSame(['CARD-001', 'CARD-003', 'CARD-002'], $rows->pluck('external_id')->all());
+        self::assertSame([7, 8, 9], $rows->pluck('sort_order')->all());
+        self::assertSame([true, false, false], $rows->pluck('shipping_only')->all());
     }
 
     public function test_missing_null_and_orphan_prizes(): void
@@ -357,15 +406,124 @@ final class PrizeImportTest extends TestCase
         DB::table('admins')->where('id', $this->context->adminId)->update(['role' => 'operator']);
         $this->context = new V2AdminAuthorizationContext($this->context->adminId, $this->context->adminPublicId,
             V2AdminRole::Operator, $this->context->sessionIdHash, $this->context->sessionCorrelationHash, $this->context->requestId);
-        try {
-            $this->preview($this->input());
-            self::fail('Operator mutation allowed');
-        } catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $error) {
-            self::assertSame('AUTHORIZATION_DENIED', $error->errorCode);
+        $before = $this->snapshot();
+        foreach ([fn () => $this->preview($this->input()), fn () => $this->apply($input),
+            fn () => $this->service->prizeImportHistory($this->context, $this->gacha['id'], $this->versionId, null)] as $operation) {
+            try {
+                $operation();
+                self::fail('Operator import operation allowed');
+            } catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $error) {
+                self::assertSame('AUTHORIZATION_DENIED', $error->errorCode);
+            }
         }
+        self::assertSame($before, $this->snapshot());
+    }
+
+    #[DataProvider('managingRoles')]
+    public function test_owner_and_admin_can_preview_apply_and_read_history(V2AdminRole $role): void
+    {
+        DB::table('admins')->where('id', $this->context->adminId)->update(['role' => $role->value]);
+        $this->context = new V2AdminAuthorizationContext($this->context->adminId, $this->context->adminPublicId,
+            $role, $this->context->sessionIdHash, $this->context->sessionCorrelationHash, $this->context->requestId);
+        $input = $this->input();
+        $plan = $this->preview($input);
+        self::assertSame(1, $plan['summary']['create']);
+        self::assertSame(1, $this->apply([...$input, 'plan_checksum' => $plan['plan_checksum']])['data']['summary']['create']);
+        self::assertCount(1, $this->service->prizeImportHistory($this->context, $this->gacha['id'], $this->versionId, null)['items']);
+    }
+
+    public static function managingRoles(): array
+    {
+        return [[V2AdminRole::Owner], [V2AdminRole::Admin]];
+    }
+
+    public function test_audit_batch_preserves_fields_chain_redaction_and_atomic_rollback(): void
+    {
+        $audit = app(V2AuditLogService::class);
+        $attributes = ['actor_type' => 'admin', 'actor_public_id' => $this->context->adminPublicId,
+            'actor_role' => 'owner', 'auth_realm' => 'admin', 'request_id' => $this->context->requestId,
+            'session_correlation_hash' => $this->context->sessionCorrelationHash,
+            'target_type' => 'catalog_prize', 'target_public_id' => (string) Str::uuid7(),
+            'before' => ['external_id' => null], 'after' => ['external_id' => 'BATCH-001'], 'metadata' => ['fixture' => 'batch']];
+        $records = $audit->recordBatch([['action_code' => 'test.batch.first', 'attributes' => $attributes],
+            ['action_code' => 'test.batch.second', 'attributes' => $attributes]]);
+        self::assertCount(2, $records);
+        foreach ($records as $record) {
+            self::assertTrue(Str::isUuid($record->public_id));
+            self::assertNotNull($record->created_at);
+            foreach (['actor_type', 'actor_public_id', 'actor_role', 'auth_realm', 'request_id',
+                'session_correlation_hash', 'target_type', 'target_public_id'] as $field) {
+                self::assertSame($attributes[$field], $record->$field);
+            }
+            self::assertSame($attributes['before'], (array) $record->before_redacted);
+            self::assertSame($attributes['after'], (array) $record->after_redacted);
+            self::assertSame($attributes['metadata'], (array) $record->metadata_redacted);
+        }
+        self::assertSame($records[0]->record_hash, $records[1]->previous_hash);
+        self::assertSame($records[1]->record_hash, $audit->record('test.batch.single')->previous_hash);
+        self::assertTrue(app(V2AuditChainVerifier::class)->verify());
+        $before = $this->snapshot();
+        try {
+            $audit->recordBatch([['action_code' => 'test.batch.valid'],
+                ['action_code' => 'test.batch.sensitive', 'attributes' => ['metadata' => ['password' => 'synthetic']]]]);
+            self::fail('Sensitive audit metadata accepted');
+        } catch (\RuntimeException $error) {
+            self::assertSame('Audit metadata contains prohibited sensitive data.', $error->getMessage());
+        }
+        self::assertSame($before, $this->snapshot());
+        DB::unprepared("CREATE FUNCTION prize_import_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_code = 'test.batch.fail' THEN RAISE EXCEPTION 'injected batch failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER prize_import_audit_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION prize_import_audit_failure()");
+        try {
+            $audit->recordBatch([...array_fill(0, 200, ['action_code' => 'test.batch.valid']), ['action_code' => 'test.batch.fail']]);
+            self::fail('Injected audit failure did not abort');
+        } catch (\Illuminate\Database\QueryException $error) {
+            self::assertStringContainsString('injected batch failure', $error->getMessage());
+        }
+        self::assertSame($before, $this->snapshot());
+        self::assertTrue(app(V2AuditChainVerifier::class)->verify());
+    }
+
+    public function test_summary_audit_failure_rolls_back_create_inventory_and_both_audit_batches(): void
+    {
+        $this->import();
+        app(V2ContentContactAdminService::class)->createManagedBanner($this->context,
+            [...$this->bannerInput, 'external_id' => 'CARD-002'], (string) Str::uuid7());
+        $input = $this->input("CARD-001,CSV賞,0,5,6\nCARD-002,CSV賞,2,3,4");
+        $plan = $this->preview($input);
+        DB::unprepared("CREATE FUNCTION prize_import_summary_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_code = 'catalog.gacha.prizes.imported' THEN RAISE EXCEPTION 'injected summary failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER prize_import_summary_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION prize_import_summary_failure()");
+        $before = $this->snapshot();
+        try {
+            $this->apply([...$input, 'plan_checksum' => $plan['plan_checksum']]);
+            self::fail('Summary audit failure did not abort');
+        } catch (\Illuminate\Database\QueryException $error) {
+            self::assertStringContainsString('injected summary failure', $error->getMessage());
+        }
+        self::assertSame($before, $this->snapshot());
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'catalog.prize.external_id_changed')->count());
+        self::assertSame(0, DB::table('audit_logs')->where('action_code', 'catalog.inventory.adjusted')->count());
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'catalog.gacha.prizes.imported')->count());
+        self::assertTrue(app(V2AuditChainVerifier::class)->verify());
     }
 
     public function test_1000_row_performance_and_bounded_resolution_queries(): void
+    {
+        $csv = $this->seedPerformanceCsv();
+        $this->profileImport('create_1000', $csv, ['create' => 1000, 'update' => 0, 'unchanged' => 0]);
+        $updates = array_map(static fn (string $row): string => str_replace(',1,3,4', ',1,5,6', $row), $csv);
+        $this->profileImport('economics_update_1000', $updates, ['create' => 0, 'update' => 1000, 'unchanged' => 0]);
+        foreach (range(0, 199) as $index) {
+            $updates[$index] = str_replace(',1,5,6', ',0,5,6', $updates[$index]);
+        }
+        $this->profileImport('quantity_update_200_of_1000', $updates, ['create' => 0, 'update' => 200, 'unchanged' => 800]);
+        self::assertSame(1000, DB::table('audit_logs')->where('action_code', 'catalog.prize.external_id_changed')->count());
+        self::assertSame(1000, DB::table('audit_logs')->where('action_code', 'catalog.prize.external_id_changed')->distinct()->count('target_public_id'));
+        self::assertSame(200, DB::table('audit_logs')->where('action_code', 'catalog.inventory.adjusted')->count());
+        self::assertSame(200, DB::table('prize_inventory_adjustments')->count());
+        self::assertSame(3, DB::table('audit_logs')->where('action_code', 'catalog.gacha.prizes.imported')->count());
+        self::assertCount(3, $this->service->prizeImportHistory($this->context, $this->gacha['id'], $this->versionId, null)['items']);
+        self::assertTrue(app(V2AuditChainVerifier::class)->verify());
+    }
+
+    private function seedPerformanceCsv(): array
     {
         $banner = DB::table('content_banners')->where('public_id', $this->banner['id'])->firstOrFail();
         $version = DB::table('content_versions')->where('banner_id', $banner->id)->firstOrFail();
@@ -399,7 +557,13 @@ final class PrizeImportTest extends TestCase
             $links[] = $copy;
         }
         foreach (array_chunk($links, 100) as $chunk) DB::table('content_version_assets')->insert($chunk);
+        return $csv;
+    }
+
+    private function profileImport(string $scenario, array $csv, array $summary): void
+    {
         $input = $this->input(implode("\n", $csv));
+        DB::statement('SET CONSTRAINTS ALL DEFERRED');
         DB::enableQueryLog();
         DB::flushQueryLog();
         $started = microtime(true);
@@ -414,17 +578,27 @@ final class PrizeImportTest extends TestCase
         $applySeconds = microtime(true) - $started;
         $queries = DB::getQueryLog();
         DB::disableQueryLog();
-        $queryTimings = [];
+        $queryTimings = array_fill_keys(['audit_chain', 'catalog_prizes', 'catalog_gacha_version_prizes',
+            'prize_inventories', 'prize_inventory_adjustments', 'idempotency', 'outbox', 'version_schedule', 'constraints', 'other'], ['count' => 0, 'milliseconds' => 0]);
         foreach ($queries as $query) {
             preg_match('/(?:from|into|update) "([^"]+)"/i', $query['query'], $table);
-            $group = $table[1] ?? 'other';
-            $queryTimings[$group] = ($queryTimings[$group] ?? 0) + $query['time'];
+            $group = match ($table[1] ?? '') {
+                'audit_logs' => 'audit_chain',
+                'catalog_prizes', 'catalog_gacha_version_prizes', 'prize_inventories', 'prize_inventory_adjustments' => $table[1],
+                'idempotency_records' => 'idempotency',
+                'outbox_messages' => 'outbox',
+                'catalog_gachas', 'catalog_gacha_versions', 'catalog_gacha_publish_schedules' => 'version_schedule',
+                default => str_contains($query['query'], 'v2_audit_chain') || str_contains($query['query'], 'SAVEPOINT prize_import_audit')
+                    ? 'audit_chain' : (str_starts_with($query['query'], 'SET CONSTRAINTS') ? 'constraints' : 'other'),
+            };
+            $queryTimings[$group]['count']++;
+            $queryTimings[$group]['milliseconds'] += $query['time'];
         }
         $resolution = array_filter($queries, static fn (array $query): bool => str_starts_with(strtolower($query['query']), 'select') && preg_match('/"(?:catalog_prizes|catalog_rank_masters|content_banners|content_versions)"/', $query['query']));
         self::assertLessThanOrEqual(12, count($resolution));
-        self::assertSame(1000, $result['data']['summary']['create']);
+        self::assertSame($summary, $result['data']['summary']);
         self::assertSame(1000, DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $this->version()->id)->count());
-        fwrite(STDOUT, json_encode(['f3_performance' => ['rows' => 1000, 'preview_seconds' => $previewSeconds, 'apply_seconds' => $applySeconds,
+        fwrite(STDOUT, json_encode(['f3_performance' => ['scenario' => $scenario, 'rows' => 1000, 'preview_seconds' => $previewSeconds, 'apply_seconds' => $applySeconds,
             'preview_queries' => $previewQueries, 'apply_queries' => count($queries), 'resolution_queries' => count($resolution),
             'query_milliseconds' => $queryTimings]], JSON_THROW_ON_ERROR).PHP_EOL);
     }
@@ -435,13 +609,15 @@ final class PrizeImportTest extends TestCase
             self::markTestSkipped('Requires the explicit isolated Prize import concurrency run.');
         }
         self::assertTrue(function_exists('pcntl_fork'));
-        $input = $this->input();
+        app(V2ContentContactAdminService::class)->createManagedBanner($this->context,
+            [...$this->bannerInput, 'external_id' => 'CARD-002'], (string) Str::uuid7());
+        $input = $this->input("CARD-001,CSV賞,2,3,4\nCARD-002,CSV賞,2,3,4");
         $request = [...$input, 'plan_checksum' => $this->preview($input)['plan_checksum']];
         DB::commit();
         DB::disconnect();
         $start = microtime(true) + 0.5;
         $workers = [];
-        foreach ([1, 2] as $worker) {
+        foreach (['import_one', 'import_two', 'audit'] as $worker) {
             $path = tempnam(sys_get_temp_dir(), 'prize-import-race-');
             $process = pcntl_fork();
             self::assertNotSame(-1, $process);
@@ -450,8 +626,15 @@ final class PrizeImportTest extends TestCase
                 DB::reconnect();
                 DB::statement("SET statement_timeout = '15s'");
                 try {
-                    $this->apply($request);
-                    $outcome = 'completed';
+                    if ($worker === 'audit') {
+                        foreach (range(1, 10) as $index) {
+                            app(V2AuditLogService::class)->record('test.concurrent.writer', ['metadata' => ['sequence' => $index]]);
+                        }
+                        $outcome = 'audit_completed';
+                    } else {
+                        $this->apply($request);
+                        $outcome = 'completed';
+                    }
                 } catch (V2CatalogException $error) {
                     $outcome = $error->errorCode;
                 } catch (\Throwable $error) {
@@ -473,10 +656,13 @@ final class PrizeImportTest extends TestCase
         }
         DB::reconnect();
         sort($outcomes);
-        self::assertSame(['CATALOG_REVISION_CONFLICT', 'completed'], $outcomes);
-        self::assertSame(1, DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $this->version()->id)->count());
+        self::assertSame(['CATALOG_REVISION_CONFLICT', 'audit_completed', 'completed'], $outcomes);
+        self::assertSame(2, DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $this->version()->id)->count());
         self::assertSame(1, DB::table('audit_logs')->where('action_code', 'catalog.gacha.prizes.imported')->count());
         self::assertSame($input['expected_version_revision'] + 1, (int) $this->version()->revision);
+        self::assertSame(10, DB::table('audit_logs')->where('action_code', 'test.concurrent.writer')->count());
+        self::assertSame(2, DB::table('audit_logs')->where('action_code', 'catalog.prize.external_id_changed')->count());
+        self::assertTrue(app(V2AuditChainVerifier::class)->verify());
     }
 
     private function input(string $rows = 'CARD-001,CSV賞,2,3,4', string $headers = ''): array

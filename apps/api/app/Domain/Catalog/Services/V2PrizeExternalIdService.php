@@ -29,18 +29,27 @@ final class V2PrizeExternalIdService
 
     public function recordChange(object $prize, ?string $before, ?string $externalId, V2AdminAuthorizationContext $context): void
     {
-        if ($before === $externalId) {
-            return;
+        $this->recordChanges([['prize' => $prize, 'before' => $before, 'after' => $externalId]], $context);
+    }
+
+    public function recordChanges(array $changes, V2AdminAuthorizationContext $context): void
+    {
+        $records = [];
+        foreach ($changes as $change) {
+            if ($change['before'] === $change['after']) {
+                continue;
+            }
+            $records[] = ['action_code' => 'catalog.prize.external_id_changed', 'attributes' => [
+                'request_id' => $context->requestId,
+                'actor_type' => 'admin', 'actor_public_id' => $context->adminPublicId,
+                'actor_role' => $context->role->value, 'auth_realm' => 'admin',
+                'session_correlation_hash' => $context->sessionCorrelationHash,
+                'target_type' => 'catalog_prize', 'target_public_id' => $change['prize']->public_id,
+                'before' => ['external_id' => $change['before']],
+                'after' => ['external_id' => $change['after']],
+            ]];
         }
-        app(V2AuditLogService::class)->record('catalog.prize.external_id_changed', [
-            'request_id' => $context->requestId,
-            'actor_type' => 'admin', 'actor_public_id' => $context->adminPublicId,
-            'actor_role' => $context->role->value, 'auth_realm' => 'admin',
-            'session_correlation_hash' => $context->sessionCorrelationHash,
-            'target_type' => 'catalog_prize', 'target_public_id' => $prize->public_id,
-            'before' => ['external_id' => $before],
-            'after' => ['external_id' => $externalId],
-        ]);
+        app(V2AuditLogService::class)->recordBatch($records);
     }
 
     public function assertDistinct(array $externalIds): void

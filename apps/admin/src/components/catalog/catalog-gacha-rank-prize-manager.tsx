@@ -290,7 +290,7 @@ export function CatalogGachaRankPrizeManager({
           />
         </Dialog>
       ) : null}
-      <CatalogPrizeImport key={`${gachaId}:${versionId}`} gachaId={gachaId} versionId={versionId} revision={versionRevision} enabled={canManage && canImport && !presentationOnly && version.status === "draft"} onApplied={() => load()} />
+      <CatalogPrizeImport key={`${gachaId}:${versionId}`} gachaId={gachaId} versionId={versionId} revision={versionRevision} canManage={canManage} enabled={canManage && canImport && !presentationOnly && version.status === "draft"} onApplied={() => load()} />
     </section>
   );
 }

@@ -22,6 +22,7 @@ class PrizeImportContractTest(unittest.TestCase):
             self.assertEqual(actual['operationId'], operation)
             self.assertEqual(actual['security'], [{'adminSession': []}])
             self.assertEqual(actual['x-idempotency'], idempotency)
+            self.assertIn('catalog.manage必須', actual['description'])
         schemas = admin['components']['schemas']
         self.assertEqual(schemas['AdminPrizeImportInput']['properties']['content_base64']['maxLength'], 1398104)
         self.assertIn('plan_checksum', schemas['AdminPrizeImportApplyInput']['required'])
