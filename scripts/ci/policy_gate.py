@@ -1031,6 +1031,9 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-overview.tsx",
     "apps/admin/src/components/catalog/catalog-prize-asset-mutation-form.tsx",
     "apps/admin/src/components/catalog/external-id-field.tsx",
+    "apps/admin/src/components/catalog/catalog-prize-import.tsx",
+    "apps/admin/src/components/catalog/catalog-prize-import.module.css",
+    "apps/admin/test/prize-import.test.tsx",
     "apps/admin/src/components/catalog/catalog-section-navigation.tsx",
     "apps/admin/src/components/catalog/catalog-workspace.tsx",
     "apps/admin/src/components/catalog/cursor-pagination.tsx",
@@ -2247,6 +2250,9 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     login_composition_path = (
         "apps/admin/src/components/catalog/login-gacha-workspace.tsx"
     )
+    prize_import_path = (
+        "apps/admin/src/components/catalog/catalog-prize-import.tsx"
+    )
     catalog_cost_sources = {
         relative: (repository / relative).read_text(
             encoding="utf-8", errors="replace"
@@ -2258,9 +2264,12 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
     if any(
         "cost_price" in source
         for relative, source in catalog_cost_sources.items()
-        if relative not in {rank_prize_path, profit_simulation_path, login_composition_path}
+        if relative not in {rank_prize_path, profit_simulation_path, login_composition_path, prize_import_path}
     ):
         raise PolicyFailure("apps/admin: Catalog read UI exposes prohibited cost_price")
+    prize_import_source = catalog_cost_sources.get(prize_import_path, "")
+    if prize_import_source.count("cost_price") != 1 or 'cost_price: "原価"' not in prize_import_source:
+        raise PolicyFailure("apps/admin: Prize import cost must remain exactly scoped")
     rank_prize_source = catalog_cost_sources.get(rank_prize_path, "")
     if rank_prize_source.count("cost_price") != 4 or "原価" not in rank_prize_source:
         raise PolicyFailure(
@@ -4578,6 +4587,8 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     if not required_admin_operations.issubset(admin_operation_ids):
         raise PolicyFailure("V2 Admin Catalog operation set is incomplete")
     allowed_admin_catalog_methods = {
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports/preview": {"post"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports": {"get", "post"},
         "/catalog/categories": {"get", "post"},
         "/catalog/categories/{catalog_resource_id}": {"get", "put"},
         "/catalog/categories/{catalog_resource_id}/archive": {"post"},

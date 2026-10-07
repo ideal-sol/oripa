@@ -106,6 +106,24 @@ final class V2AdminCatalogController
         );
     }
 
+    public function previewPrizeImport(Request $request, string $gachaId, string $versionId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->previewPrizeImport($context, $gachaId, $versionId, $request->json()->all()));
+    }
+
+    public function applyPrizeImport(Request $request, string $gachaId, string $versionId): JsonResponse
+    {
+        return $this->mutation($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->applyPrizeImport($context, $gachaId, $versionId, (string) $request->header('Idempotency-Key', ''), $request->json()->all()));
+    }
+
+    public function prizeImportHistory(Request $request, string $gachaId, string $versionId): JsonResponse
+    {
+        return $this->handle($request, fn (V2AdminAuthorizationContext $context): array =>
+            $this->mutations->prizeImportHistory($context, $gachaId, $versionId, $request->query('before')));
+    }
+
     public function prizes(Request $request): JsonResponse
     {
         return $this->list($request, 'prizes');
@@ -337,6 +355,7 @@ final class V2AdminCatalogController
                 'code' => $exception->errorCode,
                 'request_id' => $requestId,
                 'retryable' => false,
+                ...$exception->details,
             ], $exception->status, [
                 'Content-Type' => 'application/problem+json',
                 'Cache-Control' => 'private, no-store',
@@ -1208,6 +1227,7 @@ final class V2AdminCatalogController
                 'code' => $exception->errorCode,
                 'request_id' => $requestId,
                 'retryable' => false,
+                ...$exception->details,
             ], $exception->status, [
                 'Content-Type' => 'application/problem+json',
                 'Cache-Control' => 'private, no-store',

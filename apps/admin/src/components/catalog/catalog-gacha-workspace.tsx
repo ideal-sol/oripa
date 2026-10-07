@@ -415,6 +415,7 @@ export function CatalogGachaWorkspace({
                   gachaId={gachaIdentifier(state.gacha)}
                   heading="Rank"
                   presentationOnly={state.gacha.first_published_at !== null}
+                  canImport={state.gacha.first_published_at === null && !state.gacha.is_archived}
                   version={state.currentVersion}
                 />
               </>
@@ -814,6 +815,7 @@ function GachaDetail({
           canManage={canManage}
           gachaId={gachaIdentifier(gacha)}
           heading="編集中のランク／景品"
+          canImport={gacha.first_published_at === null && !gacha.is_archived}
           version={editableDraft}
           versionLabel={`下書き バージョン ${editableDraft.version_number}`}
         />

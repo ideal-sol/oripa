@@ -1829,6 +1829,29 @@ final class V2ContentContactAdminService
         }
     }
 
+    public function prizeLibraryEntries(array $externalIds, bool $lock): array
+    {
+        $banners = DB::table('content_banners')->whereIn('external_id', $externalIds)
+            ->where('status', '<>', 'archived')->orderBy('id')
+            ->when($lock, fn ($query) => $query->sharedLock())->get();
+        $versions = DB::table('content_versions')->whereIn('banner_id', $banners->pluck('id'))
+            ->whereRaw('version_number = (SELECT MAX(current.version_number) FROM content_versions current WHERE current.banner_id = content_versions.banner_id)')
+            ->orderBy('id')->when($lock, fn ($query) => $query->sharedLock())->get()->keyBy('banner_id');
+        $links = DB::table('content_version_assets')->whereIn('content_version_id', $versions->pluck('id'))
+            ->where('usage_type', 'image')->orderBy('id')->when($lock, fn ($query) => $query->sharedLock())->get()->keyBy('content_version_id');
+        $assets = DB::table('catalog_presentation_assets')->whereIn('id', $links->pluck('presentation_asset_id'))
+            ->orderBy('id')->when($lock, fn ($query) => $query->sharedLock())->get()->keyBy('id');
+        $entries = [];
+        foreach ($banners as $banner) {
+            $version = $versions->get($banner->id);
+            $link = $version === null ? null : $links->get($version->id);
+            $asset = $link === null ? null : $assets->get($link->presentation_asset_id);
+            $entries[$banner->external_id] = ['banner' => $banner, 'version' => $version, 'asset' => $asset];
+        }
+
+        return $entries;
+    }
+
     private function managedBannerByPublicId(string $publicId): array
     {
         $latest = DB::table('content_versions')

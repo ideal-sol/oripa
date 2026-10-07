@@ -3728,6 +3728,172 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports/preview": {
+      "post": {
+        "operationId": "previewAdminGachaPrizeImport",
+        "summary": "景品CSVの差分を保存せず確認する",
+        "description": "catalog.manage必須。未公開standardのdraftのみ。UTF-8 CSVは1MiB・1000データ行まで。エラーは422 CSV_VALIDATION_FAILED、先頭200件と全件数。Version競合は409 CATALOG_REVISION_CONFLICT。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPrizeImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "読み取り専用の取込計画。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrizeImportPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CSV検証エラー。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrizeImportValidation"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports": {
+      "get": {
+        "operationId": "listAdminGachaPrizeImports",
+        "summary": "景品CSV取込の成功履歴を参照する",
+        "description": "catalog.read必須。既存Auditに保存した実行者・日時・ファイル名・件数のみ。CSV本文は保存しない。最新から50件ずつ取得する。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,18}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取込履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrizeImportHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "applyAdminGachaPrizeImport",
+        "summary": "景品CSVを単一transactionで差分更新する",
+        "description": "catalog.manage必須。DBから計画を再計算し、checksum不一致は409 CATALOG_PRIZE_IMPORT_PLAN_STALE。Version競合は409 CATALOG_REVISION_CONFLICT。同一キー同一入力は保存済み応答、異なる入力は409 IDEMPOTENCY_KEY_REUSED。削除・ランク変更・既存名や画像変更は行わない。",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "$ref": "#/components/parameters/GachaVersionId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPrizeImportApplyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "全件成功結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrizeImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CSV検証エラー。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrizeImportValidation"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {
       "get": {
         "operationId": "listAdminGachaVersionPrizes",
@@ -13318,6 +13484,344 @@
             "minItems": 1,
             "items": {
               "$ref": "#/components/schemas/AdminCatalogRankReorderItem"
+            }
+          }
+        }
+      },
+      "AdminPrizeImportInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file_name",
+          "content_base64",
+          "expected_version_revision"
+        ],
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1398104
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminPrizeImportApplyInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file_name",
+          "content_base64",
+          "expected_version_revision",
+          "plan_checksum"
+        ],
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1398104
+          },
+          "expected_version_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "plan_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "AdminPrizeImportSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "create",
+          "update",
+          "unchanged"
+        ],
+        "properties": {
+          "create": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "update": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminPrizeImportMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "row",
+          "column",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "row": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_id",
+                "name",
+                "rank",
+                "quantity"
+              ],
+              "properties": {
+                "external_id": {
+                  "$ref": "#/components/schemas/AdminExternalId"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "rank": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "AdminPrizeImportValidation": {
+        "type": "object",
+        "required": [
+          "code",
+          "errors",
+          "error_count"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "CSV_VALIDATION_FAILED"
+          },
+          "errors": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/AdminPrizeImportMessage"
+            }
+          },
+          "error_count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AdminPrizeImportPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan_checksum",
+          "summary",
+          "rows",
+          "warnings"
+        ],
+        "properties": {
+          "plan_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AdminPrizeImportSummary"
+          },
+          "rows": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "row",
+                "external_id",
+                "action",
+                "changes"
+              ],
+              "properties": {
+                "row": {
+                  "type": "integer",
+                  "minimum": 2
+                },
+                "external_id": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "update",
+                    "unchanged"
+                  ]
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "field",
+                      "before",
+                      "after"
+                    ],
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "before": {
+                        "type": [
+                          "string",
+                          "integer",
+                          "boolean",
+                          "null"
+                        ]
+                      },
+                      "after": {
+                        "type": [
+                          "string",
+                          "integer",
+                          "boolean",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPrizeImportMessage"
+            }
+          }
+        }
+      },
+      "AdminPrizeImportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "gacha_version_id",
+              "gacha_version_revision",
+              "summary"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "gacha_version_id": {
+                "$ref": "#/components/schemas/OpaqueId"
+              },
+              "gacha_version_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "summary": {
+                "$ref": "#/components/schemas/AdminPrizeImportSummary"
+              }
+            }
+          }
+        }
+      },
+      "AdminPrizeImportHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "actor_public_id",
+                "occurred_at",
+                "file_name",
+                "summary"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/OpaqueId"
+                },
+                "actor_public_id": {
+                  "$ref": "#/components/schemas/OpaqueId"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "file_name": {
+                  "type": "string"
+                },
+                "summary": {
+                  "$ref": "#/components/schemas/AdminPrizeImportSummary"
+                }
+              }
             }
           }
         }

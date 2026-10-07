@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { ExternalIdField } from "@/components/catalog/external-id-field";
+import { CatalogPrizeImport } from "@/components/catalog/catalog-prize-import";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { assetContentPath, PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -20,6 +21,7 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 
 export function CatalogGachaRankPrizeManager({
   canManage,
+  canImport = false,
   gachaId,
   heading = "Rank設定",
   presentationOnly = false,
@@ -27,6 +29,7 @@ export function CatalogGachaRankPrizeManager({
   version,
 }: {
   canManage: boolean;
+  canImport?: boolean;
   gachaId: string;
   heading?: string;
   presentationOnly?: boolean;
@@ -287,6 +290,7 @@ export function CatalogGachaRankPrizeManager({
           />
         </Dialog>
       ) : null}
+      <CatalogPrizeImport key={`${gachaId}:${versionId}`} gachaId={gachaId} versionId={versionId} revision={versionRevision} enabled={canManage && canImport && !presentationOnly && version.status === "draft"} onApplied={() => load()} />
     </section>
   );
 }

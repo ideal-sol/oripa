@@ -24,6 +24,11 @@ final class V2PrizeExternalIdService
             ->where('prize.id', '<>', $prize->id)->exists()) {
             throw new V2CatalogException('CATALOG_PRIZE_EXTERNAL_ID_CONFLICT', 409, 'The external ID is already used in this Gacha Version.');
         }
+        $this->recordChange($prize, $before, $externalId, $context);
+    }
+
+    public function recordChange(object $prize, ?string $before, ?string $externalId, V2AdminAuthorizationContext $context): void
+    {
         if ($before === $externalId) {
             return;
         }

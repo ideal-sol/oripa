@@ -95,6 +95,7 @@ class PolicyGateTest(unittest.TestCase):
         for relative in (
             "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
             "apps/admin/src/lib/catalog/login-gacha.ts",
+            "apps/admin/src/components/catalog/catalog-prize-import.tsx",
         ):
             with self.subTest(path=relative), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
