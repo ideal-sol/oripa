@@ -50,6 +50,18 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Banner management", () => {
+  it("continues listing Banners with and without an external ID", async () => {
+    vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
+      { ...banner(), external_id: "CARD-0001" },
+      { ...banner(), id: uuid("8"), title: "管理IDなしバナー", external_id: null },
+    ], next_cursor: null });
+    render(<BannerManagementWorkspace />);
+    expect(await screen.findByText("メインバナー")).toBeVisible();
+    expect(screen.getByText("CARD-0001")).toBeVisible();
+    expect(screen.getByText("管理IDなしバナー")).toBeVisible();
+    expect(screen.getByRole("button", { name: "管理IDなしバナーを編集" })).toBeEnabled();
+  });
+
   it("shows, edits and clears the external ID and reports conflicts", async () => {
     vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({
       items: [{ ...banner(), external_id: "CARD-0001" }], next_cursor: null,
