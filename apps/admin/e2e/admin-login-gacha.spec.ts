@@ -152,7 +152,9 @@ async function installApi(page: Page) {
     if (path.endsWith("/banner-management/banners")) {
       const categoryId = new URL(route.request().url()).searchParams.get("category_id");
       expect([bannerCategoryId, otherBannerCategoryId, "empty"]).toContain(categoryId);
-      return json(route, { items: categoryId === "empty" ? [] : [{ id: `banner-${categoryId}`, external_id: categoryId === bannerCategoryId ? "CARD-A" : "CARD-B", title: categoryId === bannerCategoryId ? "Card Banner" : "Other Banner",
+      const noIdBanner = { id: `no-id-${categoryId}`, external_id: null, title: "No ID Banner",
+        category: { id: categoryId, name: "No ID" }, asset: { id: "no-id-asset", public_url: "/synthetic-banner-image.png" } };
+      return json(route, { items: categoryId === "empty" ? [noIdBanner] : [noIdBanner, { id: `banner-${categoryId}`, external_id: categoryId === bannerCategoryId ? "CARD-A" : "CARD-B", title: categoryId === bannerCategoryId ? "Card Banner" : "Other Banner",
         category: { id: categoryId, name: categoryId === bannerCategoryId ? "Cards" : "Other" },
         asset: { id: categoryId === bannerCategoryId ? imageId : otherBannerAssetId, public_url: "/synthetic-banner-image.png" },
       }], next_cursor: null });
@@ -273,6 +275,7 @@ for (const type of ["login_daily", "signup_once"]) {
       const category = prize.getByRole("combobox", { name: "Banner Category", exact: true });
       await expect(category).toHaveValue(bannerCategoryId);
       await expect(prize.getByRole("button", { name: "Card Banner", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(prize.getByRole("button", { name: "No ID Banner", exact: true })).toHaveCount(0);
       await prize.getByRole("button", { name: "Card Banner", exact: true }).click();
       await expect(prize.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-A");
       await category.selectOption(otherBannerCategoryId);
@@ -283,7 +286,8 @@ for (const type of ["login_daily", "signup_once"]) {
       await expect(page.getByLabel("景品画像", { exact: true })).toHaveCount(0);
       await page.getByLabel("公開開始日時（JST）").fill("2026-10-02T00:00");
       await category.selectOption("empty");
-      await expect(prize.getByText("このCategoryに選択可能なBannerはありません。")).toBeVisible();
+      await expect(prize.getByText("管理IDが設定されたBannerはありません。")).toBeVisible();
+      await expect(prize.getByRole("button", { name: "No ID Banner", exact: true })).toHaveCount(0);
       await page.getByRole("button", { name: "構成を一括保存" }).click();
       await expect(page.getByRole("alert").filter({ hasText: "選択したBanner Category" })).toBeVisible();
       expect(saved).toHaveLength(0);

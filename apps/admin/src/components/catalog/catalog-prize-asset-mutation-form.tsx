@@ -321,7 +321,7 @@ export function CatalogBannerAssetPicker({
         ) : loading ? (
           <p className="catalog-banner-picker-note">Banner候補を取得しています。</p>
         ) : banners.length === 0 ? (
-          <p className="catalog-banner-picker-note">このCategoryに選択可能なBannerはありません。</p>
+          <p className="catalog-banner-picker-note">管理IDが設定されたBannerはありません。</p>
         ) : (
           <div aria-label="Banner候補" className="catalog-banner-options">
             {banners.map((banner) => (
@@ -357,5 +357,5 @@ async function listAllBannersForCategory(
     banners.push(...response.items);
     cursor = response.next_cursor ?? undefined;
   } while (cursor);
-  return banners;
+  return banners.filter((banner) => banner.external_id != null);
 }
