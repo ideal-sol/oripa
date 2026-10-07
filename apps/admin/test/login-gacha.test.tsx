@@ -143,7 +143,7 @@ const thumbnail: AdminCatalogPresentationAsset = {
 };
 
 function prizeBanner(categoryId: string, assetId: string): AdminManagedBanner {
-  return { id: `banner-${assetId}`, title: `Banner ${assetId}`, status: "published", show_on_top: false, link_url: null,
+  return { id: `banner-${assetId}`, title: `Banner ${assetId}`, external_id: `CARD-${assetId}`, status: "published", show_on_top: false, link_url: null,
     category: { id: categoryId, name: categoryId }, asset: { id: assetId, public_url: "/qa-banner.png" },
     version_id: "banner-version", version_number: 1, created_at: "", updated_at: "" };
 }
@@ -154,8 +154,8 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
     vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
     vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
       { ...prizeBanner("cards", "first"), external_id: "CARD-A" },
-      { ...prizeBanner("cards", "second"), external_id: "CARD-B" },
       { ...prizeBanner("cards", "missing"), external_id: null },
+      { ...prizeBanner("cards", "second"), external_id: "CARD-B" },
     ], next_cursor: null });
     render(<LoginGachaWorkspace type={type} sourceId="source" />);
     await screen.findByText(/一意に特定できませんでした/u);
@@ -165,8 +165,8 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
     expect(field).toHaveValue("CARD-A");
     fireEvent.click(screen.getByRole("button", { name: "Banner second" }));
     expect(field).toHaveValue("CARD-B");
-    fireEvent.click(screen.getByRole("button", { name: "Banner missing" }));
-    expect(field).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Banner missing" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Banner" })).getAllByRole("button")).toHaveLength(2);
     fireEvent.change(field, { target: { value: "MANUAL" } });
     fireEvent.click(screen.getByRole("button", { name: "Banner first" }));
     expect(field).toHaveValue("MANUAL");
@@ -219,8 +219,8 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
     const { update, upload } = thumbnailFixture(type);
     vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }, { id: "empty", name: "Empty" }] });
     const list = vi.mocked(AdminApiClient.prototype.listManagedBanners).mockImplementation(async (query) => query?.category_id === "cards"
-      ? { items: [prizeBanner("cards", query.cursor ? "chosen" : "first")], next_cursor: query.cursor ? null : "next" }
-      : { items: [], next_cursor: null });
+      ? { items: [{ ...prizeBanner("cards", query.cursor ? "chosen" : "first"), external_id: query.cursor ? "CARD-CHOSEN" : null }], next_cursor: query.cursor ? null : "next" }
+      : { items: [{ ...prizeBanner("empty", "missing"), external_id: null }], next_cursor: null });
     render(<LoginGachaWorkspace type={type} sourceId="source" />);
     const category = await screen.findByLabelText("Banner Category");
     await screen.findByText(/一意に特定できませんでした/u);
@@ -228,6 +228,7 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
     fireEvent.change(category, { target: { value: "cards" } });
     fireEvent.click(await screen.findByRole("button", { name: "Banner chosen" }));
     expect(screen.getByRole("button", { name: "Banner chosen" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Banner first" })).not.toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({ category_id: "cards", cursor: "next" }, expect.any(AbortSignal));
     fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith("source", expect.objectContaining({ composition: expect.objectContaining({
@@ -235,7 +236,8 @@ describe.each(["login_daily", "signup_once"] as const)("%s standard Banner picke
     }) }), expect.any(String)));
     expect(upload).not.toHaveBeenCalled();
     fireEvent.change(category, { target: { value: "empty" } });
-    await screen.findByText("このCategoryに選択可能なBannerはありません。");
+    await screen.findByText("管理IDが設定されたBannerはありません。");
+    expect(screen.queryByRole("button", { name: "Banner missing" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Banner chosen" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
     expect(screen.getByText("選択したBanner CategoryからBannerを選択してください。")).toHaveAttribute("role", "alert");
@@ -342,7 +344,13 @@ describe.each(["login_daily", "signup_once"] as const)("%s shared thumbnail form
   for (const copy of [false, true]) {
     it(`${copy ? "copy" : "draft edit"} preserves the asset reference without reupload`, async () => {
       const { upload, create, update } = thumbnailFixture(type, copy ? "published" : "draft", copy);
+      vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
+      vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
+        { ...prizeBanner("cards", thumbnail.id), external_id: null },
+        prizeBanner("cards", "eligible"),
+      ], next_cursor: null });
       render(<LoginGachaWorkspace type={type} sourceId="source" copy={copy} />);
+      expect(await screen.findByText(/変更しなければ既存の値は保持されます/u)).toBeVisible();
       expect(await screen.findByLabelText(/サムネイル画像/u)).toBeEnabled();
       expect(screen.getAllByAltText("現在のサムネイル")[0]).toHaveAttribute("src", thumbnail.public_path);
       expect(create).not.toHaveBeenCalled();
@@ -350,8 +358,9 @@ describe.each(["login_daily", "signup_once"] as const)("%s shared thumbnail form
       if (copy) fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-02T00:00" } });
       fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
       await waitFor(() => expect(copy ? create : update).toHaveBeenCalledTimes(1));
-      if (copy) expect(create.mock.calls[0][0].presentation_asset_id).toBe(thumbnail.id);
-      else expect(update.mock.calls[0][1].composition.presentation_asset_id).toBe(thumbnail.id);
+      const saved = copy ? create.mock.calls[0][0] : update.mock.calls[0][1].composition;
+      expect(saved.presentation_asset_id).toBe(thumbnail.id);
+      expect(saved.prizes[0].presentation_asset_id).toBe(thumbnail.id);
       expect(upload).not.toHaveBeenCalled();
     });
 

@@ -96,6 +96,8 @@ for (const width of [1440, 390]) {
       return json(route, { items: [{ id: `banner-${selected}`, external_id: selected === categoryId ? "CARD-0001" : "CARD-0002", title: selected === categoryId ? "Card Banner" : "Other Banner",
         category: { id: selected, name: selected === categoryId ? "Cards" : "Other" },
         asset: { id: selected === categoryId ? assetId : uploadedAssetId, public_url: image.path },
+      }, { id: `no-id-${selected}`, external_id: null, title: "No ID Banner",
+        category: { id: selected, name: "No ID" }, asset: { id: "no-id-asset", public_url: image.path },
       }], next_cursor: null });
     });
     await page.route(`**/catalog/gachas/${gachaCode}/versions/${versionId}/ranks/${rankId}/prizes`, (route) => {
@@ -110,6 +112,7 @@ for (const width of [1440, 390]) {
     await category.selectOption(categoryId);
     const first = dialog.getByRole("button", { name: "Card Banner", exact: true });
     await expect(first.locator("img")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "No ID Banner", exact: true })).toHaveCount(0);
     await first.click();
     await expect(dialog.getByLabel("管理ID", { exact: true })).toHaveValue("CARD-0001");
     await category.selectOption(tagId);
