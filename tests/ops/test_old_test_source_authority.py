@@ -16,11 +16,11 @@ from tests.ops.test_preview_image_pipeline import (
 )
 
 
-PAYLOAD = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
+PAYLOAD = "ee4ca36290bc9d9fce932db6211888d77e1711a2"
 CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
-TASK_ID = "SEC-20261006"
+TASK_ID = "PRIZECSV-20261006"
 
 
 class GithubReadTransportTest(unittest.TestCase):
@@ -138,7 +138,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             return {"encoding": "base64", "content": base64.b64encode(json.dumps(self.approval).encode()).decode()}
         if "/compare/" in path:
             return self.comparison
-        if path.endswith("/pulls/543"):
+        if path.endswith("/pulls/546"):
             return self.pull
         if "/git/commits/" in path:
             return {"sha": path.rsplit("/", 1)[1], "tree": {"sha": TREE}}
@@ -154,13 +154,13 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         raise AssertionError(path)
 
     def authorize(self, source=PAYLOAD, control=CONTROL):
-        return wrapper.authorize_old_test_source(TASK_ID, "543", source, control, get=self.get)
+        return wrapper.authorize_old_test_source(TASK_ID, "546", source, control, get=self.get)
 
     def test_ci_injected_read_transport_does_not_use_host_credentials(self):
         transport = mock.Mock(side_effect=self.get)
         with mock.patch.object(wrapper, "installation_token") as credential, \
              mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
-            result = wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=transport)
+            result = wrapper.authorize_old_test_source(TASK_ID, "546", PAYLOAD, CONTROL, get=transport)
         self.assertEqual(result["source_sha"], PAYLOAD)
         transport.assert_any_call(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1")
         credential.assert_not_called()
@@ -174,7 +174,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             return io.BytesIO(json.dumps(self.get(path)).encode())
         with mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
              mock.patch.object(wrapper.urllib.request, "urlopen", side_effect=respond):
-            result = wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL)
+            result = wrapper.authorize_old_test_source(TASK_ID, "546", PAYLOAD, CONTROL)
         self.assertEqual(result["source_sha"], PAYLOAD)
         self.assertEqual(requests.count(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1"), 1)
 
@@ -255,7 +255,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
                 result["tree"]["sha"] = "f" * 40
             return result
         with self.assertRaisesRegex(wrapper.WrapperError, "tree_mismatch"):
-            wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=changed)
+            wrapper.authorize_old_test_source(TASK_ID, "546", PAYLOAD, CONTROL, get=changed)
         calls = []
         def moved(path):
             result = original(path)
@@ -265,7 +265,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
                     result["commit"]["sha"] = "f" * 40
             return result
         with self.assertRaisesRegex(wrapper.WrapperError, "control_moved"):
-            wrapper.authorize_old_test_source(TASK_ID, "543", PAYLOAD, CONTROL, get=moved)
+            wrapper.authorize_old_test_source(TASK_ID, "546", PAYLOAD, CONTROL, get=moved)
 
     def test_failed_or_untrusted_required_checks_are_rejected(self):
         self.check_conclusion = "failure"
@@ -282,17 +282,17 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
              mock.patch.object(wrapper, "api_get", side_effect=self.get), \
              mock.patch.object(wrapper, "api_compare", return_value=self.comparison), \
              mock.patch.object(wrapper.runpy, "run_path", return_value={"request": transport}):
-            result = wrapper.dispatch_old_test_artifact(TASK_ID, "543", PAYLOAD)
+            result = wrapper.dispatch_old_test_artifact(TASK_ID, "546", PAYLOAD)
         self.assertEqual(result["status"], "dispatched")
         transport.assert_called_once_with("POST", "/repos/ideal-sol/oripa/actions/workflows/old-test-main-artifact.yml/dispatches",
-                                          {"ref": "main", "inputs": {"task_id": TASK_ID, "pr_number": "543", "source_sha": PAYLOAD}})
+                                          {"ref": "main", "inputs": {"task_id": TASK_ID, "pr_number": "546", "source_sha": PAYLOAD}})
         self.assertNotIn("token", json.dumps(result).lower())
 
     def test_dispatch_never_writes_when_approval_or_policy_fails(self):
         with mock.patch.object(wrapper, "secure_policy", return_value={"lane": "Lite Maintenance", "activation": "none"}), \
              mock.patch.object(wrapper.runpy, "run_path") as transport:
             with self.assertRaises(wrapper.WrapperError):
-                wrapper.dispatch_old_test_artifact(TASK_ID, "543", PAYLOAD)
+                wrapper.dispatch_old_test_artifact(TASK_ID, "546", PAYLOAD)
             transport.assert_not_called()
 
 
@@ -336,7 +336,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
             docker.assert_not_called()
 
     def test_download_binds_outer_digest_provenance_control_and_inner_verifier(self):
-        authority = {"task_id": TASK_ID, "source_sha": PAYLOAD, "source_pr": 543,
+        authority = {"task_id": TASK_ID, "source_sha": PAYLOAD, "source_pr": 546,
                      "control_sha": CONTROL, "target": "old-test", "platform": "linux/amd64"}
         run = {"event": "workflow_dispatch", "status": "completed", "conclusion": "success",
                "path": wrapper.OLD_WORKFLOW_PATH, "head_branch": "main", "head_sha": CONTROL,
@@ -383,14 +383,14 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                      mock.patch.object(wrapper, "download_to", side_effect=download), \
                      mock.patch.object(wrapper.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"control helper")) as runner:
                     if mutation == "none":
-                        result = wrapper.download_preview_artifact(TASK_ID, "543", PAYLOAD, "456", str(destination), old_test=True)
+                        result = wrapper.download_preview_artifact(TASK_ID, "546", PAYLOAD, "456", str(destination), old_test=True)
                         self.assertEqual(result["status"], "verified")
                         self.assertEqual(result["control_sha"], CONTROL)
                         self.assertIn(f"{CONTROL}:scripts/ops/preview_image_artifact.py", runner.call_args_list[0].args[0])
                         self.assertEqual(runner.call_args_list[1].args[0][-4:], ["--artifact-kind", "old-test", "--architecture", "amd64"])
                     else:
                         with self.assertRaises(wrapper.WrapperError):
-                            wrapper.download_preview_artifact(TASK_ID, "543", PAYLOAD, "456", str(destination), old_test=True)
+                            wrapper.download_preview_artifact(TASK_ID, "546", PAYLOAD, "456", str(destination), old_test=True)
                         runner.assert_not_called()
                         self.assertFalse(destination.exists())
 
