@@ -40,7 +40,11 @@ final class PrizeImportTest extends TestCase
         }
         DB::beginTransaction();
         Storage::fake('local');
-        config(['cache.default' => 'array', 'filesystems.default' => 'local']);
+        config([
+            'cache.default' => 'array', 'filesystems.default' => 'local',
+            'v2_audit.active_hmac_key_version' => 'v1',
+            'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
+        ]);
         app(V2CatalogFixtureImporter::class)->import(json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, 512, JSON_THROW_ON_ERROR));
         $this->context = $this->context();
         $this->service = app(V2CatalogMasterMutationService::class);
