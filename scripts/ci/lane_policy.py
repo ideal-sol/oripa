@@ -9,8 +9,12 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import sys
 from typing import Iterable
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.release.readiness.change import classify, validate_change
+from scripts.release.readiness.records import canonical
 
 LANES = ("Lite Maintenance", "Standard Change", "Strict Change")
 LANE_KEYS = {
@@ -325,6 +329,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--event-path", type=Path)
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--secret-scan", action="store_true")
+    parser.add_argument("--change-output", type=Path)
     return parser.parse_args()
 
 
@@ -336,6 +341,26 @@ def main() -> int:
             arguments.event_name,
             arguments.event_path,
         )
+        if arguments.change_output:
+            repository = arguments.repository.resolve()
+            head = run_git(repository, "rev-parse", "HEAD").strip()
+            if arguments.event_name == "pull_request":
+                event = json.loads(arguments.event_path.read_text(encoding="utf-8"))
+                pull = event["pull_request"]
+                if head != pull["head"]["sha"]:
+                    raise LanePolicyFailure("classification checkout is not the exact PR head")
+                base = pull["base"]["sha"]
+            else:
+                base = run_git(repository, "rev-parse", "HEAD^").strip()
+            change = validate_change(classify(repository, base, head))
+            if change["authority_records"] and arguments.event_name == "pull_request":
+                from scripts.release.readiness.adapters import verify_change_authority
+                proof = verify_change_authority(change)
+                arguments.change_output.with_suffix(".authority.json").write_bytes(canonical(proof))
+            arguments.change_output.write_bytes(canonical(change))
+            result["validation_path"] = (change["validation_path"]
+                if arguments.event_name == "pull_request" and result["activation"] == "none" else "NORMAL_STRICT_CI")
+            result["change_digest"] = change["record_digest"]
         if arguments.secret_scan and arguments.event_name == "pull_request":
             event = json.loads(arguments.event_path.read_text(encoding="utf-8"))
             pull_request = event["pull_request"]
@@ -347,7 +372,11 @@ def main() -> int:
             )
         if arguments.github_output:
             write_github_output(arguments.github_output, result)
-    except (OSError, json.JSONDecodeError, LanePolicyFailure) as error:
+            if arguments.change_output:
+                with arguments.github_output.open("a", encoding="utf-8") as output:
+                    for key in ("validation_path", "change_digest"):
+                        print(f"{key}={result[key]}", file=output)
+    except (OSError, ValueError, LanePolicyFailure) as error:
         print(f"lane-policy: FAIL: {error}")
         return 1
     print(json.dumps(result, sort_keys=True))

@@ -23,8 +23,9 @@ minimum fails closed. Push and manual events without PR metadata use Strict.
   full suite is not applicable.
 - Standard runs normal quality/security CI and the full current integration
   suite, plus Task-focused affected-domain verification.
-- Strict runs the same full quality, security, and integration work required
-  before GOV-017. The required aggregator cannot pass if that work is skipped.
+- Strict uses the canonical Readiness change model described below. Gate,
+  Security, Dependency and Application changes retain full validation. Only a
+  proven Authority-only PR uses focused validation; its Lane remains Strict.
 
 CodeQL and Dependency Review remain available workflows but are not Required
 Check contexts for Lite unless a higher Lane or another policy requires them.
@@ -58,12 +59,13 @@ audits.
 
 Every normal CI runs fresh `composer audit --locked`, workspace `pnpm audit`,
 and legacy `pnpm audit`, plus `--prod` audits for both pnpm scopes. The general
-Composer and legacy pnpm baseline arrays are empty: findings outside the exact
-dev-tool exception below are blocking. New package/version/path, severity,
-or advisory identity fingerprints fail, including advisory-database changes with
-unchanged source/locks. Resolved approved findings are informational, not
-regressions. A dependency or lock change alone does not invalidate the baseline
-when fresh audits pass; lock consistency and Dependency Review remain enforced.
+Composer and legacy pnpm baseline arrays are empty. A dependency-changing PR
+with an unapproved finding is blocked. When exact base/head dependency bytes
+match, fresh unapproved findings instead produce
+`PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION` for Development and
+`HOLD_UNAPPROVED_FINDING` for the current security posture. Findings remain
+visible and require security maintenance. Missing identity never means NONE.
+Lock consistency and Dependency Review remain enforced.
 Malformed, incomplete, unavailable, or lock-inconsistent audit results fail
 closed. Raw command statuses must agree with parsed findings; an unexplained
 nonzero status cannot pass. Fresh lint likewise requires a valid complete report
@@ -89,9 +91,9 @@ Dependency Review broad allowlist remain unchanged. Only these paths qualify:
 
 The validator checks `eslint-config-next` in `devDependencies`, absent from
 runtime/optional/peer dependencies, in `apps/admin/package.json` and
-`legacy/v1-frontend/package.json`. Both fresh production-only audits must have
-zero findings and exit 0. Full audit exit 1 is accepted only when consistent
-with parsed findings and the exact approved state. Do not rely on the audit
+`legacy/v1-frontend/package.json`. A runtime finding never receives this
+exception. All audit exit statuses must agree with parsed findings, including
+unchanged-dependency findings. Do not rely on the audit
 service's `dev` flag alone to prove dependency scope.
 
 The explicit `security_fingerprint` must exactly match: advisory numeric ID,
@@ -106,13 +108,73 @@ created/updated timestamps, attribution, access labels, recommendation text
 and other descriptive fields do not participate in the blocking fingerprint.
 Description-only changes do not invalidate an otherwise exact approved exception.
 Missing or malformed security-relevant fields still fail closed.
-No runtime finding receives an exception. V2 runtime remains zero-finding, and
-unapproved V2 dev-tool findings still fail; the V1 baseline cannot authorize them.
+No runtime finding receives an exception. Production security readiness requires
+zero unapproved findings; a Development merge result cannot satisfy that proof.
+The V1 baseline cannot authorize unapproved V2 findings.
 
 Advisory disappearance is resolved/non-blocking even if the exception metadata
 remains; no renewal is required. Security summaries expose actual findings,
 approved exact exceptions and unapproved findings separately for both scopes,
 plus the distinct advisory count. An excepted finding is never reported as zero.
+
+## Canonical change and evidence model (CI-20261007)
+
+`scripts/release/readiness/change.py` owns the source classifier consumed by
+Platform CI and the existing Readiness evaluator. This is not another Gate or
+another Governance Lane. `NONE`, `PRESENT`, and `UNKNOWN` deltas cover Application,
+Dependency, Migration, Contract, Authority, Security Policy, Runtime Config,
+API/write path, Tests, Docs and CI Governance. Unknown changed paths, unsupported
+file modes, missing dependency inputs and invalid bindings fail closed.
+
+The exact base/head trees enumerate every dependency manifest, Composer lock,
+workspace and legacy pnpm lock/importers, workspace config, npm config and patch.
+SHA-256 over deterministic path/mode/blob/byte-digest inventories proves byte
+equality, including overrides/resolutions inside manifests. Renames, deletion,
+new manifests and mode changes cannot disappear from the comparison.
+
+`policy-gate` publishes `canonical-change`; `security-gate` recomputes it at the
+exact checked-out PR head and publishes `current-security-posture`, including
+all findings, package/version/path, severity, approved status, runtime scope,
+audit input digest and observation time. Unavailable/malformed audits and any
+baseline modification fail closed. Audit commands, severity thresholds, exact
+dev-tool approval, event-driven baseline management and Rulesets are unchanged.
+
+AUTHORITY_ONLY requires only the two existing approved-source manifests plus
+optional tests/docs, and NONE for every runtime/security/governance component.
+Record fields and source ancestry are checked locally. The existing read-only
+GitHub transport and canonical check-run validator verify the merged source PR,
+reviewed tree, source checks and protected-main continuity. Arbitrary manifest
+fields or provenance mismatch block. Human authority remains PR review; this
+path never authorizes Runtime Activation.
+
+Authority-focused quality runs source-authority/Readiness/policy tests and
+structure validation. Fresh audits and the complete secret scan still run.
+Application regression, builds, contract regeneration and migration integration
+are proven non-applicable by current-head evidence. All five Required contexts
+remain required and return explicit results. The final aggregator rejects a
+missing/failed context or an unexpected integration/ARM64 disposition. All other
+Strict PRs, including this CI/Security change, use NORMAL_STRICT_CI.
+
+Default finding classification is UNCHANGED_DEPENDENCY_SECURITY_POSTURE.
+ADVISORY_DB_DRIFT_CONFIRMED additionally requires an exact historical dependency
+fingerprint, unchanged historical Security policy, an authenticated successful
+Security check and its matching GitHub job/audit log preceding the observation.
+`adapters.confirm_advisory_drift` uses the supplied existing read transport;
+there is no new credential transport or automatic cross-head PASS reuse.
+Without this proof the result remains NOT_PROVEN, never an invented prior PASS.
+
+`compare_evidence` reports component equality and invalidation after resync.
+It separately compares PR-specific before/after file inventories: unchanged PR
+bytes can be proven even when an upstream addition invalidates the whole
+Application component's previous regression evidence.
+Authority continuity, Advisory posture and current check inventory always need
+refresh. Component equality alone never authenticates earlier regression
+evidence: execution reuse remains NOT_PROVEN and falls back to fresh validation.
+Readiness consumes the same canonical classification and Security record as
+bound handoff facts. Missing Security evidence is UNKNOWN; unapproved findings
+are HOLD even when Development checks pass. Readiness remains SHADOW ONLY,
+blocking_authority=false, Production Fast Lane disabled, Phase 2 not started,
+Promotion NOT_STARTED, with no automatic Human GO.
 
 ## Integration gate
 

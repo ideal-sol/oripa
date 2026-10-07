@@ -17,6 +17,14 @@ in this entry point. Existing Required Checks and Production workflows are
 unchanged. The separate Shadow workflow is not an input to any existing gate.
 Consumer tests also run in the existing release test suite in quality-gate.
 
+CI-20261007 shares `change.py` with Platform CI. Its Git source classifier and
+byte fingerprints produce canonical change records; they do not inspect a
+runtime. Explicit CI adapter calls may use the existing read-only source API
+transport for provenance and historical Security check/log evidence. The
+Readiness CLI itself remains an offline handoff consumer and performs no calls.
+See [Platform CI operations](../../../docs/operations/ci/README.md) for the
+Development semantics and evidence invalidation contract.
+
 ```bash
 python3 -m unittest tests.release.test_readiness
 python3 -m scripts.release.readiness \
@@ -89,6 +97,14 @@ Boolean assessment facts carry the existing validator or Human assessment
 result; they do not make new provider, accounting or security decisions.
 R4 reuses `infrastructure/github-app/check_run_gate.py` including latest-run,
 source-App and exact-head validation, with the canonical Required Check set.
+R4 also requires the bound `current_security_posture` fact carrying the canonical
+Security record. Missing/malformed records are UNKNOWN. Visible unapproved
+findings are HOLD even when all Development Required Checks succeeded.
+The optional bound `canonical_change` fact carries `change.py` output and is
+validated by that same module. Invalid classification uses NORMAL_STRICT_CI;
+canonical Application/Security/CI changes require Full. Authority-only still
+requires all existing runtime-exclusion and continuity proofs; classification
+alone never enables a Production operation or Production Fast Lane.
 Each Source Repository is mandatory even when another Repository's checks pass.
 Reviewed-tree reuse requires an explicit `source_sha`, matching exact
 `source_tree_sha` / `checked_tree_sha`, immutable `tree_evidence_reference`, and
