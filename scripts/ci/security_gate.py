@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from datetime import datetime, timezone
 import importlib.util
 import json
 from pathlib import Path
@@ -12,6 +13,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.release.readiness.change import classify, validate_change
+from scripts.release.readiness.records import canonical, digest, load, seal
 
 class SecurityFailure(RuntimeError):
     pass
@@ -78,7 +82,8 @@ def secret_candidates(repository: Path, paths: list[str]) -> list[dict]:
 
 
 def composer_findings(audit: dict, lock: dict) -> list[dict]:
-    if not isinstance(audit, dict) or "advisories" not in audit:
+    if (not isinstance(audit, dict) or "advisories" not in audit
+            or audit.get("error") or audit.get("errors") or audit.get("ignored-advisories")):
         raise SecurityFailure("composer audit advisories are missing")
     advisories_by_package = audit["advisories"]
     if advisories_by_package == []:
@@ -386,8 +391,10 @@ def partition_dev_tool_findings(
 
 
 def validate_dependency_audits(
-    repository: Path, audits: dict, statuses: dict, baseline: dict
+    repository: Path, audits: dict, statuses: dict, baseline: dict, change: dict | None = None
 ) -> dict:
+    if change is not None:
+        validate_change(change)
     sources = {"composer", "workspace-pnpm", "legacy-pnpm", "workspace-prod", "legacy-prod"}
     if (
         not isinstance(audits, dict) or set(audits) != sources
@@ -399,7 +406,13 @@ def validate_dependency_audits(
         json.loads((repository / "apps/api/composer.lock").read_text(encoding="utf-8")),
     )
     validate_audit_status(statuses["composer"], composer, "composer")
-    validate_dependency_baseline(composer, [], baseline)
+    validate_dependency_baseline([], [], baseline)
+    if change is None:
+        validate_dependency_baseline(composer, [], baseline)
+    visible = [{**finding, "scope": "composer", "path": "apps/api/composer.lock",
+                "runtime_scope": "RUNTIME" if any(package["name"] == finding["package"] for package in
+                    load(repository / "apps/api/composer.lock")["packages"]) else "DEV_ONLY",
+                "approved": finding in baseline["composer"]} for finding in composer]
     remaining = {}
     scopes = {}
     for scope, lock_path in (
@@ -410,14 +423,27 @@ def validate_dependency_audits(
         runtime = pnpm_findings(audits[scope + "-prod"], lock)
         validate_audit_status(statuses[scope + "-pnpm"], findings, scope)
         validate_audit_status(statuses[scope + "-prod"], runtime, scope + "-prod")
-        if runtime:
+        if runtime and change is None:
             raise SecurityFailure(f"{scope} runtime audit contains findings; no dev-tool exception applies")
         remaining[scope], scopes[scope] = partition_dev_tool_findings(
             repository, scope, findings, audits[scope + "-pnpm"], baseline
         )
         scopes[scope]["runtime_findings"] = len(runtime)
-    validate_workspace_pnpm_audit(remaining["workspace"])
-    summary = validate_dependency_baseline(composer, remaining["legacy"], baseline)
+        for finding in findings:
+            visible.append({**finding, "scope": scope,
+                            "runtime_scope": "RUNTIME" if finding in runtime else "DEV_ONLY",
+                            "approved": finding not in remaining[scope]
+                            or (scope == "legacy" and finding in baseline["pnpm"])})
+        for finding in runtime:
+            if finding not in findings:
+                raise SecurityFailure("runtime audit contradicts full audit inventory")
+            if any(item["advisory_id"] == finding["advisory_id"] for item in scopes[scope]["approved_dev_tool_advisories"]):
+                raise SecurityFailure("approved dev-tool advisory has runtime exposure")
+    if change is None:
+        validate_workspace_pnpm_audit(remaining["workspace"])
+        summary = validate_dependency_baseline(composer, remaining["legacy"], baseline)
+    else:
+        summary = {"composer_advisories": len(composer), "pnpm": {}}
     summary["pnpm_findings"] = scopes["legacy"]["current_findings"]
     summary["pnpm"]["current_findings"] = scopes["legacy"]["current_findings"]
     summary["pnpm"]["approved_exact_exceptions"] = scopes["legacy"]["approved_exact_exceptions"]
@@ -433,7 +459,30 @@ def validate_dependency_audits(
         finding["advisory_id"] for item in scopes.values()
         for finding in item["approved_dev_tool_advisories"]
     })
-    summary["unapproved_findings"] = 0
+    summary["unapproved_findings"] = sum(not item["approved"] for item in visible)
+    summary["current_security_findings"] = visible
+    if change is not None:
+        unapproved = summary["unapproved_findings"] > 0
+        unchanged = change["deltas"]["dependency_delta"] == "NONE"
+        summary.update({
+            "schema_version": "1.0", "producer": "scripts.ci.security_gate/v1",
+            "repository": change["repository"],
+            **{key: change[key] for key in ("base_sha", "head_sha", "tree_sha")},
+            "change_digest": change["record_digest"],
+            "dependency_fingerprint": change["head_components"]["dependency"],
+            "audit_input_digest": digest({"audits": audits, "statuses": statuses}, None),
+            "observed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "evidence_reference": change["evidence_reference"] + ":fresh-audits",
+            "dependency_delta": change["deltas"]["dependency_delta"],
+            "finding_classification": "UNCHANGED_DEPENDENCY_SECURITY_POSTURE" if unapproved and unchanged
+                else "PR_INTRODUCED_SECURITY_FINDING" if unapproved else "NO_UNAPPROVED_FINDINGS",
+            "development_security_result": "PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION" if unchanged
+                else "BLOCK_PR_INTRODUCED_SECURITY_FINDING" if unapproved else "PASS_FRESH_AUDITS",
+            "current_security_posture": "HOLD_UNAPPROVED_FINDING" if unapproved else "PASS_APPROVED_POLICY",
+            "security_maintenance_required": unapproved,
+            "advisory_db_drift": "NOT_PROVEN", "reuse": "NOT_PROVEN",
+        })
+        summary = seal(summary, "record_digest")
     return summary
 
 
@@ -512,6 +561,8 @@ def main() -> int:
     parser.add_argument("--workspace-prod-audit", type=Path, required=True)
     parser.add_argument("--legacy-prod-audit", type=Path, required=True)
     parser.add_argument("--audit-statuses", type=Path, required=True)
+    parser.add_argument("--change-evidence", type=Path)
+    parser.add_argument("--evidence-output", type=Path)
     arguments = parser.parse_args()
     repository = arguments.repository.resolve()
     try:
@@ -531,7 +582,7 @@ def main() -> int:
         validate_codex_rules(repository)
         validate_remote(repository)
         audits = {
-            name: json.loads(path.read_text(encoding="utf-8"))
+            name: load(path)
             for name, path in (
                 ("composer", arguments.composer_audit),
                 ("workspace-pnpm", arguments.workspace_pnpm_audit),
@@ -540,11 +591,32 @@ def main() -> int:
                 ("legacy-prod", arguments.legacy_prod_audit),
             )
         }
-        baseline = json.loads(arguments.baseline.read_text(encoding="utf-8"))
-        statuses = json.loads(arguments.audit_statuses.read_text(encoding="utf-8"))
+        baseline = load(arguments.baseline)
+        statuses = load(arguments.audit_statuses)
+        change = None
+        if arguments.change_evidence:
+            change = validate_change(load(arguments.change_evidence))
+            actual = classify(repository, change["base_sha"], git_output(repository, "rev-parse", "HEAD").strip())
+            if actual != change:
+                raise SecurityFailure("classification evidence does not match current source")
+            for path in change["dependency_inputs"]["head"]:
+                if (repository / path).read_bytes() != subprocess.check_output(
+                    ["git", "-C", str(repository), "show", change["head_sha"] + ":" + path]
+                ):
+                    raise SecurityFailure("dependency audit input differs from classified bytes")
+            baseline_path = ".ci/baselines/dependency-advisories.json"
+            if (arguments.baseline.resolve() != (repository / baseline_path).resolve()
+                    or git_output(repository, "show", change["base_sha"] + ":" + baseline_path)
+                    != arguments.baseline.read_text(encoding="utf-8")):
+                raise SecurityFailure("security baseline changes require separate Human review")
         dependency_summary = validate_dependency_audits(
-            repository, audits, statuses, baseline
+            repository, audits, statuses, baseline, change
         )
+        if arguments.evidence_output:
+            arguments.evidence_output.write_bytes(canonical(dependency_summary))
+        if dependency_summary.get("development_security_result", "").startswith("BLOCK"):
+            print(json.dumps(dependency_summary, sort_keys=True))
+            raise SecurityFailure("PR-introduced dependency finding")
     except (
         OSError,
         ValueError,
