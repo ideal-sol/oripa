@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "BANNERPICKER-20261007",
-  "source_pr": 550,
-  "source_sha": "b3a575da886805f31eeb4867cc58be2f3461e826",
+  "task_id": "PRIZECSV-20261007",
+  "source_pr": 549,
+  "source_sha": "c4eaca6cc2a851a7da937bf0b499bd3bfb6af5e7",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR #550 BANNERPICKER-20261007 squash merge; Authority Sync candidate for Human review; future activation scope Admin only after the required Human/Canonical boundary; normal API/Admin artifact inventory retained for provenance, API runtime unchanged; no migration, Storefront or Production operations; Production not authorized",
+  "authority": "Human-approved exact OLD Test payload: PR #549 PRIZECSV-20261007 squash merge; Authority Sync candidate for Human review; Source Merge only approved, activation and Performance Acceptance NOT authorized; future API + Admin requires Human review and isolated synthetic HTTP/constraint preflight; 317.173s Apply / 314.985s constraint risk unresolved; no artifact dispatch before review; no migration, 000081 rerun, Storefront or Production operations; existing F1 runtime preserved; Production not authorized",
   "activation_authorized": false
 }
