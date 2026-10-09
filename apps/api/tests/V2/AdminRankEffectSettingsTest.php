@@ -262,6 +262,33 @@ final class AdminRankEffectSettingsTest extends TestCase
         }
     }
 
+    public function test_s3_fake_uploads_preserve_bytes_metadata_and_private_cdn_preview(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.default' => 's3', 'v2_assets.public_base_url' => 'https://cdn.example.test']);
+        $token = $this->createAdminSession(V2AdminRole::Owner);
+        foreach (['image' => $this->imageInput(), 'video' => $this->videoInput()] as $type => $input) {
+            Auth::forgetGuards();
+            $created = $this->mutate($token, 'POST', '/admin/api/v2/catalog/rank-effects', [
+                'title' => 'CDN '.$type, 'asset_type' => $type, 'is_active' => false, ...$input,
+            ])->assertCreated()->assertJsonPath('data.is_public', false)->json('data');
+            $row = DB::table('catalog_presentation_assets')->where('public_id', $created['id'])->firstOrFail();
+            $bytes = base64_decode($input['content_base64'], true);
+            self::assertStringStartsWith('admin-assets/rank-effects/', $row->storage_identifier);
+            self::assertSame($bytes, Storage::disk('s3')->get($row->storage_identifier));
+            self::assertSame(strlen($bytes), (int) $row->byte_size);
+            self::assertSame(hash('sha256', $bytes), $row->checksum_sha256);
+            self::assertSame($input['mime_type'], $row->mime_type);
+            self::assertSame(substr($row->storage_identifier, strlen('admin-assets')), $created['public_path']);
+            self::assertSame($created['public_path'], $created['content_path']);
+            self::assertStringStartsWith('/admin/api/', $row->public_path);
+            Storage::disk('local')->assertMissing($row->storage_identifier);
+            Auth::forgetGuards();
+            $this->asAdmin($token)->get('/admin/api/v2/catalog/presentation-assets/'.$created['id'].'/content')
+                ->assertNotFound();
+        }
+    }
+
     private function imageInput(): array
     {
         return [
