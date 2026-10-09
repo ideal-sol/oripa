@@ -12,6 +12,9 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  previewAdminGachaPrizeImport: ["post", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports/preview"],
+  applyAdminGachaPrizeImport: ["post", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports"],
+  listAdminGachaPrizeImports: ["get", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports"],
   createAdminGachaComposition: ["post", "/catalog/gacha-compositions"],
   getAdminGachaComposition: ["get", "/catalog/gachas/{gacha_id}/composition"],
   updateAdminGachaComposition: ["put", "/catalog/gachas/{gacha_id}/composition"],
@@ -567,6 +570,12 @@ const requiredSchemas = [
   "QaGachaGuaranteeAssignment",
   "QaGachaGuaranteeCollection",
   "QaGachaGuaranteeSave",
+  "AdminPrizeImportInput",
+  "AdminPrizeImportApplyInput",
+  "AdminPrizeImportPlan",
+  "AdminPrizeImportResult",
+  "AdminPrizeImportHistory",
+  "AdminPrizeImportValidation",
   "AdminCatalogCategory",
   "AdminCatalogCategoryCreate",
   "AdminCatalogCategoryMutationResult",
@@ -2183,6 +2192,51 @@ export interface AdminCompositionPrize {
   initial_inventory: number;
   shipping_only: boolean;
   percentage: string | null;
+}
+
+export interface AdminPrizeImportInput {
+  file_name: string;
+  content_base64: string;
+  expected_version_revision: number;
+}
+export interface AdminPrizeImportApplyInput extends AdminPrizeImportInput {
+  plan_checksum: string;
+}
+export interface AdminPrizeImportSummary {
+  create: number;
+  update: number;
+  unchanged: number;
+}
+export interface AdminPrizeImportMessage {
+  row: number | null;
+  column: string | null;
+  code: string;
+  message: string;
+  items?: { external_id: string | null; name: string; rank: string; quantity: number }[];
+}
+export interface AdminPrizeImportValidation {
+  code: "CSV_VALIDATION_FAILED";
+  errors: AdminPrizeImportMessage[];
+  error_count: number;
+}
+export interface AdminPrizeImportPlan {
+  plan_checksum: string;
+  summary: AdminPrizeImportSummary;
+  rows: {
+    row: number;
+    external_id: string;
+    action: "create" | "update" | "unchanged";
+    changes: { field: string; before: string | number | boolean | null; after: string | number | boolean | null }[];
+  }[];
+  warnings: AdminPrizeImportMessage[];
+}
+export interface AdminPrizeImportResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number; summary: AdminPrizeImportSummary };
+  idempotent_replay: boolean;
+}
+export interface AdminPrizeImportHistory {
+  items: { id: string; actor_public_id: string; occurred_at: string; file_name: string; summary: AdminPrizeImportSummary }[];
+  next_before: string | null;
 }
 
 export interface AdminGachaComposition {

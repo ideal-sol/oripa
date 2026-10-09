@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 9d2511cbb61bc7391cd80064aca12ec88428321c496a2cd82af9a6a23fa082df
+// Contract SHA-256: 3f49b503e187297dafdfa33c658d59a5e4381de3025b9be3cb1973253b36d927
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1545,6 +1545,51 @@ export interface AdminCompositionPrize {
   initial_inventory: number;
   shipping_only: boolean;
   percentage: string | null;
+}
+
+export interface AdminPrizeImportInput {
+  file_name: string;
+  content_base64: string;
+  expected_version_revision: number;
+}
+export interface AdminPrizeImportApplyInput extends AdminPrizeImportInput {
+  plan_checksum: string;
+}
+export interface AdminPrizeImportSummary {
+  create: number;
+  update: number;
+  unchanged: number;
+}
+export interface AdminPrizeImportMessage {
+  row: number | null;
+  column: string | null;
+  code: string;
+  message: string;
+  items?: { external_id: string | null; name: string; rank: string; quantity: number }[];
+}
+export interface AdminPrizeImportValidation {
+  code: "CSV_VALIDATION_FAILED";
+  errors: AdminPrizeImportMessage[];
+  error_count: number;
+}
+export interface AdminPrizeImportPlan {
+  plan_checksum: string;
+  summary: AdminPrizeImportSummary;
+  rows: {
+    row: number;
+    external_id: string;
+    action: "create" | "update" | "unchanged";
+    changes: { field: string; before: string | number | boolean | null; after: string | number | boolean | null }[];
+  }[];
+  warnings: AdminPrizeImportMessage[];
+}
+export interface AdminPrizeImportResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number; summary: AdminPrizeImportSummary };
+  idempotent_replay: boolean;
+}
+export interface AdminPrizeImportHistory {
+  items: { id: string; actor_public_id: string; occurred_at: string; file_name: string; summary: AdminPrizeImportSummary }[];
+  next_before: string | null;
 }
 
 export interface AdminGachaComposition {

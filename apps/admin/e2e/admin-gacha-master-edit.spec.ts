@@ -466,6 +466,79 @@ function qaAssignment(): AdminQaGachaGuaranteeAssignment {
   };
 }
 
+for (const width of [1440, 390]) {
+  test(`F3 CSV ${width}px previews confirms applies reloads and displays history`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 850 });
+    let revision = 4;
+    let applyCount = 0;
+    let prizeLoads = 0;
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, (route) => json(route, { data: { ...gacha(), first_published_at: null } }));
+    await page.route(`**/versions/${versionId}/prizes`, (route) => { prizeLoads++; return json(route, { items: [prize()], version_revision: revision }); });
+    const summary = { create: 1, update: 1, unchanged: 0 };
+    await page.route("**/prize-imports/preview", (route) => {
+      expect(route.request().headers()["idempotency-key"]).toBeUndefined();
+      expect(route.request().postDataJSON().expected_version_revision).toBe(4);
+      return json(route, { plan_checksum: "a".repeat(64), summary, rows: [{ row: 2, external_id: "CARD-001", action: "update", changes: [{ field: "exchange_points", before: 100, after: 200 }] }], warnings: [{ row: 2, column: "カード名", code: "CARD_NAME_MISMATCH", message: "ライブラリ名と異なります。" }] });
+    });
+    await page.route("**/prize-imports", (route) => {
+      if (route.request().method() === "GET") return json(route, { items: [{ id: uuid("9"), actor_public_id: uuid("0"), occurred_at: "2026-10-07T00:00:00Z", file_name: "prizes.csv", summary }], next_before: null });
+      expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+      expect(route.request().postDataJSON().plan_checksum).toBe("a".repeat(64));
+      revision = 5; applyCount++;
+      return json(route, { data: { id: uuid("9"), gacha_version_id: versionId, gacha_version_revision: revision, summary }, idempotent_replay: false });
+    });
+    await page.goto(`/gachas/${gachaCode}/edit`);
+    await page.getByText("CSVで取り込む", { exact: true }).click();
+    await page.getByLabel(/景品CSV/u).setInputFiles({ name: "prizes.csv", mimeType: "text/csv", buffer: Buffer.from("管理ID,ランク,枚数,交換ポイント,原価\nCARD-001,S,1,200,10") });
+    await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+    await expect(page.getByText("交換ポイント：100 → 200")).toBeVisible();
+    await expect(page.getByText(/ライブラリ名と異なります/u)).toBeVisible();
+    await page.getByRole("button", { name: "取込を確認" }).click();
+    const confirmation = page.getByRole("dialog", { name: "CSVの差分を適用しますか" });
+    await expect(confirmation).toBeInViewport();
+    await confirmation.getByRole("button", { name: "取り込む", exact: true }).click();
+    await expect(page.getByText(/取込完了：追加 1件/u)).toBeVisible();
+    await expect(page.getByText(/prizes.csv：追加 1件/u)).toBeVisible();
+    expect(applyCount).toBe(1);
+    expect(prizeLoads).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+test("F3 Operator with catalog.read cannot see import or history operations", async ({ page }) => {
+  await page.route("**/auth/permissions", (route) => json(route, { permissions: ["catalog.read"], request_id: uuid("9"), role: "operator" }));
+  await page.route("**/auth/session", (route) => json(route, {
+    admin: { id: uuid("9"), mfa_verified: true, role: "operator", state: "active" },
+    authenticated: true, mfa_required: false, requires_mfa_enrollment: false,
+  }));
+  await page.goto(`/catalog/gachas/${gachaCode}`);
+  await expect(page.getByRole("heading", { level: 1, name: "編集対象ガチャ", exact: true })).toBeVisible();
+  await expect(page.getByText("CSVで取り込む", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "取込履歴" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "景品Sを編集" })).toHaveCount(0);
+});
+
+test("F3 CSV validation blocks apply and replacing file invalidates preview", async ({ page }) => {
+  await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, (route) => json(route, { data: { ...gacha(), first_published_at: null } }));
+  let previews = 0;
+  await page.route("**/prize-imports/preview", (route) => {
+    previews++;
+    return previews === 1 ? json(route, { code: "CSV_VALIDATION_FAILED", errors: [{ row: 2, column: "ランク", code: "RANK_NOT_FOUND", message: "ランクがありません。" }], error_count: 1 }, 422)
+      : json(route, { plan_checksum: "a".repeat(64), summary: { create: 0, update: 1, unchanged: 0 }, rows: [], warnings: [] });
+  });
+  await page.goto(`/gachas/${gachaCode}/edit`);
+  await page.getByText("CSVで取り込む", { exact: true }).click();
+  const file = { name: "prizes.csv", mimeType: "text/csv", buffer: Buffer.from("synthetic CSV") };
+  await page.getByLabel(/景品CSV/u).setInputFiles(file);
+  await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+  await expect(page.getByText(/ランクがありません/u)).toBeVisible();
+  await expect(page.getByRole("button", { name: "取込を確認" })).toHaveCount(0);
+  await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+  await expect(page.getByRole("button", { name: "取込を確認" })).toBeVisible();
+  await page.getByLabel(/景品CSV/u).setInputFiles({ ...file, name: "replacement.csv" });
+  await expect(page.getByRole("button", { name: "取込を確認" })).toHaveCount(0);
+});
+
 function gacha() {
   return {
     archived_at: null,

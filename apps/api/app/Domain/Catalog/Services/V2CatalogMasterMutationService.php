@@ -21,6 +21,8 @@ use Illuminate\Support\Str;
 
 final class V2CatalogMasterMutationService
 {
+    use V2PrizeImportMutations;
+
     private const CANONICAL_PROBABILITY_STAGE_CODE = '__canonical_inventory_v1';
 
     private const GACHA_SALES_PAUSE_REASONS = [
@@ -1855,25 +1857,12 @@ final class V2CatalogMasterMutationService
                     $payload['expected_version_revision']
                 );
                 $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
-                if ($master->status !== 'active') {
-                    throw new V2CatalogException(
-                        'CATALOG_RANK_INACTIVE',
-                        409,
-                        'Inactive Rank Masters cannot receive Prizes.'
-                    );
-                }
                 $gachaRank = DB::table('catalog_gacha_ranks')
                     ->where('gacha_id', $gacha->id)
                     ->where('rank_master_id', $master->id)
                     ->lockForUpdate()
                     ->first();
-                if ($gachaRank === null || $gachaRank->current_video_revision_id === null) {
-                    throw new V2CatalogException(
-                        'CATALOG_GACHA_RANK_VIDEO_REQUIRED',
-                        409,
-                        'Select an animation video before registering a Prize.'
-                    );
-                }
+                V2GachaPrizeRules::assertRankReady($master, $gachaRank);
                 $this->assertGachaInventoryCapacity(
                     (int) $version->id,
                     (int) $version->total_count,
@@ -1884,66 +1873,11 @@ final class V2CatalogMasterMutationService
                 if ($asset !== null && $asset->media_type !== 'image') {
                     throw $this->validationException();
                 }
-                $now = now()->startOfSecond();
-                $publicId = (string) Str::uuid7();
-                $code = 'prize-'.str_replace('-', '', $publicId);
-                DB::table('catalog_prizes')->insert([
-                    'public_id' => $publicId,
-                    'code' => $code,
-                    'external_id' => $payload['external_id'] ?? null,
-                    'gacha_id' => $gacha->id,
-                    'rank_id' => null,
-                    'gacha_rank_id' => $gachaRank->id,
-                    'presentation_asset_id' => $asset?->id,
-                    'display_name' => $payload['name'],
-                    'description' => null,
-                    'display_price' => 0,
-                    'exchange_points' => $payload['exchange_points'],
-                    'shipping_only' => $payload['shipping_only'] ?? false,
-                    'cost_price' => $payload['cost_price'],
-                    'is_visible' => $payload['is_active'],
-                    'revision' => 1,
-                    'archived_at' => null,
-                    'created_at' => V2DatabaseTimestamp::format($now),
-                    'updated_at' => V2DatabaseTimestamp::format($now),
-                ]);
-                $prize = $this->find('catalog_prizes', $publicId, true);
-                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'] ?? null, $context, true);
                 $sortOrder = (int) DB::table('catalog_gacha_version_prizes')
-                    ->where('gacha_version_id', $version->id)
-                    ->max('sort_order') + 1;
-                $relationId = DB::table('catalog_gacha_version_prizes')->insertGetId([
-                    'gacha_version_id' => $version->id,
-                    'prize_id' => $prize->id,
-                    'rank_id' => null,
-                    'gacha_rank_id' => $gachaRank->id,
-                    'rank_code' => null,
-                    'rank_display_name' => null,
-                    'rank_sort_order' => null,
-                    'presentation_asset_id' => $asset?->id,
-                    'display_name' => $payload['name'],
-                    'description' => null,
-                    'display_price' => 0,
-                    'exchange_points' => $payload['exchange_points'],
-                    'shipping_only' => $payload['shipping_only'] ?? false,
-                    'cost_price' => $payload['cost_price'],
-                    'is_visible' => $payload['is_active'],
-                    'initial_inventory' => $payload['total_inventory'],
-                    'sort_order' => $sortOrder,
-                    'created_at' => V2DatabaseTimestamp::format($now),
-                    'updated_at' => V2DatabaseTimestamp::format($now),
-                ]);
-                DB::table('prize_inventories')->insert([
-                    'gacha_draw_state_id' => null,
-                    'gacha_version_prize_id' => $relationId,
-                    'total_quantity' => $payload['total_inventory'],
-                    'awarded_count' => 0,
-                    'available_quantity' => $payload['total_inventory'],
-                    'withdrawn_quantity' => 0,
-                    'lock_version' => 0,
-                    'created_at' => V2DatabaseTimestamp::format($now),
-                    'updated_at' => V2DatabaseTimestamp::format($now),
-                ]);
+                    ->where('gacha_version_id', $version->id)->max('sort_order') + 1;
+                $prize = $this->insertRankPrize($gacha, $version, $gachaRank, $asset, [...$payload, 'sort_order' => $sortOrder]);
+                $publicId = $prize->public_id;
+                app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'] ?? null, $context, true);
                 $this->incrementGachaVersionRevision($version);
 
                 return $this->find('catalog_prizes', $publicId, false);
@@ -3762,7 +3696,8 @@ final class V2CatalogMasterMutationService
         int $status,
         callable $mutation,
         bool $enqueueOutbox = true,
-        ?callable $mapper = null
+        ?callable $mapper = null,
+        bool $recordFailure = true
     ): array {
         if ($idempotencyKey === '' || strlen($idempotencyKey) > 255) {
             throw new V2CatalogException(
@@ -3833,6 +3768,7 @@ final class V2CatalogMasterMutationService
                     'archive' => 'archived',
                     'clone' => 'cloned',
                     'discard' => 'discarded',
+                    'prize_import' => 'prizes_imported',
                     'validate' => 'validated',
                     'publish_preflight' => 'publish_preflight_completed',
                     'gacha_publish_preflight' =>
@@ -3867,7 +3803,9 @@ final class V2CatalogMasterMutationService
                         'Unsupported Catalog mutation action.'
                     ),
                 };
-                $targetPublicId = is_string($data['id'] ?? null)
+                $targetPublicId = $action === 'prize_import'
+                    ? $data['gacha_version_id']
+                    : (is_string($data['id'] ?? null)
                     ? $data['id']
                     : (is_string($data['gacha_version_id'] ?? null)
                         ? $data['gacha_version_id']
@@ -3877,7 +3815,7 @@ final class V2CatalogMasterMutationService
                                 ? $data['sales_state']['gacha_id']
                                 : (is_string($data['state']['gacha_id'] ?? null)
                                     ? $data['state']['gacha_id']
-                                    : null))));
+                                    : null)))));
                 $preflightBlocked = in_array(
                     $action,
                     [
@@ -3955,7 +3893,7 @@ final class V2CatalogMasterMutationService
                                 ?? $data['gacha_version_revision']
                                 ?? $data['gacha_revision']
                                 ?? null,
-                            ...isset($data['id'], $data['gacha_version_id'])
+                            ...($action !== 'prize_import' && isset($data['id'], $data['gacha_version_id']))
                                 ? ['schedule_public_id' => $data['id']]
                                 : [],
                             ...isset($data['current_published_version'])
@@ -3993,6 +3931,9 @@ final class V2CatalogMasterMutationService
                 ];
             }, $attempts);
         } catch (V2CatalogException $exception) {
+            if (! $recordFailure) {
+                throw $exception;
+            }
             $this->recordAudit(
                 $this->failureAuditAction($exception),
                 $context,
@@ -4005,6 +3946,9 @@ final class V2CatalogMasterMutationService
             throw $exception;
         } catch (QueryException $exception) {
             $mapped = $this->queryException($exception);
+            if (! $recordFailure) {
+                throw $mapped;
+            }
             $this->recordAudit(
                 $this->failureAuditAction($mapped),
                 $context,
@@ -5528,7 +5472,8 @@ final class V2CatalogMasterMutationService
         array $payload,
         V2AdminAuthorizationContext $context,
         Admin $admin,
-        string $idempotencyKey
+        string $idempotencyKey,
+        ?array &$auditBatch = null
     ): void {
         if (
             $gacha->archived_at !== null
@@ -5550,6 +5495,16 @@ final class V2CatalogMasterMutationService
             ->where('gacha_version_prize_id', $relation->id)
             ->lockForUpdate()
             ->first();
+        if ($inventory === null && $gacha->first_published_at === null && $version->status === 'draft'
+            && $gacha->active_draw_state_id === null && $payload['adjust_inventory']
+            && $payload['expected_inventory_revision'] === 0) {
+            $timestamp = V2DatabaseTimestamp::format(now()->startOfSecond());
+            $initial = ['gacha_draw_state_id' => null, 'gacha_version_prize_id' => $relation->id,
+                'total_quantity' => (int) $relation->initial_inventory, 'awarded_count' => 0,
+                'available_quantity' => (int) $relation->initial_inventory, 'withdrawn_quantity' => 0,
+                'lock_version' => 0, 'created_at' => $timestamp, 'updated_at' => $timestamp];
+            $inventory = (object) [...$initial, 'id' => DB::table('prize_inventories')->insertGetId($initial)];
+        }
         if (
             $inventory === null
             || (
@@ -5656,7 +5611,8 @@ final class V2CatalogMasterMutationService
                 'after_withdrawn_quantity' => $withdrawn,
                 'after_lock_version' => $afterLockVersion,
                 'reason' => $payload['inventory_reason'],
-            ]
+            ],
+            $auditBatch
         );
     }
 
@@ -6741,12 +6697,11 @@ final class V2CatalogMasterMutationService
             )
             ->sum('inventory.total_quantity');
         $prospective = $prospectiveInventory ?? 0;
-        if (
-            (int) $snapshot + ($updatesSnapshot ? $prospective : 0) > $totalCount
-            || (int) $operational + $prospective > $totalCount
-        ) {
-            throw $this->gachaInventoryCapacityException();
-        }
+        V2GachaPrizeRules::assertCapacity(
+            (int) $snapshot + ($updatesSnapshot ? $prospective : 0),
+            (int) $operational + $prospective,
+            $totalCount
+        );
     }
 
     private function gachaInventoryCapacityException(): V2CatalogException
@@ -9912,9 +9867,10 @@ final class V2CatalogMasterMutationService
         string $outcome,
         string $reason,
         ?string $targetPublicId = null,
-        array $metadata = []
+        array $metadata = [],
+        ?array &$auditBatch = null
     ): void {
-        $this->audit->record($event, [
+        $attributes = [
             'request_id' => $context->requestId,
             'actor_type' => 'admin',
             'actor_public_id' => $admin->public_id,
@@ -9927,7 +9883,12 @@ final class V2CatalogMasterMutationService
             'outcome' => $outcome,
             'reason_code' => $reason,
             'metadata' => $metadata,
-        ]);
+        ];
+        if ($auditBatch !== null) {
+            $auditBatch[] = ['action_code' => $event, 'attributes' => [...$attributes, 'occurred_at' => now()]];
+        } else {
+            $this->audit->record($event, $attributes);
+        }
     }
 
     private function rankVideoDefaultConflict(): V2CatalogException

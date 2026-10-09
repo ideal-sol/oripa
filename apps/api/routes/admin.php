@@ -227,6 +227,12 @@ Route::prefix('v2')
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.rank-effects.show');
         Route::put('/catalog/rank-effects/{catalogResourceId}', [V2AdminCatalogController::class, 'updateRankEffect'])
             ->whereUuid('catalogResourceId')->name('v2.admin.catalog.rank-effects.update');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/prize-imports/preview', [V2AdminCatalogController::class, 'previewPrizeImport'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->name('v2.admin.catalog.prize-imports.preview');
+        Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/prize-imports', [V2AdminCatalogController::class, 'applyPrizeImport'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->name('v2.admin.catalog.prize-imports.apply');
+        Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/prize-imports', [V2AdminCatalogController::class, 'prizeImportHistory'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->name('v2.admin.catalog.prize-imports.index');
         Route::get('/catalog/gachas', [V2AdminCatalogController::class, 'gachas'])
             ->name('v2.admin.catalog.gachas.index');
         Route::post('/catalog/gachas', [V2AdminCatalogController::class, 'createGacha'])

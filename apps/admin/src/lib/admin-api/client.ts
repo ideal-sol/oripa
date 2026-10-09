@@ -1,5 +1,11 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminPrizeImportInput,
+  type AdminPrizeImportApplyInput,
+  type AdminPrizeImportPlan,
+  type AdminPrizeImportResult,
+  type AdminPrizeImportHistory,
+  type AdminPrizeImportValidation,
   type AdminAgencyUserAggregate,
   type AdminAgencySalesAggregate,
   type AdminEffectivePermissions,
@@ -371,6 +377,7 @@ export class AdminApiError extends Error {
     readonly requestId: string | null,
     readonly retryAfter: number | null,
     readonly retryable: boolean,
+    readonly csvValidation: AdminPrizeImportValidation | null = null,
   ) {
     super(publicErrorMessage(status, code));
     this.name = "AdminApiError";
@@ -1758,6 +1765,18 @@ export class AdminApiClient {
     return this.gachaRankMutation(
       "POST", gachaId, rankId, "video/unset", body, idempotencyKey, signal,
     );
+  }
+
+  previewPrizeImport(gachaId: string, versionId: string, body: AdminPrizeImportInput): Promise<AdminPrizeImportPlan> {
+    return this.request("POST", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/prize-imports/preview`, { body });
+  }
+
+  applyPrizeImport(gachaId: string, versionId: string, body: AdminPrizeImportApplyInput, idempotencyKey: string): Promise<AdminPrizeImportResult> {
+    return this.request("POST", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/prize-imports`, { body, idempotencyKey });
+  }
+
+  listPrizeImports(gachaId: string, versionId: string, before?: string): Promise<AdminPrizeImportHistory> {
+    return this.request("GET", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/prize-imports${before ? `?before=${encodeURIComponent(before)}` : ""}`, {});
   }
 
   listGachaVersionPrizes(
@@ -3342,10 +3361,10 @@ async function toAdminApiError(
   response: Response,
   requestId: string,
 ): Promise<AdminApiError> {
-  let problem: ProblemDetails = {};
+  let problem: ProblemDetails & Partial<Pick<AdminPrizeImportValidation, "errors" | "error_count">> = {};
   const contentType = response.headers.get("Content-Type") ?? "";
   if (contentType.includes("application/problem+json") || contentType.includes("application/json")) {
-    problem = (await response.json().catch(() => ({}))) as ProblemDetails;
+    problem = (await response.json().catch(() => ({}))) as typeof problem;
   }
   const retryHeader = response.headers.get("Retry-After");
   const retryAfter =
@@ -3357,6 +3376,9 @@ async function toAdminApiError(
     problem.request_id ?? requestId,
     retryAfter,
     problem.retryable === true,
+    problem.code === "CSV_VALIDATION_FAILED" && Array.isArray(problem.errors) && typeof problem.error_count === "number"
+      ? { code: "CSV_VALIDATION_FAILED", errors: problem.errors, error_count: problem.error_count }
+      : null,
   );
 }
 

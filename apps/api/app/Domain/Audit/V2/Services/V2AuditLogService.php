@@ -21,58 +21,83 @@ final class V2AuditLogService
      */
     public function record(string $actionCode, array $attributes = []): AuditLog
     {
-        $this->assertCode($actionCode, 128, 'Audit action code');
+        return $this->recordBatch([['action_code' => $actionCode, 'attributes' => $attributes]])[0];
+    }
 
-        return DB::transaction(function () use ($actionCode, $attributes): AuditLog {
+    public function recordBatch(array $entries): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        return DB::transaction(function () use ($entries): array {
             $this->lockChain();
-            $previous = AuditLog::query()->orderByDesc('id')->lockForUpdate()->first();
-            $applicationTimezone = config('app.timezone');
-            if (! is_string($applicationTimezone) || $applicationTimezone === '') {
-                throw new RuntimeException('Application timezone is invalid.');
+            $previousHash = AuditLog::query()->orderByDesc('id')->lockForUpdate()->value('record_hash');
+            $rows = [];
+            $publicIds = [];
+            foreach ($entries as $entry) {
+                $record = $this->prepareRecord($entry['action_code'], $entry['attributes'] ?? [], $previousHash);
+                $rows[] = $record->getAttributes();
+                $publicIds[] = $record->public_id;
+                $previousHash = $record->record_hash;
             }
-            $occurredAt = CarbonImmutable::parse($attributes['occurred_at'] ?? now())
-                ->setTimezone($applicationTimezone)
-                ->startOfSecond();
-            $timezone = config('v2_audit.business_timezone');
-            if (! is_string($timezone) || $timezone === '') {
-                throw new RuntimeException('Audit business timezone is invalid.');
+            foreach (array_chunk($rows, 200) as $chunk) {
+                DB::table('audit_logs')->insert($chunk);
             }
-            $keyVersion = $this->hasher->activeKeyVersion();
-            $data = [
-                'public_id' => (string) Str::uuid(),
-                'occurred_at' => $occurredAt,
-                'business_date' => $occurredAt->setTimezone($timezone)->toDateString(),
-                'request_id' => $this->requestId($attributes['request_id'] ?? null),
-                'actor_type' => $this->value($attributes, 'actor_type', 'system', 16),
-                'actor_public_id' => $this->nullableUuid($attributes['actor_public_id'] ?? null),
-                'actor_role' => $this->nullableCode($attributes['actor_role'] ?? null, 32),
-                'auth_realm' => $this->nullableCode($attributes['auth_realm'] ?? null, 16),
-                'session_correlation_hash' => $this->nullableHash(
-                    $attributes['session_correlation_hash'] ?? null
-                ),
-                'action_code' => $actionCode,
-                'target_type' => $this->nullableCode($attributes['target_type'] ?? null, 64),
-                'target_public_id' => $this->nullableUuid($attributes['target_public_id'] ?? null),
-                'outcome' => $this->value($attributes, 'outcome', 'success', 16),
-                'reason_code' => $this->nullableCode($attributes['reason_code'] ?? null, 64),
-                'reason_text' => $this->nullableText($attributes['reason_text'] ?? null, 500),
-                'before_redacted' => $this->nullablePayload($attributes['before'] ?? null),
-                'after_redacted' => $this->nullablePayload($attributes['after'] ?? null),
-                'metadata_redacted' => (object) $this->redactor->sanitize(
-                    $attributes['metadata'] ?? null
-                ),
-                'ip_correlation_hash' => $this->correlation($attributes['ip'] ?? null),
-                'user_agent_hash' => $this->correlation($attributes['user_agent'] ?? null),
-                'hmac_key_version' => $keyVersion,
-                'previous_hash' => $previous?->record_hash,
-            ];
-            $data['record_hash'] = $this->hasher->digest($this->hashPayload($data), $keyVersion);
-            $record = new AuditLog();
-            $record->forceFill($data);
-            $record->save();
+            $stored = AuditLog::query()->whereIn('public_id', $publicIds)->get()->keyBy('public_id');
 
-            return $record->refresh();
+            return array_map(static fn (string $publicId): AuditLog => $stored->get($publicId), $publicIds);
         }, 3);
+    }
+
+    private function prepareRecord(string $actionCode, array $attributes, ?string $previousHash): AuditLog
+    {
+        $this->assertCode($actionCode, 128, 'Audit action code');
+        $applicationTimezone = config('app.timezone');
+        if (! is_string($applicationTimezone) || $applicationTimezone === '') {
+            throw new RuntimeException('Application timezone is invalid.');
+        }
+        $occurredAt = CarbonImmutable::parse($attributes['occurred_at'] ?? now())
+            ->setTimezone($applicationTimezone)
+            ->startOfSecond();
+        $timezone = config('v2_audit.business_timezone');
+        if (! is_string($timezone) || $timezone === '') {
+            throw new RuntimeException('Audit business timezone is invalid.');
+        }
+        $keyVersion = $this->hasher->activeKeyVersion();
+        $data = [
+            'public_id' => (string) Str::uuid(),
+            'occurred_at' => $occurredAt,
+            'business_date' => $occurredAt->setTimezone($timezone)->toDateString(),
+            'request_id' => $this->requestId($attributes['request_id'] ?? null),
+            'actor_type' => $this->value($attributes, 'actor_type', 'system', 16),
+            'actor_public_id' => $this->nullableUuid($attributes['actor_public_id'] ?? null),
+            'actor_role' => $this->nullableCode($attributes['actor_role'] ?? null, 32),
+            'auth_realm' => $this->nullableCode($attributes['auth_realm'] ?? null, 16),
+            'session_correlation_hash' => $this->nullableHash(
+                $attributes['session_correlation_hash'] ?? null
+            ),
+            'action_code' => $actionCode,
+            'target_type' => $this->nullableCode($attributes['target_type'] ?? null, 64),
+            'target_public_id' => $this->nullableUuid($attributes['target_public_id'] ?? null),
+            'outcome' => $this->value($attributes, 'outcome', 'success', 16),
+            'reason_code' => $this->nullableCode($attributes['reason_code'] ?? null, 64),
+            'reason_text' => $this->nullableText($attributes['reason_text'] ?? null, 500),
+            'before_redacted' => $this->nullablePayload($attributes['before'] ?? null),
+            'after_redacted' => $this->nullablePayload($attributes['after'] ?? null),
+            'metadata_redacted' => (object) $this->redactor->sanitize(
+                $attributes['metadata'] ?? null
+            ),
+            'ip_correlation_hash' => $this->correlation($attributes['ip'] ?? null),
+            'user_agent_hash' => $this->correlation($attributes['user_agent'] ?? null),
+            'hmac_key_version' => $keyVersion,
+            'previous_hash' => $previousHash,
+        ];
+        $data['record_hash'] = $this->hasher->digest($this->hashPayload($data), $keyVersion);
+        $record = new AuditLog();
+        $record->forceFill($data);
+
+        return $record;
     }
 
     /**

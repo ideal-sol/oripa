@@ -9,7 +9,8 @@ final class V2CatalogException extends RuntimeException
     public function __construct(
         public readonly string $errorCode,
         public readonly int $status,
-        string $message
+        string $message,
+        public readonly array $details = []
     ) {
         parent::__construct($message);
     }
