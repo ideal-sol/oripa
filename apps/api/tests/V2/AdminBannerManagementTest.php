@@ -343,6 +343,41 @@ final class AdminBannerManagementTest extends TestCase
     }
 
     /** @return array<string, string> */
+    public function test_s3_banner_upload_and_admin_url_normalization_keep_db_identity(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.default' => 's3', 'v2_assets.public_base_url' => 'https://cdn.example.test']);
+        $input = $this->imageInput('cdn-banner.png');
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $asset = $service->uploadBannerAsset($context, $input, 'cdn-banner-'.Str::uuid7());
+        $row = DB::table('catalog_presentation_assets')->where('public_id', $asset['id'])->firstOrFail();
+        $bytes = base64_decode($input['content_base64'], true);
+        self::assertStringStartsWith('admin-assets/top-banner/', $row->storage_identifier);
+        self::assertSame($bytes, Storage::disk('s3')->get($row->storage_identifier));
+        self::assertSame(strlen($bytes), (int) $row->byte_size);
+        self::assertSame(hash('sha256', $bytes), $row->checksum_sha256);
+        self::assertSame('image/png', $row->mime_type);
+        $normalized = app(\App\Domain\Catalog\Services\V2AssetResponseNormalizer::class)->normalize($asset);
+        self::assertSame('https://cdn.example.test'.substr($row->storage_identifier, strlen('admin-assets')), $normalized['public_url']);
+        self::assertSame('/api/v2/content/assets/'.$asset['id'], $row->public_path);
+        Storage::disk('local')->assertMissing($row->storage_identifier);
+        $path = substr($row->storage_identifier, strlen('admin-assets'));
+        foreach (['banner', 'notice'] as $type) {
+            $content = $service->createContent($context, $type, [
+                'code' => 'cdn-banner', 'slug' => 'cdn-notice', 'title' => 'CDN content',
+                'summary' => 'Synthetic summary', 'body_html' => '<p>Synthetic content</p>',
+                'link_url' => '/gachas', 'show_on_top' => true, 'sort_order' => 1,
+                'asset_id' => $asset['id'], 'publish_start_at' => now()->subMinute()->toIso8601String(),
+            ]);
+            $service->publish($context, $type, $content['id'], $content['versions'][0]['id']);
+        }
+        $this->getJson('/api/v2/content/banners')->assertOk()
+            ->assertJsonPath('items.0.asset.path', $path)->assertJsonPath('items.0.image_url', $path);
+        $this->getJson('/api/v2/content/notices')->assertOk()->assertJsonPath('items.0.asset.path', $path);
+        $this->getJson('/api/v2/content/notices/'.$content['id'])->assertOk()->assertJsonPath('asset.path', $path);
+    }
+
     private function imageInput(string $name): array
     {
         return [

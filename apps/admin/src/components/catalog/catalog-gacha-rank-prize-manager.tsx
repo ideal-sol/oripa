@@ -9,6 +9,8 @@ import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogPrizeImport } from "@/components/catalog/catalog-prize-import";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { assetContentPath, PublicAssetPreview } from "@/components/catalog/public-asset-preview";
+import { useAssetPublicOrigin } from "@/components/catalog/asset-delivery-provider";
+import { assetDeliveryUrl } from "@/lib/asset-delivery";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogGachaVersion,
@@ -37,6 +39,7 @@ export function CatalogGachaRankPrizeManager({
   version: AdminCatalogGachaVersion | null;
 }) {
   const headingId = useId();
+  const assetOrigin = useAssetPublicOrigin();
   const client = useMemo(() => new AdminApiClient(), []);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +235,7 @@ export function CatalogGachaRankPrizeManager({
                 <td><RankImage asset={rank.rank.result_image} /></td>
                 <td>
                   <div className="catalog-rank-video-control">
-                    {rank.current_video ? <video aria-label={`${rank.rank.rank_name}の抽選演出`} controls muted playsInline preload="metadata" src={rank.current_video.path} /> : <span>未設定</span>}
+                    {rank.current_video && assetDeliveryUrl(rank.current_video.path, assetOrigin) ? <video aria-label={`${rank.rank.rank_name}の抽選演出`} controls muted playsInline preload="metadata" src={assetDeliveryUrl(rank.current_video.path, assetOrigin)!} /> : <span>未設定</span>}
                     <select
                       aria-label={`${rank.rank.rank_name}の動画`}
                       disabled={!canManage || busyRankId === rank.rank.id}
@@ -358,7 +361,8 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
 }
 
 function RankImage({ asset }: { asset: AdminGachaRankListItem["rank"]["lineup_image"] }) {
-  return <Image alt={asset.alt_text ?? "Rank image"} className="catalog-rank-image" height={144} src={assetContentPath(asset.id)} unoptimized width={144} />;
+  const source = assetDeliveryUrl(asset.path, useAssetPublicOrigin(), assetContentPath(asset.id));
+  return source ? <Image alt={asset.alt_text ?? "Rank image"} className="catalog-rank-image" height={144} src={source} unoptimized width={144} /> : <span>Previewなし</span>;
 }
 
 async function listAllRankEffects(client: AdminApiClient, signal?: AbortSignal): Promise<AdminRankEffect[]> {

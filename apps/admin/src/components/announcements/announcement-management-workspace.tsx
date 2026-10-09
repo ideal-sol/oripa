@@ -24,6 +24,8 @@ import {
 } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { useAssetPublicOrigin } from "@/components/catalog/asset-delivery-provider";
+import { assetDeliveryUrl } from "@/lib/asset-delivery";
 import { RichTextEditor } from "@/components/rich-text/rich-text-editor";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -91,6 +93,7 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
   const canManage = permissions.has("content.manage");
   const [items, setItems] = useState<AdminContentSummary[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const assetOrigin = useAssetPublicOrigin();
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -125,8 +128,8 @@ function AnnouncementList({ initialStatus }: { initialStatus: "all" | "archived"
   }, [cursor, reload, status]);
 
   const assetPaths = useMemo(
-    () => new Map(assets.map((asset) => [asset.id, asset.public_path])),
-    [assets],
+    () => new Map(assets.map((asset) => [asset.id, assetDeliveryUrl(asset.public_path, assetOrigin)])),
+    [assets, assetOrigin],
   );
 
   return (

@@ -13,6 +13,9 @@ use App\Domain\Notification\Contracts\SmsSender;
 use App\Domain\Notification\Services\LogSmsSender;
 use App\Domain\Sms\Contracts\V2SmsProvider;
 use App\Domain\Sms\Services\V2FourSSmsProvider;
+use Aws\CommandInterface;
+use Aws\Middleware;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -38,5 +41,20 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->app->make(V2SmsOtpConfiguration::class)->ttlMinutes();
+        Storage::extend('s3', static function ($app, array $config) {
+            $disk = $app['filesystem']->createS3Driver($config);
+            $disk->getClient()->getHandlerList()->appendInit(
+                Middleware::mapCommand(static function (CommandInterface $command): CommandInterface {
+                    if (in_array($command->getName(), ['PutObject', 'CreateMultipartUpload'], true)) {
+                        unset($command['ACL']);
+                    }
+
+                    return $command;
+                }),
+                'v2-private-s3-without-acl'
+            );
+
+            return $disk;
+        });
     }
 }

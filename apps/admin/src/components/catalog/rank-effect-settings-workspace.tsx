@@ -1,5 +1,8 @@
 "use client";
 
+import { useAssetPublicOrigin } from "@/components/catalog/asset-delivery-provider";
+import { assetDeliveryUrl } from "@/lib/asset-delivery";
+
 import { ArrowLeft, LoaderCircle, Pencil, Plus, RotateCcw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -309,7 +312,8 @@ function RankEffectForm({
 }
 
 function RankEffectPreview({ compact = false, effect }: { compact?: boolean; effect: AdminRankEffect }) {
-  return <LocalPreview compact={compact} mediaType={effect.media_type} url={effect.content_path} />;
+  const source = assetDeliveryUrl(effect.content_path, useAssetPublicOrigin());
+  return source ? <LocalPreview compact={compact} mediaType={effect.media_type} url={source} /> : <span>Previewなし</span>;
 }
 
 function LocalPreview({ compact = false, mediaType, url }: { compact?: boolean; mediaType: "image" | "video"; url: string }) {
