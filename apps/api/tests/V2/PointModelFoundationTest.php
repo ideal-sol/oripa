@@ -443,6 +443,11 @@ final class PointModelFoundationTest extends TestCase
             require 'vendor/autoload.php';
             $app = require 'bootstrap/app.php';
             $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            config([
+                'v2_audit.active_hmac_key_version' => 'v1',
+                'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
+                'v2_audit.business_timezone' => 'Asia/Tokyo',
+            ]);
             try {
                 app(App\Domain\Point\Services\V2PointService::class)
                     ->consume((int) $argv[1], 80, $argv[2]);
@@ -484,6 +489,11 @@ final class PointModelFoundationTest extends TestCase
             require 'vendor/autoload.php';
             $app = require 'bootstrap/app.php';
             $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            config([
+                'v2_audit.active_hmac_key_version' => 'v1',
+                'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
+                'v2_audit.business_timezone' => 'Asia/Tokyo',
+            ]);
             try {
                 if ($argv[2] === 'consume') {
                     app(App\Domain\Point\Services\V2PointService::class)->consume(
