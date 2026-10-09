@@ -35,7 +35,7 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(
-    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002)$"
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009)$"
 )
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
@@ -960,7 +960,14 @@ LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES = {
     "apps/admin/test/login-gacha.test.tsx",
 }
 
+S3_PHASE1_ADMIN_FILES = {
+    "apps/admin/src/components/catalog/asset-delivery-provider.tsx",
+    "apps/admin/src/lib/asset-delivery.ts",
+    "apps/admin/test/asset-delivery.test.tsx",
+}
+
 ADMIN_SKELETON_FILES = {
+    *S3_PHASE1_ADMIN_FILES,
     "apps/admin/e2e/admin-gacha-notices.spec.ts",
     "apps/admin/src/app/settings/gacha-notices/page.tsx",
     "apps/admin/src/components/settings/gacha-notice-settings.tsx",
