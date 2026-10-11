@@ -159,6 +159,19 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_banner_import_task_scope_is_exact(self):
+        data = fixture("positive.json")
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", "BANNERCSV-F2A-20261011"),
+            "[BANNERCSV-F2A-20261011] Banner import", data["changed_paths"], data["base_sha"])
+        for task in ("BANNERCSV-F2A-20261012", "BANNERCSV-F2A-*", "BANNERCSV-F2A-20261011-EXTRA"):
+            with self.subTest(task=task), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task),
+                    f"[{task}] Banner import", data["changed_paths"], data["base_sha"])
+        for path in ("apps/admin/src/components/banners/banner-import-workspace.tsx",
+                     "apps/admin/src/components/banners/banner-import.module.css",
+                     "apps/admin/test/banner-import.test.tsx", "apps/admin/e2e/admin-banner-import.spec.ts"):
+            self.assertIn(path, policy_gate.ADMIN_SKELETON_FILES)
+
     def test_external_id_admin_registration_is_exact(self):
         relative = "apps/admin/src/components/catalog/external-id-field.tsx"
         self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "external-id" in path}, {relative})

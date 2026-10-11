@@ -5941,6 +5941,173 @@
         }
       }
     },
+    "/banner-management/imports": {
+      "get": {
+        "operationId": "listAdminBannerImports",
+        "summary": "バナーCSV履歴と有効状態を取得する",
+        "description": "content.read必須。無効時はenabled=false。署名付きURLは返さない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "最新30日以内の履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerImportCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminBannerImport",
+        "summary": "バナーCSVを検証し取込ジョブを登録する",
+        "description": "content.manage必須。無効時は503 BANNER_IMPORT_DISABLED。全体検証失敗時は書込みなし。画像取得失敗は行単位。公開状態と表示属性を保持する。",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBannerImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "受付済みジョブ。同一キーは同じジョブを返す。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerImportJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CSV検証エラー。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerImportValidation"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/imports/{import_id}": {
+      "parameters": [
+        {
+          "name": "import_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getAdminBannerImport",
+        "summary": "バナーCSV進捗と行結果を取得する",
+        "description": "content.read必須。結果保持30日。画像URLおよびHost名を返さない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "行単位の結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBannerImportJob"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/banner-management/imports/{import_id}/failures": {
+      "parameters": [
+        {
+          "name": "import_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "downloadAdminBannerImportFailures",
+        "summary": "バナーCSV失敗行をダウンロードする",
+        "description": "content.read必須。管理ID・タイトル・画像URL（常に空欄）・カテゴリ・失敗理由。数式を無害化する。新しい画像URLを入力して再取込する。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 BOM付き失敗行CSV。",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/banner-management/categories": {
       "get": {
         "operationId": "listAdminBannerCategories",
@@ -19337,6 +19504,246 @@
             }
           }
         ]
+      },
+      "AdminBannerImportInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file_name",
+          "content_base64",
+          "default_category_id"
+        ],
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2796204,
+            "contentEncoding": "base64"
+          },
+          "default_category_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "refresh_existing_images": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "AdminBannerImportValidation": {
+        "type": "object",
+        "required": [
+          "code",
+          "errors",
+          "error_count"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "CSV_VALIDATION_FAILED"
+          },
+          "error_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "errors": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "row",
+                "column",
+                "code",
+                "message"
+              ],
+              "properties": {
+                "row": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                },
+                "column": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AdminBannerImportRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "row",
+          "external_id",
+          "title",
+          "category",
+          "status",
+          "result",
+          "error_code"
+        ],
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "external_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 191
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "asset_registered",
+              "completed",
+              "failed"
+            ]
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "created",
+              "updated",
+              "unchanged",
+              "failed",
+              null
+            ]
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminBannerImportJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "total",
+          "processed",
+          "created",
+          "updated",
+          "unchanged",
+          "failed",
+          "created_at",
+          "completed_at",
+          "rows"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "updated": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/UtcDateTime"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "rows": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/AdminBannerImportRow"
+            }
+          }
+        }
+      },
+      "AdminBannerImportCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "items"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/AdminBannerImportJob"
+            }
+          }
+        }
       },
       "AdminBannerAssetUpload": {
         "type": "object",

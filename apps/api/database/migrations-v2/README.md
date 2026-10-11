@@ -34,6 +34,16 @@ devices, and Admin MFA credential storage.
 
 ## Status
 
+Migration `2026_10_11_000082_create_v2_banner_imports.php` is added in Source for
+`content_banner_import_jobs` and `content_banner_import_rows`, including short-lived
+encrypted image URLs. It is forward-only: `down()` rejects with
+`Banner import history requires a forward correction migration.` The DB guard
+verifies rejection without changing schema or the migration ledger. Application
+is authorized only during dedicated F2-A isolated test DB verification; Source
+presence is not proof of application. It is NOT applied to OLD, NEW or Production.
+Operational migration and Runtime activation require separate Human GO; Banner
+CSV Import remains disabled by default. Existing migration history is unchanged.
+
 This append-only root contains the current V2 migration source through
 `2026_10_06_000081_add_v2_prize_banner_external_ids.php`. Migration 000081 adds nullable,
 case-sensitive external IDs to existing Banners and Prizes without data backfill.

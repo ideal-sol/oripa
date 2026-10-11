@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3f49b503e187297dafdfa33c658d59a5e4381de3025b9be3cb1973253b36d927
+// Contract SHA-256: 4e0a25983f2f7152f774674104ad205bb12179468b8ee367233d899eb1e1872a
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2322,6 +2322,43 @@ export interface AdminBannerCategoryMutationResult extends AdminBannerCategory {
   idempotent_replay: boolean;
 }
 
+export interface AdminBannerImportInput {
+  file_name: string;
+  content_base64: string;
+  default_category_id: string;
+  refresh_existing_images?: boolean;
+}
+export interface AdminBannerImportRow {
+  row: number;
+  external_id: string;
+  title: string;
+  category: string;
+  status: "pending" | "processing" | "asset_registered" | "completed" | "failed";
+  result: "created" | "updated" | "unchanged" | "failed" | null;
+  error_code: string | null;
+}
+export interface AdminBannerImportJob {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  failed: number;
+  created_at: string;
+  completed_at: string | null;
+  rows: AdminBannerImportRow[];
+}
+export interface AdminBannerImportCollection {
+  enabled: boolean;
+  items: AdminBannerImportJob[];
+}
+export interface AdminBannerImportValidation {
+  code: "CSV_VALIDATION_FAILED";
+  errors: { row: number | null; column: string | null; code: string; message: string }[];
+  error_count: number;
+}
 export interface AdminBannerAssetUpload {
   file_name: string;
   mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
