@@ -309,4 +309,16 @@ final class BannerImportWorkerTest extends BannerImportTest
         self::assertSame('deferred_canonical_review', $row->compensation_status);
         self::assertSame('pending', $row->status);
     }
+
+    public function test_import_constraints_keep_their_exact_definition_after_recreation(): void
+    {
+        foreach (['content_banner_import_jobs' => 'banner_import_job_values',
+            'content_banner_import_rows' => 'banner_import_row_values'] as $table => $constraint) {
+            $definition = DB::selectOne('SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = ?', [$constraint])->definition;
+            DB::statement('ALTER TABLE '.$table.' DROP CONSTRAINT '.$constraint);
+            DB::statement('ALTER TABLE '.$table.' ADD CONSTRAINT '.$constraint.' '.$definition);
+            $restored = DB::selectOne('SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = ?', [$constraint])->definition;
+            self::assertSame($definition, $restored);
+        }
+    }
 }

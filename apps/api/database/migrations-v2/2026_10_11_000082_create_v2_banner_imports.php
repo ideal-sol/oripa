@@ -54,8 +54,8 @@ return new class extends Migration
             $table->unique(['job_id', 'row_number']);
             $table->unique(['job_id', 'external_id']);
         });
-        DB::statement("ALTER TABLE content_banner_import_jobs ADD CONSTRAINT banner_import_job_values CHECK (status IN ('queued','processing','completed','failed') AND total BETWEEN 1 AND 1000 AND ((status = 'processing' AND lease_token_hash IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status <> 'processing' AND lease_token_hash IS NULL AND lease_expires_at IS NULL)))");
-        DB::statement("ALTER TABLE content_banner_import_rows ADD CONSTRAINT banner_import_row_values CHECK (row_number >= 2 AND external_id ~ '^[A-Za-z0-9._-]{1,64}$' AND status IN ('pending','processing','asset_registered','completed','failed') AND (result IS NULL OR result IN ('created','updated','unchanged','failed')) AND (status NOT IN ('completed','failed') OR (url_ciphertext IS NULL AND result IS NOT NULL)))");
+        DB::statement("ALTER TABLE content_banner_import_jobs ADD CONSTRAINT banner_import_job_values CHECK (status::text IN ('queued','processing','completed','failed') AND total BETWEEN 1 AND 1000 AND ((status = 'processing' AND lease_token_hash IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status <> 'processing' AND lease_token_hash IS NULL AND lease_expires_at IS NULL)))");
+        DB::statement("ALTER TABLE content_banner_import_rows ADD CONSTRAINT banner_import_row_values CHECK (row_number >= 2 AND external_id ~ '^[A-Za-z0-9._-]{1,64}$' AND status::text IN ('pending','processing','asset_registered','completed','failed') AND (result IS NULL OR result::text IN ('created','updated','unchanged','failed')) AND (status::text NOT IN ('completed','failed') OR (url_ciphertext IS NULL AND result IS NOT NULL)))");
     }
 
     public function down(): void
