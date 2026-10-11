@@ -2,6 +2,7 @@ import base64
 import argparse
 import importlib.util
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -19,6 +20,49 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_banner_import_inventory_matches_migration_exactly(self):
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / "2026_10_11_000082_create_v2_banner_imports.php").read_text()
+        tables = ["public." + name for name in re.findall(r"Schema::create\('([^']+)'", source)]
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(tables, ["public.content_banner_import_jobs", "public.content_banner_import_rows"])
+        self.assertEqual([name for name in inventory if name.startswith("public.content_banner_import_")], tables)
+        self.assertEqual(sorted(set(inventory)), inventory)
+        v2_database.validate_schema_inventory(inventory)
+        for invalid in [
+            sorted([*inventory, "public.content_banner_import_unregistered"]),
+            *[[name for name in inventory if name != table] for table in tables],
+        ]:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(invalid)
+
+    def test_banner_import_forward_only_guard_checks_schema_and_ledger(self):
+        filename = "2026_10_11_000082_create_v2_banner_imports.php"
+        message = "Banner import history requires a forward correction migration."
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        self.assertEqual(source.split("public function down(): void", 1)[1].strip(), "{\n        throw new LogicException('" + message + "');\n    }\n};")
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"82") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            command = run.call_args.args[0]
+            self.assertIn(filename, command[-1])
+            self.assertIn(message, command[-1])
+            self.assertIn("$migration->down()", command[-1])
+            self.assertNotIn("migrate:rollback", command)
+        for result, rows, schemas in [
+            (b"unexpected", [b"82", b"82"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"82", b"81"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"82", b"82"], [b"schema", b"changed"]),
+        ]:
+            with self.subTest(result=result, rows=rows, schemas=schemas), mock.patch.object(
+                v2_database, "migration_rows", side_effect=rows
+            ), mock.patch.object(v2_database, "schema_dump", side_effect=schemas), mock.patch.object(v2_database, "run", return_value=result):
+                with self.assertRaises(v2_database.GuardFailure):
+                    v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, False)
+
     def test_external_id_migration_preserves_other_login_guard_branches(self):
         migrations = MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH
         original = (migrations / "2026_10_04_000078_add_v2_login_gachas.php").read_text()

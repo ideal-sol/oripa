@@ -3,6 +3,7 @@
 namespace App\Domain\ContentContact\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
+use App\Domain\ContentContact\Contracts\V2BannerImportExecution;
 use App\Domain\ContentContact\Exceptions\V2ContentContactException;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
@@ -525,6 +526,15 @@ final class V2ContentContactAdminService
         string $idempotencyKey
     ): array {
         $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        return $this->createAuthorizedBanner($context, $admin, $input, $idempotencyKey);
+    }
+
+    private function createAuthorizedBanner(
+        V2AdminAuthorizationContext|V2BannerImportExecution $context,
+        Admin $admin,
+        array $input,
+        string $idempotencyKey
+    ): array {
         $payload = $this->bannerInput($input, true);
 
         return $this->bannerExternalIdMutation(fn (): array => DB::transaction(function () use (
@@ -696,6 +706,28 @@ final class V2ContentContactAdminService
         string $idempotencyKey
     ): array {
         $admin = $this->authorizer->authorizePermission($context, V2Permission::ManageContent);
+        return $this->storeAuthorizedBannerAsset($context, $admin, $input, $idempotencyKey);
+    }
+
+    public function uploadBannerImportAsset(V2BannerImportExecution $execution, array $input): array
+    {
+        $execution = $execution->revalidate();
+        if (! $execution->row->fetch_image || $execution->row->asset_public_id !== null) {
+            throw $this->conflict('BANNER_IMPORT_ASSET_STATE_INVALID');
+        }
+        return $this->storeAuthorizedBannerAsset(
+            $execution, $execution->admin,
+            ['file_name' => 'banner-import-'.$execution->row->public_id, 'mime_type' => $input['mime_type'], 'content_base64' => $input['content_base64']],
+            'banner-import-asset:'.$execution->row->public_id
+        );
+    }
+
+    private function storeAuthorizedBannerAsset(
+        V2AdminAuthorizationContext|V2BannerImportExecution $context,
+        Admin $admin,
+        array $input,
+        string $idempotencyKey
+    ): array {
         $this->assertFields($input, ['file_name', 'mime_type', 'content_base64'], [
             'file_name', 'mime_type', 'content_base64',
         ]);
@@ -2274,21 +2306,86 @@ final class V2ContentContactAdminService
         ]);
     }
 
+    public function saveBannerImportRow(V2BannerImportExecution $execution): array
+    {
+        $execution = $execution->revalidate();
+        $row = $execution->row;
+        $category = DB::table('content_banner_categories')->where('id', $row->category_id)->first();
+        if ($category === null) {
+            throw $this->notFound('BANNER_CATEGORY_NOT_FOUND');
+        }
+        $parent = DB::table('content_banners')->where('external_id', $row->external_id)
+            ->where('status', '<>', 'archived')->lockForUpdate()->first();
+        $key = 'banner-import-save:'.$row->public_id;
+        if ($parent === null) {
+            if ($row->asset_public_id === null) {
+                throw $this->conflict('BANNER_IMPORT_TARGET_CHANGED');
+            }
+            $created = $this->createAuthorizedBanner($execution, $execution->admin, [
+                'external_id' => $row->external_id, 'category_id' => $category->public_id,
+                'title' => $row->title, 'asset_id' => $row->asset_public_id,
+                'show_on_top' => false, 'link_url' => null,
+            ], $key);
+            return ['id' => $created['id'], 'result' => 'created'];
+        }
+        $latest = DB::table('content_versions')->where('banner_id', $parent->id)
+            ->orderByDesc('version_number')->lockForUpdate()->firstOrFail();
+        $asset = DB::table('content_version_assets as link')->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
+            ->where('link.content_version_id', $latest->id)->where('link.usage_type', 'image')
+            ->first(['asset.public_id', 'asset.checksum_sha256']);
+        if ($asset === null) {
+            throw $this->invalid('BANNER_ASSET_REQUIRED');
+        }
+        $replace = $execution->job->refresh_existing_images && $row->fetch_image
+            && $row->image_sha256 !== null && $asset->checksum_sha256 !== $row->image_sha256;
+        if ($replace && $row->asset_public_id === null) {
+            throw $this->conflict('BANNER_IMPORT_ASSET_STATE_INVALID');
+        }
+        if ($latest->title === $row->title && (int) $latest->banner_category_id === (int) $row->category_id && ! $replace) {
+            return ['id' => $parent->public_id, 'result' => 'unchanged'];
+        }
+        $claim = $this->claimBannerMutation($execution->admin, $key, [
+            'action' => 'banner.import', 'row_id' => $row->public_id,
+            'external_id' => $row->external_id, 'title' => $row->title, 'category_id' => $category->public_id,
+            'image_sha256' => $row->image_sha256,
+        ]);
+        if ($claim->replay) {
+            return ['id' => $parent->public_id, 'result' => 'updated'];
+        }
+        $version = $this->createVersionRow('banner', 'banner_id', (int) $parent->id, (int) $latest->version_number + 1, [
+            'title' => $row->title, 'category_id' => $category->public_id,
+            'asset_id' => $replace ? $row->asset_public_id : $asset->public_id,
+            'link_url' => $latest->link_url, 'show_on_top' => (bool) $latest->show_on_top,
+            'sort_order' => (int) $latest->sort_order,
+            'publish_start_at' => $latest->publish_start_at, 'publish_end_at' => $latest->publish_end_at,
+        ], $execution->admin);
+        DB::table('content_banners')->where('id', $parent->id)->update(['updated_at' => V2DatabaseTimestamp::format(now())]);
+        $this->auditContent('content.banner_updated', $execution, 'banner', $parent->public_id, [
+            'version_public_id' => $version['id'], 'import_id' => $execution->job->public_id,
+            'row_id' => $row->public_id,
+        ]);
+        $result = ['id' => $parent->public_id, 'result' => 'updated'];
+        $this->completeBannerMutation($claim, 'content_banner', $parent->public_id, $result);
+        return $result;
+    }
+
     /** @param array<string, mixed> $metadata */
     private function auditContent(
         string $action,
-        V2AdminAuthorizationContext $context,
+        V2AdminAuthorizationContext|V2BannerImportExecution $context,
         string $type,
         string $publicId,
         array $metadata = []
     ): void {
         $this->audit->record($action, [
-            'request_id' => $context->requestId,
-            'actor_type' => 'admin',
-            'actor_public_id' => $context->adminPublicId,
-            'actor_role' => $context->role->value,
-            'auth_realm' => 'admin',
-            'session_correlation_hash' => $context->sessionCorrelationHash,
+            ...($context instanceof V2BannerImportExecution ? $context->auditAttributes() : [
+                'request_id' => $context->requestId,
+                'actor_type' => 'admin',
+                'actor_public_id' => $context->adminPublicId,
+                'actor_role' => $context->role->value,
+                'auth_realm' => 'admin',
+                'session_correlation_hash' => $context->sessionCorrelationHash,
+            ]),
             'target_type' => str_replace('-', '_', $type),
             'target_public_id' => $publicId,
             'outcome' => 'success',

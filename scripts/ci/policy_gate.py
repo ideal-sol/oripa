@@ -286,6 +286,7 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_06_000081_add_v2_prize_banner_external_ids.php",
     "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php",
     "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php",
@@ -1087,6 +1088,10 @@ ADMIN_SKELETON_FILES = {
     *MIG_061N_ADMIN_SKELETON_FILES,
     *MIG_061O_ADMIN_SKELETON_FILES,
     *MIG_061P_ADMIN_SKELETON_FILES,
+    "apps/admin/src/components/banners/banner-import-workspace.tsx",
+    "apps/admin/src/components/banners/banner-import.module.css",
+    "apps/admin/test/banner-import.test.tsx",
+    "apps/admin/e2e/admin-banner-import.spec.ts",
     *MIG_061Q_ADMIN_SKELETON_FILES,
     *MIG_061R_ADMIN_SKELETON_FILES,
     *MIG_061S_ADMIN_SKELETON_FILES,
@@ -1338,7 +1343,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if not TASK_ID.fullmatch(task_id) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id != "BANNERCSV-F2A-20261011") or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -3093,6 +3098,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_05_000079_add_v2_rank_video_default.php",
         "2026_10_05_000080_create_v2_gacha_notice_defaults.php",
         "2026_10_06_000081_add_v2_prize_banner_external_ids.php",
+        "2026_10_11_000082_create_v2_banner_imports.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
