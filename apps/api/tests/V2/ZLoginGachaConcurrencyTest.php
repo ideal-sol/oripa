@@ -193,7 +193,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
     {
         $email = 'login-concurrency-'.Str::uuid7().'@example.test';
 
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => $email, 'email_normalized' => $email, 'email_verified_at' => now(),
             'first_registration_qualified_at' => now(), 'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic concurrency password'),
             'state' => V2UserState::Active,

@@ -48,7 +48,8 @@ final class V2FincodeCardService
         private readonly V2FincodeClient $client,
         private readonly V2FincodePublicConfiguration $configuration,
         private readonly V2FincodeReturnUrl $returns,
-        private readonly V2AuditLogService $audit
+        private readonly V2AuditLogService $audit,
+        private readonly \App\Domain\Identity\Services\V2SmsVerificationService $smsVerification
     ) {
     }
 
@@ -83,12 +84,14 @@ final class V2FincodeCardService
      */
     public function reserveRegistration(User $user, string $idempotencyKey): array
     {
+        $this->smsVerification->assertVerified($user);
         $bootstrap = $this->configuration->bootstrap();
         $customer = $this->customer($user);
         $keyHash = hash('sha256', $idempotencyKey);
 
         $intent = DB::transaction(function () use ($user, $customer, $keyHash): object {
             DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $this->smsVerification->assertVerified($user);
             $existing = DB::table('fincode_card_registration_intents')
                 ->where('idempotency_key_hash', $keyHash)
                 ->first();
@@ -158,6 +161,7 @@ final class V2FincodeCardService
         #[SensitiveParameter] string $cardToken,
         string $idempotencyKey
     ): array {
+        $this->smsVerification->assertVerified($user);
         $this->configuration->bootstrap();
         $customer = $this->customer($user);
         $prepared = $this->prepareRegistrationStart($user, $customer, $idempotencyKey);
@@ -440,6 +444,7 @@ final class V2FincodeCardService
 
         return DB::transaction(function () use ($user, $customer, $keyHash): array {
             DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $this->smsVerification->assertVerified($user);
             $this->expireUserRegistrations((int) $user->id);
             $existing = DB::table('fincode_card_registration_intents')
                 ->where('idempotency_key_hash', $keyHash)
@@ -994,7 +999,7 @@ final class V2FincodeCardService
         }
         $status = $intent->status === 'starting' ? 'pending' : $intent->status;
         $nextAction = null;
-        if ($status === 'requires_action') {
+        if ($status === 'requires_action' && $this->smsVerification->isVerified(User::query()->findOrFail($intent->user_id))) {
             $url = $this->registrationRedirectUrl($intent->redirect_url_ciphertext);
             if ($url !== null) {
                 $nextAction = ['type' => 'three_d_secure', 'url' => $url];
@@ -1017,6 +1022,7 @@ final class V2FincodeCardService
     {
         $customer = DB::transaction(function () use ($user): object {
             DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+            $this->smsVerification->assertVerified($user);
             $existing = DB::table('fincode_customers')->where('user_id', $user->id)->first();
             if ($existing !== null) {
                 if ($existing->status === 'active') {

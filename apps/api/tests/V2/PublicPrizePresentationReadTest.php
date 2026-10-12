@@ -290,7 +290,7 @@ final class PublicPrizePresentationReadTest extends TestCase
             new V2CryptographicRandomSource(static function (int $minimum, int $maximum) use (&$calls): int {
                 return ++$calls <= 3 ? $minimum : min(5, $maximum);
             }));
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Synthetic prize reader',
             'email_display' => 'prize-reader@example.test',
             'email_normalized' => 'prize-reader@example.test',

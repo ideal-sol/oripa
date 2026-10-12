@@ -54,6 +54,52 @@ final class FincodePaymentBackendTest extends TestCase
         ]);
     }
 
+    public function test_sms_revocation_blocks_new_operations_but_preserves_safe_payment_status_and_settlement(): void
+    {
+        $this->fakeFincode('CAPTURED');
+        $user = $this->user('sms-revoked');
+        $service = app(V2FincodePaymentService::class);
+        $plan = $this->plan();
+        $payment = $service->start($user, $plan->public_id, 'konbini', 'sms-revoked-payment');
+        DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
+        self::assertNull($service->show($user, $payment['id'])['next_action']);
+        $before = $this->paymentMutationCounts();
+        foreach ([
+            fn () => $service->start($user, $plan->public_id, 'konbini', 'sms-revoked-payment'),
+            fn () => $service->resume($user, $payment['id']),
+            fn () => app(V2FincodeCardService::class)->reserveRegistration($user, 'sms-revoked-card'),
+            fn () => app(V2FincodeCardService::class)->startRegistration($user, 'synthetic-card-token', 'sms-revoked-card'),
+        ] as $operation) {
+            try {
+                $operation();
+                self::fail('Unverified operations must be rejected.');
+            } catch (V2AuthenticationException $exception) {
+                self::assertSame('SMS_VERIFICATION_REQUIRED', $exception->errorCode);
+                self::assertSame(403, $exception->status);
+            }
+        }
+        self::assertSame($before, $this->paymentMutationCounts());
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        $raw = json_encode(['event' => 'payments.konbini.complete', 'order_id' => $row->provider_payment_id,
+            'pay_type' => 'Konbini', 'status' => 'CAPTURED', 'transaction_date' => now()->format('Y/m/d H:i:s.v')], JSON_THROW_ON_ERROR);
+        $webhooks = app(V2FincodeWebhookService::class);
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+    }
+
+    public function test_card_status_suppresses_action_after_sms_revocation_but_can_reconcile(): void
+    {
+        $this->fakeFincode();
+        $user = $this->user('sms-revoked-card-status');
+        $cards = app(V2FincodeCardService::class);
+        $started = $cards->startRegistration($user, 'tok_sms_status', 'sms-status-card');
+        self::assertNotNull($started['next_action']);
+        DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
+        self::assertNull($cards->registration($user, $started['id'])['next_action']);
+        self::assertNull($cards->reconcileRegistration($user, $started['id'])['next_action']);
+    }
+
     public function test_four_payment_methods_map_to_fincode_and_duplicate_start_is_idempotent(): void
     {
         $this->fakeFincode();
@@ -1571,7 +1617,7 @@ final class FincodePaymentBackendTest extends TestCase
         $this->fakeFincode('CAPTURED');
         $this->travelTo(Carbon::parse('2026-08-22T04:00:00Z'));
         $user = $this->user('first-user-async');
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $service = app(V2FincodePaymentService::class);
 
@@ -1610,7 +1656,7 @@ final class FincodePaymentBackendTest extends TestCase
         Http::fake();
         $this->travelTo(Carbon::parse('2026-08-22T04:00:00Z'));
         $user = $this->user('first-user-expired');
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $before = $this->paymentMutationCounts();
         $this->travel(25)->hours();
@@ -1630,7 +1676,7 @@ final class FincodePaymentBackendTest extends TestCase
         $this->fakeFincode('CAPTURED');
         $this->travelTo(Carbon::parse('2026-08-24T00:00:00Z'));
         $user = $this->user('first-user-repeat');
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $service = app(V2FincodePaymentService::class);
         $this->travel(3)->hours();
@@ -1659,7 +1705,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $this->fakeFincode();
         $user = $this->user('once-'.$method);
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $service = app(V2FincodePaymentService::class);
         $started = $service->start($user, $plan->public_id, $method, 'once-'.$method,
@@ -1699,7 +1745,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $this->fakeFincode();
         $user = $this->user('failure-'.$method);
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $service = app(V2FincodePaymentService::class);
         $started = $service->start($user, $plan->public_id, $method, 'failure-start',
@@ -1720,7 +1766,7 @@ final class FincodePaymentBackendTest extends TestCase
     public function test_first_user_rejected_start_is_retryable_but_uncertain_start_blocks(string $method): void
     {
         $user = $this->user('provider-failure-'.$method);
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $service = app(V2FincodePaymentService::class);
         Http::fake(fn () => Http::response(['errors' => [['error_code' => 'E000000001']]], 400));
@@ -1749,7 +1795,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $this->fakeFincode();
         $user = $this->user('success-'.$method);
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $plan = $this->plan(audience: 'first_purchase_users');
         $payment = app(V2FincodePaymentService::class)->start(
             $user, $plan->public_id, $method, 'success-start',
@@ -3178,7 +3224,7 @@ final class FincodePaymentBackendTest extends TestCase
 
     private function user(string $name): User
     {
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => $name.'-'.Str::uuid().'@example.test',
             'email_normalized' => $name.'-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

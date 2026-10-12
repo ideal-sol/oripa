@@ -356,7 +356,7 @@ final class QaTestUserGuaranteeIntegrationTest extends TestCase
             'role' => V2AdminRole::Owner,
             'state' => V2AdminState::Active,
         ]);
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'qa-user-'.Str::uuid().'@example.test',
             'email_normalized' => 'qa-user-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

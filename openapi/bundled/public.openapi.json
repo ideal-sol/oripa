@@ -2,12 +2,12 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.39",
+    "version": "2.0.0-alpha.40",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
     },
-    "description": "Storefront向けPublic API v2の認証Contract Alpha。",
+    "description": "Storefront向けPublic API v2の認証Contract Alpha。 会員操作・会員専用Readは現在の電話番号所有権によるSMS認証が必要。未認証は403 SMS_VERIFICATION_REQUIRED。 Session・SMS・認証復旧・ログアウト・お問い合わせは対象外。お問い合わせは既存のログイン必須条件を維持する。 公開Catalog・排出率・お知らせ・コイン商品は閲覧可能だがSMS未認証には匿名投影を返し、会員固有情報を含めない。 既存決済・カード登録の照会と安全な完了は継続し、SMS未認証にはnext_actionを返さない。 初回購入資格は初回SMS成功から連続24時間。過去SMS認証済み会員への遡及付与は行わない。",
     "x-status": "alpha"
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -46,6 +46,7 @@
     },
     "/login-gachas/{gacha_id}": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getLoginGacha",
         "summary": "有効Sessionでログイン系ガチャ詳細を取得する",
         "x-idempotency": "safe",
@@ -75,6 +76,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoginGachaDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -610,6 +621,7 @@
     },
     "/gachas/{gacha_id}/draws": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "createDraw",
         "summary": "認証済みUserが単一またはBulk Drawを作成する",
         "x-idempotency": "required",
@@ -658,6 +670,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/DrawProblem"
           }
@@ -666,6 +688,7 @@
     },
     "/draw-requests/{draw_request_id}": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getDrawRequest",
         "summary": "Network結果不明時を含む完了済みDraw結果を取得する",
         "x-idempotency": "safe",
@@ -698,6 +721,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -706,6 +739,7 @@
     },
     "/me/prizes": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listUserPrizes",
         "summary": "User自身が所有する景品を取得する",
         "x-idempotency": "safe",
@@ -736,6 +770,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -744,6 +788,7 @@
     },
     "/me/wallet": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getWallet",
         "summary": "Current Userの現在利用可能なPoint残高を取得する",
         "x-idempotency": "safe",
@@ -769,6 +814,16 @@
           "401": {
             "$ref": "#/components/responses/PointReadProblem"
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "429": {
             "$ref": "#/components/responses/PointReadProblem"
           },
@@ -780,6 +835,7 @@
     },
     "/me/point-ledgers": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listPointLedgerEntries",
         "summary": "Current UserのPoint増減履歴を新しい順で取得する",
         "x-idempotency": "safe",
@@ -813,6 +869,16 @@
           "401": {
             "$ref": "#/components/responses/PointReadProblem"
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "$ref": "#/components/responses/PointReadProblem"
           },
@@ -827,6 +893,7 @@
     },
     "/me/draws": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listDrawHistory",
         "summary": "Current UserのGacha利用履歴を新しい順で取得する",
         "x-idempotency": "safe",
@@ -860,6 +927,16 @@
           "401": {
             "$ref": "#/components/responses/DrawHistoryReadProblem"
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "$ref": "#/components/responses/DrawHistoryReadProblem"
           },
@@ -874,6 +951,7 @@
     },
     "/me/line-friend-state": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getLineFriendState",
         "summary": "Current UserのLINE連携・友だち追加確認状態を取得する",
         "x-idempotency": "safe",
@@ -915,6 +993,16 @@
           "401": {
             "$ref": "#/components/responses/LineFriendStateReadProblem"
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "429": {
             "$ref": "#/components/responses/LineFriendStateReadProblem"
           },
@@ -926,6 +1014,7 @@
     },
     "/me/prizes/{prize_id}": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getUserPrize",
         "summary": "User自身が所有する景品詳細を取得する",
         "x-idempotency": "safe",
@@ -953,6 +1042,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -961,6 +1060,7 @@
     },
     "/me/prizes/exchange": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "exchangeUserPrizes",
         "summary": "User自身の景品を一括でfree Pointへ交換する",
         "x-idempotency": "required",
@@ -1002,6 +1102,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
@@ -1010,6 +1120,7 @@
     },
     "/me/shipping-addresses": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listShippingAddresses",
         "summary": "Mask済み配送先一覧を取得する",
         "x-idempotency": "safe",
@@ -1032,12 +1143,23 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       },
       "post": {
+        "x-sms-verification": "required",
         "operationId": "createShippingAddress",
         "summary": "配送先を作成する",
         "x-idempotency": "not-supported",
@@ -1080,6 +1202,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
@@ -1088,6 +1220,7 @@
     },
     "/me/shipping-addresses/{address_id}": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getShippingAddress",
         "summary": "User本人の配送先詳細を取得する",
         "x-idempotency": "safe",
@@ -1115,12 +1248,23 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       },
       "put": {
+        "x-sms-verification": "required",
         "operationId": "updateShippingAddress",
         "summary": "User本人の配送先を更新する",
         "x-idempotency": "not-supported",
@@ -1162,12 +1306,23 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
         }
       },
       "delete": {
+        "x-sms-verification": "required",
         "operationId": "deleteShippingAddress",
         "summary": "User本人の配送先を削除する",
         "x-idempotency": "naturally-idempotent",
@@ -1209,6 +1364,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
@@ -1217,6 +1382,7 @@
     },
     "/me/shipping-requests": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listShippingRequests",
         "summary": "User自身のShipping Request一覧を取得する",
         "x-idempotency": "safe",
@@ -1247,12 +1413,23 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
         }
       },
       "post": {
+        "x-sms-verification": "required",
         "operationId": "createShippingRequest",
         "summary": "複数景品を1件のShipping Requestへまとめる",
         "x-idempotency": "required",
@@ -1294,6 +1471,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/FulfillmentProblem"
           }
@@ -1302,6 +1489,7 @@
     },
     "/me/shipping-requests/{shipping_request_id}": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getShippingRequest",
         "summary": "User自身のShipping Request詳細を取得する",
         "x-idempotency": "safe",
@@ -1325,6 +1513,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShippingRequestDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2593,6 +2791,7 @@
     },
     "/payments": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "createPayment",
         "summary": "fincode Paymentを支払操作時に開始する",
         "description": "credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。",
@@ -2630,6 +2829,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2852,6 +3061,7 @@
     },
     "/payments/{payment_id}/resume": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "resumeUnpaidPayment",
         "summary": "有効な未払いPaymentの既存fincode redirectを再開する",
         "description": "所有する期限内processing状態のKonbiniまたはVirtual Accountだけを対象に、暗号化保存済みの 既存fincode Redirect URLを返す。新規Payment、新規fincode Session、新規支払情報または Virtual Accountを作成せず、Provider status再照会にも使用しない。",
@@ -2896,6 +3106,7 @@
     },
     "/me/payments": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listMyPayments",
         "summary": "Storefront向け成功または有効未払いPayment履歴を取得する",
         "x-idempotency": "safe",
@@ -2945,6 +3156,7 @@
     },
     "/me/payment-cards": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "listPaymentCards",
         "summary": "fincodeに保持された登録カードの安全な表示情報を取得する",
         "x-idempotency": "safe",
@@ -2967,6 +3179,16 @@
               }
             }
           },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -2975,6 +3197,7 @@
     },
     "/me/payment-card-ui-bootstrap": {
       "get": {
+        "x-sms-verification": "required",
         "operationId": "getPaymentCardUiBootstrap",
         "summary": "Payment作成前にfincode Card UIのPublic設定を取得する",
         "description": "Card UIの初期化とmountに必要なPublic設定だけを返すread。Payment、Provider Session、 Registration Intent、Card、Coinを作成せず、Provider mutationまたはProvider通信を行わない。 無効化、未設定、またはenvironment不整合時は空値を返さずProblem DetailsでFail Closedする。",
@@ -2994,6 +3217,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentCardUiBootstrap"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3042,6 +3275,7 @@
     },
     "/me/payment-card-registration-intents": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "createPaymentCardRegistrationIntent",
         "summary": "Legacy non-3DS fincodeカード登録枠を互換目的で予約する",
         "description": "Deprecated compatibility operation。Browser registerCard()とprovider_card_idだけではRegistration 3DS2成功を 証明できないため、このIntentはCanonical Card保存に使用できない。新規実装はstartPaymentCardRegistrationを使用する。",
@@ -3071,6 +3305,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentCardRegistrationIntent"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3139,6 +3383,7 @@
     },
     "/me/payment-card-registrations": {
       "post": {
+        "x-sms-verification": "required",
         "operationId": "startPaymentCardRegistration",
         "summary": "Card保存専用のfincode Registration 3DS2を開始する",
         "description": "Browserで一時生成されたfincode tokenを永続化せず、PlatformがProvider CustomerとRegistrationを相関して Payment Method登録を作成する。tds_type=2かつtds2_type=2を固定し、tds2_type=3は使用しない。 同じIdempotency-Keyは同一Registrationを返す。Registration成功前にPaymentを開始しない。",
@@ -5289,6 +5534,7 @@
       "CardRegistrationProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
           "AUTHENTICATION_REQUIRED",
           "CARD_INTENT_EXPIRED",
           "CARD_LIMIT_REACHED",
@@ -5339,6 +5585,8 @@
       "PublicAuthProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
+          "INVALID_REGISTRATION",
           "AUTH_SERVICE_UNAVAILABLE",
           "AUTHENTICATION_REQUIRED",
           "CSRF_TOKEN_MISMATCH",
@@ -5387,6 +5635,7 @@
       "DrawProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
           "AUTHENTICATION_REQUIRED",
           "CSRF_TOKEN_MISMATCH",
           "DAILY_DRAW_LIMIT_EXCEEDED",
@@ -5797,7 +6046,7 @@
               "null"
             ],
             "format": "date-time",
-            "description": "初回登録資格確定から24時間後のUTC時刻。資格不明または匿名はnull。"
+            "description": "初回SMS認証成功から24時間後のUTC時刻。資格不明または匿名はnull。"
           },
           "as_of": {
             "type": "string",
@@ -6790,6 +7039,7 @@
       "PointReadProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
           "AUTHENTICATION_REQUIRED",
           "INVALID_CURSOR",
           "INVALID_PAGINATION",
@@ -6936,6 +7186,7 @@
       "DrawHistoryReadProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
           "AUTHENTICATION_REQUIRED",
           "INVALID_CURSOR",
           "INVALID_PAGINATION",
@@ -7072,6 +7323,7 @@
       "LineFriendStateReadProblemCode": {
         "type": "string",
         "enum": [
+          "SMS_VERIFICATION_REQUIRED",
           "AUTHENTICATION_REQUIRED",
           "RATE_LIMITED",
           "SESSION_EXPIRED"
@@ -7440,10 +7692,25 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "full_name",
+          "birth_date",
           "email",
           "password"
         ],
         "properties": {
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "writeOnly": true,
+            "description": "会員登録氏名。空白のみは不可。表示名とは別に保存する。"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "writeOnly": true,
+            "description": "JSTの当日で18歳以上のみ登録可能。未来日・不正日付は不可。Google・LINE新規作成は対象外。"
+          },
           "advertising_code": {
             "$ref": "#/components/schemas/AdvertisingCodeCandidate"
           },
@@ -8505,8 +8772,8 @@
   },
   "x-oripa-surface": "public",
   "x-oripa-breaking-change": {
-    "authority": "human_contact_prefill_required_2026-09-24",
-    "change_id": "CONTACT-PREFILL-20260924",
-    "scope": "contact-phone-required"
+    "authority": "human_signup_sms_gate_required_2026-10-12",
+    "change_id": "SIGNUP-SMS-GATE-20261012",
+    "scope": "signup-identity-and-member-sms-required"
   }
 }

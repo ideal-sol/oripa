@@ -66,7 +66,20 @@ final class PointProductReadContractTest extends TestCase
         }
     }
 
-    public function test_authenticated_first_user_uses_registration_window_and_product_history(): void
+    public function test_unverified_user_gets_only_the_anonymous_public_product_projection(): void
+    {
+        $this->plan('SMS-gate-first', 'first_purchase_users', 1);
+        $user = $this->user();
+        DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
+        $anonymous = $this->getJson('/api/v2/point-products')->assertOk()->json();
+        Auth::guard('v2_user')->setUser($user);
+        $response = $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'unauthenticated')
+            ->assertJsonPath('first_user_offer.expires_at', null);
+        self::assertSame($anonymous, $response->json());
+    }
+
+    public function test_authenticated_first_user_uses_sms_window_and_product_history(): void
     {
         $allUsers = $this->plan('全員向け', 'all_users', 1);
         $firstPurchase = $this->plan('初回限定', 'first_purchase_users', 2);
@@ -319,12 +332,12 @@ final class PointProductReadContractTest extends TestCase
     {
         $email = 'point-read-'.Str::uuid7().'@example.test';
 
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Synthetic buyer',
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
-            'first_registration_qualified_at' => $qualified ? now() : null,
+            'first_sms_verified_at' => $qualified ? now() : null,
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid user password'),
             'state' => V2UserState::Active,
         ]);

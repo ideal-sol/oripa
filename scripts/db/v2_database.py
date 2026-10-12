@@ -528,6 +528,7 @@ def rollback_and_reapply_latest(
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",
+        "2026_10_12_000083_add_v2_signup_sms_gate.php": "Signup SMS qualification requires a forward correction migration.",
         "2026_10_05_000080_create_v2_gacha_notice_defaults.php": "Gacha notice defaults require a forward correction migration.",
         "2026_10_06_000081_add_v2_prize_banner_external_ids.php": "External IDs require a forward correction migration.",
         "2026_10_05_000079_add_v2_rank_video_default.php": "Rank video defaults require a forward correction migration.",

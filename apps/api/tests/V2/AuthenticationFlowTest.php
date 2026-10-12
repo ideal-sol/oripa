@@ -70,14 +70,12 @@ final class AuthenticationFlowTest extends TestCase
             'User@example.test',
             'valid user password',
             '/',
-            '192.0.2.10'
-        );
+            '192.0.2.10', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $second = $service->register(
             'user@example.test',
             'another valid password',
             '/',
-            '192.0.2.11'
-        );
+            '192.0.2.11', fullName: 'Synthetic Member', birthDate: '1990-01-01');
 
         self::assertSame(V2UserState::PendingVerification, $first->state);
         self::assertNull($first->first_registration_qualified_at);
@@ -155,8 +153,7 @@ final class AuthenticationFlowTest extends TestCase
             'resend@example.test',
             'valid resend password',
             '/',
-            '192.0.2.20'
-        );
+            '192.0.2.20', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $old = $this->notifier->messages[0]['token'];
         $service->resend($user->public_id, '/');
         $new = $this->notifier->messages[1]['token'];
@@ -207,8 +204,7 @@ final class AuthenticationFlowTest extends TestCase
             'invalid-verification@example.test',
             'valid invalid verification password',
             '/',
-            '192.0.2.29'
-        );
+            '192.0.2.29', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $token = $this->notifier->messages[0]['token'];
 
         foreach ([
@@ -238,8 +234,7 @@ final class AuthenticationFlowTest extends TestCase
             'closed-reuse@example.test',
             'valid old identity password',
             '/mypage',
-            '192.0.2.22'
-        );
+            '192.0.2.22', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $oldToken = $this->notifier->messages[0]['token'];
         $oldVerification = DB::table('user_email_verifications')
             ->where('user_id', $oldUser->getKey())
@@ -295,8 +290,7 @@ final class AuthenticationFlowTest extends TestCase
             'CLOSED-REUSE@example.test',
             'valid new identity password',
             '/mypage',
-            '192.0.2.23'
-        );
+            '192.0.2.23', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $newToken = $this->notifier->messages[1]['token'];
 
         self::assertNotSame($oldUser->getKey(), $newUser->getKey());
@@ -372,8 +366,7 @@ final class AuthenticationFlowTest extends TestCase
                 $email,
                 'valid candidate password',
                 '/',
-                '192.0.2.'.(24 + $index)
-            );
+                '192.0.2.'.(24 + $index), fullName: 'Synthetic Member', birthDate: '1990-01-01');
             $token = $this->notifier->messages[$index]['token'];
 
             try {
@@ -444,16 +437,14 @@ final class AuthenticationFlowTest extends TestCase
             'rate-one@example.test',
             'valid rate password',
             '/',
-            '192.0.2.21'
-        );
+            '192.0.2.21', fullName: 'Synthetic Member', birthDate: '1990-01-01');
 
         try {
             $service->register(
                 'rate-two@example.test',
                 'valid rate password',
                 '/',
-                '192.0.2.21'
-            );
+                '192.0.2.21', fullName: 'Synthetic Member', birthDate: '1990-01-01');
             self::fail('Registration IP rate limit must reject the second request.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('RATE_LIMITED', $exception->errorCode);
@@ -514,8 +505,7 @@ final class AuthenticationFlowTest extends TestCase
             'rotation@example.test',
             'valid rotation password',
             '/',
-            '192.0.2.90'
-        );
+            '192.0.2.90', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $verified = $service->verify(
             $this->notifier->messages[0]['user_id'],
             $this->notifier->messages[0]['token']

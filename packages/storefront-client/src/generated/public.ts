@@ -1809,19 +1809,19 @@ export interface components {
             retry_after_seconds?: number;
         };
         /** @enum {string} */
-        CardRegistrationProblemCode: "AUTHENTICATION_REQUIRED" | "CARD_INTENT_EXPIRED" | "CARD_LIMIT_REACHED" | "CARD_REFERENCE_INVALID" | "CARD_REGISTRATION_3DS_REQUIRED" | "CARD_REGISTRATION_CANCELED" | "CARD_REGISTRATION_CONFLICT" | "CARD_REGISTRATION_FAILED" | "CARD_REGISTRATION_NOT_FOUND" | "CARD_REGISTRATION_OWNERSHIP_INVALID" | "CARD_REGISTRATION_REQUEST_INVALID" | "CARD_REGISTRATION_RETURN_OVERRIDE_FORBIDDEN" | "CARD_REGISTRATION_UNAVAILABLE" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_KEY_REQUIRED" | "IDEMPOTENCY_KEY_REUSED";
+        CardRegistrationProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CARD_INTENT_EXPIRED" | "CARD_LIMIT_REACHED" | "CARD_REFERENCE_INVALID" | "CARD_REGISTRATION_3DS_REQUIRED" | "CARD_REGISTRATION_CANCELED" | "CARD_REGISTRATION_CONFLICT" | "CARD_REGISTRATION_FAILED" | "CARD_REGISTRATION_NOT_FOUND" | "CARD_REGISTRATION_OWNERSHIP_INVALID" | "CARD_REGISTRATION_REQUEST_INVALID" | "CARD_REGISTRATION_RETURN_OVERRIDE_FORBIDDEN" | "CARD_REGISTRATION_UNAVAILABLE" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_KEY_REQUIRED" | "IDEMPOTENCY_KEY_REUSED";
         CardRegistrationProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["CardRegistrationProblemCode"];
         };
         /** @description Card Registrationの既知Problemまたは安全に汎用処理する未知のProblem Details。 pendingはProblemではなくPaymentCardRegistration.statusで表現する。 */
         CardRegistrationProblemResponse: components["schemas"]["CardRegistrationProblemDetails"] | components["schemas"]["ProblemDetails"];
         /** @enum {string} */
-        PublicAuthProblemCode: "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_UNCHANGED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_EMAIL_CHANGE_REQUEST" | "INVALID_PASSWORD_RESET" | "INVALID_SMS_VERIFICATION" | "INVALID_REDIRECT" | "INVALID_REAUTHENTICATION" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "PASSWORD_POLICY_VIOLATION" | "PASSWORD_UNCHANGED" | "PHONE_ALREADY_VERIFIED" | "PHONE_NUMBER_UNAVAILABLE" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SMS_DELIVERY_PENDING" | "SMS_DELIVERY_UNAVAILABLE" | "FRESH_AUTHENTICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
+        PublicAuthProblemCode: "SMS_VERIFICATION_REQUIRED" | "INVALID_REGISTRATION" | "AUTH_SERVICE_UNAVAILABLE" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "EMAIL_ALREADY_CLAIMED" | "EMAIL_UNCHANGED" | "EMAIL_VERIFICATION_REQUIRED" | "INVALID_CREDENTIALS" | "INVALID_EMAIL_CHANGE_REQUEST" | "INVALID_PASSWORD_RESET" | "INVALID_SMS_VERIFICATION" | "INVALID_REDIRECT" | "INVALID_REAUTHENTICATION" | "INVALID_REQUEST" | "INVALID_VERIFICATION_LINK" | "PASSWORD_POLICY_VIOLATION" | "PASSWORD_UNCHANGED" | "PHONE_ALREADY_VERIFIED" | "PHONE_NUMBER_UNAVAILABLE" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SMS_DELIVERY_PENDING" | "SMS_DELIVERY_UNAVAILABLE" | "FRESH_AUTHENTICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "VERIFICATION_LINK_EXPIRED";
         PublicAuthProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
         /** @enum {string} */
-        DrawProblemCode: "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
+        DrawProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
         DrawProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["DrawProblemCode"];
         };
@@ -1917,7 +1917,7 @@ export interface components {
             state: "active" | "expired" | "unauthenticated" | "unavailable";
             /**
              * Format: date-time
-             * @description 初回登録資格確定から24時間後のUTC時刻。資格不明または匿名はnull。
+             * @description 初回SMS認証成功から24時間後のUTC時刻。資格不明または匿名はnull。
              */
             expires_at: string | null;
             /**
@@ -2145,7 +2145,7 @@ export interface components {
             next_cursor: string | null;
         };
         /** @enum {string} */
-        PointReadProblemCode: "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        PointReadProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
         PointReadProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["PointReadProblemCode"];
         };
@@ -2180,7 +2180,7 @@ export interface components {
             next_cursor: string | null;
         };
         /** @enum {string} */
-        DrawHistoryReadProblemCode: "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        DrawHistoryReadProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "INVALID_CURSOR" | "INVALID_PAGINATION" | "RATE_LIMITED" | "SESSION_EXPIRED";
         DrawHistoryReadProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["DrawHistoryReadProblemCode"];
         };
@@ -2215,7 +2215,7 @@ export interface components {
             primary_action: components["schemas"]["LineFriendStateAction"];
         };
         /** @enum {string} */
-        LineFriendStateReadProblemCode: "AUTHENTICATION_REQUIRED" | "RATE_LIMITED" | "SESSION_EXPIRED";
+        LineFriendStateReadProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "RATE_LIMITED" | "SESSION_EXPIRED";
         LineFriendStateReadProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["LineFriendStateReadProblemCode"];
         };
@@ -2296,6 +2296,13 @@ export interface components {
         /** @description Optional case-sensitive ASCII alphanumeric 8-character candidate. Malformed, nonexistent or suspended Agency codes are ignored without rejecting registration. Platform revalidates during new User creation; existing Users are never attributed. */
         AdvertisingCodeCandidate: string;
         UserRegistrationRequest: {
+            /** @description 会員登録氏名。空白のみは不可。表示名とは別に保存する。 */
+            full_name: string;
+            /**
+             * Format: date
+             * @description JSTの当日で18歳以上のみ登録可能。未来日・不正日付は不可。Google・LINE新規作成は対象外。
+             */
+            birth_date: string;
             advertising_code?: components["schemas"]["AdvertisingCodeCandidate"];
             /** Format: email */
             email: string;
@@ -2679,6 +2686,15 @@ export interface operations {
                     "application/json": components["schemas"]["LoginGachaDetailResponse"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };
@@ -3037,6 +3053,15 @@ export interface operations {
                     "application/json": components["schemas"]["DrawResponse"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["DrawProblem"];
         };
     };
@@ -3058,6 +3083,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DrawResponse"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -3084,6 +3118,15 @@ export interface operations {
                     "application/json": components["schemas"]["UserPrizeCollection"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };
@@ -3106,6 +3149,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["PointReadProblem"];
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             429: components["responses"]["PointReadProblem"];
             default: components["responses"]["PointReadProblem"];
         };
@@ -3132,6 +3184,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["PointReadProblem"];
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             422: components["responses"]["PointReadProblem"];
             429: components["responses"]["PointReadProblem"];
             default: components["responses"]["PointReadProblem"];
@@ -3159,6 +3220,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["DrawHistoryReadProblem"];
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             422: components["responses"]["DrawHistoryReadProblem"];
             429: components["responses"]["DrawHistoryReadProblem"];
             default: components["responses"]["DrawHistoryReadProblem"];
@@ -3185,6 +3255,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["LineFriendStateReadProblem"];
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             429: components["responses"]["LineFriendStateReadProblem"];
             default: components["responses"]["LineFriendStateReadProblem"];
         };
@@ -3207,6 +3286,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserPrizeDetail"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -3237,6 +3325,15 @@ export interface operations {
                     "application/json": components["schemas"]["PrizeExchangeResponse"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["FulfillmentProblem"];
         };
     };
@@ -3256,6 +3353,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShippingAddressCollection"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["FulfillmentProblem"];
@@ -3287,6 +3393,15 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddress"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["FulfillmentProblem"];
         };
     };
@@ -3308,6 +3423,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShippingAddress"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["FulfillmentProblem"];
@@ -3339,6 +3463,15 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingAddress"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["FulfillmentProblem"];
         };
     };
@@ -3367,6 +3500,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["FulfillmentProblem"];
         };
     };
@@ -3389,6 +3531,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShippingRequestCollection"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -3419,6 +3570,15 @@ export interface operations {
                     "application/json": components["schemas"]["ShippingRequestSummary"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["FulfillmentProblem"];
         };
     };
@@ -3440,6 +3600,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShippingRequestDetail"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -4215,6 +4384,15 @@ export interface operations {
                     "application/json": components["schemas"]["Payment"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["PaymentProblem"];
         };
     };
@@ -4397,6 +4575,15 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentCardCollection"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };
@@ -4416,6 +4603,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentCardUiBootstrap"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["Problem"];
@@ -4463,6 +4659,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentCardRegistrationIntent"];
+                };
+            };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             default: components["responses"]["CardRegistrationProblem"];

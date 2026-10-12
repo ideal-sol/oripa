@@ -172,6 +172,17 @@ class PolicyGateTest(unittest.TestCase):
                      "apps/admin/test/banner-import.test.tsx", "apps/admin/e2e/admin-banner-import.spec.ts"):
             self.assertIn(path, policy_gate.ADMIN_SKELETON_FILES)
 
+    def test_signup_sms_task_scope_and_migration_inventory_are_exact(self):
+        data = fixture("positive.json")
+        task = "SIGNUP-SMS-GATE-20261012"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task),
+            f"[{task}] Signup SMS gate", data["changed_paths"], data["base_sha"])
+        for invalid in ("SIGNUP-SMS-GATE-20261013", "SIGNUP-SMS-GATE-*", task + "-EXTRA"):
+            with self.subTest(task=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid),
+                    f"[{invalid}] Signup SMS gate", data["changed_paths"], data["base_sha"])
+        self.assertIn("apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php", policy_gate.V2_IDENTITY_REQUIRED_FILES)
+
     def test_external_id_admin_registration_is_exact(self):
         relative = "apps/admin/src/components/catalog/external-id-field.tsx"
         self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "external-id" in path}, {relative})
@@ -1128,6 +1139,11 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.44')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['release_mode'], 'contract-breaking')
+        self.assertTrue(value['candidate']['breaking_change'])
+        value['candidate'] = None
         self.assertIsNone(value['candidate'])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])
@@ -3419,7 +3435,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.43",
+                    "version": "2.0.0-alpha.44",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3457,7 +3473,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.39",
+                        "minimumPublicApiContract": "2.0.0-alpha.40",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

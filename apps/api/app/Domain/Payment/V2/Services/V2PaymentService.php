@@ -50,11 +50,15 @@ final class V2PaymentService
         string $providerCode,
         ?string $providerPaymentId,
         string $idempotencyKey,
-        ?string $paymentMethod = null
+        ?string $paymentMethod = null,
+        bool $requireSmsVerification = false
     ): object {
         $this->assertRuntimeSafe();
         $this->assertCode($providerCode, 64);
         $user = User::query()->findOrFail($userId);
+        if ($requireSmsVerification) {
+            app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($user);
+        }
 
         return $this->transactions->run(function () use (
             $user,
@@ -62,7 +66,8 @@ final class V2PaymentService
             $providerCode,
             $providerPaymentId,
             $idempotencyKey,
-            $paymentMethod
+            $paymentMethod,
+            $requireSmsVerification
         ): object {
             $claim = $this->idempotency->claim(
                 'payment.create',
@@ -82,6 +87,9 @@ final class V2PaymentService
                     ->firstOrFail();
             }
             $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if ($requireSmsVerification) {
+                app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($user);
+            }
             if ($paymentMethod === 'konbini' && DB::table('payments')
                 ->where('user_id', $user->id)
                 ->where('payment_method', 'konbini')

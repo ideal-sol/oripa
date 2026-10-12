@@ -23,6 +23,30 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_signup_sms_break_requires_exact_authority_and_rejects_unrelated_breaks(self):
+        current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        previous["info"]["version"] = "2.0.0-alpha.39"
+        registration = previous["components"]["schemas"]["UserRegistrationRequest"]
+        registration["required"] = ["email", "password"]
+        del registration["properties"]["full_name"]
+        del registration["properties"]["birth_date"]
+        authorize = openapi_contract_gate.is_authorized_signup_sms_gate_break
+        self.assertTrue(authorize("public", previous, current))
+        for mutation in ("authority", "surface", "version", "contact", "password", "path"):
+            altered = copy.deepcopy(current)
+            if mutation == "authority":
+                altered.pop("x-oripa-breaking-change")
+            elif mutation == "version":
+                altered["info"]["version"] = "2.0.0-alpha.41"
+            elif mutation == "contact":
+                altered["paths"]["/contact-inquiries"]["post"]["security"] = []
+            elif mutation == "password":
+                altered["components"]["schemas"]["UserRegistrationRequest"]["properties"]["password"]["minLength"] = 12
+            elif mutation == "path":
+                del altered["paths"]["/auth/session"]
+            self.assertFalse(authorize("admin" if mutation == "surface" else "public", previous, altered))
+
     def test_fincode_webhook_alignment_is_exact_and_does_not_relax_other_contract_guards(self):
         current = json.loads((ROOT / "openapi/bundled/webhook.openapi.json").read_text())
         previous = copy.deepcopy(current)
@@ -122,7 +146,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.36", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.40", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

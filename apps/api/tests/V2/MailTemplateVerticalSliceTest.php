@@ -180,6 +180,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
         $email = 'purchase-mail-'.Str::uuid7().'@example.test';
         $user = User::query()->create([
             'display_name' => '購入テスト',
+            'full_name' => '登録氏名',
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
@@ -215,9 +216,9 @@ final class MailTemplateVerticalSliceTest extends TestCase
         DB::table('point_purchase_plans')->where('id', $planId)->update(['name' => '変更後プラン']);
         DB::table('mail_templates')->where('template_key', 'coin_purchase_completed')->update([
             'subject_template' => '{{purchase_date}} {{acquired_coins}}',
-            'body_html' => '<p>{{user_name}}|{{purchase_plan}}|{{purchase_amount}}|{{purchase_date}}|{{payment_method}}|{{acquired_coins}}|{{unknown}}</p>',
+            'body_html' => '<p>{{full_name}}|{{user_name}}|{{purchase_plan}}|{{purchase_amount}}|{{purchase_date}}|{{payment_method}}|{{acquired_coins}}|{{unknown}}</p>',
         ]);
-        $expected = '<p>購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|</p>';
+        $expected = '<p>登録氏名|購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|</p>';
         Mail::shouldReceive('html')->once()->withArgs(
             static fn (string $html, callable $callback): bool => $html === $expected
         );
@@ -264,6 +265,25 @@ final class MailTemplateVerticalSliceTest extends TestCase
         app(V2TemplateMailDeliveryService::class)->sendSecurity(
             'password_changed', 'html-source@example.test', ['acquired_coins' => '10,000 コイン']
         );
+    }
+
+    public function test_user_notifications_use_registration_name_or_empty_without_changing_display_name(): void
+    {
+        DB::table('mail_templates')->where('template_key', 'phone_changed')->update(['body_html' => '<p>{{full_name}}|{{user_name}}</p>']);
+        foreach (['Registered Name', null] as $name) {
+            $user = User::query()->create(['email_display' => Str::uuid7().'@example.test',
+                'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic password'),
+                'email_normalized' => Str::uuid7().'@example.test', 'state' => V2UserState::Active,
+                'full_name' => $name, 'display_name' => 'Public Alias']);
+            $mail = app(V2TemplateMailDeliveryService::class);
+            $event = 'user.phone_changed:'.$user->public_id;
+            $mail->schedule('phone_changed', $event, 'user', $user->public_id);
+            $expected = '<p>'.($name ?? '').'|Public Alias</p>';
+            Mail::shouldReceive('html')->once()->withArgs(static fn (string $body, callable $callback): bool => $body === $expected);
+            $delivery = DB::table('mail_deliveries')->where('event_key', $event)->firstOrFail();
+            $mail->deliver($delivery->public_id);
+            self::assertDatabaseHas('mail_deliveries', ['id' => $delivery->id, 'status' => 'sent']);
+        }
     }
 
     public function test_preview_uses_unsaved_body_dummy_values_and_has_no_side_effects(): void

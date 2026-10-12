@@ -43,6 +43,28 @@ final class DrawVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_sms_revocation_after_preflight_is_rechecked_under_the_user_lock(): void
+    {
+        [$user] = $this->fixture([1]);
+        $checked = false;
+        $before = DB::table('draw_requests')->count();
+        DB::listen(function ($query) use ($user, &$checked): void {
+            if (! $checked && str_contains($query->sql, '"users"') && str_contains($query->sql, 'for update')) {
+                $checked = true;
+                DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
+            }
+        });
+        try {
+            $this->draw($user, 1, 'sms-lock-recheck-draw');
+            self::fail('The transactional SMS guard must reject revocation.');
+        } catch (\App\Domain\Draw\Exceptions\V2DrawException $exception) {
+            self::assertSame('SMS_VERIFICATION_REQUIRED', $exception->errorCode);
+            self::assertSame(403, $exception->status);
+        }
+        self::assertTrue($checked);
+        self::assertSame($before, DB::table('draw_requests')->count());
+    }
+
     public function test_draw_schema_is_separated_strict_and_append_only(): void
     {
         foreach ([
@@ -1008,7 +1030,7 @@ final class DrawVerticalSliceTest extends TestCase
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);
 
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'draw-'.Str::uuid().'@example.test',
             'email_normalized' => 'draw-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

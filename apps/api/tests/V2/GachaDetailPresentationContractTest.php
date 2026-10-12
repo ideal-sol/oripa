@@ -523,7 +523,7 @@ final class GachaDetailPresentationContractTest extends TestCase
     private function user(): User
     {
         $email = 'presentation-'.Str::uuid().'@example.test';
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),

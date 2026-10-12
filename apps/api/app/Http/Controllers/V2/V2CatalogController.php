@@ -92,7 +92,7 @@ final class V2CatalogController
                 $this->queryString($request, 'cursor'),
                 $this->queryString($request, 'category'),
                 $this->queryString($request, 'tag'),
-                Auth::guard('v2_user')->user()
+                $this->verifiedUser()
             );
             $authenticated = Auth::guard('v2_user')->check();
             $response = $this->success(
@@ -141,7 +141,7 @@ final class V2CatalogController
     public function presentation(Request $request, string $gachaId): JsonResponse
     {
         try {
-            $user = Auth::guard('v2_user')->user();
+            $user = $this->verifiedUser();
             $response = $this->success(
                 ['data' => $this->catalog->presentationState($gachaId, $user)],
                 $request,
@@ -153,6 +153,14 @@ final class V2CatalogController
         } catch (V2CatalogException $exception) {
             return $this->problem($request, $exception);
         }
+    }
+
+    private function verifiedUser(): ?\App\Models\V2\User
+    {
+        $user = Auth::guard('v2_user')->user();
+
+        return $user !== null && app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->isVerified($user)
+            ? $user : null;
     }
 
     /**

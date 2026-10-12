@@ -35,6 +35,22 @@ final class V2SmsVerificationService
     ) {
     }
 
+    public function isVerified(User $user): bool
+    {
+        return UserPhoneNumber::query()->where('user_id', $user->getKey())
+            ->whereNotNull('verified_at')->whereNull('revoked_at')->exists();
+    }
+
+    public function assertVerified(User $user, bool $lock = false): void
+    {
+        if ($lock) {
+            User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+        }
+        if (! $this->isVerified($user)) {
+            throw new V2AuthenticationException('SMS_VERIFICATION_REQUIRED', 403);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function status(User $user): array
     {
@@ -123,7 +139,7 @@ final class V2SmsVerificationService
                 $challengePublicId,
                 $code
             ): ?array {
-                User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+                $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
                 $challenge = SmsVerificationChallenge::query()
                     ->where('public_id', $challengePublicId)
                     ->where('user_id', $user->getKey())
@@ -207,6 +223,14 @@ final class V2SmsVerificationService
                     && $existing->revoked_at === null;
                 $changed = $hadVerifiedPhone
                     && ! $this->matchesHash($existing->phone_hmac, $phoneHashes);
+                if (
+                    $lockedUser->first_sms_verified_at === null
+                    && $existing?->verified_at === null
+                    && ! SmsVerificationChallenge::query()->where('user_id', $user->getKey())
+                        ->whereNotNull('used_at')->exists()
+                ) {
+                    $lockedUser->forceFill(['first_sms_verified_at' => $now])->save();
+                }
                 UserPhoneNumber::query()->updateOrCreate(
                     ['user_id' => $user->getKey()],
                     [

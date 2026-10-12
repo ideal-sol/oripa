@@ -40,6 +40,9 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
     public function test_registration_uses_direct_mail_and_preserves_verification_semantics(): void
     {
         $capture = $this->spyOnHtmlMail();
+        DB::table('mail_templates')->where('template_key', 'email_verification')->update([
+            'body_html' => '<p>{{full_name}}|{{user_name}}</p><p>ご登録ありがとうございます。</p><p>{{verification_url}}</p>',
+        ]);
         $service = app(V2UserAuthenticationService::class);
         $verificationOutboxCount = $this->verificationOutboxCount();
 
@@ -52,10 +55,10 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'direct-register@example.test',
             'valid direct mail password',
             '/mypage',
-            '192.0.2.140'
-        );
+            '192.0.2.140', fullName: 'Synthetic Member', birthDate: '1990-01-01');
 
         $this->assertHtmlMailWasSent($capture, 1);
+        self::assertStringContainsString('<p>Synthetic Member|</p>', $capture->messages[0]['body']);
         self::assertSame('direct-register@example.test', $capture->messages[0]['to']);
         self::assertSame('メールアドレス認証のお願い', $capture->messages[0]['subject']);
         self::assertMatchesRegularExpression(
@@ -80,8 +83,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'direct-resend@example.test',
             'valid direct mail password',
             '/',
-            '192.0.2.141'
-        );
+            '192.0.2.141', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $this->assertHtmlMailWasSent($capture, 1);
         $oldToken = $this->tokenFromBody($capture->messages[0]['body'], $user->public_id);
 
@@ -110,8 +112,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'browser-verification@example.test',
             'valid browser verification password',
             '/mypage',
-            '192.0.2.143'
-        );
+            '192.0.2.143', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
 
         $response = $this
@@ -153,8 +154,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'json-verification@example.test',
             'valid json verification password',
             '/mypage',
-            '192.0.2.144'
-        );
+            '192.0.2.144', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
 
         $response = $this
@@ -202,8 +202,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
                     'redirect-rejection-'.$index.'@example.test',
                     'valid redirect rejection password',
                     $redirectPath,
-                    '192.0.2.'.(150 + $index)
-                );
+                    '192.0.2.'.(150 + $index), fullName: 'Synthetic Member', birthDate: '1990-01-01');
                 self::fail('An unsafe verification redirect must be rejected.');
             } catch (V2AuthenticationException $exception) {
                 self::assertSame('INVALID_REDIRECT', $exception->errorCode);
@@ -218,8 +217,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'redirect-tampering@example.test',
             'valid redirect tampering password',
             '/',
-            '192.0.2.145'
-        );
+            '192.0.2.145', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
         $path = (string) parse_url($url, PHP_URL_PATH);
 
@@ -237,8 +235,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'invalid-token@example.test',
             'valid invalid token password',
             '/',
-            '192.0.2.146'
-        );
+            '192.0.2.146', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $url = $this->verificationUrlFromBody($capture->messages[0]['body']);
         $path = (string) parse_url($url, PHP_URL_PATH);
         $invalidPath = preg_replace(
@@ -278,8 +275,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'expired-browser@example.test',
             'valid expired browser password',
             '/',
-            '192.0.2.147'
-        );
+            '192.0.2.147', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $path = (string) parse_url(
             $this->verificationUrlFromBody($capture->messages[0]['body']),
             PHP_URL_PATH
@@ -316,8 +312,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
                 'direct-failure@example.test',
                 'valid direct mail password',
                 '/',
-                '192.0.2.142'
-            );
+                '192.0.2.142', fullName: 'Synthetic Member', birthDate: '1990-01-01');
             self::fail('Mail transport failure must abort registration.');
         } catch (V2AuthenticationException $exception) {
             self::assertSame('VERIFICATION_MAIL_DELIVERY_FAILED', $exception->errorCode);

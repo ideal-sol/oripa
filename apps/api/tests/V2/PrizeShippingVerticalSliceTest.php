@@ -136,6 +136,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         ]);
 
         $operations = [
+            fn () => $service->exchange($user, $prizes, 'sms-gate-exchange-denied', (string) Str::uuid7()),
             fn () => $service->addresses($user),
             fn () => $service->addressDetail($user, $address['id'], (string) Str::uuid7()),
             fn () => $service->createAddress($user, $this->address(), (string) Str::uuid7()),

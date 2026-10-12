@@ -73,7 +73,7 @@ Route::prefix('v2')->group(function (): void {
         ->name('v2.public.point-products.index');
     Route::get('/login-gachas', [V2CatalogController::class, 'loginGachas'])->name('v2.public.login-gachas.index');
     Route::get('/login-gachas/{gachaId}', [V2CatalogController::class, 'loginGacha'])
-        ->whereUuid('gachaId')->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user'])->name('v2.public.login-gachas.show');
+        ->whereUuid('gachaId')->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user,sms'])->name('v2.public.login-gachas.show');
     Route::get('/gachas', [V2CatalogController::class, 'index'])
         ->middleware('v2.browser:user')
         ->name('v2.public.catalog.gachas');
@@ -109,7 +109,7 @@ Route::prefix('v2')
     });
 
 Route::prefix('v2')
-    ->middleware(['v2.browser:user', 'v2.realm:user'])
+    ->middleware(['v2.browser:user', 'v2.realm:user,sms'])
     ->group(function (): void {
         Route::post('/gachas/{gachaId}/draws', [V2DrawController::class, 'store'])
             ->whereUuid('gachaId')
@@ -125,8 +125,6 @@ Route::prefix('v2')
             ->name('v2.public.point-ledgers.index');
         Route::post('/payments', [V2PaymentController::class, 'store'])
             ->name('v2.public.payments.store');
-        Route::get('/payments/{paymentId}', [V2PaymentController::class, 'show'])
-            ->name('v2.public.payments.show');
         Route::post('/payments/{paymentId}/resume', [V2PaymentController::class, 'resume'])
             ->name('v2.public.payments.resume');
         Route::get('/me/payments', [V2PaymentController::class, 'history'])
@@ -137,22 +135,8 @@ Route::prefix('v2')
             ->name('v2.public.payment-card-ui-bootstrap.show');
         Route::post('/me/payment-card-registration-intents', [V2PaymentController::class, 'reserveCard'])
             ->name('v2.public.payment-card-registration-intents.store');
-        Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
-            ->whereUuid('registrationIntentId')
-            ->name('v2.public.payment-card-registration-intents.complete');
         Route::post('/me/payment-card-registrations', [V2PaymentController::class, 'startCardRegistration'])
             ->name('v2.public.payment-card-registrations.store');
-        Route::get('/me/payment-card-registrations/{registrationId}', [V2PaymentController::class, 'showCardRegistration'])
-            ->whereUuid('registrationId')
-            ->name('v2.public.payment-card-registrations.show');
-        Route::post('/me/payment-card-registrations/{registrationId}/reconcile', [V2PaymentController::class, 'reconcileCardRegistration'])
-            ->whereUuid('registrationId')
-            ->name('v2.public.payment-card-registrations.reconcile');
-        Route::post('/me/payment-card-registrations/{registrationId}/cancel', [V2PaymentController::class, 'cancelCardRegistration'])
-            ->whereUuid('registrationId')
-            ->name('v2.public.payment-card-registrations.cancel');
-        Route::delete('/me/payment-cards/{cardId}', [V2PaymentController::class, 'deleteCard'])
-            ->whereUuid('cardId')->name('v2.public.payment-cards.destroy');
         Route::get('/me/line-friend-state', [V2CurrentUserLineController::class, 'show'])
             ->name('v2.public.line-friend-state.show');
         Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
@@ -182,6 +166,27 @@ Route::prefix('v2')
         Route::get('/me/shipping-requests/{shippingRequestId}', [V2PrizeShippingController::class, 'shippingRequest'])
             ->whereUuid('shippingRequestId')
             ->name('v2.public.shipping-requests.show');
+    });
+
+Route::prefix('v2')
+    ->middleware(['v2.browser:user', 'v2.realm:user'])
+    ->group(function (): void {
+        Route::get('/payments/{paymentId}', [V2PaymentController::class, 'show'])
+            ->name('v2.public.payments.show');
+        Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
+            ->whereUuid('registrationIntentId')
+            ->name('v2.public.payment-card-registration-intents.complete');
+        Route::get('/me/payment-card-registrations/{registrationId}', [V2PaymentController::class, 'showCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.show');
+        Route::post('/me/payment-card-registrations/{registrationId}/reconcile', [V2PaymentController::class, 'reconcileCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.reconcile');
+        Route::post('/me/payment-card-registrations/{registrationId}/cancel', [V2PaymentController::class, 'cancelCardRegistration'])
+            ->whereUuid('registrationId')
+            ->name('v2.public.payment-card-registrations.cancel');
+        Route::delete('/me/payment-cards/{cardId}', [V2PaymentController::class, 'deleteCard'])
+            ->whereUuid('cardId')->name('v2.public.payment-cards.destroy');
         Route::get('/me/sms-verification', [V2PublicAuthController::class, 'smsStatus'])
             ->name('v2.public.sms-verification.show');
         Route::post('/me/sms-verification', [V2PublicAuthController::class, 'sendSms'])

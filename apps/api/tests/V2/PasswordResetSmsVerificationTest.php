@@ -411,6 +411,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
         self::assertSame('+819012345678', Crypt::decryptString($phone->phone_ciphertext));
         self::assertNotSame('+819012345678', $phone->phone_hmac);
         self::assertNotNull($phone->verified_at);
+        self::assertTrue($phone->verified_at->equalTo($user->fresh()->first_sms_verified_at));
         self::assertTrue($verified['status']['verified']);
         self::assertNull($verified['status']['challenge']);
         self::assertNotNull(DB::table('user_sessions')
@@ -804,6 +805,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             $this->decryptedOutbox('identity.sms-verification', $initial->public_id)['verification_code']
         );
         $otherSession = app(V2SessionManager::class)->issue(V2Realm::User, (int) $user->getKey());
+        $firstSmsVerifiedAt = $user->fresh()->first_sms_verified_at;
         UserRememberDevice::query()->create([
             'user_id' => $user->getKey(),
             'selector' => str_repeat('7', 32),
@@ -895,6 +897,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             $changeCode
         );
         self::assertSame('+818044445555', $result['status']['phone']);
+        self::assertTrue($firstSmsVerifiedAt->equalTo($user->fresh()->first_sms_verified_at));
         self::assertSame(1, DB::table('mail_deliveries as delivery')
             ->join('mail_templates as template', 'template.id', '=', 'delivery.mail_template_id')
             ->where('template.template_key', 'phone_changed')
@@ -923,6 +926,40 @@ final class PasswordResetSmsVerificationTest extends TestCase
                 $releasedChallenge->public_id
             )['verification_code']
         );
+    }
+
+    public function test_historical_sms_owners_and_consumed_challenges_never_receive_new_purchase_qualification(): void
+    {
+        foreach (['current', 'revoked', 'challenge'] as $history) {
+            $user = $this->user('historic-'.$history.'@example.test');
+            [$request] = $this->authenticatedRequest($user);
+            if ($history !== 'challenge') {
+                UserPhoneNumber::query()->create([
+                    'user_id' => $user->id,
+                    'phone_ciphertext' => Crypt::encryptString('+819012345678'),
+                    'phone_hmac' => hash('sha256', $user->public_id),
+                    'verified_at' => now()->subDays(2),
+                    'revoked_at' => $history === 'revoked' ? now()->subDay() : null,
+                ]);
+            }
+            $service = app(V2SmsVerificationService::class);
+            $phone = match ($history) {
+                'current' => '08011112222', 'revoked' => '08011113333', default => '08011114444',
+            };
+            $service->send($user, $request, $phone);
+            $challenge = SmsVerificationChallenge::query()->where('user_id', $user->id)->sole();
+            $this->acceptChallenge($challenge);
+            $code = $this->decryptedOutbox('identity.sms-verification', $challenge->public_id)['verification_code'];
+            if ($history === 'challenge') {
+                $historical = $challenge->replicate(['public_id']);
+                $historical->public_id = (string) \Illuminate\Support\Str::uuid7();
+                $historical->used_at = now();
+                $historical->save();
+            }
+            $service->verify($user, $request, $challenge->public_id, $code);
+            self::assertTrue($service->isVerified($user));
+            self::assertNull($user->fresh()->first_sms_verified_at);
+        }
     }
 
     public function test_expired_phone_change_preserves_old_phone_and_sends_no_mail(): void

@@ -721,7 +721,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);
 
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'qa-user-'.Str::uuid().'@example.test',
             'email_normalized' => 'qa-user-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

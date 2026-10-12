@@ -218,7 +218,7 @@ final class DrawPresentationTest extends TestCase
         }
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $this->random($values);
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'presentation@example.test',
             'email_normalized' => 'presentation@example.test',
             'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic presentation password'),
