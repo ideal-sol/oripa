@@ -157,7 +157,7 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
             'role' => V2AdminRole::Owner,
             'state' => V2AdminState::Active,
         ]);
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'qa-concurrency-user@example.test',
             'email_normalized' => 'qa-concurrency-user@example.test',
             'email_verified_at' => now(),
@@ -187,7 +187,7 @@ final class ZQaTestUserGuaranteeConcurrencyTest extends TestCase
 
     private function migrationUser(string $suffix): User
     {
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => "qa-migration-{$suffix}@example.test",
             'email_normalized' => "qa-migration-{$suffix}@example.test",
             'email_verified_at' => now(),

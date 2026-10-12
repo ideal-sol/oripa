@@ -193,7 +193,7 @@ final class RealmSeparationTest extends TestCase
         $adminGuard->shouldReceive('check')->andReturnTrue();
         $agencyGuard->shouldReceive('check')->andReturnFalse();
 
-        $middleware = new EnforceV2Realm($auth, new V2RealmBoundary());
+        $middleware = new EnforceV2Realm($auth, new V2RealmBoundary(), app(\App\Domain\Identity\Services\V2SmsVerificationService::class));
         $request = Request::create('/testing-only', 'GET');
         $request->attributes->set('v2_admin_mfa_verified', true);
 

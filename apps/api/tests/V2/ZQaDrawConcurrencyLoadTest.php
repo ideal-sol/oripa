@@ -258,7 +258,7 @@ final class ZQaDrawConcurrencyLoadTest extends TestCase
 
     private function qaUser(Admin $owner, int $quantity): User
     {
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'qa-load-'.Str::uuid().'@example.test',
             'email_normalized' => 'qa-load-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

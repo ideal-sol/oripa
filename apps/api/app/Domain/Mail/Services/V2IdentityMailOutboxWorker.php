@@ -100,8 +100,11 @@ final class V2IdentityMailOutboxWorker
         ) {
             throw new RuntimeException('Identity Mail Outbox recipient is invalid.');
         }
-        $userName = DB::table('users')->where('public_id', $userPublicId)->value('display_name');
-        $base = ['user_name' => is_string($userName) ? $userName : ''];
+        $user = DB::table('users')->where('public_id', $userPublicId)->first(['display_name', 'full_name']);
+        $base = [
+            'user_name' => (string) ($user?->display_name ?? ''),
+            'full_name' => (string) ($user?->full_name ?? ''),
+        ];
 
         return match ($message->topic) {
             'identity.password-reset' => [

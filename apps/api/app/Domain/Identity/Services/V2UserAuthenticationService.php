@@ -36,8 +36,22 @@ final class V2UserAuthenticationService
         #[SensitiveParameter] string $password,
         string $redirectPath,
         string $ip,
-        mixed $advertisingCode = null
+        mixed $advertisingCode = null,
+        ?string $fullName = null,
+        ?string $birthDate = null
     ): User {
+        $fullName = preg_replace('/\A[\s\p{Z}]+|[\s\p{Z}]+\z/u', '', $fullName ?? '') ?? '';
+        $validator = \Illuminate\Support\Facades\Validator::make(
+            ['full_name' => $fullName, 'birth_date' => $birthDate],
+            ['full_name' => ['required', 'string', 'max:255'], 'birth_date' => ['required', 'date_format:Y-m-d']]
+        );
+        if ($validator->fails()) {
+            throw new V2AuthenticationException('INVALID_REGISTRATION', 422);
+        }
+        $birthday = \Carbon\CarbonImmutable::createFromFormat('!Y-m-d', $birthDate, 'Asia/Tokyo');
+        if ($birthday->addYears(18)->greaterThan(\Carbon\CarbonImmutable::now('Asia/Tokyo')->startOfDay())) {
+            throw new V2AuthenticationException('INVALID_REGISTRATION', 422);
+        }
         $normalized = $this->emails->normalize($email);
         $this->assertRedirectAllowed($redirectPath);
         $this->rateLimiter->assertGlobal('register_ip', $ip);
@@ -58,10 +72,14 @@ final class V2UserAuthenticationService
             $normalized,
             $passwordHash,
             $redirectPath,
-            $advertisingCode
+            $advertisingCode,
+            $fullName,
+            $birthDate
         ): User {
             $user = User::query()->create([
                 'email_display' => trim($email),
+                'full_name' => $fullName,
+                'birth_date' => $birthDate,
                 'email_normalized' => $normalized,
                 'password_hash' => $passwordHash,
                 'state' => V2UserState::PendingVerification,

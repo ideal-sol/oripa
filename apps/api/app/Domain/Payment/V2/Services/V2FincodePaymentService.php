@@ -38,7 +38,8 @@ final class V2FincodePaymentService
         private readonly V2FincodeCardService $cards,
         private readonly V2FincodePublicConfiguration $configuration,
         private readonly V2FincodeReturnUrl $returns,
-        private readonly V2ReportingCursor $cursor
+        private readonly V2ReportingCursor $cursor,
+        private readonly \App\Domain\Identity\Services\V2SmsVerificationService $smsVerification
     ) {
     }
 
@@ -50,6 +51,7 @@ final class V2FincodePaymentService
         string $idempotencyKey,
         ?array $card = null
     ): array {
+        $this->smsVerification->assertVerified($user);
         $payType = self::METHODS[$method] ?? null;
         if ($payType === null) {
             throw new V2FincodeException('PAYMENT_METHOD_UNSUPPORTED', 422, 'The payment method is unsupported.');
@@ -73,7 +75,8 @@ final class V2FincodePaymentService
                 'fincode',
                 $orderId,
                 $idempotencyKey,
-                $method
+                $method,
+                requireSmsVerification: true
             );
         } catch (V2PaymentException $exception) {
             throw $this->translatePaymentException($exception);
@@ -167,7 +170,7 @@ final class V2FincodePaymentService
 
     public function show(User $user, string $paymentPublicId): array
     {
-        return $this->present($paymentPublicId, true, $user->id);
+        return $this->present($paymentPublicId, $this->smsVerification->isVerified($user), $user->id);
     }
 
     public function history(
@@ -216,6 +219,7 @@ final class V2FincodePaymentService
 
     public function resume(User $user, string $paymentPublicId): array
     {
+        $this->smsVerification->assertVerified($user);
         $query = DB::table('payments')
             ->where('public_id', $paymentPublicId)
             ->where('user_id', $user->id);

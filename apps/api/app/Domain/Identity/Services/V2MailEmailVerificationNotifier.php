@@ -28,7 +28,7 @@ final class V2MailEmailVerificationNotifier implements V2EmailVerificationNotifi
         try {
             $this->mail->sendVerification($user->email_display, [
                 'user_name' => $user->display_name ?? '',
-                'full_name' => $user->display_name ?? '',
+                'full_name' => $user->full_name ?? '',
                 'verification_url' => $url,
             ]);
         } catch (Throwable) {

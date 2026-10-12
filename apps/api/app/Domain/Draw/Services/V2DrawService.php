@@ -41,7 +41,8 @@ final class V2DrawService
         private readonly V2OutboxService $outbox,
         private readonly V2QaDrawResolver $qaDraw,
         private readonly V2DrawEligibilityService $eligibility,
-        private readonly V2DrawPresentationResolver $presentation
+        private readonly V2DrawPresentationResolver $presentation,
+        private readonly \App\Domain\Identity\Services\V2SmsVerificationService $smsVerification
     ) {
     }
 
@@ -56,6 +57,9 @@ final class V2DrawService
         string $requestId,
         ?V2AdminQaDrawCommand $adminCommand = null
     ): array {
+        if ($adminCommand === null) {
+            $this->smsVerification->assertVerified($user);
+        }
         $this->assertInput($gachaPublicId, $drawCount, $idempotencyKey, $requestId);
         $started = hrtime(true);
         $qaRetryItemIds = null;
@@ -227,6 +231,9 @@ final class V2DrawService
                 );
                 if (! $login) {
                     $occurredAt = CarbonImmutable::now()->startOfSecond();
+                }
+                if ($adminCommand === null) {
+                    $this->smsVerification->assertVerified($user, true);
                 }
                 if (! $qaSelection['active']) {
                     $this->eligibility->assertForDraw(
@@ -1864,7 +1871,7 @@ final class V2DrawService
         if ($exception instanceof V2DrawException) {
             return $exception;
         }
-        if ($exception instanceof V2QaDrawException) {
+        if ($exception instanceof V2QaDrawException || $exception instanceof \App\Domain\Identity\Exceptions\V2AuthenticationException) {
             return new V2DrawException(
                 $exception->errorCode,
                 $exception->status,

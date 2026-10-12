@@ -437,7 +437,7 @@ final class ZAdminGachaProbabilitySelectionConcurrencyTest extends TestCase
         ]);
         app(V2CatalogFixtureImporter::class)->import($this->fixture());
         $context = $this->createAdminContext();
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'gacha-sales-pause-draw@example.test',
             'email_normalized' => 'gacha-sales-pause-draw@example.test',
             'email_verified_at' => now(),

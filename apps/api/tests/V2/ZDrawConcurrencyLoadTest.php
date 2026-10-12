@@ -440,7 +440,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         ]);
 
         $gachaId = $this->importGachas(1, 10)[0];
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'daily-limit-'.Str::uuid().'@example.test',
             'email_normalized' => 'daily-limit-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),
@@ -544,7 +544,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
             'available_quantity' => 150,
             'withdrawn_quantity' => 750,
         ]);
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'partial-concurrency-'.Str::uuid().'@example.test',
             'email_normalized' => 'partial-concurrency-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),
@@ -639,7 +639,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
         $gachas = $this->importGachas(20);
         $users = [];
         foreach (range(1, 20) as $number) {
-            $user = User::query()->create([
+            $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
                 'email_display' => "load-{$number}-".Str::uuid().'@example.test',
                 'email_normalized' => "load-{$number}-".Str::uuid().'@example.test',
                 'email_verified_at' => now(),
@@ -980,7 +980,7 @@ final class ZDrawConcurrencyLoadTest extends TestCase
     private function inventoryUser(string $suffix): User
     {
         $email = "inventory-{$suffix}-".Str::uuid().'@example.test';
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),

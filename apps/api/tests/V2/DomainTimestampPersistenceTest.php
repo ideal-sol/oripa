@@ -231,7 +231,7 @@ final class DomainTimestampPersistenceTest extends TestCase
     {
         $email = Str::uuid7().'@example.test';
 
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Timestamp fixture', 'email_display' => $email, 'email_normalized' => $email,
             'email_verified_at' => $this->instant->utc(), 'state' => V2UserState::Active,
             'password_hash' => app(V2PasswordPolicy::class)->hash('timestamp fixture password'),

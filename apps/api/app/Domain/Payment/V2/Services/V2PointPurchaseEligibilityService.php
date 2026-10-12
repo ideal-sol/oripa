@@ -113,7 +113,7 @@ final class V2PointPurchaseEligibilityService
 
     private function isWithinFirstUserWindow(User $user, CarbonImmutable $asOf): bool
     {
-        $qualifiedAt = $user->first_registration_qualified_at?->utc();
+        $qualifiedAt = $user->first_sms_verified_at?->utc();
 
         return $qualifiedAt !== null
             && $qualifiedAt->lessThanOrEqualTo($asOf)

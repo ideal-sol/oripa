@@ -501,7 +501,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
-            'first_registration_qualified_at' => $qualified ? now() : null,
+            'first_sms_verified_at' => $qualified ? now() : null,
             'password_hash' => app(V2PasswordPolicy::class)->hash('valid user password'),
             'state' => V2UserState::Active,
         ]);

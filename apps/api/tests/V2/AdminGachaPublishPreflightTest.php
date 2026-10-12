@@ -690,7 +690,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->firstOrFail();
         $publishedVersionId = (int) $gachaBefore->published_version_id;
         $activeDrawStateId = (int) $gachaBefore->active_draw_state_id;
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'sales-pause-draw@example.test',
             'email_normalized' => 'sales-pause-draw@example.test',
             'email_verified_at' => now(),
@@ -1028,7 +1028,7 @@ final class AdminGachaPublishPreflightTest extends TestCase
             ->where('id', $publishedVersion->published_probability_version_id)
             ->firstOrFail();
         $drawStateId = (int) $gacha->active_draw_state_id;
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => 'unpublish-draw@example.test',
             'email_normalized' => 'unpublish-draw@example.test',
             'email_verified_at' => now(),

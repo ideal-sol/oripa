@@ -1241,5 +1241,56 @@
       "sha256sums_sha256": "c7027c25f1a9c8070061ff75767e9483eef7732c9ab2240c7d787b89b6487fac"
     }
   },
-  "candidate": null
+  "candidate": {
+    "release_state": "pending",
+    "bundle_version": "2.0.0-alpha.44",
+    "predecessor_bundle_version": "2.0.0-alpha.43",
+    "release_mode": "contract-breaking",
+    "breaking_change": true,
+    "platform_version": "2.0.0-alpha.23",
+    "application_versions": {
+      "workspace": "2.0.0-alpha.23",
+      "admin": "2.0.0-alpha.23"
+    },
+    "contract_versions": {
+      "public": "2.0.0-alpha.40",
+      "admin": "2.0.0-alpha.40",
+      "webhook": "2.0.0-alpha.40"
+    },
+    "public_openapi_sha256": "0041ff6a99f4bfb9c162a434d14c8924aa6763e8c81e7a3933e079e189366d1c",
+    "public_api_operation_count": 78,
+    "packages": {
+      "@oripa/storefront-client": {
+        "version": "2.0.0-alpha.44",
+        "minimum_public_api_contract": "2.0.0-alpha.40",
+        "required_capabilities": [
+          "draw.browser-mutation.v2",
+          "gacha.catalog-display.v2",
+          "gacha.presentation.v2",
+          "gacha.rank-master.v2",
+          "identity.sms-phone-ownership.v2",
+          "payment.fincode.v2",
+          "prize.fulfillment-browser-mutation.v2",
+          "user-draw-history.read.v2",
+          "user-point.read.v2",
+          "user-prize.presentation.v2"
+        ],
+        "disposition": "publish"
+      },
+      "@oripa/site-schema": {
+        "version": "2.0.0-alpha.23",
+        "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
+        "source_bundle_version": "2.0.0-alpha.23",
+        "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
+        "disposition": "reference"
+      },
+      "@oripa/storefront-testkit": {
+        "version": "2.0.0-alpha.44",
+        "storefront_client_version": "2.0.0-alpha.44",
+        "site_schema_version": "2.0.0-alpha.23",
+        "public_api_operation_count": 78,
+        "disposition": "publish"
+      }
+    }
+  }
 }

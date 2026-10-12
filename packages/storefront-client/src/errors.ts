@@ -48,6 +48,8 @@ export type AuthProblemCode = PublicComponents["schemas"]["PublicAuthProblemCode
 
 const AUTH_PROBLEM_CODES: ReadonlySet<string> = new Set<AuthProblemCode>([
   "AUTH_SERVICE_UNAVAILABLE",
+  "SMS_VERIFICATION_REQUIRED",
+  "INVALID_REGISTRATION",
   "AUTHENTICATION_REQUIRED",
   "CSRF_TOKEN_MISMATCH",
   "EMAIL_ALREADY_CLAIMED",
@@ -88,6 +90,7 @@ export function isAuthProblemError(
 export type DrawProblemCode = PublicComponents["schemas"]["DrawProblemCode"];
 
 const DRAW_PROBLEM_CODES: ReadonlySet<string> = new Set<DrawProblemCode>([
+  "SMS_VERIFICATION_REQUIRED",
   "AUTHENTICATION_REQUIRED",
   "CSRF_TOKEN_MISMATCH",
   "DAILY_DRAW_LIMIT_EXCEEDED",
@@ -158,6 +161,7 @@ export type CardRegistrationProblemCode =
 
 const CARD_REGISTRATION_PROBLEM_CODES: ReadonlySet<string> =
   new Set<CardRegistrationProblemCode>([
+    "SMS_VERIFICATION_REQUIRED",
     "AUTHENTICATION_REQUIRED",
     "CARD_INTENT_EXPIRED",
     "CARD_LIMIT_REACHED",

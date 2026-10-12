@@ -1478,6 +1478,14 @@ export const PUBLIC_SMS_VERIFICATION_FIXTURES = Object.freeze({
       request_id: "request-fixture-sms-problem-005",
       retryable: false,
     },
+    member_sms_required: {
+      type: "https://oripa.example/problems/sms_verification_required",
+      title: "SMS phone verification is required.",
+      status: 403,
+      code: "SMS_VERIFICATION_REQUIRED",
+      request_id: "request-fixture-sms-problem-007",
+      retryable: false,
+    },
     shipping_sms_required: {
       type: "https://oripa.example/problems/sms_verification_required",
       title: "SMS phone verification is required.",
@@ -1502,6 +1510,7 @@ export const PUBLIC_SMS_VERIFICATION_FIXTURES = Object.freeze({
     cooldown: PublicComponents["schemas"]["PublicAuthProblemDetails"];
     five_failed_attempts: PublicComponents["schemas"]["PublicAuthProblemDetails"];
     address_sms_required: PublicComponents["schemas"]["FulfillmentProblemDetails"];
+    member_sms_required: PublicComponents["schemas"]["PublicAuthProblemDetails"];
     shipping_sms_required: PublicComponents["schemas"]["FulfillmentProblemDetails"];
   };
 });
@@ -1613,8 +1622,12 @@ export const PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES = Object.freeze({
   valid: { valid: true },
   invalid: { valid: false },
   stopped_agency: { valid: false },
-  registration: { email: "advertised@example.test", password: "synthetic password", redirect_path: "/", advertising_code: "Ab12Cd34" },
-  registration_without_code: { email: "organic@example.test", password: "synthetic password", redirect_path: "/" },
+  registration: { full_name: "Synthetic Member",
+    birth_date: "1990-01-01",
+    email: "advertised@example.test", password: "synthetic password", redirect_path: "/", advertising_code: "Ab12Cd34" },
+  registration_without_code: { full_name: "Synthetic Member",
+    birth_date: "1990-01-01",
+    email: "organic@example.test", password: "synthetic password", redirect_path: "/" },
   external_start: { return_path: "/", advertising_code: "Ab12Cd34" },
   external_new_user: {
     authenticated: true, purpose: "login", provider: "google", return_path: "/",

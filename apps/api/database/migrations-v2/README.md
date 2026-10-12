@@ -1,5 +1,18 @@
 # V2 Migration Root
 
+## SIGNUP-SMS-GATE-20261012
+
+Migration `2026_10_12_000083_add_v2_signup_sms_gate.php` adds nullable User
+`full_name`, `birth_date` (DATE), and `first_sms_verified_at` (TIMESTAMPTZ).
+The Migration Allocation Lock was acquired before allocation of 000083;
+000081 and 000082 are unchanged. There is no backfill. A database trigger
+rejects changes or clearing once the first SMS timestamp is non-null.
+Existing phone ownership or consumed OTP history prevents a new qualification.
+Rollback is application-only with the additive schema retained; `down()`
+requires a forward correction. Only disposable task databases are authorized
+for test application. OLD Test, NEW and Production application and Runtime
+activation remain deferred pending separate Human approval.
+
 ## Purpose
 
 This directory is the only Laravel migration root for the new V2 database.

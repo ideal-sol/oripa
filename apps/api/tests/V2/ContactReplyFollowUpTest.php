@@ -76,6 +76,7 @@ final class ContactReplyFollowUpTest extends TestCase
             ->withHeaders(['Origin' => 'https://storefront.example.test', 'X-XSRF-TOKEN' => $csrf, 'Idempotency-Key' => (string) Str::uuid7()])
             ->postJson('/api/v2/contact-inquiries', $this->input())->assertUnauthorized();
         $user = $this->contactUser();
+        self::assertFalse(app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->isVerified($user));
         $this->actingAs($user, 'v2_user')->postJson('/api/v2/contact-inquiries', $this->input())->assertAccepted();
         self::assertDatabaseHas('contact_inquiries', ['user_id' => $user->id, 'status' => 'new']);
         $this->withHeader('Idempotency-Key', '')->postJson('/api/v2/contact-inquiries', $this->input())->assertUnprocessable();
@@ -292,7 +293,7 @@ final class ContactReplyFollowUpTest extends TestCase
     {
         $user = $this->contactUser();
         $contact = $this->inquiry($user);
-        $user->forceFill(['display_name' => '山田 <太郎> &', 'email_display' => 'current@example.test', 'email_normalized' => 'current@example.test'])->save();
+        $user->forceFill(['full_name' => 'Different Registered Name', 'display_name' => '山田 <太郎> &', 'email_display' => 'current@example.test', 'email_normalized' => 'current@example.test'])->save();
         DB::table('user_phone_numbers')->insert([
             'public_id' => (string) Str::uuid7(), 'user_id' => $user->id, 'phone_ciphertext' => Crypt::encryptString('+819000000000'),
             'phone_hmac' => hash('sha256', '+819000000000'), 'verified_at' => V2DatabaseTimestamp::format(now()),

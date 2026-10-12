@@ -587,7 +587,7 @@ final class ZFincodePaymentConcurrencyTest extends TestCase
 
     private function user(string $name): User
     {
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'email_display' => $name.'-'.Str::uuid().'@example.test',
             'email_normalized' => $name.'-'.Str::uuid().'@example.test',
             'email_verified_at' => now(),

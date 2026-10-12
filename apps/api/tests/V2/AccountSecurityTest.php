@@ -693,6 +693,10 @@ final class AccountSecurityTest extends TestCase
             }
         );
         $user = $this->user('worker-reset@example.test');
+        $user->forceFill(['full_name' => 'Registered Security Name', 'display_name' => 'Security Alias'])->save();
+        DB::table('mail_templates')->where('template_key', 'password_reset')->update([
+            'body_html' => '<p>{{full_name}}|{{user_name}}</p><p>{{reset_url}}</p>',
+        ]);
         app(V2PasswordRecoveryService::class)->request(
             $user->email_display,
             '/',
@@ -722,6 +726,7 @@ final class AccountSecurityTest extends TestCase
 
         self::assertCount(1, $capture->messages);
         self::assertSame('worker-reset@example.test', $capture->messages[0]['to']);
+        self::assertStringContainsString('<p>Registered Security Name|Security Alias</p>', $capture->messages[0]['body']);
         self::assertSame('パスワード再設定のご案内', $capture->messages[0]['subject']);
         self::assertStringContainsString(
             'https://storefront.example.test/?password_reset_user_id=',

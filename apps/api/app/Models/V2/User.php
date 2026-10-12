@@ -16,6 +16,9 @@ final class User extends Authenticatable
         'public_id',
         'referral_code',
         'display_name',
+        'full_name',
+        'birth_date',
+        'first_sms_verified_at',
         'email_display',
         'email_normalized',
         'email_verified_at',
@@ -27,6 +30,8 @@ final class User extends Authenticatable
     ];
 
     protected $hidden = [
+        'full_name',
+        'birth_date',
         'email_display',
         'email_normalized',
         'password_hash',
@@ -40,6 +45,8 @@ final class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'birth_date' => 'immutable_date',
+            'first_sms_verified_at' => 'immutable_datetime',
             'email_verified_at' => 'immutable_datetime',
             'first_registration_qualified_at' => 'immutable_datetime',
             'password_login_enabled' => 'boolean',
