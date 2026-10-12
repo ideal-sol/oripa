@@ -3232,7 +3232,7 @@ This is a non-Production Skeleton and contains no application implementation.
                             "nanoid": "3.3.18",
                             "postcss": "8.5.23",
                             "prosemirror-view": "1.42.3",
-                            "sharp": "0.35.4",
+                            "sharp": "0.35.5",
                             "source-map-js": "1.2.2",
                         }
                     },
@@ -3950,7 +3950,8 @@ services:
         for section, name, version in (
             ("dependencies", "next", "16.2.11"),
             ("dependencies", "next", "16.3.3"),
-            ("dependencies", "next", "^16.3.6"),
+            ("dependencies", "next", "16.3.6"),
+            ("dependencies", "next", "^16.3.8"),
             ("dependencies", "next", "latest"),
             ("dependencies", "@tiptap/react", "3.30.4"),
             ("devDependencies", "vitest", "4.1.10"),
