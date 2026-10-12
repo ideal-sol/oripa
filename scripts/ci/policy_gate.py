@@ -1118,7 +1118,7 @@ ADMIN_DEPENDENCY_VERSIONS = {
     "@tiptap/react": "3.30.5",
     "@tiptap/starter-kit": "3.30.5",
     "lucide-react": "0.468.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.2.7",
     "react-dom": "19.2.7",
 }
@@ -1943,7 +1943,7 @@ def validate_workspace_configuration(repository: Path) -> None:
             "nanoid": "3.3.18",
             "postcss": "8.5.23",
             "prosemirror-view": "1.42.3",
-            "sharp": "0.35.4",
+            "sharp": "0.35.5",
             "source-map-js": "1.2.2",
         }
     }:
