@@ -27,6 +27,9 @@ jobs:
       activation: ${{ steps.lane-policy.outputs.activation }}
       validation_path: ${{ steps.lane-policy.outputs.validation_path }}
       change_digest: ${{ steps.lane-policy.outputs.change_digest }}
+      plan_digest: ${{ steps.lane-policy.outputs.plan_digest }}
+      plan_scopes: ${{ steps.lane-policy.outputs.plan_scopes }}
+      plan_jobs: ${{ steps.lane-policy.outputs.plan_jobs }}
     steps:
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -51,12 +54,15 @@ jobs:
           --event-path "${{ github.event_path }}"
           --github-output "$GITHUB_OUTPUT"
           --change-output "$RUNNER_TEMP/canonical-change.json"
+          --plan-output "$RUNNER_TEMP/platform-ci-plan.json"
 
       - name: Preserve exact-head classification
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: canonical-change
-          path: ${{ runner.temp }}/canonical-change*.json
+          path: |
+            ${{ runner.temp }}/canonical-change*.json
+            ${{ runner.temp }}/platform-ci-plan.json
           if-no-files-found: error
           retention-days: 7
 
@@ -128,6 +134,10 @@ jobs:
         run: |
           composer --working-dir=apps/api validate --strict --no-check-publish
           pnpm install --frozen-lockfile
+
+      - name: Install locked legacy dependencies when applicable
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).legacy_frontend != 'NOT_APPLICABLE'
+        run: |
           pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Run quality structure and unit checks
@@ -140,35 +150,35 @@ jobs:
           python3 scripts/ci/quality_gate.py --repository .
 
       - name: Validate OpenAPI contracts and committed bundles
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).contract != 'NOT_APPLICABLE'
         run: |
           pnpm openapi:test
           pnpm openapi:check
 
       - name: Validate Storefront Client Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).storefront_client != 'NOT_APPLICABLE'
         run: pnpm storefront:check
 
       - name: Validate Site Schema Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).site_schema != 'NOT_APPLICABLE'
         run: pnpm site-schema:check
 
       - name: Validate Storefront Testkit Alpha
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).testkit != 'NOT_APPLICABLE'
         run: pnpm testkit:check
 
       - name: Validate Platform Alpha Artifact foundation
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).release_artifact != 'NOT_APPLICABLE'
         run: |
           pnpm release:test
           pnpm release:validate
 
       - name: Typecheck legacy frontend
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).legacy_frontend != 'NOT_APPLICABLE'
         run: pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
 
       - name: Validate V2 Admin Auth Shell
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).admin != 'NOT_APPLICABLE'
         run: |
           pnpm admin:generate:check
           pnpm admin:typecheck
@@ -177,11 +187,11 @@ jobs:
           pnpm admin:build
 
       - name: Validate Agency Portal and generated contract
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).agency != 'NOT_APPLICABLE'
         run: pnpm agency:check
 
       - name: Compare legacy frontend lint findings with the approved baseline
-        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+        if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED' && fromJSON(needs.policy-gate.outputs.plan_scopes).legacy_frontend != 'NOT_APPLICABLE'
         run: |
           set +e
           (
@@ -330,7 +340,7 @@ jobs:
   integration-suite:
     name: integration-suite
     needs: policy-gate
-    if: needs.policy-gate.outputs.lane_key != 'lite' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+    if: fromJSON(needs.policy-gate.outputs.plan_jobs).integration-suite
     runs-on: ubuntu-latest
     timeout-minutes: 50
     services:
@@ -388,11 +398,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22.22.3"
-
       - name: Set up PHP
         uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
         with:
@@ -403,11 +408,7 @@ jobs:
 
       - name: Install locked dependencies
         run: |
-          corepack enable
-          corepack prepare pnpm@10.12.1 --activate
           composer --working-dir=apps/api install --no-interaction --prefer-dist --no-progress
-          pnpm install --frozen-lockfile
-          pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
 
       - name: Apply V1 migrations to the isolated legacy test database
         run: >-
@@ -419,7 +420,39 @@ jobs:
         working-directory: apps/api
         run: php artisan test
 
+      - name: Verify no tracked generated changes
+        run: |
+          git diff --check
+          git diff --exit-code
+
+  integration-support:
+    name: integration-support
+    needs: policy-gate
+    if: fromJSON(needs.policy-gate.outputs.plan_jobs).integration-support
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000/api
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        if: fromJSON(needs.policy-gate.outputs.plan_scopes).legacy_frontend != 'NOT_APPLICABLE'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.3"
+
       - name: Validate Site Template policy
+        if: fromJSON(needs.policy-gate.outputs.plan_scopes).site_template != 'NOT_APPLICABLE'
         run: |
           python3 -m unittest discover -s tests/ci/site-template -p 'test_*.py'
           python3 scripts/ci/site_template_gate.py \
@@ -432,35 +465,40 @@ jobs:
           echo "Negative Site Template fixture failed as required"
 
       - name: Build and typecheck legacy frontend
+        if: fromJSON(needs.policy-gate.outputs.plan_scopes).legacy_frontend != 'NOT_APPLICABLE'
         run: |
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+          pnpm --dir legacy/v1-frontend --ignore-workspace install --frozen-lockfile
           pnpm --dir legacy/v1-frontend --ignore-workspace typecheck
           pnpm --dir legacy/v1-frontend --ignore-workspace build
 
-      - name: Build and validate V2 Admin Auth Shell
+      - name: Validate Compose
+        if: fromJSON(needs.policy-gate.outputs.plan_scopes).release_artifact != 'NOT_APPLICABLE'
+        run: docker compose config --quiet
+
+      - name: Verify no tracked generated changes
         run: |
-          pnpm admin:typecheck
-          pnpm admin:lint
-          pnpm admin:build
+          git diff --check
+          git diff --exit-code
 
-      - name: Generate, build, and test Storefront Client Alpha
-        run: pnpm storefront:check
+  integration-database:
+    name: integration-database
+    needs: policy-gate
+    if: fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
-      - name: Generate, build, and test Site Schema Alpha
-        run: pnpm site-schema:check
-
-      - name: Build and test Storefront Testkit Alpha
-        run: pnpm testkit:check
-
-      - name: Validate Platform Alpha Artifact foundation
-        run: |
-          pnpm release:test
-          pnpm release:validate
-
-      - name: Validate contracts, manifests, and Compose
-        run: |
-          python3 scripts/ci/quality_gate.py --repository .
-          pnpm openapi:check
-          docker compose config --quiet
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
 
       - name: Validate V2 database guard
         run: python3 -m unittest discover -s tests/db -p 'test_*.py'
@@ -481,7 +519,7 @@ jobs:
   production-arm64-artifact:
     name: production-arm64-artifact
     needs: policy-gate
-    if: needs.policy-gate.outputs.lane_key == 'strict' && github.event_name == 'pull_request' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+    if: fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact != 'NOT_APPLICABLE'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -586,33 +624,41 @@ jobs:
     if: always()
     needs:
       - policy-gate
+      - quality-gate
       - integration-suite
+      - integration-database
+      - integration-support
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Recompute exact-source applicability
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/ci/lane_policy.py
+          --repository .
+          --event-name "${{ github.event_name }}"
+          --event-path "${{ github.event_path }}"
+          --change-output "$RUNNER_TEMP/canonical-change.json"
+          --plan-output "$RUNNER_TEMP/platform-ci-plan.json"
+
       - name: Require lane-appropriate integration verification
         env:
-          POLICY_GATE_RESULT: ${{ needs.policy-gate.result }}
-          LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
-          VALIDATION_PATH: ${{ needs.policy-gate.outputs.validation_path }}
-          INTEGRATION_SUITE_RESULT: ${{ needs.integration-suite.result }}
-        run: |
-          if [ "$POLICY_GATE_RESULT" != "success" ]; then
-            echo "Policy gate did not succeed"
-            exit 1
-          fi
-          if [ "$VALIDATION_PATH" = "AUTHORITY_FOCUSED" ] && [ "$INTEGRATION_SUITE_RESULT" = "skipped" ]; then
-            echo "Exact-head canonical classification proves Application integration is not applicable"
-            exit 0
-          fi
-          if [ "$LANE_KEY" = "lite" ] && [ "$INTEGRATION_SUITE_RESULT" = "skipped" ]; then
-            echo "Lite Maintenance: full integration suite is not applicable"
-            exit 0
-          fi
-          if [ "$INTEGRATION_SUITE_RESULT" != "success" ]; then
-            echo "Lane-required integration suite did not succeed"
-            exit 1
-          fi
+          INTEGRATION_SUITE_RESULTS: ${{ toJSON(needs) }}
+          EXPECTED_PLAN_DIGEST: ${{ needs.policy-gate.outputs.plan_digest }}
+        run: >-
+          python3 scripts/ci/platform_ci_plan.py
+          --repository .
+          --plan "$RUNNER_TEMP/platform-ci-plan.json"
+          --expected-digest "$EXPECTED_PLAN_DIGEST"
+          --results-env INTEGRATION_SUITE_RESULTS
 
   ci-gate:
     name: ci-gate
@@ -633,9 +679,8 @@ jobs:
           SECURITY_GATE_RESULT: ${{ needs.security-gate.result }}
           INTEGRATION_GATE_RESULT: ${{ needs.integration-gate.result }}
           PRODUCTION_ARM64_RESULT: ${{ needs.production-arm64-artifact.result }}
-          LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          ARM64_STATUS: ${{ fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact }}
           VALIDATION_PATH: ${{ needs.policy-gate.outputs.validation_path }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           for result in \
             "$POLICY_GATE_RESULT" \
@@ -647,12 +692,16 @@ jobs:
               exit 1
             fi
           done
-          if [ "$LANE_KEY" = "strict" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$VALIDATION_PATH" != "AUTHORITY_FOCUSED" ]; then
-            if [ "$PRODUCTION_ARM64_RESULT" != "success" ]; then
-              echo "Strict pull request ARM64 artifact verification did not succeed"
-              exit 1
-            fi
-          elif [ "$PRODUCTION_ARM64_RESULT" != "skipped" ]; then
-            echo "ARM64 artifact verification ran outside its authority boundary"
+          if [ "$VALIDATION_PATH" != "AUTHORITY_FOCUSED" ] && [ "$VALIDATION_PATH" != "NORMAL_STRICT_CI" ]; then
+            echo "Invalid plan validation path"
+            exit 1
+          fi
+          case "$ARM64_STATUS" in
+            APPLICABLE|UNKNOWN) expected_arm64_result=success ;;
+            NOT_APPLICABLE) expected_arm64_result=skipped ;;
+            *) echo "Invalid ARM64 plan status"; exit 1 ;;
+          esac
+          if [ "$PRODUCTION_ARM64_RESULT" != "$expected_arm64_result" ]; then
+            echo "ARM64 artifact verification result contradicts exact-source plan"
             exit 1
           fi
