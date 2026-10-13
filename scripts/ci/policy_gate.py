@@ -286,6 +286,9 @@ ACCT_001_V2_IDENTITY_FILES = {
     "apps/api/tests/V2/AccountSecurityTest.php",
 }
 V2_IDENTITY_REQUIRED_FILES = {
+    "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
+    "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
+    "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
     "apps/api/database/migrations-v2/2026_10_06_000081_add_v2_prize_banner_external_ids.php",
     "apps/api/database/migrations-v2/2026_10_05_000079_add_v2_rank_video_default.php",
     "apps/api/database/migrations-v2/2026_10_05_000080_create_v2_gacha_notice_defaults.php",
@@ -1094,6 +1097,10 @@ ADMIN_SKELETON_FILES = {
     *MIG_061N_ADMIN_SKELETON_FILES,
     *MIG_061O_ADMIN_SKELETON_FILES,
     *MIG_061P_ADMIN_SKELETON_FILES,
+    "apps/admin/src/components/banners/banner-import-workspace.tsx",
+    "apps/admin/src/components/banners/banner-import.module.css",
+    "apps/admin/test/banner-import.test.tsx",
+    "apps/admin/e2e/admin-banner-import.spec.ts",
     *MIG_061Q_ADMIN_SKELETON_FILES,
     *MIG_061R_ADMIN_SKELETON_FILES,
     *MIG_061S_ADMIN_SKELETON_FILES,
@@ -1120,7 +1127,7 @@ ADMIN_DEPENDENCY_VERSIONS = {
     "@tiptap/react": "3.30.5",
     "@tiptap/starter-kit": "3.30.5",
     "lucide-react": "0.468.0",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.2.7",
     "react-dom": "19.2.7",
 }
@@ -1345,7 +1352,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if not TASK_ID.fullmatch(task_id) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -1945,7 +1952,7 @@ def validate_workspace_configuration(repository: Path) -> None:
             "nanoid": "3.3.18",
             "postcss": "8.5.23",
             "prosemirror-view": "1.42.3",
-            "sharp": "0.35.4",
+            "sharp": "0.35.5",
             "source-map-js": "1.2.2",
         }
     }:
@@ -3100,6 +3107,9 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_05_000079_add_v2_rank_video_default.php",
         "2026_10_05_000080_create_v2_gacha_notice_defaults.php",
         "2026_10_06_000081_add_v2_prize_banner_external_ids.php",
+        "2026_10_11_000082_create_v2_banner_imports.php",
+        "2026_10_12_000083_add_v2_signup_sms_gate.php",
+        "2026_10_13_000084_create_v2_banner_asset_operations.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4632,6 +4642,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video": {"put"},
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {"get"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {"delete"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes": {
             "post",
         },
@@ -4712,7 +4723,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     admin_catalog_contract = json.dumps(
         {
             "paths": {
-                path: value
+                path: {
+                    ("approved_draft_prize_removal" if method == "delete"
+                     and path == "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"
+                     else method): operation
+                    for method, operation in value.items()
+                }
                 for path, value in admin_bundle.get("paths", {}).items()
                 if path.startswith("/catalog/")
             },

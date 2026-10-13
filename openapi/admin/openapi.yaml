@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.36
+  version: 2.0.0-alpha.40
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1459,6 +1459,28 @@ paths:
       responses:
         '200': {description: 景品一覧。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaVersionPrizeCollection'}}}}
         default: {$ref: '#/components/responses/Problem'}
+  /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}:
+    delete:
+      operationId: removeAdminGachaDraftPrize
+      summary: 未公開の通常ガチャの下書きから景品を外す
+      description: catalog.manage必須。未公開standardの非archive Draftのみ。InventoryとVersion-Prize関連を削除し、Prize Masterはarchiveする。Version競合は409 CATALOG_REVISION_CONFLICT。公開履歴・対象外状態は409。在庫調整履歴は409 CATALOG_PRIZE_REMOVAL_INVENTORY_HISTORY、その他の削除を妨げる参照は409 CATALOG_PRIZE_REMOVAL_REFERENCED。拒否時は景品・関連・在庫・Version revisionを変更しない。同一キー同一入力は保存済み応答、異なる入力は409 IDEMPOTENCY_KEY_REUSED。予約中も既存編集条件と予約同期を維持する。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/GachaId'}
+        - {$ref: '#/components/parameters/GachaVersionId'}
+        - {name: prize_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaDraftPrizeRemove'}}}
+      responses:
+        '200': {description: 景品解除と新しいVersion revision。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminGachaDraftPrizeRemovalResult'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
   /catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes:
     post:
       operationId: createAdminGachaRankPrize
@@ -2221,6 +2243,64 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPageInput'}}}}
       responses:
         '200': {description: 更新したページ。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminManagedPageMutationResult'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /banner-management/imports:
+    get:
+      operationId: listAdminBannerImports
+      summary: バナーCSV履歴と有効状態を取得する
+      description: content.read必須。無効時はenabled=false。署名付きURLは返さない。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200': {description: 最新30日以内の履歴。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminBannerImportCollection'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createAdminBannerImport
+      summary: バナーCSVを検証し取込ジョブを登録する
+      description: content.manage必須。無効時は503 BANNER_IMPORT_DISABLED。全体検証失敗時は書込みなし。画像取得失敗は行単位。公開状態と表示属性を保持する。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminBannerImportInput'}}}}
+      responses:
+        '202': {description: 受付済みジョブ。同一キーは同じジョブを返す。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminBannerImportJob'}}}}
+        '422': {description: CSV検証エラー。, content: {application/problem+json: {schema: {$ref: '#/components/schemas/AdminBannerImportValidation'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /banner-management/imports/{import_id}:
+    parameters:
+      - {name: import_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
+    get:
+      operationId: getAdminBannerImport
+      summary: バナーCSV進捗と行結果を取得する
+      description: content.read必須。結果保持30日。画像URLおよびHost名を返さない。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200': {description: 行単位の結果。, content: {application/json: {schema: {$ref: '#/components/schemas/AdminBannerImportJob'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /banner-management/imports/{import_id}/failures:
+    parameters:
+      - {name: import_id, in: path, required: true, schema: {$ref: '#/components/schemas/OpaqueId'}}
+    get:
+      operationId: downloadAdminBannerImportFailures
+      summary: バナーCSV失敗行をダウンロードする
+      description: content.read必須。管理ID・タイトル・画像URL（常に空欄）・カテゴリ・失敗理由。数式を無害化する。新しい画像URLを入力して再取込する。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200': {description: UTF-8 BOM付き失敗行CSV。, content: {text/csv: {schema: {type: string}}}}
         default: {$ref: '#/components/responses/Problem'}
   /banner-management/categories:
     get:
@@ -5721,6 +5801,26 @@ components:
               occurred_at: {type: string, format: date-time}
               file_name: {type: string}
               summary: {$ref: '#/components/schemas/AdminPrizeImportSummary'}
+    AdminGachaDraftPrizeRemove:
+      type: object
+      additionalProperties: false
+      required: [expected_version_revision]
+      properties:
+        expected_version_revision: {type: integer, minimum: 1}
+    AdminGachaDraftPrizeRemovalResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay]
+      properties:
+        idempotent_replay: {type: boolean}
+        data:
+          type: object
+          additionalProperties: false
+          required: [id, gacha_version_id, gacha_version_revision]
+          properties:
+            id: {$ref: '#/components/schemas/OpaqueId'}
+            gacha_version_id: {$ref: '#/components/schemas/OpaqueId'}
+            gacha_version_revision: {type: integer, minimum: 1}
     AdminGachaVersionPrizeCreate:
       type: object
       additionalProperties: false
@@ -7462,6 +7562,70 @@ components:
         - type: object
           required: [idempotent_replay]
           properties: {idempotent_replay: {type: boolean}}
+    AdminBannerImportInput:
+      type: object
+      description: UTF-8 CSV, at most 200 data rows excluding the header and 2 MiB decoded. Oversized CSV is rejected before any business write.
+      additionalProperties: false
+      required: [file_name, content_base64, default_category_id]
+      properties:
+        file_name: {type: string, minLength: 1, maxLength: 191}
+        content_base64: {type: string, minLength: 1, maxLength: 2796204, contentEncoding: base64}
+        default_category_id: {$ref: '#/components/schemas/OpaqueId'}
+        refresh_existing_images: {type: boolean, default: false}
+    AdminBannerImportValidation:
+      type: object
+      required: [code, errors, error_count]
+      properties:
+        code: {type: string, const: CSV_VALIDATION_FAILED}
+        error_count: {type: integer, minimum: 1}
+        errors:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            additionalProperties: false
+            required: [row, column, code, message]
+            properties:
+              row: {type: [integer, 'null'], minimum: 1}
+              column: {type: [string, 'null']}
+              code: {type: string}
+              message: {type: string}
+    AdminBannerImportRow:
+      type: object
+      additionalProperties: false
+      required: [row, external_id, title, category, status, result, error_code]
+      properties:
+        row: {type: integer, minimum: 2}
+        external_id: {type: string, maxLength: 64}
+        title: {type: string, maxLength: 191}
+        category: {type: string, maxLength: 100}
+        status: {type: string, enum: [pending, processing, asset_registered, completed, failed]}
+        result: {type: [string, 'null'], enum: [created, updated, unchanged, failed, null]}
+        error_code: {type: [string, 'null']}
+    AdminBannerImportJob:
+      type: object
+      description: Retained results include legacy jobs of up to 1000 rows; new submissions are limited to 200 data rows.
+      additionalProperties: false
+      required: [id, status, total, processed, created, updated, unchanged, failed, created_at, completed_at, rows]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        status: {type: string, enum: [queued, processing, completed, failed]}
+        total: {type: integer, minimum: 0, maximum: 1000}
+        processed: {type: integer, minimum: 0, maximum: 1000}
+        created: {type: integer, minimum: 0, maximum: 1000}
+        updated: {type: integer, minimum: 0, maximum: 1000}
+        unchanged: {type: integer, minimum: 0, maximum: 1000}
+        failed: {type: integer, minimum: 0, maximum: 1000}
+        created_at: {$ref: '#/components/schemas/UtcDateTime'}
+        completed_at: {type: [string, 'null'], format: date-time}
+        rows: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/AdminBannerImportRow'}}
+    AdminBannerImportCollection:
+      type: object
+      additionalProperties: false
+      required: [enabled, items]
+      properties:
+        enabled: {type: boolean}
+        items: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/AdminBannerImportJob'}}
     AdminBannerAssetUpload:
       type: object
       additionalProperties: false

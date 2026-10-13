@@ -172,6 +172,7 @@ final class V2PrizeShippingService
         string $idempotencyKey,
         string $requestId
     ): array {
+        $this->assertSmsVerified($user);
         $ids = $this->publicIds($publicIds);
         $this->idempotencyKey($idempotencyKey);
 
@@ -195,6 +196,7 @@ final class V2PrizeShippingService
             }
 
             DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
+            $this->assertSmsVerified($user);
             DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->first();
             $prizes = DB::table('user_prizes')
                 ->where('user_id', $user->id)
@@ -387,6 +389,7 @@ final class V2PrizeShippingService
                 $plain
             );
             if ($claim->replay) {
+                $this->assertSmsVerified($user, true);
                 $address = ShippingAddress::query()
                     ->where('user_id', $user->id)
                     ->where('public_id', $claim->record->resource_public_id)
@@ -424,6 +427,7 @@ final class V2PrizeShippingService
      */
     private function persistAddress(User $user, array $plain, string $requestId): array
     {
+        $this->assertSmsVerified($user, true);
         $address = new ShippingAddress();
         $address->forceFill([
             'user_id' => $user->id,
@@ -455,6 +459,7 @@ final class V2PrizeShippingService
             $plain,
             $requestId
         ): array {
+            $this->assertSmsVerified($user, true);
             $address = $this->ownedAddress($user, $publicId);
             $address->forceFill($this->encryptedAddress($plain))->save();
             $this->audit->record('shipping.address_updated', $this->auditAttributes(
@@ -472,6 +477,7 @@ final class V2PrizeShippingService
     {
         $this->assertSmsVerified($user);
         $this->transaction(function () use ($user, $publicId, $requestId): void {
+            $this->assertSmsVerified($user, true);
             $address = $this->ownedAddress($user, $publicId);
             $address->delete();
             $this->audit->record('shipping.address_deleted', $this->auditAttributes(
@@ -515,6 +521,7 @@ final class V2PrizeShippingService
             }
 
             DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
+            $this->assertSmsVerified($user);
             DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->first();
             $prizes = DB::table('user_prizes')
                 ->where('user_id', $user->id)
@@ -1717,13 +1724,12 @@ final class V2PrizeShippingService
             : 'shipping_status_updated';
     }
 
-    private function assertSmsVerified(User $user): void
+    private function assertSmsVerified(User $user, bool $lock = false): void
     {
-        $verified = UserPhoneNumber::query()
-            ->where('user_id', $user->getKey())
-            ->whereNotNull('verified_at')
-            ->whereNull('revoked_at')
-            ->exists();
+        if ($lock) {
+            User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+        }
+        $verified = app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->isVerified($user);
         if (! $verified) {
             throw new V2PrizeShippingException(
                 'SMS_VERIFICATION_REQUIRED',

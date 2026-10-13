@@ -539,6 +539,57 @@ test("F3 CSV validation blocks apply and replacing file invalidates preview", as
   await expect(page.getByRole("button", { name: "取込を確認" })).toHaveCount(0);
 });
 
+for (const width of [1440, 390]) {
+  for (const blocked of [false, true]) {
+    test(`F4 ${width}px confirms removal and preserves inventory history refusal ${blocked}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 850 });
+      let revision = 4;
+      let removed = false;
+      let mutations = 0;
+      const requests: string[] = [];
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, (route) => json(route, { data: { ...gacha(), gacha_type: "standard", first_published_at: null } }));
+      await page.route(`**/catalog/gachas/${gachaCode}/ranks`, (route) => json(route, { items: [] }));
+      await page.route("**/catalog/rank-effects*", (route) => json(route, { items: [], next_cursor: null }));
+      await page.route("**/prize-imports", (route) => json(route, { items: [], next_before: null }));
+      await page.route(`**/versions/${versionId}/prizes`, (route) => {
+        requests.push("list");
+        return json(route, { items: removed ? [] : [{ ...prize(), external_id: "CARD-F4" }], version_revision: revision });
+      });
+      await page.route(`**/versions/${versionId}/prizes/${prizeId}`, async (route) => {
+        expect(route.request().method()).toBe("DELETE");
+        expect(route.request().postDataJSON()).toEqual({ expected_version_revision: 4 });
+        expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+        mutations++;
+        requests.push("delete");
+        if (blocked) return route.fulfill({ status: 409, contentType: "application/problem+json", body: JSON.stringify({ code: "CATALOG_PRIZE_REMOVAL_INVENTORY_HISTORY", status: 409 }) });
+        removed = true;
+        revision = 5;
+        return json(route, { data: { id: prizeId, gacha_version_id: versionId, gacha_version_revision: revision }, idempotent_replay: false });
+      });
+      await page.goto(`/gachas/${gachaCode}/edit`);
+      await page.getByRole("button", { name: "景品Sを外す" }).click();
+      const dialog = page.getByRole("dialog", { name: "景品を外す" });
+      await expect(dialog).toContainText("景品S");
+      await expect(dialog).toContainText("CARD-F4");
+      await dialog.getByRole("button", { name: "キャンセル" }).click();
+      expect(mutations).toBe(0);
+      await page.getByRole("button", { name: "景品Sを外す" }).click();
+      await dialog.getByRole("button", { name: "外す", exact: true }).click();
+      if (blocked) {
+        await expect(dialog.getByRole("alert")).toHaveText("在庫調整履歴があるため、この景品は外せません。CSVに対象景品を戻してください");
+        await dialog.getByRole("button", { name: "キャンセル" }).click();
+        await expect(page.getByRole("button", { name: "景品Sを外す" })).toBeVisible();
+        expect(revision).toBe(4);
+      } else {
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByText("登録済み景品はありません。")).toBeVisible();
+        expect(requests.slice(-2)).toEqual(["delete", "list"]);
+      }
+      expect(mutations).toBe(1);
+    });
+  }
+}
+
 function gacha() {
   return {
     archived_at: null,

@@ -539,6 +539,23 @@ final class V2AdminCatalogController
         );
     }
 
+    public function removeGachaDraftPrize(
+        Request $request,
+        string $gachaId,
+        string $versionId,
+        string $prizeId
+    ): JsonResponse {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array =>
+                $this->mutations->removeGachaDraftPrize(
+                    $context, $gachaId, $versionId, $prizeId,
+                    (string) $request->header('Idempotency-Key', ''),
+                    $request->json()->all()
+                )
+        );
+    }
+
     public function createGachaRankPrize(
         Request $request,
         string $gachaId,

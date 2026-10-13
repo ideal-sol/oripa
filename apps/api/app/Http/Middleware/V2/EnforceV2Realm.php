@@ -4,6 +4,7 @@ namespace App\Http\Middleware\V2;
 
 use App\Domain\Identity\Enums\V2Realm;
 use App\Domain\Identity\Services\V2RealmBoundary;
+use App\Domain\Identity\Services\V2SmsVerificationService;
 use Closure;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Http\Request;
@@ -13,11 +14,12 @@ final class EnforceV2Realm
 {
     public function __construct(
         private readonly AuthFactory $auth,
-        private readonly V2RealmBoundary $boundary
+        private readonly V2RealmBoundary $boundary,
+        private readonly V2SmsVerificationService $smsVerification
     ) {
     }
 
-    public function handle(Request $request, Closure $next, string $surface): Response
+    public function handle(Request $request, Closure $next, string $surface, ?string $requirement = null): Response
     {
         $realm = V2Realm::tryFrom($surface) ?? V2Realm::Unknown;
         $existing = $request->attributes->get('v2_realm');
@@ -40,6 +42,13 @@ final class EnforceV2Realm
         }
 
         $request->attributes->set('v2_realm', $realm->value);
+        if ($realm === V2Realm::User && $requirement === 'sms') {
+            $user = $this->auth->guard('v2_user')->user();
+            if ($user === null) {
+                throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('AUTHENTICATION_REQUIRED', 401);
+            }
+            $this->smsVerification->assertVerified($user);
+        }
 
         return $next($request);
     }

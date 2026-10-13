@@ -12,6 +12,11 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  removeAdminGachaDraftPrize: ["delete", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"],
+  listAdminBannerImports: ["get", "/banner-management/imports"],
+  createAdminBannerImport: ["post", "/banner-management/imports"],
+  getAdminBannerImport: ["get", "/banner-management/imports/{import_id}"],
+  downloadAdminBannerImportFailures: ["get", "/banner-management/imports/{import_id}/failures"],
   previewAdminGachaPrizeImport: ["post", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports/preview"],
   applyAdminGachaPrizeImport: ["post", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports"],
   listAdminGachaPrizeImports: ["get", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prize-imports"],
@@ -503,6 +508,11 @@ const requiredSchemas = [
   "AdminMailTemplatePreview",
   "AdminBannerCategoryCreate",
   "AdminBannerCategoryMutationResult",
+  "AdminBannerImportInput",
+  "AdminBannerImportJob",
+  "AdminBannerImportRow",
+  "AdminBannerImportCollection",
+  "AdminBannerImportValidation",
   "AdminBannerAssetUpload",
   "AdminBannerAssetMutationResult",
   "AdminManagedBannerCreate",
@@ -571,6 +581,8 @@ const requiredSchemas = [
   "QaGachaGuaranteeCollection",
   "QaGachaGuaranteeSave",
   "AdminPrizeImportInput",
+  "AdminGachaDraftPrizeRemove",
+  "AdminGachaDraftPrizeRemovalResult",
   "AdminPrizeImportApplyInput",
   "AdminPrizeImportPlan",
   "AdminPrizeImportResult",
@@ -2194,6 +2206,13 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminGachaDraftPrizeRemove {
+  expected_version_revision: number;
+}
+export interface AdminGachaDraftPrizeRemovalResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number };
+  idempotent_replay: boolean;
+}
 export interface AdminPrizeImportInput {
   file_name: string;
   content_base64: string;
@@ -2969,6 +2988,43 @@ export interface AdminBannerCategoryMutationResult extends AdminBannerCategory {
   idempotent_replay: boolean;
 }
 
+export interface AdminBannerImportInput {
+  file_name: string;
+  content_base64: string;
+  default_category_id: string;
+  refresh_existing_images?: boolean;
+}
+export interface AdminBannerImportRow {
+  row: number;
+  external_id: string;
+  title: string;
+  category: string;
+  status: "pending" | "processing" | "asset_registered" | "completed" | "failed";
+  result: "created" | "updated" | "unchanged" | "failed" | null;
+  error_code: string | null;
+}
+export interface AdminBannerImportJob {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  failed: number;
+  created_at: string;
+  completed_at: string | null;
+  rows: AdminBannerImportRow[];
+}
+export interface AdminBannerImportCollection {
+  enabled: boolean;
+  items: AdminBannerImportJob[];
+}
+export interface AdminBannerImportValidation {
+  code: "CSV_VALIDATION_FAILED";
+  errors: { row: number | null; column: string | null; code: string; message: string }[];
+  error_count: number;
+}
 export interface AdminBannerAssetUpload {
   file_name: string;
   mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";

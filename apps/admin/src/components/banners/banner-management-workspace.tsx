@@ -26,6 +26,7 @@ import {
 } from "react";
 
 import { ExternalIdField } from "@/components/catalog/external-id-field";
+import { BannerImportWorkspace } from "@/components/banners/banner-import-workspace";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -83,6 +84,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
   const [publishError, setPublishError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
   const previewUrl = useLocalImagePreview(draft.file);
 
   useEffect(() => {
@@ -169,6 +171,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
         eyebrow="Content"
         title="バナー管理"
         description="カテゴリ別に画像バナーを登録し、公開URLと登録内容を管理します。"
+        action={<button className="secondary-button" type="button" aria-expanded={importOpen} onClick={() => setImportOpen((current) => !current)}>CSV取込・履歴</button>}
       />
 
       {canManage ? (
@@ -202,6 +205,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
         </form>
       ) : null}
 
+      {importOpen ? <BannerImportWorkspace categories={categories} canManage={canManage} /> : null}
       <section className="announcement-table-section" aria-label="バナー一覧">
         {publishError ? <div className="form-error" role="alert">{publishError}</div> : null}
         <div className="admin-payment-filters">

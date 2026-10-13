@@ -37,7 +37,7 @@ final class ZAgencyAttributionConcurrencyTest extends TestCase
             while (! file_exists($barrier)) usleep(1000);
             try {
                 DB::statement("SET application_name = 'agency004a-registration'");
-                app(V2UserAuthenticationService::class)->register('race-user@example.test', 'valid user password', '/', '192.0.2.44', 'Ab12Cd34');
+                app(V2UserAuthenticationService::class)->register('race-user@example.test', 'valid user password', '/', '192.0.2.44', 'Ab12Cd34', fullName: 'Synthetic Member', birthDate: '1990-01-01');
                 DB::disconnect();
                 exit(0);
             } catch (\Throwable) {

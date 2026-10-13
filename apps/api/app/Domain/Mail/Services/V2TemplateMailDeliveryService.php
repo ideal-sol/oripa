@@ -234,7 +234,7 @@ final class V2TemplateMailDeliveryService
     private function userValues(string $publicId): array
     {
         $user = DB::table('users')->where('public_id', $publicId)
-            ->first(['email_display', 'display_name']);
+            ->first(['email_display', 'display_name', 'full_name']);
         if ($user === null) {
             throw new RuntimeException('Template Mail User is unavailable.');
         }
@@ -242,7 +242,7 @@ final class V2TemplateMailDeliveryService
 
         return [(string) $user->email_display, $this->variables([
             'user_name' => $name,
-            'full_name' => $name,
+            'full_name' => (string) ($user->full_name ?? ''),
         ])];
     }
 
@@ -254,7 +254,7 @@ final class V2TemplateMailDeliveryService
             ->join('payment_point_grants as grant', 'grant.payment_id', '=', 'payment.id')
             ->where('payment.public_id', $publicId)
             ->first([
-                'user.email_display', 'user.display_name', 'payment.plan_name_snapshot',
+                'user.email_display', 'user.display_name', 'user.full_name', 'payment.plan_name_snapshot',
                 'payment.amount', 'payment.currency',
                 'payment.succeeded_at', 'payment.payment_method', 'grant.point_operation_id',
             ]);
@@ -269,6 +269,7 @@ final class V2TemplateMailDeliveryService
 
         return [(string) $row->email_display, $this->variables([
             'user_name' => (string) ($row->display_name ?? ''),
+            'full_name' => (string) ($row->full_name ?? ''),
             'purchase_plan' => (string) $row->plan_name_snapshot,
             'purchase_amount' => $amount,
             'purchase_date' => $row->succeeded_at === null ? '' : CarbonImmutable::parse($row->succeeded_at)

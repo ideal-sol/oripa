@@ -171,7 +171,7 @@ final class CurrentUserDrawHistoryReadContractTest extends TestCase
     private function user(string $label): User
     {
         $email = 'draw-history-'.$label.'-'.Str::uuid7().'@example.test';
-        $user = User::query()->create([
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Synthetic draw history reader',
             'email_display' => $email,
             'email_normalized' => $email,

@@ -1,5 +1,18 @@
 # V2 Migration Root
 
+## SIGNUP-SMS-GATE-20261012
+
+Migration `2026_10_12_000083_add_v2_signup_sms_gate.php` adds nullable User
+`full_name`, `birth_date` (DATE), and `first_sms_verified_at` (TIMESTAMPTZ).
+The Migration Allocation Lock was acquired before allocation of 000083;
+000081 and 000082 are unchanged. There is no backfill. A database trigger
+rejects changes or clearing once the first SMS timestamp is non-null.
+Existing phone ownership or consumed OTP history prevents a new qualification.
+Rollback is application-only with the additive schema retained; `down()`
+requires a forward correction. Only disposable task databases are authorized
+for test application. OLD Test, NEW and Production application and Runtime
+activation remain deferred pending separate Human approval.
+
 ## Purpose
 
 This directory is the only Laravel migration root for the new V2 database.
@@ -33,6 +46,28 @@ devices, and Admin MFA credential storage.
 - Do not rewrite or remove an applied V2 migration.
 
 ## Status
+
+Migration `2026_10_13_000084_create_v2_banner_asset_operations.php` adds the durable
+`content_banner_asset_operations` ledger in Source. It is independent of the
+30-day import Job/Row history and forbids ledger DELETE and identity mutation.
+It is forward-only: `down()` rejects with
+`Banner asset operations require a forward correction migration.`
+Application is authorized only in the dedicated synthetic F2-B test database.
+Source presence does not prove application; OLD, NEW and Production application
+and Runtime activation require separate Human GO. Existing 000082/000083 are
+unchanged. The new 200-row acceptance limit is application-only; the legacy
+1–1,000 Job CHECK remains compatible with retained history. Object deletion and
+automatic ledger retention expiry are HOLD.
+
+Migration `2026_10_11_000082_create_v2_banner_imports.php` is added in Source for
+`content_banner_import_jobs` and `content_banner_import_rows`, including short-lived
+encrypted image URLs. It is forward-only: `down()` rejects with
+`Banner import history requires a forward correction migration.` The DB guard
+verifies rejection without changing schema or the migration ledger. Application
+is authorized only during dedicated F2-A isolated test DB verification; Source
+presence is not proof of application. It is NOT applied to OLD, NEW or Production.
+Operational migration and Runtime activation require separate Human GO; Banner
+CSV Import remains disabled by default. Existing migration history is unchanged.
 
 This append-only root contains the current V2 migration source through
 `2026_10_06_000081_add_v2_prize_banner_external_ids.php`. Migration 000081 adds nullable,

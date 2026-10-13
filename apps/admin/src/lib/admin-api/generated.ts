@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3f49b503e187297dafdfa33c658d59a5e4381de3025b9be3cb1973253b36d927
+// Contract SHA-256: e400dfadbc02243f96275027526995762c1f3c9b7f478314a40a7663f5c81e51
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1547,6 +1547,13 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminGachaDraftPrizeRemove {
+  expected_version_revision: number;
+}
+export interface AdminGachaDraftPrizeRemovalResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number };
+  idempotent_replay: boolean;
+}
 export interface AdminPrizeImportInput {
   file_name: string;
   content_base64: string;
@@ -2322,6 +2329,43 @@ export interface AdminBannerCategoryMutationResult extends AdminBannerCategory {
   idempotent_replay: boolean;
 }
 
+export interface AdminBannerImportInput {
+  file_name: string;
+  content_base64: string;
+  default_category_id: string;
+  refresh_existing_images?: boolean;
+}
+export interface AdminBannerImportRow {
+  row: number;
+  external_id: string;
+  title: string;
+  category: string;
+  status: "pending" | "processing" | "asset_registered" | "completed" | "failed";
+  result: "created" | "updated" | "unchanged" | "failed" | null;
+  error_code: string | null;
+}
+export interface AdminBannerImportJob {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  failed: number;
+  created_at: string;
+  completed_at: string | null;
+  rows: AdminBannerImportRow[];
+}
+export interface AdminBannerImportCollection {
+  enabled: boolean;
+  items: AdminBannerImportJob[];
+}
+export interface AdminBannerImportValidation {
+  code: "CSV_VALIDATION_FAILED";
+  errors: { row: number | null; column: string | null; code: string; message: string }[];
+  error_count: number;
+}
 export interface AdminBannerAssetUpload {
   file_name: string;
   mime_type: "image/gif" | "image/jpeg" | "image/png" | "image/webp";

@@ -40,6 +40,8 @@ final class V2PublicAuthController
     public function register(Request $request): JsonResponse
     {
         $data = $this->validate($request, [
+            'full_name' => ['required', 'string', 'max:255'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
             'email' => ['required', 'string', 'email:rfc', 'max:320'],
             'password' => ['required', 'string'],
             'redirect_path' => ['sometimes', 'string', 'max:2048'],
@@ -49,7 +51,9 @@ final class V2PublicAuthController
             $data['password'],
             $data['redirect_path'] ?? '/',
             $request->ip() ?? 'unknown',
-            $request->input('advertising_code')
+            $request->input('advertising_code'),
+            $data['full_name'],
+            $data['birth_date']
         );
 
         return $this->privateResponse(response()->json([

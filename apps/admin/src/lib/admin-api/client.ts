@@ -1,5 +1,10 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminBannerImportInput,
+  type AdminBannerImportJob,
+  type AdminBannerImportCollection,
+  type AdminGachaDraftPrizeRemove,
+  type AdminGachaDraftPrizeRemovalResult,
   type AdminPrizeImportInput,
   type AdminPrizeImportApplyInput,
   type AdminPrizeImportPlan,
@@ -285,6 +290,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 type FetchImplementation = typeof fetch;
 
 interface RequestOptions {
+  responseFormat?: "csv";
   body?: unknown;
   idempotencyKey?: string;
   signal?: AbortSignal;
@@ -1789,6 +1795,12 @@ export class AdminApiClient {
     );
   }
 
+  removeGachaDraftPrize(gachaId: string, versionId: string, prizeId: string,
+    body: AdminGachaDraftPrizeRemove, idempotencyKey: string,
+  ): Promise<AdminGachaDraftPrizeRemovalResult> {
+    return this.request("DELETE", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/prizes/${encodeURIComponent(prizeId)}`, { body, idempotencyKey });
+  }
+
   createGachaRankPrize(
     gachaId: string,
     versionId: string,
@@ -3104,6 +3116,22 @@ export class AdminApiClient {
     );
   }
 
+  listBannerImports(signal?: AbortSignal): Promise<AdminBannerImportCollection> {
+    return this.request("GET", "/banner-management/imports", { signal });
+  }
+
+  createBannerImport(input: AdminBannerImportInput, idempotencyKey: string, signal?: AbortSignal): Promise<AdminBannerImportJob> {
+    return this.request("POST", "/banner-management/imports", { body: input, idempotencyKey, signal });
+  }
+
+  bannerImport(id: string, signal?: AbortSignal): Promise<AdminBannerImportJob> {
+    return this.request("GET", `/banner-management/imports/${encodeURIComponent(id)}`, { signal });
+  }
+
+  bannerImportFailures(id: string, signal?: AbortSignal): Promise<Blob> {
+    return this.request("GET", `/banner-management/imports/${encodeURIComponent(id)}/failures`, { signal, responseFormat: "csv" });
+  }
+
   private async request<T>(
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
@@ -3166,7 +3194,7 @@ export class AdminApiClient {
     }
     const requestId = crypto.randomUUID();
     const headers = new Headers({
-      Accept: "application/json, application/problem+json",
+      Accept: options.responseFormat === "csv" ? "text/csv, application/problem+json" : "application/json, application/problem+json",
       "X-Request-Id": requestId,
     });
     if (method !== "GET") {
@@ -3213,6 +3241,9 @@ export class AdminApiClient {
       }
       if (response.status === 204) {
         return undefined as T;
+      }
+      if (options.responseFormat === "csv") {
+        return (await response.blob()) as T;
       }
       return (await response.json()) as T;
     } catch (error) {

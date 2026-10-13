@@ -196,7 +196,7 @@ final class CurrentUserLineFriendStateReadContractTest extends TestCase
     {
         $email = 'line-friend-state-'.Str::uuid7().'@example.test';
 
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Synthetic LINE reader',
             'email_display' => $email,
             'email_normalized' => $email,

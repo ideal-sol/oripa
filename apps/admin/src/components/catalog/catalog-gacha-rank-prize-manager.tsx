@@ -24,6 +24,7 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 export function CatalogGachaRankPrizeManager({
   canManage,
   canImport = false,
+  canRemove = false,
   gachaId,
   heading = "Rank設定",
   presentationOnly = false,
@@ -32,6 +33,7 @@ export function CatalogGachaRankPrizeManager({
 }: {
   canManage: boolean;
   canImport?: boolean;
+  canRemove?: boolean;
   gachaId: string;
   heading?: string;
   presentationOnly?: boolean;
@@ -53,6 +55,9 @@ export function CatalogGachaRankPrizeManager({
   const [prizeEditing, setPrizeEditing] = useState<AdminGachaVersionPrize | null>(null);
   const [prizeDialog, setPrizeDialog] = useState(false);
   const firstDialogControl = useRef<HTMLInputElement>(null);
+  const [removal, setRemoval] = useState<{ prize: AdminGachaVersionPrize; revision: number; key: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const removalPending = useRef(false);
 
   async function load(signal?: AbortSignal) {
     if (!version) return;
@@ -98,6 +103,29 @@ export function CatalogGachaRankPrizeManager({
     );
   }
   const versionId = version.id;
+  const removalAllowed = canManage && canRemove && !presentationOnly && version.status === "draft" && !version.is_archived;
+
+  async function removePrize() {
+    if (!removal || !removalAllowed || removalPending.current) return;
+    removalPending.current = true;
+    setRemoving(true);
+    setError(null);
+    try {
+      await client.removeGachaDraftPrize(gachaId, versionId, removal.prize.id,
+        { expected_version_revision: removal.revision }, removal.key);
+      setRemoval(null);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof AdminApiError && cause.code === "CATALOG_PRIZE_REMOVAL_INVENTORY_HISTORY"
+        ? "在庫調整履歴があるため、この景品は外せません。CSVに対象景品を戻してください"
+        : cause instanceof AdminApiError && cause.code === "CATALOG_PRIZE_REMOVAL_REFERENCED"
+          ? "確率設定または他の参照があるため、この景品は外せません。CSVに対象景品を戻してください"
+          : errorMessage(cause));
+    } finally {
+      removalPending.current = false;
+      setRemoving(false);
+    }
+  }
 
   async function saveVideo(rank: AdminGachaRankListItem, assetId: string) {
     if (!canManage || assetId === rank.current_video?.id) return;
@@ -222,7 +250,7 @@ export function CatalogGachaRankPrizeManager({
         </div>
       </header>
       {loadState === "loading" ? <p className="catalog-inline-loading"><LoaderCircle aria-hidden="true" size={18} /> 読み込み中</p> : null}
-      {error ? <p className="form-field-error" role="alert">{error}</p> : null}
+      {error && !removal ? <p className="form-field-error" role="alert">{error}</p> : null}
       {loadState === "ready" && ranks.length === 0 ? <p className="catalog-version-empty">有効なRank Masterはありません。</p> : null}
       {ranks.length > 0 ? (
         <div className="catalog-table-wrap">
@@ -270,13 +298,26 @@ export function CatalogGachaRankPrizeManager({
                 <td>{prize.exchange_points.toLocaleString()}</td>
                 <td>{prize.is_visible ? "有効" : "無効"}</td>
                 <td>{formatJst(prize.created_at)}</td>
-                <td>{canManage && !presentationOnly ? <button aria-label={`${prize.name}を編集`} className="icon-button" onClick={() => openPrizeEdit(prize)} title="編集" type="button"><Edit3 aria-hidden="true" size={16} /></button> : "-"}</td>
+                <td>{canManage && !presentationOnly ? <button aria-label={`${prize.name}を編集`} className="icon-button" onClick={() => openPrizeEdit(prize)} title="編集" type="button"><Edit3 aria-hidden="true" size={16} /></button> : "-"}
+                  {removalAllowed ? <button aria-label={`${prize.name}を外す`} className="secondary-button" disabled={removing || busyPrize || loadState !== "ready"} onClick={() => { setError(null); setRemoval({ prize, revision: versionRevision, key: crypto.randomUUID() }); }} type="button">外す</button> : null}
+                </td>
               </tr>
             ))}</tbody>
           </table>
         </div>
       ) : null}
 
+      {removal ? (
+        <Dialog onClose={() => { if (!removalPending.current) setRemoval(null); }} title="景品を外す">
+          <p>下書きから「{removal.prize.name}」を外します。管理ID：{removal.prize.external_id ?? "未設定"}</p>
+          <p>在庫調整履歴や他の参照がある景品は外せません。</p>
+          {error ? <p className="form-field-error" role="alert">{error}</p> : null}
+          <div className="catalog-dialog-actions">
+            <button className="secondary-button" disabled={removing} onClick={() => setRemoval(null)} type="button">キャンセル</button>
+            <button className="primary-button" disabled={removing} onClick={() => void removePrize()} type="button">{removing ? "処理中" : "外す"}</button>
+          </div>
+        </Dialog>
+      ) : null}
       {prizeDialog && prizeRank ? (
         <Dialog onClose={() => { setPrizeDialog(false); setPrizeEditing(null); setPrizeRank(null); }} title={prizeEditing ? "景品編集" : "新規景品登録"}>
           <PrizeForm

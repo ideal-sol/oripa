@@ -122,7 +122,7 @@ final class AgencyAttributionTest extends TestCase
             $response = $this->call('POST', '/api/v2/auth/register', [], ['__Host-oripa_user_xsrf' => $csrf], [], [
                 'HTTPS' => 'on', 'HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json',
                 'HTTP_ORIGIN' => 'https://storefront.example.test', 'HTTP_SEC_FETCH_SITE' => 'same-origin', 'HTTP_X_XSRF_TOKEN' => $csrf,
-            ], json_encode(['email' => Str::uuid7().'@example.test', 'password' => 'valid user password', ...$extra]));
+            ], json_encode(['full_name' => 'Synthetic Member', 'birth_date' => '1990-01-01', 'email' => Str::uuid7().'@example.test', 'password' => 'valid user password', ...$extra]));
             $response->assertStatus(202);
             self::assertSame(['status', 'user_id'], array_keys($response->json()));
             $user = User::where('public_id', $response->json('user_id'))->sole();
@@ -158,7 +158,7 @@ final class AgencyAttributionTest extends TestCase
 
     private function register(mixed $code): User
     {
-        return app(V2UserAuthenticationService::class)->register(Str::uuid7().'@example.test', 'valid user password', '/', '192.0.2.'.random_int(1, 254), $code);
+        return app(V2UserAuthenticationService::class)->register(Str::uuid7().'@example.test', 'valid user password', '/', '192.0.2.'.random_int(1, 254), $code, fullName: 'Synthetic Member', birthDate: '1990-01-01');
     }
 
     public function test_candidate_migration_rolls_back_and_reapplies_without_changing_identity_guards(): void

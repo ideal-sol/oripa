@@ -233,7 +233,7 @@ final class CurrentUserPointReadContractTest extends TestCase
     {
         $email = 'current-point-'.Str::uuid7().'@example.test';
 
-        return User::query()->create([
+        return \Tests\V2\Fixtures\SmsVerifiedUser::create([
             'display_name' => 'Synthetic point reader',
             'email_display' => $email,
             'email_normalized' => $email,

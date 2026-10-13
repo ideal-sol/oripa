@@ -49,6 +49,7 @@ use App\Http\Controllers\V2\V2AdminUserPointAdjustmentController;
 use App\Http\Controllers\V2\V2AdminUserTagController;
 use App\Http\Controllers\V2\V2AdminAgencyController;
 use App\Http\Controllers\V2\V2AdminContentContactController;
+use App\Http\Controllers\V2\V2AdminBannerImportController;
 use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
 use App\Http\Controllers\V2\V2AdminMailTemplateController;
@@ -299,6 +300,9 @@ Route::prefix('v2')
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'gachaVersionPrizes'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-version-prizes.index');
+        Route::delete('/catalog/gachas/{gachaId}/versions/{versionId}/prizes/{prizeId}', [V2AdminCatalogController::class, 'removeGachaDraftPrize'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('prizeId')
+            ->name('v2.admin.catalog.gacha-draft-prizes.remove');
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}/prizes', [V2AdminCatalogController::class, 'createGachaRankPrize'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('rankId')
             ->name('v2.admin.catalog.gacha-rank-prizes.store');
@@ -375,6 +379,10 @@ Route::prefix('v2')
         Route::post('/content/banners/{contentId}/versions/{versionId}/publish', [V2AdminContentContactController::class, 'publishBanner'])->whereUuid('contentId')->whereUuid('versionId');
         Route::post('/content/banners/{contentId}/unpublish', [V2AdminContentContactController::class, 'unpublishBanner'])->whereUuid('contentId');
         Route::post('/content/banners/{contentId}/archive', [V2AdminContentContactController::class, 'archiveBanner'])->whereUuid('contentId');
+        Route::get('/banner-management/imports', [V2AdminBannerImportController::class, 'index']);
+        Route::post('/banner-management/imports', [V2AdminBannerImportController::class, 'store']);
+        Route::get('/banner-management/imports/{importId}', [V2AdminBannerImportController::class, 'show'])->whereUuid('importId');
+        Route::get('/banner-management/imports/{importId}/failures', [V2AdminBannerImportController::class, 'failures'])->whereUuid('importId');
         Route::get('/banner-management/categories', [V2AdminContentContactController::class, 'bannerCategories']);
         Route::post('/banner-management/categories', [V2AdminContentContactController::class, 'createBannerCategory']);
         Route::post('/banner-management/assets', [V2AdminContentContactController::class, 'uploadBannerAsset']);

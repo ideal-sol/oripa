@@ -40,8 +40,7 @@ final class EmailVerificationFailureStateTest extends TestCase
             'failure-state@example.test',
             'valid failure state password',
             '/',
-            '192.0.2.180'
-        );
+            '192.0.2.180', fullName: 'Synthetic Member', birthDate: '1990-01-01');
         $token = $this->notifier->tokens[0];
         $this->travel(61)->minutes();
 

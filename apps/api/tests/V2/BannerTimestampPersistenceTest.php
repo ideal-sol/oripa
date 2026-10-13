@@ -33,6 +33,7 @@ final class BannerTimestampPersistenceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        self::assertSame('local', config('filesystems.default'));
         self::assertSame('Asia/Tokyo', config('app.timezone'));
         self::assertSame('Asia/Tokyo', date_default_timezone_get());
         self::assertSame('pgsql', DB::connection()->getDriverName());

@@ -307,7 +307,7 @@ final class PaymentModelFoundationTest extends TestCase
     {
         foreach (['credit_card', 'paypay', 'konbini', 'virtual_account'] as $method) {
             $user = $this->user('once-concurrent-'.$method);
-            $user->forceFill(['first_registration_qualified_at' => now()])->save();
+            $user->forceFill(['first_sms_verified_at' => now()])->save();
             $plan = $this->plan(1000, 100, 'first_purchase_users');
             $statuses = $this->parallelProcesses($this->firstUserStartScript(), [
                 [(string) $user->id, (string) $plan->id, $method],
@@ -322,7 +322,7 @@ final class PaymentModelFoundationTest extends TestCase
     public function test_first_user_concurrent_different_products_remain_independent(): void
     {
         $user = $this->user('once-concurrent-independent');
-        $user->forceFill(['first_registration_qualified_at' => now()])->save();
+        $user->forceFill(['first_sms_verified_at' => now()])->save();
         $first = $this->plan(1000, 100, 'first_purchase_users');
         $second = $this->plan(2000, 200, 'first_purchase_users');
         self::assertSame([0, 0], $this->parallelProcesses($this->firstUserStartScript(), [

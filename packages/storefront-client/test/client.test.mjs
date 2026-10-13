@@ -56,14 +56,16 @@ test("advertising validity and optional identity candidates preserve exact input
   const identity = createStorefrontIdentityClient(transport);
   await identity.validateAdvertisingCode("Ab12Cd34");
   assert.equal(calls[0].path, "/advertising-code-validation?advertising_code=Ab12Cd34");
-  await identity.register({ email: "qa@example.test", password: "synthetic password", advertising_code: "Ab12Cd34" });
+  await identity.register({ full_name: "Synthetic Member", birth_date: "1990-01-01", email: "qa@example.test", password: "synthetic password", advertising_code: "Ab12Cd34" });
+  assert.equal(calls[1].body.full_name, "Synthetic Member");
+  assert.equal(calls[1].body.birth_date, "1990-01-01");
   await identity.startGoogleLogin({ advertising_code: "Ab12Cd34" }, {});
   await identity.startLineLogin({ advertising_code: "Ab12Cd34" }, {});
   for (const call of calls.slice(1)) {
     assert.equal(call.body.advertising_code, "Ab12Cd34");
     assert.equal(call.csrf, "required");
   }
-  await identity.register({ email: "organic@example.test", password: "synthetic password" });
+  await identity.register({ full_name: "Synthetic Member", birth_date: "1990-01-01", email: "organic@example.test", password: "synthetic password" });
   assert.equal(Object.hasOwn(calls.at(-1).body, "advertising_code"), false);
 });
 
@@ -72,6 +74,23 @@ const browserConfig = (fetch) => ({
   site_version: "1.0.0",
   default_timeout_ms: 500,
   fetch,
+});
+
+test("SMS requirement is a recognizable non-retryable error on every member facade", async () => {
+  let calls = 0;
+  const client = createBrowserStorefrontClient(browserConfig(async () => {
+    calls += 1;
+    return jsonResponse({ type: "https://oripa.example/problems/sms-verification-required", title: "SMS required",
+      status: 403, code: "SMS_VERIFICATION_REQUIRED", request_id: "sms-gate-fixture", retryable: false },
+    { status: 403, headers: { "Content-Type": "application/problem+json" } });
+  }));
+  await assert.rejects(client.request({ path: "/me/wallet" }), (error) => {
+    for (const guard of [isAuthProblemError, isDrawProblemError, isFulfillmentProblemError, isCardRegistrationProblemError]) {
+      assert.equal(guard(error, "SMS_VERIFICATION_REQUIRED"), true);
+    }
+    return true;
+  });
+  assert.equal(calls, 1);
 });
 
 test("Login Catalog stays thin, separate from standard, and forwards authenticated transport", async () => {

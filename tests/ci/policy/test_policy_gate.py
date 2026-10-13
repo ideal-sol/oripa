@@ -187,6 +187,47 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_banner_asset_operation_migration_registration_is_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000084" if change == "duplicate_number" else "000085"
+                    shutil.copy2(migration, migration.with_name(f"2026_10_13_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_banner_import_task_scope_is_exact(self):
+        data = fixture("positive.json")
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", "BANNERCSV-F2A-20261011"),
+            "[BANNERCSV-F2A-20261011] Banner import", data["changed_paths"], data["base_sha"])
+        for task in ("BANNERCSV-F2A-20261012", "BANNERCSV-F2A-*", "BANNERCSV-F2A-20261011-EXTRA"):
+            with self.subTest(task=task), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task),
+                    f"[{task}] Banner import", data["changed_paths"], data["base_sha"])
+        for path in ("apps/admin/src/components/banners/banner-import-workspace.tsx",
+                     "apps/admin/src/components/banners/banner-import.module.css",
+                     "apps/admin/test/banner-import.test.tsx", "apps/admin/e2e/admin-banner-import.spec.ts"):
+            self.assertIn(path, policy_gate.ADMIN_SKELETON_FILES)
+
+    def test_signup_sms_task_scope_and_migration_inventory_are_exact(self):
+        data = fixture("positive.json")
+        task = "SIGNUP-SMS-GATE-20261012"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task),
+            f"[{task}] Signup SMS gate", data["changed_paths"], data["base_sha"])
+        for invalid in ("SIGNUP-SMS-GATE-20261013", "SIGNUP-SMS-GATE-*", task + "-EXTRA"):
+            with self.subTest(task=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid),
+                    f"[{invalid}] Signup SMS gate", data["changed_paths"], data["base_sha"])
+        self.assertIn("apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php", policy_gate.V2_IDENTITY_REQUIRED_FILES)
+
     def test_external_id_admin_registration_is_exact(self):
         relative = "apps/admin/src/components/catalog/external-id-field.tsx"
         self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "external-id" in path}, {relative})
@@ -1143,6 +1184,11 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.44')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['release_mode'], 'contract-breaking')
+        self.assertTrue(value['candidate']['breaking_change'])
+        value['candidate'] = None
         self.assertIsNone(value['candidate'])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])
@@ -2648,6 +2694,29 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_catalog_boundary(root)
             policy_gate.validate_v2_catalog_boundary(root, paths)
 
+    def test_f4_only_exact_draft_prize_delete_is_registered(self):
+        approved = "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"
+        for target, method in [(approved, "post"), ("/catalog/prizes/{catalog_resource_id}", "delete"),
+                               (approved + "/other", "delete")]:
+            with self.subTest(target=target, method=method), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                bundle = root / "openapi/bundled/admin.openapi.json"
+                contract = json.loads(bundle.read_text())
+                contract["paths"].setdefault(target, {})[method] = contract["paths"][approved]["delete"]
+                bundle.write_text(json.dumps(contract))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited mutation"):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/admin.openapi.json"
+            contract = json.loads(bundle.read_text())
+            contract["paths"][approved]["delete"]["description"] = "storage_identifier"
+            bundle.write_text(json.dumps(contract))
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "storage_identifier"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
     def test_v2_catalog_scheduled_worker_mutation_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3231,7 +3300,7 @@ This is a non-Production Skeleton and contains no application implementation.
                             "nanoid": "3.3.18",
                             "postcss": "8.5.23",
                             "prosemirror-view": "1.42.3",
-                            "sharp": "0.35.4",
+                            "sharp": "0.35.5",
                             "source-map-js": "1.2.2",
                         }
                     },
@@ -3434,7 +3503,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.43",
+                    "version": "2.0.0-alpha.44",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3472,7 +3541,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.39",
+                        "minimumPublicApiContract": "2.0.0-alpha.40",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -3949,7 +4018,8 @@ services:
         for section, name, version in (
             ("dependencies", "next", "16.2.11"),
             ("dependencies", "next", "16.3.3"),
-            ("dependencies", "next", "^16.3.6"),
+            ("dependencies", "next", "16.3.6"),
+            ("dependencies", "next", "^16.3.8"),
             ("dependencies", "next", "latest"),
             ("dependencies", "@tiptap/react", "3.30.4"),
             ("devDependencies", "vitest", "4.1.10"),

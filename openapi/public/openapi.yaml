@@ -2,17 +2,23 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.39
+  version: 2.0.0-alpha.40
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
-  description: Storefront向けPublic API v2の認証Contract Alpha。
+  description: >-
+    Storefront向けPublic API v2の認証Contract Alpha。
+    会員操作・会員専用Readは現在の電話番号所有権によるSMS認証が必要。未認証は403 SMS_VERIFICATION_REQUIRED。
+    Session・SMS・認証復旧・ログアウト・お問い合わせは対象外。お問い合わせは既存のログイン必須条件を維持する。
+    公開Catalog・排出率・お知らせ・コイン商品は閲覧可能だがSMS未認証には匿名投影を返し、会員固有情報を含めない。
+    既存決済・カード登録の照会と安全な完了は継続し、SMS未認証にはnext_actionを返さない。
+    初回購入資格は初回SMS成功から連続24時間。過去SMS認証済み会員への遡及付与は行わない。
   x-status: alpha
 x-oripa-surface: public
 x-oripa-breaking-change:
-  authority: human_contact_prefill_required_2026-09-24
-  change_id: CONTACT-PREFILL-20260924
-  scope: contact-phone-required
+  authority: human_signup_sms_gate_required_2026-10-12
+  change_id: SIGNUP-SMS-GATE-20261012
+  scope: signup-identity-and-member-sms-required
 servers:
   - url: /api/v2
 paths:
@@ -35,6 +41,7 @@ paths:
         default: {$ref: '#/components/responses/Problem'}
   /login-gachas/{gacha_id}:
     get:
+      x-sms-verification: required
       operationId: getLoginGacha
       summary: 有効Sessionでログイン系ガチャ詳細を取得する
       x-idempotency: safe
@@ -48,6 +55,12 @@ paths:
           required: true
           schema: {type: string, format: uuid}
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 個人の利用可否を含む詳細。Draw時に再判定する。
           content:
@@ -377,6 +390,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /gachas/{gacha_id}/draws:
     post:
+      x-sms-verification: required
       operationId: createDraw
       summary: 認証済みUserが単一またはBulk Drawを作成する
       x-idempotency: required
@@ -400,6 +414,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDrawRequest'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: Drawを完了した、または同じ結果を再取得した。
           content:
@@ -410,6 +430,7 @@ paths:
           $ref: '#/components/responses/DrawProblem'
   /draw-requests/{draw_request_id}:
     get:
+      x-sms-verification: required
       operationId: getDrawRequest
       summary: Network結果不明時を含む完了済みDraw結果を取得する
       x-idempotency: safe
@@ -425,6 +446,12 @@ paths:
           schema:
             $ref: '#/components/schemas/OpaqueId'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: User自身の完了済みDraw結果。
           content:
@@ -435,6 +462,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/prizes:
     get:
+      x-sms-verification: required
       operationId: listUserPrizes
       summary: User自身が所有する景品を取得する
       x-idempotency: safe
@@ -447,6 +475,12 @@ paths:
         - $ref: '#/components/parameters/CatalogLimit'
         - $ref: '#/components/parameters/CatalogCursor'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: User Prize一覧。
           content:
@@ -457,6 +491,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/wallet:
     get:
+      x-sms-verification: required
       operationId: getWallet
       summary: Current Userの現在利用可能なPoint残高を取得する
       x-idempotency: safe
@@ -466,6 +501,12 @@ paths:
       security:
         - userSession: []
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 予約中Pointを除いたCurrent Userの利用可能残高。
           content:
@@ -480,6 +521,7 @@ paths:
           $ref: '#/components/responses/PointReadProblem'
   /me/point-ledgers:
     get:
+      x-sms-verification: required
       operationId: listPointLedgerEntries
       summary: Current UserのPoint増減履歴を新しい順で取得する
       x-idempotency: safe
@@ -492,6 +534,12 @@ paths:
         - $ref: '#/components/parameters/CatalogLimit'
         - $ref: '#/components/parameters/CatalogCursor'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 発生日時と内部IDで決定的に並べたCurrent UserのPoint履歴。
           content:
@@ -508,6 +556,7 @@ paths:
           $ref: '#/components/responses/PointReadProblem'
   /me/draws:
     get:
+      x-sms-verification: required
       operationId: listDrawHistory
       summary: Current UserのGacha利用履歴を新しい順で取得する
       x-idempotency: safe
@@ -520,6 +569,12 @@ paths:
         - $ref: '#/components/parameters/CatalogLimit'
         - $ref: '#/components/parameters/CatalogCursor'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 発生日時と内部tie-breakerで決定的に並べたCurrent UserのGacha利用履歴。
           content:
@@ -536,6 +591,7 @@ paths:
           $ref: '#/components/responses/DrawHistoryReadProblem'
   /me/line-friend-state:
     get:
+      x-sms-verification: required
       operationId: getLineFriendState
       summary: Current UserのLINE連携・友だち追加確認状態を取得する
       x-idempotency: safe
@@ -545,6 +601,12 @@ paths:
       security:
         - userSession: []
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: Canonical LINE IdentityとFriendshipから確定したCurrent User Presentation。
           headers:
@@ -570,6 +632,7 @@ paths:
           $ref: '#/components/responses/LineFriendStateReadProblem'
   /me/prizes/{prize_id}:
     get:
+      x-sms-verification: required
       operationId: getUserPrize
       summary: User自身が所有する景品詳細を取得する
       x-idempotency: safe
@@ -581,6 +644,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/UserPrizeId'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: User Prize詳細。
           content:
@@ -591,6 +660,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/prizes/exchange:
     post:
+      x-sms-verification: required
       operationId: exchangeUserPrizes
       summary: User自身の景品を一括でfree Pointへ交換する
       x-idempotency: required
@@ -610,6 +680,12 @@ paths:
             schema:
               $ref: '#/components/schemas/PrizeExchangeRequest'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 景品交換結果。
           content:
@@ -620,6 +696,7 @@ paths:
           $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-addresses:
     get:
+      x-sms-verification: required
       operationId: listShippingAddresses
       summary: Mask済み配送先一覧を取得する
       x-idempotency: safe
@@ -629,6 +706,12 @@ paths:
       security:
         - userSession: []
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 配送先一覧。
           content:
@@ -638,6 +721,7 @@ paths:
         default:
           $ref: '#/components/responses/FulfillmentProblem'
     post:
+      x-sms-verification: required
       operationId: createShippingAddress
       summary: 配送先を作成する
       x-idempotency: not-supported
@@ -658,6 +742,12 @@ paths:
             schema:
               $ref: '#/components/schemas/ShippingAddressInput'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '201':
           description: 作成した配送先。
           content:
@@ -668,6 +758,7 @@ paths:
           $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-addresses/{address_id}:
     get:
+      x-sms-verification: required
       operationId: getShippingAddress
       summary: User本人の配送先詳細を取得する
       x-idempotency: safe
@@ -679,6 +770,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ShippingAddressId'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 配送先詳細。
           content:
@@ -688,6 +785,7 @@ paths:
         default:
           $ref: '#/components/responses/FulfillmentProblem'
     put:
+      x-sms-verification: required
       operationId: updateShippingAddress
       summary: User本人の配送先を更新する
       x-idempotency: not-supported
@@ -707,6 +805,12 @@ paths:
             schema:
               $ref: '#/components/schemas/ShippingAddressInput'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 更新した配送先。
           content:
@@ -716,6 +820,7 @@ paths:
         default:
           $ref: '#/components/responses/FulfillmentProblem'
     delete:
+      x-sms-verification: required
       operationId: deleteShippingAddress
       summary: User本人の配送先を削除する
       x-idempotency: naturally-idempotent
@@ -729,6 +834,12 @@ paths:
         - $ref: '#/components/parameters/ShippingAddressId'
         - $ref: '#/components/parameters/XsrfToken'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 削除結果。
           content:
@@ -745,6 +856,7 @@ paths:
           $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-requests:
     get:
+      x-sms-verification: required
       operationId: listShippingRequests
       summary: User自身のShipping Request一覧を取得する
       x-idempotency: safe
@@ -757,6 +869,12 @@ paths:
         - $ref: '#/components/parameters/CatalogLimit'
         - $ref: '#/components/parameters/CatalogCursor'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: Shipping Request一覧。
           content:
@@ -766,6 +884,7 @@ paths:
         default:
           $ref: '#/components/responses/Problem'
     post:
+      x-sms-verification: required
       operationId: createShippingRequest
       summary: 複数景品を1件のShipping Requestへまとめる
       x-idempotency: required
@@ -785,6 +904,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateShippingRequest'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '201':
           description: Shipping Request作成結果。
           content:
@@ -795,6 +920,7 @@ paths:
           $ref: '#/components/responses/FulfillmentProblem'
   /me/shipping-requests/{shipping_request_id}:
     get:
+      x-sms-verification: required
       operationId: getShippingRequest
       summary: User自身のShipping Request詳細を取得する
       x-idempotency: safe
@@ -806,6 +932,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ShippingRequestId'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: Shipping Request詳細。
           content:
@@ -1611,6 +1743,7 @@ paths:
           $ref: '#/components/responses/PublicAuthProblem'
   /payments:
     post:
+      x-sms-verification: required
       operationId: createPayment
       summary: fincode Paymentを支払操作時に開始する
       description: >-
@@ -1633,6 +1766,12 @@ paths:
             schema:
               $ref: '#/components/schemas/PaymentCreateRequest'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '201':
           description: Paymentを作成し、必要な次操作を返す。到達または作成だけでは成功を意味しない。
           content:
@@ -1789,6 +1928,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /payments/{payment_id}/resume:
     post:
+      x-sms-verification: required
       operationId: resumeUnpaidPayment
       summary: 有効な未払いPaymentの既存fincode redirectを再開する
       description: >-
@@ -1819,6 +1959,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/payments:
     get:
+      x-sms-verification: required
       operationId: listMyPayments
       summary: Storefront向け成功または有効未払いPayment履歴を取得する
       x-idempotency: safe
@@ -1846,6 +1987,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/payment-cards:
     get:
+      x-sms-verification: required
       operationId: listPaymentCards
       summary: fincodeに保持された登録カードの安全な表示情報を取得する
       x-idempotency: safe
@@ -1855,6 +1997,12 @@ paths:
       security:
         - userSession: []
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 最大3枚。期限切れカードも表示するが利用不可。
           content:
@@ -1865,6 +2013,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/payment-card-ui-bootstrap:
     get:
+      x-sms-verification: required
       operationId: getPaymentCardUiBootstrap
       summary: Payment作成前にfincode Card UIのPublic設定を取得する
       description: >-
@@ -1878,6 +2027,12 @@ paths:
       security:
         - userSession: []
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '200':
           description: 公式fincode SDKのinitFincodeに渡すCanonical Public設定。
           content:
@@ -1910,6 +2065,7 @@ paths:
           $ref: '#/components/responses/Problem'
   /me/payment-card-registration-intents:
     post:
+      x-sms-verification: required
       operationId: createPaymentCardRegistrationIntent
       summary: Legacy non-3DS fincodeカード登録枠を互換目的で予約する
       description: >-
@@ -1927,6 +2083,12 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/XsrfToken'
       responses:
+        '403':
+          description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '201':
           description: 同時Requestでも4枚目を成立させない登録Intent。
           content:
@@ -1974,6 +2136,7 @@ paths:
           $ref: '#/components/responses/CardRegistrationProblem'
   /me/payment-card-registrations:
     post:
+      x-sms-verification: required
       operationId: startPaymentCardRegistration
       summary: Card保存専用のfincode Registration 3DS2を開始する
       description: >-
@@ -3093,6 +3256,7 @@ components:
     CardRegistrationProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
         - AUTHENTICATION_REQUIRED
         - CARD_INTENT_EXPIRED
         - CARD_LIMIT_REACHED
@@ -3127,6 +3291,8 @@ components:
     PublicAuthProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
+        - INVALID_REGISTRATION
         - AUTH_SERVICE_UNAVAILABLE
         - AUTHENTICATION_REQUIRED
         - CSRF_TOKEN_MISMATCH
@@ -3163,6 +3329,7 @@ components:
     DrawProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
         - AUTHENTICATION_REQUIRED
         - CSRF_TOKEN_MISMATCH
         - DAILY_DRAW_LIMIT_EXCEEDED
@@ -3399,7 +3566,7 @@ components:
         expires_at:
           type: [string, 'null']
           format: date-time
-          description: 初回登録資格確定から24時間後のUTC時刻。資格不明または匿名はnull。
+          description: 初回SMS認証成功から24時間後のUTC時刻。資格不明または匿名はnull。
         as_of:
           type: string
           format: date-time
@@ -3977,6 +4144,7 @@ components:
     PointReadProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
         - AUTHENTICATION_REQUIRED
         - INVALID_CURSOR
         - INVALID_PAGINATION
@@ -4062,6 +4230,7 @@ components:
     DrawHistoryReadProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
         - AUTHENTICATION_REQUIRED
         - INVALID_CURSOR
         - INVALID_PAGINATION
@@ -4140,6 +4309,7 @@ components:
     LineFriendStateReadProblemCode:
       type: string
       enum:
+        - SMS_VERIFICATION_REQUIRED
         - AUTHENTICATION_REQUIRED
         - RATE_LIMITED
         - SESSION_EXPIRED
@@ -4364,8 +4534,19 @@ components:
     UserRegistrationRequest:
       type: object
       additionalProperties: false
-      required: [email, password]
+      required: [full_name, birth_date, email, password]
       properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          writeOnly: true
+          description: 会員登録氏名。空白のみは不可。表示名とは別に保存する。
+        birth_date:
+          type: string
+          format: date
+          writeOnly: true
+          description: JSTの当日で18歳以上のみ登録可能。未来日・不正日付は不可。Google・LINE新規作成は対象外。
         advertising_code:
           $ref: '#/components/schemas/AdvertisingCodeCandidate'
         email:

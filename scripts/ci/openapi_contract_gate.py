@@ -82,6 +82,12 @@ CONTACT_PHONE_REQUIRED_BREAK = {
     "scope": "contact-phone-required",
 }
 
+SIGNUP_SMS_GATE_BREAK = {
+    "authority": "human_signup_sms_gate_required_2026-10-12",
+    "change_id": "SIGNUP-SMS-GATE-20261012",
+    "scope": "signup-identity-and-member-sms-required",
+}
+
 
 class ContractFailure(RuntimeError):
     """A deterministic OpenAPI contract violation."""
@@ -145,7 +151,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
         raise ContractFailure(f"{surface}: surface marker is invalid")
     canonical_break = document.get("x-oripa-breaking-change")
     if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK and not (
-        surface == "public" and canonical_break in (CONTACT_AUTHENTICATED_BREAK, CONTACT_PHONE_REQUIRED_BREAK)
+        surface == "public" and canonical_break in (CONTACT_AUTHENTICATED_BREAK, CONTACT_PHONE_REQUIRED_BREAK, SIGNUP_SMS_GATE_BREAK)
     ):
         raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
@@ -469,6 +475,34 @@ def is_authorized_contact_phone_required_break(
     )
 
 
+def is_authorized_signup_sms_gate_break(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    schemas = current.get("components", {}).get("schemas", {})
+    registration = schemas.get("UserRegistrationRequest", {})
+    previous_registration = previous.get("components", {}).get("schemas", {}).get("UserRegistrationRequest", {})
+    unchanged_registration = copy.deepcopy(registration)
+    unchanged_registration["required"] = ["email", "password"]
+    for field in ("full_name", "birth_date"):
+        unchanged_registration.get("properties", {}).pop(field, None)
+    return (
+        surface == "public"
+        and current.get("x-oripa-breaking-change") == SIGNUP_SMS_GATE_BREAK
+        and previous.get("info", {}).get("version") == "2.0.0-alpha.39"
+        and current.get("info", {}).get("version") == "2.0.0-alpha.40"
+        and registration.get("required") == ["full_name", "birth_date", "email", "password"]
+        and unchanged_registration == previous_registration
+        and registration.get("properties", {}).get("birth_date", {}).get("format") == "date"
+        and registration.get("properties", {}).get("full_name", {}).get("maxLength") == 255
+        and current.get("paths", {}).get("/contact-inquiries") == previous.get("paths", {}).get("/contact-inquiries")
+        and schemas.get("CreateContactInquiryRequest") == previous.get("components", {}).get("schemas", {}).get("CreateContactInquiryRequest")
+        and set(breaking_changes(previous, current)) == {
+            "components.schemas.UserRegistrationRequest: required field added: birth_date",
+            "components.schemas.UserRegistrationRequest: required field added: full_name",
+        }
+    )
+
+
 def is_authorized_fincode_registration_webhook_alignment(
     surface: str, previous: dict[str, Any], current: dict[str, Any]
 ) -> bool:
@@ -571,7 +605,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )
