@@ -42,6 +42,7 @@ final class NormalizeV2AssetResponse
                 'admin/api/v2/catalog/presentation-assets/*',
                 'admin/api/v2/catalog/rank-effects',
                 'admin/api/v2/catalog/rank-effects/*',
+                'admin/api/v2/catalog/gacha-thumbnails',
                 'admin/api/v2/banner-management/assets',
             ));
         } catch (InvalidArgumentException) {

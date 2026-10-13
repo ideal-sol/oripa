@@ -544,6 +544,7 @@ final class AssetCdnDeliveryTest extends TestCase
             'asset detail' => ['/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000005', false],
             'rank effect list' => ['/admin/api/v2/catalog/rank-effects', true],
             'rank effect detail' => ['/admin/api/v2/catalog/rank-effects/0198a001-0000-7000-8000-000000000005', false],
+            'gacha thumbnail upload' => ['/admin/api/v2/catalog/gacha-thumbnails', false],
         ];
     }
 
@@ -569,6 +570,23 @@ final class AssetCdnDeliveryTest extends TestCase
     public static function canonicalBannerDisks(): array
     {
         return ['local' => ['local'], 's3' => ['s3']];
+    }
+
+    public function test_gacha_thumbnail_upload_response_has_no_internal_asset_path(): void
+    {
+        $input = ['file_name' => 'thumbnail.png', 'mime_type' => 'image/png',
+            'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='];
+        $result = app(V2CatalogMasterMutationService::class)->uploadGachaThumbnail($this->adminContext(), 'synthetic-thumbnail', $input);
+        $response = app(NormalizeV2AssetResponse::class)->handle(Request::create('/admin/api/v2/catalog/gacha-thumbnails', 'POST'),
+            static fn () => response()->json(['data' => $result['data']], 201));
+        self::assertSame(201, $response->getStatusCode());
+        $data = $response->getData(true)['data'];
+        $key = 'admin-assets/gacha/2026/10/'.$data['id'].'.png';
+        self::assertSame('/gacha/2026/10/'.$data['id'].'.png', $data['public_path']);
+        self::assertSame(base64_decode($input['content_base64']), Storage::disk('s3')->get($key));
+        self::assertSame('/admin/api/v2/catalog/presentation-assets/'.$data['id'].'/content',
+            DB::table('catalog_presentation_assets')->where('public_id', $data['id'])->value('public_path'));
+        self::assertStringNotContainsString('/admin/', $response->getContent());
     }
 
     #[DataProvider('canonicalBannerDisks')]
