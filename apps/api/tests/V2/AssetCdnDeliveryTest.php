@@ -17,7 +17,6 @@ use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Point\Services\V2PointService;
 use App\Http\Middleware\V2\NormalizeV2AssetResponse;
 use App\Models\V2\Admin;
-use App\Models\V2\User;
 use Aws\Handler\Guzzle\GuzzleHandler;
 use Aws\Result;
 use Carbon\CarbonImmutable;
@@ -34,6 +33,7 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
+use Tests\V2\Fixtures\SmsVerifiedUser;
 
 final class AssetCdnDeliveryTest extends TestCase
 {
@@ -180,7 +180,7 @@ final class AssetCdnDeliveryTest extends TestCase
         $catalog->publishGachaVersionImmediately($context, $gacha['id'], $gacha['current_version']['id'], 'synthetic-login-publish', [
             'expected_revision' => $gacha['current_version']['revision'], 'expected_gacha_revision' => $gacha['revision'],
         ]);
-        $user = User::query()->create([
+        $user = SmsVerifiedUser::create([
             'display_name' => 'Synthetic login reader', 'email_display' => 'cdn-login@example.test',
             'email_normalized' => 'cdn-login@example.test', 'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic test password'),
@@ -267,7 +267,7 @@ final class AssetCdnDeliveryTest extends TestCase
     {
         $assets = $this->assets();
         $gachaId = DB::table('catalog_gachas')->value('public_id');
-        $user = User::query()->create([
+        $user = SmsVerifiedUser::create([
             'display_name' => 'Synthetic CDN reader', 'email_display' => 'cdn-reader@example.test',
             'email_normalized' => 'cdn-reader@example.test', 'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic test password'),
@@ -640,7 +640,7 @@ final class AssetCdnDeliveryTest extends TestCase
     {
         $this->assets($supported);
         $gachaId = DB::table('catalog_gachas')->value('public_id');
-        $user = User::query()->create([
+        $user = SmsVerifiedUser::create([
             'display_name' => 'Synthetic failed presentation', 'email_display' => 'cdn-failure@example.test',
             'email_normalized' => 'cdn-failure@example.test', 'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic test password'),
