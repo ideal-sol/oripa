@@ -709,25 +709,28 @@ final class V2ContentContactAdminService
         return $this->storeAuthorizedBannerAsset($context, $admin, $input, $idempotencyKey);
     }
 
-    public function uploadBannerImportAsset(V2BannerImportExecution $execution, array $input): array
+    public function uploadBannerImportAsset(string $rowId, #[\SensitiveParameter] string $token, #[\SensitiveParameter] array $input): void
+    {
+        app(V2BannerImportAssetOperationService::class)->register($rowId, $token, $input);
+    }
+
+    public function prepareBannerImportAsset(V2BannerImportExecution $execution, #[\SensitiveParameter] array $input): array
     {
         $execution = $execution->revalidate();
         if (! $execution->row->fetch_image || $execution->row->asset_public_id !== null) {
             throw $this->conflict('BANNER_IMPORT_ASSET_STATE_INVALID');
         }
-        return $this->storeAuthorizedBannerAsset(
-            $execution, $execution->admin,
-            ['file_name' => 'banner-import-'.$execution->row->public_id, 'mime_type' => $input['mime_type'], 'content_base64' => $input['content_base64']],
-            'banner-import-asset:'.$execution->row->public_id
-        );
+        [$fileName, $mime, $bytes, $checksum, $extensions] = $this->validatedBannerAsset([
+            'file_name' => 'banner-import-'.$execution->row->public_id,
+            'mime_type' => $input['mime_type'], 'content_base64' => base64_encode($input['bytes']),
+        ]);
+        $publicId = (string) Str::uuid7();
+        return ['asset_public_id' => $publicId, 'object_key' => $this->bannerAssetObjectKey($publicId, $extensions[$mime]),
+            'checksum_sha256' => $checksum, 'mime_type' => $mime, 'byte_size' => strlen($bytes)];
     }
 
-    private function storeAuthorizedBannerAsset(
-        V2AdminAuthorizationContext|V2BannerImportExecution $context,
-        Admin $admin,
-        array $input,
-        string $idempotencyKey
-    ): array {
+    private function validatedBannerAsset(#[\SensitiveParameter] array $input): array
+    {
         $this->assertFields($input, ['file_name', 'mime_type', 'content_base64'], [
             'file_name', 'mime_type', 'content_base64',
         ]);
@@ -751,6 +754,21 @@ final class V2ContentContactAdminService
             throw $this->invalid('BANNER_ASSET_INVALID');
         }
         $checksum = hash('sha256', $bytes);
+        return [$fileName, $mime, $bytes, $checksum, $extensions];
+    }
+
+    private function bannerAssetObjectKey(string $publicId, string $extension): string
+    {
+        return sprintf('admin-assets/top-banner/%s/%s.%s', now()->format('Y/m'), $publicId, $extension);
+    }
+
+    private function storeAuthorizedBannerAsset(
+        V2AdminAuthorizationContext $context,
+        Admin $admin,
+        array $input,
+        string $idempotencyKey
+    ): array {
+        [$fileName, $mime, $bytes, $checksum, $extensions] = $this->validatedBannerAsset($input);
         $storedPath = null;
 
         try {
@@ -775,34 +793,13 @@ final class V2ContentContactAdminService
                     return $this->bannerReplay($claim);
                 }
                 $publicId = (string) Str::uuid7();
-                $storedPath = sprintf(
-                    'admin-assets/top-banner/%s/%s.%s',
-                    now()->format('Y/m'),
-                    $publicId,
-                    $extensions[$mime]
-                );
+                $storedPath = $this->bannerAssetObjectKey($publicId, $extensions[$mime]);
                 if (! Storage::disk(config('filesystems.default'))->put($storedPath, $bytes, [
                     'ContentType' => $mime,
                 ])) {
                     throw new \RuntimeException('Banner asset storage failed.');
                 }
-                $publicPath = $this->bannerAssetPublicPath($publicId);
-                $now = now()->startOfSecond();
-                DB::table('catalog_presentation_assets')->insert([
-                    'public_id' => $publicId,
-                    'storage_identifier' => $storedPath,
-                    'public_path' => $publicPath,
-                    'checksum_sha256' => $checksum,
-                    'media_type' => 'image',
-                    'mime_type' => $mime,
-                    'byte_size' => strlen($bytes),
-                    'alt_text' => $fileName,
-                    'is_public' => true,
-                    'revision' => 1,
-                    'archived_at' => null,
-                    'created_at' => V2DatabaseTimestamp::format($now),
-                    'updated_at' => V2DatabaseTimestamp::format($now),
-                ]);
+                $this->insertBannerAsset($publicId, $storedPath, $checksum, $mime, strlen($bytes), $fileName);
                 $result = [
                     'id' => $publicId,
                     'public_url' => $this->bannerAssetPublicUrl($publicId),
@@ -824,6 +821,46 @@ final class V2ContentContactAdminService
             }
             throw $exception;
         }
+    }
+
+    public function finalizeBannerImportAsset(V2BannerImportExecution $execution, string $operationId): array
+    {
+        $execution = $execution->revalidate();
+        $operation = DB::table('content_banner_asset_operations')->where('public_id', $operationId)
+            ->where('row_public_id', $execution->row->public_id)->lockForUpdate()->first();
+        if ($operation === null || (int) $operation->lease_generation !== (int) $execution->job->lease_generation
+            || $operation->last_result !== 'matched' || $operation->status !== 'writing') {
+            throw $this->conflict('BANNER_IMPORT_ASSET_STATE_INVALID');
+        }
+        $fileName = 'banner-import-'.$execution->row->public_id;
+        $claim = $this->claimBannerMutation($execution->admin, 'banner-import-asset:'.$execution->row->public_id, [
+            'action' => 'asset.upload', 'file_name' => $fileName, 'mime_type' => $operation->mime_type,
+            'checksum_sha256' => $operation->checksum_sha256,
+        ]);
+        if ($claim->replay) {
+            return $this->bannerReplay($claim);
+        }
+        $this->insertBannerAsset($operation->asset_public_id, $operation->object_key, $operation->checksum_sha256,
+            $operation->mime_type, $operation->byte_size, $fileName);
+        $result = ['id' => $operation->asset_public_id, 'public_url' => $this->bannerAssetPublicUrl($operation->asset_public_id),
+            'mime_type' => $operation->mime_type, 'byte_size' => $operation->byte_size];
+        $this->auditContent('content.banner_asset_uploaded', $execution, 'banner_asset', $operation->asset_public_id, [
+            'checksum_sha256' => $operation->checksum_sha256, 'mime_type' => $operation->mime_type,
+            'byte_size' => $operation->byte_size, 'operation_id' => $operation->public_id,
+        ]);
+        $this->completeBannerMutation($claim, 'catalog_presentation_asset', $operation->asset_public_id, $result, 201);
+        return [...$result, 'idempotent_replay' => false];
+    }
+
+    private function insertBannerAsset(string $publicId, string $key, string $checksum, string $mime, int $size, string $fileName): void
+    {
+        $now = V2DatabaseTimestamp::format(now()->startOfSecond());
+        DB::table('catalog_presentation_assets')->insert([
+            'public_id' => $publicId, 'storage_identifier' => $key, 'public_path' => $this->bannerAssetPublicPath($publicId),
+            'checksum_sha256' => $checksum, 'media_type' => 'image', 'mime_type' => $mime,
+            'byte_size' => $size, 'alt_text' => $fileName, 'is_public' => true, 'revision' => 1,
+            'archived_at' => null, 'created_at' => $now, 'updated_at' => $now,
+        ]);
     }
 
     /** @param array<string, mixed> $input @return array<string, mixed> */

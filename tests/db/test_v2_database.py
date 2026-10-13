@@ -20,6 +20,36 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_banner_asset_operation_inventory_and_forward_only_guard(self):
+        filename = "2026_10_13_000084_create_v2_banner_asset_operations.php"
+        message = "Banner asset operations require a forward correction migration."
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        tables = ["public." + name for name in re.findall(r"Schema::create\('([^']+)'", source)]
+        self.assertEqual(tables, ["public.content_banner_asset_operations"])
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(sorted(set(inventory)), inventory)
+        self.assertTrue(set(tables).issubset(inventory))
+        for invalid in [[name for name in inventory if name not in tables], sorted([*inventory, "public.unregistered_operation"])]:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(invalid)
+        self.assertIn("throw new LogicException('" + message + "');", source)
+        self.assertNotIn("cascadeOnDelete", source)
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"84") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            self.assertIn(filename, run.call_args.args[0][-1])
+            self.assertIn(message, run.call_args.args[0][-1])
+        for rows, schemas in [([b"84", b"83"], [b"schema", b"schema"]), ([b"84", b"84"], [b"schema", b"changed"])]:
+            with mock.patch.object(v2_database, "migration_rows", side_effect=rows), mock.patch.object(
+                v2_database, "schema_dump", side_effect=schemas
+            ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS"):
+                with self.assertRaises(v2_database.GuardFailure):
+                    v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, False)
+
     def test_signup_sms_migration_is_forward_only_without_backfill(self):
         filename = "2026_10_12_000083_add_v2_signup_sms_gate.php"
         message = "Signup SMS qualification requires a forward correction migration."

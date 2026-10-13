@@ -7564,6 +7564,7 @@ components:
           properties: {idempotent_replay: {type: boolean}}
     AdminBannerImportInput:
       type: object
+      description: UTF-8 CSV, at most 200 data rows excluding the header and 2 MiB decoded. Oversized CSV is rejected before any business write.
       additionalProperties: false
       required: [file_name, content_base64, default_category_id]
       properties:
@@ -7603,6 +7604,7 @@ components:
         error_code: {type: [string, 'null']}
     AdminBannerImportJob:
       type: object
+      description: Retained results include legacy jobs of up to 1000 rows; new submissions are limited to 200 data rows.
       additionalProperties: false
       required: [id, status, total, processed, created, updated, unchanged, failed, created_at, completed_at, rows]
       properties:

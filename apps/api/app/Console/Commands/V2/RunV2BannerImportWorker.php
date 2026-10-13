@@ -20,6 +20,9 @@ final class RunV2BannerImportWorker extends Command
             return self::SUCCESS;
         }
         try {
+            if (function_exists('pcntl_signal')) {
+                $this->trap([SIGTERM, SIGINT], fn () => $worker->requestStop());
+            }
             $processed = $worker->runOnce();
             $this->components->info("Completed {$processed} Banner Import Row(s).");
             return self::SUCCESS;

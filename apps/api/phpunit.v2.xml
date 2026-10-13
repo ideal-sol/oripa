@@ -23,6 +23,8 @@
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
         <server name="APP_ENV" value="testing" force="true"/>
+        <env name="FILESYSTEM_DISK" value="local" force="true"/>
+        <server name="FILESYSTEM_DISK" value="local" force="true"/>
         <env name="V2_AUDIT_HMAC_KEY" value="base64:QXVkaXRUZXN0S2V5Rm9yT25seVYyVGVzdHMyMDI2ISE=" force="true"/>
         <env name="V2_CONTACT_HMAC_KEY" value="base64:Q29udGFjdFRlc3RLZXlGb3JPbmx5VjJUZXN0czIwMjYh" force="true"/>
         <env name="V2_PURCHASE_BONUS_EXPIRY_DAYS" value="365" force="true"/>

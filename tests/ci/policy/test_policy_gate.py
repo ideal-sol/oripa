@@ -159,6 +159,23 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_banner_asset_operation_migration_registration_is_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000084" if change == "duplicate_number" else "000085"
+                    shutil.copy2(migration, migration.with_name(f"2026_10_13_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
     def test_banner_import_task_scope_is_exact(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", "BANNERCSV-F2A-20261011"),

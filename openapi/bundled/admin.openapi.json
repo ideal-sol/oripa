@@ -19617,6 +19617,7 @@
       },
       "AdminBannerImportInput": {
         "type": "object",
+        "description": "UTF-8 CSV, at most 200 data rows excluding the header and 2 MiB decoded. Oversized CSV is rejected before any business write.",
         "additionalProperties": false,
         "required": [
           "file_name",
@@ -19759,6 +19760,7 @@
       },
       "AdminBannerImportJob": {
         "type": "object",
+        "description": "Retained results include legacy jobs of up to 1000 rows; new submissions are limited to 200 data rows.",
         "additionalProperties": false,
         "required": [
           "id",
