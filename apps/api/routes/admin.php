@@ -300,6 +300,9 @@ Route::prefix('v2')
         Route::get('/catalog/gachas/{gachaId}/versions/{versionId}/prizes', [V2AdminCatalogController::class, 'gachaVersionPrizes'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')
             ->name('v2.admin.catalog.gacha-version-prizes.index');
+        Route::delete('/catalog/gachas/{gachaId}/versions/{versionId}/prizes/{prizeId}', [V2AdminCatalogController::class, 'removeGachaDraftPrize'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('prizeId')
+            ->name('v2.admin.catalog.gacha-draft-prizes.remove');
         Route::post('/catalog/gachas/{gachaId}/versions/{versionId}/ranks/{rankId}/prizes', [V2AdminCatalogController::class, 'createGachaRankPrize'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('versionId')->whereUuid('rankId')
             ->name('v2.admin.catalog.gacha-rank-prizes.store');

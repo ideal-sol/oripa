@@ -59,6 +59,58 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Canonical Gacha Rank and Prize manager", () => {
+  it("F4 confirms identity, prevents duplicate removal and reloads the revision", async () => {
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [{ ...gachaPrize(), external_id: "CARD-A" }], version_revision: 3 });
+    let complete!: () => void;
+    const remove = vi.spyOn(AdminApiClient.prototype, "removeGachaDraftPrize").mockImplementation(() => new Promise((resolve) => {
+      complete = () => resolve({ data: { id: PRIZE_ID, gacha_version_id: VERSION_ID, gacha_version_revision: 4 }, idempotent_replay: false });
+    }));
+    render(<CatalogGachaRankPrizeManager canManage canRemove gachaId={GACHA_ID} version={version()} />);
+    fireEvent.click(await screen.findByRole("button", { name: `${gachaPrize().name}を外す` }));
+    const dialog = screen.getByRole("dialog", { name: "景品を外す" });
+    expect(dialog).toHaveTextContent(gachaPrize().name);
+    expect(dialog).toHaveTextContent("CARD-A");
+    expect(remove).not.toHaveBeenCalled();
+    const confirm = within(dialog).getByRole("button", { name: "外す" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith(GACHA_ID, VERSION_ID, PRIZE_ID, { expected_version_revision: 3 }, expect.any(String));
+    expect(confirm).toBeDisabled();
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [], version_revision: 4 });
+    complete();
+    expect(await screen.findByText("登録済み景品はありません。")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(AdminApiClient.prototype.listGachaVersionPrizes).toHaveBeenCalledTimes(2);
+  });
+
+  it("F4 preserves rows on history refusal and uses the same key for retry", async () => {
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [gachaPrize()], version_revision: 3 });
+    const remove = vi.spyOn(AdminApiClient.prototype, "removeGachaDraftPrize").mockRejectedValue(new AdminApiError(409, "CATALOG_PRIZE_REMOVAL_INVENTORY_HISTORY", null, null, false));
+    render(<CatalogGachaRankPrizeManager canManage canRemove gachaId={GACHA_ID} version={version()} />);
+    fireEvent.click(await screen.findByRole("button", { name: `${gachaPrize().name}を外す` }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "外す" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("在庫調整履歴があるため、この景品は外せません。CSVに対象景品を戻してください");
+    expect(screen.getByRole("button", { name: `${gachaPrize().name}を編集` })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "外す" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(2));
+    expect(remove.mock.calls[0]).toEqual(remove.mock.calls[1]);
+    expect(AdminApiClient.prototype.listGachaVersionPrizes).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { canManage: false, canRemove: true, status: "draft" as const, archived: false },
+    { canManage: true, canRemove: false, status: "draft" as const, archived: false },
+    { canManage: true, canRemove: true, status: "published" as const, archived: false },
+    { canManage: true, canRemove: true, status: "draft" as const, archived: true },
+  ])("F4 hides removal for ineligible context %j", async ({ canManage, canRemove, status, archived }) => {
+    vi.mocked(AdminApiClient.prototype.listGachaVersionPrizes).mockResolvedValue({ items: [gachaPrize()], version_revision: 3 });
+    render(<CatalogGachaRankPrizeManager canManage={canManage} canRemove={canRemove} gachaId={GACHA_ID} version={{ ...version(status), is_archived: archived }} />);
+    await screen.findByText(gachaPrize().name);
+    expect(screen.queryByRole("button", { name: `${gachaPrize().name}を外す` })).not.toBeInTheDocument();
+  });
+
   it("offers only identified Banners and follows reselection until manually edited, including manual clears", async () => {
     vi.spyOn(AdminApiClient.prototype, "listGachaRanks").mockResolvedValue({
       items: [gachaRank({ currentVideo: true, canUnset: true, revision: 4 })],
