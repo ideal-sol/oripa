@@ -4633,6 +4633,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video": {"put"},
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {"get"},
+        "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {"delete"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/ranks/{rank_id}/prizes": {
             "post",
         },
@@ -4713,7 +4714,12 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
     admin_catalog_contract = json.dumps(
         {
             "paths": {
-                path: value
+                path: {
+                    ("approved_draft_prize_removal" if method == "delete"
+                     and path == "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"
+                     else method): operation
+                    for method, operation in value.items()
+                }
                 for path, value in admin_bundle.get("paths", {}).items()
                 if path.startswith("/catalog/")
             },

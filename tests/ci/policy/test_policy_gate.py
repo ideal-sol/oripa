@@ -2649,6 +2649,29 @@ python3 scripts/db/v2_database.py smoke \\
             paths = self.copy_v2_catalog_boundary(root)
             policy_gate.validate_v2_catalog_boundary(root, paths)
 
+    def test_f4_only_exact_draft_prize_delete_is_registered(self):
+        approved = "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"
+        for target, method in [(approved, "post"), ("/catalog/prizes/{catalog_resource_id}", "delete"),
+                               (approved + "/other", "delete")]:
+            with self.subTest(target=target, method=method), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                bundle = root / "openapi/bundled/admin.openapi.json"
+                contract = json.loads(bundle.read_text())
+                contract["paths"].setdefault(target, {})[method] = contract["paths"][approved]["delete"]
+                bundle.write_text(json.dumps(contract))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited mutation"):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = self.copy_v2_catalog_boundary(root)
+            bundle = root / "openapi/bundled/admin.openapi.json"
+            contract = json.loads(bundle.read_text())
+            contract["paths"][approved]["delete"]["description"] = "storage_identifier"
+            bundle.write_text(json.dumps(contract))
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "storage_identifier"):
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+
     def test_v2_catalog_scheduled_worker_mutation_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

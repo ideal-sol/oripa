@@ -2099,6 +2099,66 @@ final class V2CatalogMasterMutationService
             });
     }
 
+    public function removeGachaDraftPrize(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $versionPublicId,
+        string $prizePublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        $admin = $this->authorize($context, 'prize_remove', 'gacha_prize');
+        $this->assertFields($input, ['expected_version_revision'], ['expected_version_revision']);
+        $expectedRevision = $this->revision($input['expected_version_revision']);
+
+        return $this->execute($context, $admin, 'prize', 'prize_remove', $idempotencyKey, [
+            'gacha_id' => $gachaPublicId, 'version_id' => $versionPublicId,
+            'prize_id' => $prizePublicId, 'expected_version_revision' => $expectedRevision,
+        ], 200, function () use ($gachaPublicId, $versionPublicId, $prizePublicId, $expectedRevision): object {
+            [$gacha, $version] = $this->editableGachaVersion($gachaPublicId, $versionPublicId, $expectedRevision);
+            $this->assertBeforeFirstPublication($gacha);
+            $prize = $this->find('catalog_prizes', $prizePublicId, true);
+            if ((int) $prize->gacha_id !== (int) $gacha->id) {
+                throw $this->notFound();
+            }
+            $this->assertMutable($prize, (int) $prize->revision);
+            $relation = DB::table('catalog_gacha_version_prizes')
+                ->where('gacha_version_id', $version->id)->where('prize_id', $prize->id)
+                ->lockForUpdate()->first();
+            if ($relation === null) {
+                throw $this->notFound();
+            }
+            $inventory = DB::table('prize_inventories')->where('gacha_version_prize_id', $relation->id)
+                ->lockForUpdate()->first();
+            if ($inventory !== null && DB::table('prize_inventory_adjustments')
+                ->where('prize_inventory_id', $inventory->id)->exists()) {
+                throw new V2CatalogException('CATALOG_PRIZE_REMOVAL_INVENTORY_HISTORY', 409,
+                    '在庫調整履歴があるため、この景品は外せません。CSVに対象景品を戻してください');
+            }
+            $referenced = ($inventory !== null && ($inventory->gacha_draw_state_id !== null || (int) $inventory->awarded_count !== 0))
+                || DB::table('catalog_gacha_version_prizes')->where('prize_id', $prize->id)->where('id', '<>', $relation->id)->exists()
+                || DB::table('qa_gacha_guarantee_assignments')->where('prize_id', $prize->id)->exists();
+            foreach (['catalog_probability_entries', 'catalog_minimum_guarantees', 'draw_results', 'user_prizes', 'qa_draw_plan_items'] as $table) {
+                $referenced = $referenced || DB::table($table)->where('gacha_version_prize_id', $relation->id)->exists();
+            }
+            if ($referenced) {
+                throw new V2CatalogException('CATALOG_PRIZE_REMOVAL_REFERENCED', 409,
+                    '確率設定または他の参照があるため、この景品は外せません。CSVに対象景品を戻してください');
+            }
+            DB::table('prize_inventories')->where('gacha_version_prize_id', $relation->id)->delete();
+            DB::table('catalog_gacha_version_prizes')->where('id', $relation->id)->delete();
+            $now = V2DatabaseTimestamp::format(now()->startOfSecond());
+            DB::table('catalog_prizes')->where('id', $prize->id)->update([
+                'archived_at' => $now, 'is_visible' => false,
+                'revision' => (int) $prize->revision + 1, 'updated_at' => $now,
+            ]);
+            $this->incrementGachaVersionRevision($version);
+
+            return (object) ['id' => $prizePublicId, 'gacha_version_id' => $version->public_id,
+                'gacha_version_revision' => (int) $version->revision + 1];
+        }, true, fn (object $result): array => (array) $result);
+    }
+
     public function updateGachaRankPrize(
         V2AdminAuthorizationContext $context,
         string $gachaPublicId,
@@ -3769,6 +3829,7 @@ final class V2CatalogMasterMutationService
                     'clone' => 'cloned',
                     'discard' => 'discarded',
                     'prize_import' => 'prizes_imported',
+                    'prize_remove' => 'prize_removed',
                     'validate' => 'validated',
                     'publish_preflight' => 'publish_preflight_completed',
                     'gacha_publish_preflight' =>

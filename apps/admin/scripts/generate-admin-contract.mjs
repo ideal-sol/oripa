@@ -12,6 +12,7 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  removeAdminGachaDraftPrize: ["delete", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"],
   listAdminBannerImports: ["get", "/banner-management/imports"],
   createAdminBannerImport: ["post", "/banner-management/imports"],
   getAdminBannerImport: ["get", "/banner-management/imports/{import_id}"],
@@ -580,6 +581,8 @@ const requiredSchemas = [
   "QaGachaGuaranteeCollection",
   "QaGachaGuaranteeSave",
   "AdminPrizeImportInput",
+  "AdminGachaDraftPrizeRemove",
+  "AdminGachaDraftPrizeRemovalResult",
   "AdminPrizeImportApplyInput",
   "AdminPrizeImportPlan",
   "AdminPrizeImportResult",
@@ -2203,6 +2206,13 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminGachaDraftPrizeRemove {
+  expected_version_revision: number;
+}
+export interface AdminGachaDraftPrizeRemovalResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number };
+  idempotent_replay: boolean;
+}
 export interface AdminPrizeImportInput {
   file_name: string;
   content_base64: string;

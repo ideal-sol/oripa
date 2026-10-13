@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: f709b5516211ad7df00d2229aebdf11b9257365ff7b32b880c42e22e503df4d7
+// Contract SHA-256: f62d6c1a09402349203abaa160568e3ad5a80a7eb7ab6f549694c29a6b6f0490
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1547,6 +1547,13 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminGachaDraftPrizeRemove {
+  expected_version_revision: number;
+}
+export interface AdminGachaDraftPrizeRemovalResult {
+  data: { id: string; gacha_version_id: string; gacha_version_revision: number };
+  idempotent_replay: boolean;
+}
 export interface AdminPrizeImportInput {
   file_name: string;
   content_base64: string;

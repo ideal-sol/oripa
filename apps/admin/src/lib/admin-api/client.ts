@@ -3,6 +3,8 @@ import {
   type AdminBannerImportInput,
   type AdminBannerImportJob,
   type AdminBannerImportCollection,
+  type AdminGachaDraftPrizeRemove,
+  type AdminGachaDraftPrizeRemovalResult,
   type AdminPrizeImportInput,
   type AdminPrizeImportApplyInput,
   type AdminPrizeImportPlan,
@@ -1791,6 +1793,12 @@ export class AdminApiClient {
     return this.gachaVersionResourceRequest(
       "GET", gachaId, versionId, "prizes", null, null, null, signal,
     );
+  }
+
+  removeGachaDraftPrize(gachaId: string, versionId: string, prizeId: string,
+    body: AdminGachaDraftPrizeRemove, idempotencyKey: string,
+  ): Promise<AdminGachaDraftPrizeRemovalResult> {
+    return this.request("DELETE", `/catalog/gachas/${encodeURIComponent(gachaId)}/versions/${encodeURIComponent(versionId)}/prizes/${encodeURIComponent(prizeId)}`, { body, idempotencyKey });
   }
 
   createGachaRankPrize(
