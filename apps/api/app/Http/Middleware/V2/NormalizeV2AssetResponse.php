@@ -37,7 +37,13 @@ final class NormalizeV2AssetResponse
             return $response;
         }
         try {
-            $normalized = $this->normalizer->normalize($data);
+            $normalized = $this->normalizer->normalize($data, $request->is(
+                'admin/api/v2/catalog/presentation-assets',
+                'admin/api/v2/catalog/presentation-assets/*',
+                'admin/api/v2/catalog/rank-effects',
+                'admin/api/v2/catalog/rank-effects/*',
+                'admin/api/v2/banner-management/assets',
+            ));
         } catch (InvalidArgumentException) {
             return $this->unavailable();
         }

@@ -5,15 +5,26 @@ namespace Tests\V2;
 use App\Domain\Catalog\Services\V2AssetPublicPathResolver;
 use App\Domain\Catalog\Services\V2AssetResponseNormalizer;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
+use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
+use App\Domain\Catalog\Services\V2LoginCatalogReadService;
+use App\Domain\ContentContact\Services\V2ContentContactAdminService;
 use App\Domain\Draw\Services\V2DrawService;
+use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
+use App\Domain\Identity\Enums\V2AdminRole;
+use App\Domain\Identity\Enums\V2AdminState;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Point\Services\V2PointService;
 use App\Http\Middleware\V2\NormalizeV2AssetResponse;
+use App\Models\V2\Admin;
 use App\Models\V2\User;
+use Aws\Handler\Guzzle\GuzzleHandler;
 use Aws\Result;
 use Carbon\CarbonImmutable;
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -116,6 +127,89 @@ final class AssetCdnDeliveryTest extends TestCase
         self::assertSame(503, $response->getStatusCode());
     }
 
+    #[DataProvider('invalidOrigins')]
+    public function test_invalid_cdn_origin_is_rejected_before_mutation(string $origin): void
+    {
+        config(['v2_assets.public_base_url' => $origin]);
+        $response = app(NormalizeV2AssetResponse::class)->handle(Request::create('/api/v2/gachas/a/draws', 'POST'),
+            static function () { self::fail('Controller must not run with an invalid CDN origin.'); });
+        self::assertSame(503, $response->getStatusCode());
+    }
+
+    public function test_named_contract_asset_slots_are_normalized_in_one_query(): void
+    {
+        $asset = $this->assets()[0];
+        $snapshot = ['id' => $asset['public_id'], 'path' => '/admin/legacy', 'mime_type' => 'image/png'];
+        $data = array_fill_keys(['asset', 'presentation_asset', 'thumbnail', 'image_asset', 'video_asset',
+            'lineup_image', 'result_image', 'current_video', 'result_image_snapshot', 'rank_lineup_image', 'video_snapshot'], $snapshot);
+        $data += ['ranks' => [['video' => $snapshot]], 'presentation' => ['image' => $snapshot],
+            'prize' => ['image' => $snapshot], 'animation' => ['image' => $snapshot, 'video' => $snapshot]];
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $normalized = app(V2AssetResponseNormalizer::class)->normalize($data);
+        self::assertCount(1, DB::getQueryLog());
+        DB::disableQueryLog();
+        $expected = $data;
+        array_walk_recursive($expected, static function (&$value, $key) use ($asset): void {
+            if ($key === 'path') {
+                $value = '/gacha/'.$asset['public_id'].'.png';
+            }
+        });
+        self::assertSame($expected, $normalized);
+    }
+
+    public function test_login_gacha_listing_and_detail_normalize_thumbnail_rank_video_and_prizes(): void
+    {
+        $this->assets();
+        $context = $this->adminContext();
+        $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');
+        $catalog = app(V2CatalogMasterMutationService::class);
+        $gacha = $catalog->saveComposition($context, 'synthetic-login-create', [
+            'gacha_type' => 'login_daily', 'title' => 'Synthetic login', 'description' => null, 'notices' => null,
+            'presentation_asset_id' => '0198a001-0000-7000-8000-000000000005',
+            'price_points' => 0, 'minimum_exchange_points' => 10,
+            'publish_start_at' => '2026-07-01T00:00:00Z', 'publish_end_at' => null,
+            'category_id' => null, 'tag_ids' => [], 'total_count' => null, 'daily_draw_limit' => 1,
+            'audience_code' => 'all_users', 'first_time_eligible_days' => 7, 'allowed_draw_counts' => [1],
+            'ranks' => [['rank_id' => $rankId, 'rank_revision_number' => null,
+                'video_asset_id' => '0198a001-0000-7000-8000-000000000006']],
+            'prizes' => [['name' => 'Synthetic prize', 'presentation_asset_id' => '0198a001-0000-7000-8000-000000000007',
+                'rank_id' => $rankId, 'exchange_points' => 10, 'cost_price' => 0, 'initial_inventory' => 3,
+                'shipping_only' => false, 'percentage' => '100']],
+        ])['data'];
+        $catalog->publishGachaVersionImmediately($context, $gacha['id'], $gacha['current_version']['id'], 'synthetic-login-publish', [
+            'expected_revision' => $gacha['current_version']['revision'], 'expected_gacha_revision' => $gacha['revision'],
+        ]);
+        $user = User::query()->create([
+            'display_name' => 'Synthetic login reader', 'email_display' => 'cdn-login@example.test',
+            'email_normalized' => 'cdn-login@example.test', 'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic test password'),
+            'state' => V2UserState::Active,
+        ]);
+        $service = app(V2LoginCatalogReadService::class);
+        $listing = $service->listing();
+        self::assertNotEmpty($listing['items']);
+        $detail = $service->detail($listing['items'][0]['id'], $user);
+        self::assertNotEmpty($detail['data']['ranks']);
+        self::assertNotNull($detail['data']['ranks'][0]['video']);
+        foreach ([$listing, $detail] as $data) {
+            $response = app(NormalizeV2AssetResponse::class)->handle(Request::create('/api/v2/login-gachas'),
+                static fn () => response()->json($data));
+            self::assertSame(200, $response->getStatusCode());
+            $paths = [];
+            $normalized = $response->getData(true);
+            array_walk_recursive($normalized, static function ($value, $key) use (&$paths): void {
+                if ($key === 'path') {
+                    $paths[] = $value;
+                }
+            });
+            self::assertNotEmpty($paths);
+            foreach ($paths as $path) {
+                self::assertStringStartsWith('/gacha/', $path);
+            }
+        }
+    }
+
     public function test_all_snapshot_shapes_and_admin_fields_use_ids_not_saved_paths_in_one_query(): void
     {
         $assets = $this->assets();
@@ -138,21 +232,21 @@ final class AssetCdnDeliveryTest extends TestCase
                 'video_snapshot' => [...$snapshot, 'path' => 'https://old.example.test/anything']];
         }
         $response = ['results' => $results, 'presentation' => ['video_snapshot' => $snapshot],
-            'user_prize' => ['image' => $snapshot],
-            'admin' => [...$snapshot, 'public_path' => null, 'content_path' => '/admin/old', 'public_url' => 'https://old.example.test/a'],
+            'user_prize' => ['presentation' => ['image' => $snapshot]],
+            'data' => [...$snapshot, 'public_path' => null, 'content_path' => '/admin/old', 'public_url' => 'https://old.example.test/a'],
             'banner' => ['image_url' => '/api/v2/content/assets/old', 'asset' => $snapshot]];
         DB::enableQueryLog();
         DB::flushQueryLog();
-        $normalized = app(V2AssetResponseNormalizer::class)->normalize($response);
+        $normalized = app(V2AssetResponseNormalizer::class)->normalize($response, true);
         self::assertCount(1, DB::getQueryLog());
         DB::disableQueryLog();
         $path = '/gacha/'.$asset['public_id'].'.png';
         self::assertSame($path, $normalized['results'][999]['prize']['presentation_asset']['path']);
         self::assertSame($path, $normalized['results'][999]['video_snapshot']['path']);
-        self::assertSame($path, $normalized['admin']['public_path']);
-        self::assertSame('https://cdn.example.test'.$path, $normalized['admin']['public_url']);
+        self::assertSame($path, $normalized['data']['public_path']);
+        self::assertSame('https://cdn.example.test'.$path, $normalized['data']['public_url']);
         self::assertSame($path, $normalized['banner']['image_url']);
-        self::assertSame($path, $normalized['user_prize']['image']['path']);
+        self::assertSame($path, $normalized['user_prize']['presentation']['image']['path']);
         self::assertSame(range(1, 1000), array_column($normalized['results'], 'sequence_number'));
         self::assertSame($response['results'][999]['rank'], $normalized['results'][999]['rank']);
         self::assertSame('/admin/old-path', $response['results'][0]['result_image_snapshot']['path']);
@@ -340,12 +434,182 @@ final class AssetCdnDeliveryTest extends TestCase
         Storage::disk('s3')->assertMissing($asset['storage_identifier']);
     }
 
-    public function test_non_asset_json_can_be_misclassified_by_the_existing_heuristic(): void
+    public static function nonAssetResponses(): array
     {
+        return [
+            'document' => [['document' => ['path' => '/help', 'mime_type' => 'text/html']]],
+            'image metadata' => [['document' => ['path' => '/help', 'mime_type' => 'image/png']]],
+            'checksum' => [['document' => ['path' => '/help', 'checksum_sha256' => str_repeat('a', 64)]]],
+            'public path' => [['document' => ['id' => 'not-an-asset', 'public_path' => '/help']]],
+            'public url' => [['document' => ['id' => (string) Str::uuid(), 'public_url' => 'https://example.test/help']]],
+            'root document' => [['id' => (string) Str::uuid(), 'path' => '/help', 'mime_type' => 'image/png']],
+            'root non-asset route' => [['id' => (string) Str::uuid(), 'public_url' => 'https://example.test/help',
+                'mime_type' => 'image/png', 'byte_size' => 123]],
+        ];
+    }
+
+    #[DataProvider('nonAssetResponses')]
+    public function test_non_asset_json_is_not_normalized_or_queried(array $data): void
+    {
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         $response = app(NormalizeV2AssetResponse::class)->handle(Request::create('/api/v2/example'),
-            static fn () => response()->json(['document' => ['path' => '/help', 'mime_type' => 'text/html']]));
-        self::assertSame(503, $response->getStatusCode());
-        self::assertSame('ASSET_DELIVERY_UNAVAILABLE', $response->getData(true)['code']);
+            static fn () => response()->json($data));
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame($data, $response->getData(true));
+        self::assertSame([], DB::getQueryLog());
+        DB::disableQueryLog();
+    }
+
+    public function test_normal_assets_and_non_asset_metadata_can_coexist(): void
+    {
+        $asset = $this->assets()[0];
+        $document = ['path' => '/help', 'mime_type' => 'text/html'];
+        $response = app(NormalizeV2AssetResponse::class)->handle(Request::create('/api/v2/gachas'),
+            static fn () => response()->json(['items' => [[
+                'presentation_asset' => ['id' => $asset['public_id'], 'path' => '/admin/old', 'mime_type' => 'image/png'],
+                'document' => $document,
+            ]]]));
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('/gacha/'.$asset['public_id'].'.png', $response->getData(true)['items'][0]['presentation_asset']['path']);
+        self::assertSame($document, $response->getData(true)['items'][0]['document']);
+    }
+
+    public function test_s3_timeouts_reach_the_guzzle_handler_without_extra_operations(): void
+    {
+        $calls = [];
+        $bytes = "synthetic-banner\x00bytes";
+        $key = 'admin-assets/top-banner/2026/10/offline.png';
+        $http = new Client(['handler' => HandlerStack::create(static function ($request, array $options) use (&$calls, $bytes, $key) {
+            $calls[] = $request->getMethod();
+            self::assertSame('/'.$key, $request->getUri()->getPath());
+            self::assertFalse($request->hasHeader('x-amz-acl'));
+            foreach (['connect_timeout' => 5, 'timeout' => 20, 'read_timeout' => 20] as $name => $expected) {
+                self::assertSame($expected, $options[$name] ?? null);
+            }
+            if ($request->getMethod() === 'PUT') {
+                self::assertSame('image/png', $request->getHeaderLine('Content-Type'));
+                self::assertSame($bytes, (string) $request->getBody());
+            }
+
+            return Create::promiseFor(new Response(200, ['Content-Type' => 'image/png', 'Content-Length' => strlen($bytes)],
+                $request->getMethod() === 'GET' ? $bytes : ''));
+        })]);
+        $settings = config('filesystems.disks.s3');
+        foreach (['key', 'secret', 'token', 'credentials', 'profile'] as $credential) {
+            self::assertArrayNotHasKey($credential, $settings);
+        }
+        $disk = Storage::build([...$settings, 'bucket' => 'synthetic-test-bucket', 'region' => 'ap-northeast-1',
+            'credentials' => false, 'http_handler' => new GuzzleHandler($http)]);
+        self::assertTrue($disk->put($key, $bytes, ['ContentType' => 'image/png']));
+        self::assertTrue($disk->fileExists($key));
+        self::assertSame($bytes, $disk->get($key));
+        $stream = $disk->readStream($key);
+        self::assertIsResource($stream);
+        self::assertSame($bytes, stream_get_contents($stream));
+        fclose($stream);
+        self::assertSame(['PUT', 'HEAD', 'GET', 'GET'], $calls);
+    }
+
+    public static function retryControls(): array
+    {
+        return ['configured zero retries' => [0, 1], 'positive retry control' => [1, 2]];
+    }
+
+    #[DataProvider('retryControls')]
+    public function test_s3_retryable_failure_respects_the_retry_limit_without_delete(int $retries, int $attempts): void
+    {
+        $calls = [];
+        $http = new Client(['handler' => HandlerStack::create(static function ($request) use (&$calls) {
+            $calls[] = $request->getMethod();
+
+            return Create::promiseFor(new Response(503, ['Content-Type' => 'application/xml'],
+                '<Error><Code>SlowDown</Code><Message>Synthetic failure</Message></Error>'));
+        })]);
+        self::assertSame(0, config('filesystems.disks.s3.retries'));
+        $disk = Storage::build([...config('filesystems.disks.s3'), 'bucket' => 'synthetic-test-bucket',
+            'region' => 'ap-northeast-1', 'credentials' => false, 'retries' => $retries, 'http_handler' => new GuzzleHandler($http)]);
+        try {
+            $disk->put('admin-assets/top-banner/2026/10/failure.png', 'synthetic', ['ContentType' => 'image/png']);
+            self::fail('The failed upload must not be reported as successful.');
+        } catch (\League\Flysystem\UnableToWriteFile) {
+            self::assertSame(array_fill(0, $attempts, 'PUT'), $calls);
+        }
+    }
+
+    public static function adminAssetResources(): array
+    {
+        return [
+            'asset list' => ['/admin/api/v2/catalog/presentation-assets', true],
+            'asset detail' => ['/admin/api/v2/catalog/presentation-assets/0198a001-0000-7000-8000-000000000005', false],
+            'rank effect list' => ['/admin/api/v2/catalog/rank-effects', true],
+            'rank effect detail' => ['/admin/api/v2/catalog/rank-effects/0198a001-0000-7000-8000-000000000005', false],
+        ];
+    }
+
+    #[DataProvider('adminAssetResources')]
+    public function test_admin_asset_resource_context_preserves_normalization_and_fail_closed(string $uri, bool $list): void
+    {
+        $asset = $this->assets()[0];
+        $data = ['id' => $asset['public_id'], 'public_path' => null, 'content_path' => '/admin/old',
+            'media_type' => 'image', 'mime_type' => 'image/png'];
+        $envelope = static fn (array $item): array => ['data' => $list ? ['items' => [$item]] : $item];
+        $response = app(NormalizeV2AssetResponse::class)->handle(Request::create($uri),
+            static fn () => response()->json($envelope($data)));
+        self::assertSame(200, $response->getStatusCode());
+        $normalized = $list ? $response->getData(true)['data']['items'][0] : $response->getData(true)['data'];
+        self::assertSame('/gacha/'.$asset['public_id'].'.png', $normalized['public_path']);
+        self::assertSame($normalized['public_path'], $normalized['content_path']);
+        $invalid = app(NormalizeV2AssetResponse::class)->handle(Request::create($uri),
+            static fn () => response()->json($envelope([...$data, 'id' => 'invalid'])));
+        self::assertSame(503, $invalid->getStatusCode());
+        self::assertStringNotContainsString('/admin/old', $invalid->getContent());
+    }
+
+    public static function canonicalBannerDisks(): array
+    {
+        return ['local' => ['local'], 's3' => ['s3']];
+    }
+
+    #[DataProvider('canonicalBannerDisks')]
+    public function test_new_canonical_banner_upload_and_replay_keep_storage_and_response_consistent(string $disk): void
+    {
+        config(['filesystems.default' => $disk, 'v2_assets.public_base_url' => $disk === 's3' ? 'https://cdn.example.test' : null,
+            'v2_identity.origins.user' => 'https://storefront.example.test']);
+        $context = $this->adminContext();
+        $service = app(V2ContentContactAdminService::class);
+        $input = ['file_name' => 'banner.png', 'mime_type' => 'image/png',
+            'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='];
+        $upload = fn () => app(NormalizeV2AssetResponse::class)->handle(Request::create('/admin/api/v2/banner-management/assets', 'POST'),
+            fn () => response()->json(['data' => $service->uploadBannerAsset($context, $input, 'synthetic-cdn-banner')], 201));
+        $response = $upload();
+        self::assertSame(201, $response->getStatusCode());
+        $data = $response->getData(true)['data'];
+        $stored = DB::table('catalog_presentation_assets')->sole();
+        $key = 'admin-assets/top-banner/2026/10/'.$data['id'].'.png';
+        self::assertSame($key, $stored->storage_identifier);
+        self::assertSame('/api/v2/content/assets/'.$data['id'], $stored->public_path);
+        self::assertSame(base64_decode($input['content_base64']), Storage::disk($disk)->get($key));
+        self::assertSame(hash('sha256', base64_decode($input['content_base64'])), $stored->checksum_sha256);
+        self::assertSame(strlen(base64_decode($input['content_base64'])), $stored->byte_size);
+        self::assertSame('image/png', $stored->mime_type);
+        $expectedUrl = $disk === 's3' ? 'https://cdn.example.test/top-banner/2026/10/'.$data['id'].'.png'
+            : 'https://storefront.example.test/api/v2/content/assets/'.$data['id'];
+        self::assertSame($expectedUrl, $data['public_url']);
+        $replay = $upload();
+        self::assertSame(201, $replay->getStatusCode());
+        self::assertTrue($replay->getData(true)['data']['idempotent_replay']);
+        self::assertSame($data['id'], $replay->getData(true)['data']['id']);
+        self::assertSame($expectedUrl, $replay->getData(true)['data']['public_url']);
+        self::assertSame(1, DB::table('catalog_presentation_assets')->count());
+        self::assertCount(1, Storage::disk($disk)->allFiles());
+        $category = $service->createBannerCategory($context, ['name' => 'Synthetic'], 'synthetic-cdn-category');
+        $banner = $service->createManagedBanner($context,
+            ['category_id' => $category['id'], 'title' => 'Synthetic banner', 'asset_id' => $data['id']], 'synthetic-cdn-banner-create');
+        $preview = app(NormalizeV2AssetResponse::class)->handle(Request::create('/admin/api/v2/banner-management/banners'),
+            static fn () => response()->json(['data' => $banner]));
+        self::assertSame(200, $preview->getStatusCode());
+        self::assertSame($expectedUrl, $preview->getData(true)['data']['asset']['public_url']);
     }
 
     public static function drawProjectionCases(): array
@@ -450,6 +714,24 @@ final class AssetCdnDeliveryTest extends TestCase
         config(['v2_assets.public_base_url' => 'https://CDN.example.test:443/']);
         self::assertSame('https://cdn.example.test/gacha/File.PNG',
             app(V2AssetPublicPathResolver::class)->url('admin-assets/gacha/File.PNG'));
+    }
+
+    private function adminContext(): V2AdminAuthorizationContext
+    {
+        $admin = Admin::query()->create([
+            'email_display' => 'cdn-admin@example.test', 'email_normalized' => 'cdn-admin@example.test',
+            'email_verified_at' => now(), 'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic password'),
+            'role' => V2AdminRole::Admin, 'state' => V2AdminState::Active,
+        ]);
+        $session = hash('sha256', 'synthetic-admin-session');
+        DB::table('admin_sessions')->insert([
+            'session_id_hash' => $session, 'admin_id' => $admin->id, 'mfa_verified_at' => now(),
+            'requires_mfa_enrollment' => false, 'created_at' => now()->subHour(), 'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15), 'absolute_expires_at' => now()->addHours(7), 'revoked_at' => null,
+        ]);
+
+        return new V2AdminAuthorizationContext($admin->id, $admin->public_id, $admin->role, $session,
+            app(\App\Domain\Audit\V2\Services\V2AuditHasher::class)->correlation($session), (string) Str::uuid7());
     }
 
     private function assets(bool $cdnKeys = true): array
