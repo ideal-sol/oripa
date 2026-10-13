@@ -117,7 +117,18 @@ class GithubReadTransportTest(unittest.TestCase):
 
 class OldTestSourceAuthorityTest(unittest.TestCase):
     def setUp(self):
-        self.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.approval = {
+            "schema_version": "1.0",
+            "repository": wrapper.REPOSITORY,
+            "task_id": TASK_ID,
+            "source_pr": 549,
+            "source_sha": PAYLOAD,
+            "target": "old-test",
+            "platform": "linux/amd64",
+            "image_mode": "normal",
+            "authority": "Human-approved exact OLD Test payload: synthetic unit test",
+            "activation_authorized": False,
+        }
         self.main = {"protected": True, "commit": {"sha": CONTROL}}
         self.pull = {
             "state": "closed", "merged": True, "merge_commit_sha": PAYLOAD,
