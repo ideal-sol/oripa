@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assetPublicOrigin } from "@/lib/asset-delivery";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -46,13 +47,15 @@ function securityHeaders(nonce: string): Record<string, string> {
     ? `'nonce-${nonce}' 'strict-dynamic'`
     : "'none'";
   const imageSource = publicOrigin();
+  const assetOrigin = assetPublicOrigin(process.env.V2_ASSET_PUBLIC_BASE_URL);
   return {
     "Cache-Control": "private, no-store",
     "Content-Security-Policy": [
       "default-src 'self'",
       `script-src ${scriptSource}`,
       "style-src 'self'",
-      `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}`,
+      `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}${assetOrigin ? ` ${assetOrigin}` : ""}`,
+      `media-src 'self'${assetOrigin ? ` ${assetOrigin}` : ""}`,
       "font-src 'self'",
       "connect-src 'self'",
       "object-src 'none'",

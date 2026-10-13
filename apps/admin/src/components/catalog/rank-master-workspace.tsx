@@ -7,6 +7,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { assetContentPath } from "@/components/catalog/public-asset-preview";
+import { useAssetPublicOrigin } from "@/components/catalog/asset-delivery-provider";
+import { assetDeliveryUrl } from "@/lib/asset-delivery";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -281,7 +283,8 @@ function RankModal({
 }
 
 function RankImage({ asset }: { asset: AdminCatalogRank["lineup_image"] }) {
-  return <Image alt={asset.alt_text ?? "Rank image"} className="rank-effect-thumbnail" height={72} src={assetContentPath(asset.id)} unoptimized width={96} />;
+  const source = assetDeliveryUrl(asset.path, useAssetPublicOrigin(), assetContentPath(asset.id));
+  return source ? <Image alt={asset.alt_text ?? "Rank image"} className="rank-effect-thumbnail" height={72} src={source} unoptimized width={96} /> : <span>Previewなし</span>;
 }
 
 function RankState({ loading = false, message }: { loading?: boolean; message: string }) {

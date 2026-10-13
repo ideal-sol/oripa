@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
+import { AssetDeliveryProvider } from "@/components/catalog/asset-delivery-provider";
 import { PermissionProvider } from "@/components/permissions/permission-provider";
+import { assetPublicOrigin } from "@/lib/asset-delivery";
 
 import "./globals.css";
 
@@ -38,7 +40,9 @@ export default async function RootLayout({
     <html lang="ja">
       <body>
         <AdminAuthProvider>
-          <PermissionProvider>{children}</PermissionProvider>
+          <AssetDeliveryProvider origin={assetPublicOrigin(process.env.V2_ASSET_PUBLIC_BASE_URL)}>
+            <PermissionProvider>{children}</PermissionProvider>
+          </AssetDeliveryProvider>
         </AdminAuthProvider>
       </body>
     </html>

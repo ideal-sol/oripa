@@ -4,6 +4,8 @@ import { FileWarning } from "lucide-react";
 import { useState } from "react";
 
 import type { AdminCatalogAssetReference } from "@/lib/admin-api/generated";
+import { assetDeliveryUrl } from "@/lib/asset-delivery";
+import { useAssetPublicOrigin } from "./asset-delivery-provider";
 
 function safePublicPath(path: string | null): path is string {
   return path !== null && path.startsWith("/") && !path.startsWith("//");
@@ -21,10 +23,13 @@ export function PublicAssetPreview({
   allowAuthenticatedContent?: boolean;
 }) {
   const [failedAssetId, setFailedAssetId] = useState<string | null>(null);
+  const origin = useAssetPublicOrigin();
   const publicPath = asset && safePublicPath(asset.public_path)
     ? asset.public_path
     : null;
-  if (!asset || failedAssetId === asset.id || (!allowAuthenticatedContent && !publicPath)) {
+  const source = assetDeliveryUrl(publicPath, origin,
+    asset && allowAuthenticatedContent ? assetContentPath(asset.id) : publicPath);
+  if (!asset || failedAssetId === asset.id || !source) {
     return (
       <div className="asset-fallback" role="img" aria-label="Previewなし">
         <FileWarning size={22} aria-hidden="true" />
@@ -32,9 +37,6 @@ export function PublicAssetPreview({
       </div>
     );
   }
-  const source = allowAuthenticatedContent
-    ? assetContentPath(asset.id)
-    : publicPath!;
   if (asset.media_type === "video") {
     return (
       <video
@@ -48,7 +50,6 @@ export function PublicAssetPreview({
     );
   }
   return (
-    // Public path is validated as a same-origin relative URL.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       alt={asset.alt_text ?? ""}

@@ -8,6 +8,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Http\Responses\V2ProblemDetails;
 use App\Http\Middleware\V2\EnforceV2BrowserSecurity;
 use App\Http\Middleware\V2\EnforceV2Realm;
+use App\Http\Middleware\V2\NormalizeV2AssetResponse;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->appendToGroup('api', NormalizeV2AssetResponse::class);
         $middleware->trimStrings(except: ['advertising_code']);
         $middleware->redirectGuestsTo(fn ($request) => null);
         $middleware->alias([

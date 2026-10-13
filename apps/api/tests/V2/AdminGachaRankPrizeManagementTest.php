@@ -557,6 +557,28 @@ final class AdminGachaRankPrizeManagementTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    public function test_s3_fake_rank_lineup_result_and_gacha_thumbnail_keep_keys_and_metadata(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.default' => 's3', 'v2_assets.public_base_url' => 'https://cdn.example.test']);
+        $owner = $this->createAdminSession(V2AdminRole::Owner);
+        $rank = $this->createRankMaster($owner, 'CDN Rank');
+        Auth::forgetGuards();
+        $thumbnail = $this->mutate($owner, 'POST', '/admin/api/v2/catalog/gacha-thumbnails', $this->imageInput())
+            ->assertCreated()->json('data');
+        foreach ([$rank['lineup_image'], $rank['result_image'], $thumbnail] as $asset) {
+            $row = DB::table('catalog_presentation_assets')->where('public_id', $asset['id'])->firstOrFail();
+            $bytes = base64_decode($this->imageInput()['content_base64'], true);
+            self::assertMatchesRegularExpression('#^admin-assets/(gacha|rank-masters)/#', $row->storage_identifier);
+            self::assertSame($bytes, Storage::disk('s3')->get($row->storage_identifier));
+            self::assertSame(strlen($bytes), (int) $row->byte_size);
+            self::assertSame(hash('sha256', $bytes), $row->checksum_sha256);
+            self::assertSame('image/png', $row->mime_type);
+            self::assertSame(substr($row->storage_identifier, strlen('admin-assets')), $asset['path'] ?? $asset['public_path']);
+            Storage::disk('local')->assertMissing($row->storage_identifier);
+        }
+    }
+
     private function createGacha(string $token, string $title): array
     {
         return $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', [

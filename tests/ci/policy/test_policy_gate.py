@@ -21,6 +21,34 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_s3_phase1_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
+        expected = {
+            "apps/admin/src/components/catalog/asset-delivery-provider.tsx",
+            "apps/admin/src/lib/asset-delivery.ts",
+            "apps/admin/test/asset-delivery.test.tsx",
+        }
+        self.assertEqual(policy_gate.S3_PHASE1_ADMIN_FILES, expected)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in ("apps/admin/src/lib/asset-delivery-other.ts", "apps/admin/src/lib/**"):
+            with self.subTest(path=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+        for relative in expected:
+            with self.subTest(missing=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "files missing"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+
+    def test_s3_phase1_task_id_is_accepted_exactly(self):
+        task_id = "S3-OLD-PLATFORM-ADMIN-PHASE1-20261009"
+        data = fixture("positive.json")
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), f"[{task_id}] Asset delivery",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "S3-OLD-PLATFORM-ADMIN-PHASE1-20261010", "S3-OLD-PLATFORM-ADMIN-*"):
+            self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+
     def test_login_gacha_ui_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(
