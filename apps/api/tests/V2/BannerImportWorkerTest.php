@@ -66,6 +66,7 @@ final class BannerImportWorkerTest extends BannerImportTest
     {
         $job = $this->createJob('CARD-1,画像,https://images.example.test/image,');
         $worker = app(V2BannerImportWorker::class);
+        DB::beginTransaction();
         $first = $worker->claim();
         self::assertNull($worker->claim());
         config(['database.connections.banner_import_competitor' => config('database.connections.pgsql')]);
@@ -73,6 +74,7 @@ final class BannerImportWorkerTest extends BannerImportTest
             $other = DB::connection('banner_import_competitor')->selectOne("SELECT pg_try_advisory_xact_lock(hashtextextended('v2_banner_import_claim', 0)) AS acquired");
             self::assertFalse($other->acquired);
         } finally { DB::purge('banner_import_competitor'); }
+        DB::commit();
         CarbonImmutable::setTestNow(now()->addSeconds(121));
         $second = $worker->claim();
         self::assertNotSame($first['token'], $second['token']);
@@ -149,7 +151,7 @@ final class BannerImportWorkerTest extends BannerImportTest
         $job = $this->createJob('CARD-1,画像,https://images.example.test/image,');
         $worker = app(V2BannerImportWorker::class);
         $claim = $worker->claim();
-        $execution = V2BannerImportExecution::fromLease(DB::table('content_banner_import_rows')->value('public_id'), $claim['token']);
+        $execution = DB::transaction(fn () => V2BannerImportExecution::fromLease(DB::table('content_banner_import_rows')->value('public_id'), $claim['token']));
         config(['v2_banner_import.enabled' => 'true']);
         self::assertSame(0, $worker->runOnce());
         self::assertSame(['enabled' => false, 'items' => []], $this->imports->listing($this->context));
@@ -185,8 +187,9 @@ final class BannerImportWorkerTest extends BannerImportTest
     {
         $this->createJob('CARD-1,画像,https://images.example.test/image,');
         $disk = \Mockery::mock(\Illuminate\Filesystem\FilesystemAdapter::class);
+        $disk->shouldReceive('fileExists')->once()->andReturnFalse();
         $disk->shouldReceive('put')->once()->andReturnFalse();
-        $disk->shouldReceive('delete')->once()->andReturnTrue();
+        $disk->shouldNotReceive('delete');
         Storage::shouldReceive('disk')->with('local')->andReturn($disk);
         app(V2BannerImportWorker::class)->runOnce();
         self::assertDatabaseCount('catalog_presentation_assets', 0);
@@ -195,6 +198,7 @@ final class BannerImportWorkerTest extends BannerImportTest
         self::assertSame('pending', $row->status);
         self::assertSame(1, $row->attempts);
         self::assertNull($row->asset_public_id);
+        self::assertSame('put_unknown', DB::table('content_banner_asset_operations')->value('manual_review_reason'));
     }
 
     public function test_refresh_on_replaces_draft_image_without_changing_published_version(): void
@@ -248,7 +252,7 @@ final class BannerImportWorkerTest extends BannerImportTest
         }
         self::assertTrue(function_exists('pcntl_fork'));
         $job = $this->createJob('CARD-1,画像,https://images.example.test/image,');
-        DB::commit();
+        self::assertSame(0, DB::transactionLevel());
         DB::disconnect();
         $start = microtime(true) + 0.5;
         $processes = [];
@@ -292,14 +296,7 @@ final class BannerImportWorkerTest extends BannerImportTest
     public function test_object_write_before_outer_commit_failure_is_flagged_not_claimed_compensated(): void
     {
         $this->createJob('CARD-1,画像,https://images.example.test/image,');
-        $adapter = new class($this->banners) extends V2BannerImportCanonicalAdapter {
-            public function register(V2BannerImportExecution $execution, #[\SensitiveParameter] array $image): void
-            {
-                parent::register($execution, $image);
-                throw new \RuntimeException('synthetic failure before outer commit');
-            }
-        };
-        $this->app->instance(V2BannerImportCanonicalAdapter::class, $adapter);
+        DB::unprepared("CREATE FUNCTION synthetic_asset_failure() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RAISE EXCEPTION 'synthetic finalize rollback'; END; \$\$; CREATE TRIGGER synthetic_asset_failure AFTER INSERT ON catalog_presentation_assets FOR EACH ROW EXECUTE FUNCTION synthetic_asset_failure();");
         app(V2BannerImportWorker::class)->runOnce();
         self::assertDatabaseCount('catalog_presentation_assets', 0);
         self::assertDatabaseCount('content_banners', 0);
@@ -308,6 +305,15 @@ final class BannerImportWorkerTest extends BannerImportTest
         self::assertNull($row->asset_public_id);
         self::assertSame('deferred_canonical_review', $row->compensation_status);
         self::assertSame('pending', $row->status);
+        self::assertDatabaseCount('content_banner_asset_operations', 1);
+        self::assertSame('writing', DB::table('content_banner_asset_operations')->value('status'));
+        DB::statement('DROP TRIGGER synthetic_asset_failure ON catalog_presentation_assets');
+        CarbonImmutable::setTestNow(now()->addMinutes(31));
+        self::assertSame(1, app(V2BannerImportWorker::class)->runOnce());
+        self::assertDatabaseCount('catalog_presentation_assets', 1);
+        self::assertDatabaseCount('content_banners', 1);
+        self::assertCount(1, Storage::disk('local')->allFiles());
+        self::assertSame(1, DB::table('content_banner_asset_operations')->value('put_attempts'));
     }
 
     public function test_import_constraints_keep_their_exact_definition_after_recreation(): void

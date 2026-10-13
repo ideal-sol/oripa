@@ -26,6 +26,8 @@ test("synthetic Banner import acceptance, progress and redacted failures", async
   });
   await page.goto("/banners");
   await page.getByRole("button", { name: "CSV取込・履歴" }).click();
+  await expect(page.getByText(/最大200行・2MiB/)).toBeVisible();
+  await expect(page.getByText(/保持期限は30分/)).toBeVisible();
   await page.getByLabel("CSVファイル").setInputFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from("管理ID,タイトル\nCARD-1,Title") });
   await page.getByLabel("既定カテゴリ").selectOption(category);
   await expect(page.getByLabel("既存画像を再取得する")).not.toBeChecked();

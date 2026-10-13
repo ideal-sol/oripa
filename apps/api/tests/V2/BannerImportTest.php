@@ -19,6 +19,8 @@ use Tests\TestCase;
 
 class BannerImportTest extends TestCase
 {
+    private string $testSchema;
+    private mixed $originalSearchPath;
     protected V2AdminAuthorizationContext $context;
     protected string $sessionToken;
     protected array $category;
@@ -29,11 +31,21 @@ class BannerImportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        DB::beginTransaction();
+        self::assertSame('testing', app()->environment());
+        self::assertSame(0, DB::transactionLevel());
+        $this->testSchema = 'banner_import_test_'.bin2hex(random_bytes(8));
+        $this->originalSearchPath = config('database.connections.pgsql.search_path');
+        DB::statement('CREATE SCHEMA '.$this->testSchema);
+        config(['database.connections.pgsql.search_path' => $this->testSchema]);
+        DB::purge();
+        $this->artisan('migrate', ['--path' => 'database/migrations-v2', '--force' => true])->assertExitCode(0);
         CarbonImmutable::setTestNow('2026-10-11T03:00:00Z');
-        Storage::fake('local');
+        $storage = Storage::fake($this->testSchema);
+        Storage::set('local', $storage);
+        config(['filesystems.disks.local.root' => $storage->path('')]);
         config(['filesystems.default' => 'local', 'cache.default' => 'array', 'v2_banner_import.enabled' => true,
             'v2_banner_import.image_hosts' => ['images.example.test'],
+            'v2_banner_import.storage_generation' => 'synthetic-storage-v1',
             'v2_audit.active_hmac_key_version' => 'v1', 'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo', 'v2_identity.origins.user' => 'https://storefront.example.test']);
         $email = 'import-'.Str::uuid7().'@example.test';
@@ -61,7 +73,14 @@ class BannerImportTest extends TestCase
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
-        DB::rollBack();
+        while (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        config(['database.connections.pgsql.search_path' => $this->originalSearchPath]);
+        DB::purge();
+        if (isset($this->testSchema)) {
+            DB::statement('DROP SCHEMA '.$this->testSchema.' CASCADE');
+        }
         parent::tearDown();
     }
 

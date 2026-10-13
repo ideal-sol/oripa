@@ -102,8 +102,8 @@ final class V2BannerImportCsv
                 }
                 if ($startLine === 1 || array_filter($fields, static fn (string $value): bool => $value !== '') !== []) {
                     $records[] = ['row' => $startLine, 'values' => $fields];
-                    if (count($records) > 1001) {
-                        $this->invalid('CSVはデータ1,000行以下で指定してください。');
+                    if (count($records) > 201) {
+                        $this->invalid('CSVはデータ200行以下で指定してください。');
                     }
                 }
                 $fields = [];

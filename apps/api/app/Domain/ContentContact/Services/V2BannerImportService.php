@@ -150,10 +150,24 @@ final class V2BannerImportService
             ->whereIn('job_id', DB::table('content_banner_import_jobs')->select('id')
                 ->where('secret_expires_at', '<=', $now))
             ->update(['url_ciphertext' => null, 'url_deleted_at' => $now, 'updated_at' => $now]);
-        DB::table('content_banner_import_jobs')->where('expires_at', '<=', $now)
-            ->where(function ($query) use ($now): void {
-                $query->whereNull('lease_expires_at')->orWhere('lease_expires_at', '<=', $now);
-            })->delete();
+        $this->expireHistory();
+    }
+
+    private function expireHistory(): void
+    {
+        $now = V2DatabaseTimestamp::format(now());
+        DB::transaction(function () use ($now): void {
+            $jobs = DB::table('content_banner_import_jobs')->where('expires_at', '<=', $now)
+                ->where(function ($query) use ($now): void {
+                    $query->whereNull('lease_expires_at')->orWhere('lease_expires_at', '<=', $now);
+                })->lockForUpdate()->get(['id', 'public_id']);
+            DB::table('content_banner_asset_operations')->whereIn('job_public_id', $jobs->pluck('public_id'))
+                ->where('status', '<>', 'attached')->update([
+                    'status' => 'manual_review', 'manual_review_reason' => DB::raw("COALESCE(manual_review_reason, 'history_expired')"),
+                    'updated_at' => $now,
+                ]);
+            DB::table('content_banner_import_jobs')->whereIn('id', $jobs->pluck('id'))->delete();
+        });
     }
 
     public function finish(int $jobId, bool $failed = false): void
