@@ -519,7 +519,7 @@ jobs:
   production-arm64-artifact:
     name: production-arm64-artifact
     needs: policy-gate
-    if: needs.policy-gate.outputs.lane_key == 'strict' && github.event_name == 'pull_request' && needs.policy-gate.outputs.validation_path != 'AUTHORITY_FOCUSED'
+    if: fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact != 'NOT_APPLICABLE'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -679,9 +679,8 @@ jobs:
           SECURITY_GATE_RESULT: ${{ needs.security-gate.result }}
           INTEGRATION_GATE_RESULT: ${{ needs.integration-gate.result }}
           PRODUCTION_ARM64_RESULT: ${{ needs.production-arm64-artifact.result }}
-          LANE_KEY: ${{ needs.policy-gate.outputs.lane_key }}
+          ARM64_STATUS: ${{ fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact }}
           VALIDATION_PATH: ${{ needs.policy-gate.outputs.validation_path }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           for result in \
             "$POLICY_GATE_RESULT" \
@@ -693,12 +692,16 @@ jobs:
               exit 1
             fi
           done
-          if [ "$LANE_KEY" = "strict" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$VALIDATION_PATH" != "AUTHORITY_FOCUSED" ]; then
-            if [ "$PRODUCTION_ARM64_RESULT" != "success" ]; then
-              echo "Strict pull request ARM64 artifact verification did not succeed"
-              exit 1
-            fi
-          elif [ "$PRODUCTION_ARM64_RESULT" != "skipped" ]; then
-            echo "ARM64 artifact verification ran outside its authority boundary"
+          if [ "$VALIDATION_PATH" != "AUTHORITY_FOCUSED" ] && [ "$VALIDATION_PATH" != "NORMAL_STRICT_CI" ]; then
+            echo "Invalid plan validation path"
+            exit 1
+          fi
+          case "$ARM64_STATUS" in
+            APPLICABLE|UNKNOWN) expected_arm64_result=success ;;
+            NOT_APPLICABLE) expected_arm64_result=skipped ;;
+            *) echo "Invalid ARM64 plan status"; exit 1 ;;
+          esac
+          if [ "$PRODUCTION_ARM64_RESULT" != "$expected_arm64_result" ]; then
+            echo "ARM64 artifact verification result contradicts exact-source plan"
             exit 1
           fi

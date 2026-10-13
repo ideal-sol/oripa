@@ -1,5 +1,9 @@
 import copy
+import os
 from pathlib import Path
+import re
+import subprocess
+import textwrap
 import unittest
 
 from scripts.ci import platform_ci_plan as planner
@@ -62,7 +66,7 @@ class PlatformCIPlanTests(unittest.TestCase):
     def test_backend_test_only_still_runs_full_backend_and_db(self):
         plan = self.plan(('apps/api/tests/V2/PaymentTest.php',))
         self.assertEqual(plan['component_deltas']['application_delta'], 'NONE')
-        self.assert_required(plan, 'backend', 'database')
+        self.assert_required(plan, 'backend', 'database', 'arm64_artifact')
 
     def test_admin_change_retains_container_health_smoke(self):
         plan = self.plan(('apps/admin/src/app/page.tsx',))
@@ -124,11 +128,93 @@ class PlatformCIPlanTests(unittest.TestCase):
         self.git('mv', 'apps/api/app/Example.php', 'docs/Example.php')
         self.assert_required(self.plan(), 'backend', 'database')
 
-    def test_push_dispatch_and_activation_always_run_full(self):
-        for context in ({'event_name': 'push'}, {'event_name': 'workflow_dispatch'},
-                        {'activation': 'immediate'}, {'activation': 'deferred'}):
+    def test_activation_always_runs_full(self):
+        for context in ({'activation': 'immediate'}, {'activation': 'deferred'}):
             with self.subTest(context=context):
                 self.assert_required(self.plan(('docs/fixture.md',), **context), *planner.SCOPES)
+
+    def workflow(self):
+        return (Path(__file__).resolve().parents[3] / '.github/workflows/platform-ci.yml').read_text()
+
+    def arm64_executes(self, plan):
+        block = self.workflow().split('  production-arm64-artifact:\n', 1)[1].split('    runs-on:', 1)[0]
+        condition = re.search(r'^    if: (.+)$', block, re.MULTILINE).group(1)
+        self.assertEqual(condition, "fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact != 'NOT_APPLICABLE'")
+        return plan['scopes']['arm64_artifact']['status'] != 'NOT_APPLICABLE'
+
+    def arm64_gate(self, status, result, validation_path='NORMAL_STRICT_CI'):
+        gate = self.workflow().split('  ci-gate:\n', 1)[1]
+        self.assertIn('ARM64_STATUS: ${{ fromJSON(needs.policy-gate.outputs.plan_scopes).arm64_artifact }}', gate)
+        script = textwrap.dedent(gate.split('        run: |\n', 1)[1])
+        return subprocess.run(['bash', '-e', '-c', script], capture_output=True, text=True, env={
+            **os.environ, 'POLICY_GATE_RESULT': 'success', 'QUALITY_GATE_RESULT': 'success',
+            'SECURITY_GATE_RESULT': 'success', 'INTEGRATION_GATE_RESULT': 'success',
+            'ARM64_STATUS': status, 'PRODUCTION_ARM64_RESULT': result, 'VALIDATION_PATH': validation_path,
+        }).returncode
+
+    def assert_arm64_alignment(self, plan, expected):
+        status = plan['scopes']['arm64_artifact']['status']
+        self.assertEqual(status, expected)
+        executes = self.arm64_executes(plan)
+        self.assertEqual(executes, expected != 'NOT_APPLICABLE')
+        self.assertEqual(self.arm64_gate(status, 'success' if executes else 'skipped', plan['validation_path']), 0)
+
+    def test_arm64_runtime_pr_required_in_every_lane(self):
+        for lane in ('strict', 'standard', 'lite'):
+            with self.subTest(lane=lane):
+                plan = self.plan(('apps/admin/src/app/page.tsx',), lane_key=lane)
+                self.assertEqual(plan['component_deltas']['application_delta'], 'PRESENT')
+                self.assert_arm64_alignment(plan, 'APPLICABLE')
+
+    def test_arm64_authority_focused_skipped(self):
+        self.authority()
+        self.assert_arm64_alignment(self.plan(('worklogs/new_ver_main.md',)), 'NOT_APPLICABLE')
+
+    def test_arm64_proven_non_runtime_inputs_skipped(self):
+        plan = self.plan(('docs/fixture.md', 'tests/ci/policy/test_policy_gate.py'))
+        for component in ('application_delta', 'dependency_delta', 'runtime_config_delta'):
+            self.assertEqual(plan['component_deltas'][component], 'NONE')
+        self.assertFalse(plan['scopes']['arm64_artifact']['evidence'])
+        self.assert_arm64_alignment(plan, 'NOT_APPLICABLE')
+
+    def test_arm64_unknown_required_in_every_lane(self):
+        for lane in ('strict', 'standard', 'lite'):
+            with self.subTest(lane=lane):
+                self.assert_arm64_alignment(self.plan(('unknown-hook',), lane_key=lane), 'UNKNOWN')
+
+    def test_non_pr_full_validation_preserves_arm64_pr_only_boundary(self):
+        for event in ('push', 'workflow_dispatch'):
+            for path in ('docs/fixture.md', 'apps/admin/src/app/page.tsx', 'unknown-hook'):
+                with self.subTest(event=event, path=path):
+                    plan = self.plan((path,), event_name=event)
+                    self.assert_required(plan, *(scope for scope in planner.SCOPES if scope != 'arm64_artifact'))
+                    self.assert_arm64_alignment(plan, 'NOT_APPLICABLE')
+                    self.assertEqual(plan['scopes']['arm64_artifact']['reason'], 'PR_ONLY_ARM64_BOUNDARY')
+
+    def test_arm64_applicable_and_unknown_require_success(self):
+        for status in ('APPLICABLE', 'UNKNOWN'):
+            for result in ('skipped', 'failure', 'cancelled', 'running', ''):
+                with self.subTest(status=status, result=result):
+                    self.assertNotEqual(self.arm64_gate(status, result), 0)
+            self.assertEqual(self.arm64_gate(status, 'success'), 0)
+
+    def test_arm64_na_rejects_unexpected_execution(self):
+        for result in ('success', 'running', 'failure', 'cancelled', ''):
+            with self.subTest(result=result):
+                self.assertNotEqual(self.arm64_gate('NOT_APPLICABLE', result), 0)
+        self.assertEqual(self.arm64_gate('NOT_APPLICABLE', 'skipped'), 0)
+
+    def test_arm64_invalid_plan_status_fails_closed(self):
+        for status in ('', 'false', 'INVALID'):
+            for result in ('success', 'skipped'):
+                with self.subTest(status=status, result=result):
+                    self.assertNotEqual(self.arm64_gate(status, result), 0)
+
+    def test_required_five_contexts_remain_unchanged(self):
+        names = re.findall(r'^    name: (.+)$', self.workflow(), re.MULTILINE)
+        self.assertEqual({name for name in names if name.endswith('-gate')}, {
+            'policy-gate', 'quality-gate', 'security-gate', 'integration-gate', 'ci-gate',
+        })
 
     def test_lite_keeps_existing_focused_quality_boundary(self):
         plan = self.plan(('apps/admin/src/app/page.tsx',), lane_key='lite')

@@ -18,7 +18,8 @@ changed paths, including deletions and rename sources. Dependency changes,
 execution policy changes and shared infrastructure force all scopes. An
 unrecognized scope input executes all scopes. Invalid canonical evidence is
 still rejected by the pre-existing lane/security boundaries; it never permits
-a skip. Non-PR events and activation requests retain full validation.
+a skip. Non-PR events retain full integration validation; ARM64 remains PR-only.
+PR activation requests retain full validation.
 
 The policy-gate implementation and its tests are validation-only inputs already
 executed by policy-gate; they do not alone invalidate unrelated runtime scopes.
@@ -33,7 +34,7 @@ This preserves concurrent feature policy additions without touching the reserved
 | Legacy frontend | Typecheck/lint in quality-gate; build in integration-support |
 | Contract / Client / Schema / Testkit | Existing checks in quality-gate; contract inputs fan out across consumers |
 | Release/artifact | Existing release tests/source validation in quality-gate, Compose in integration-support |
-| ARM64 | Existing Strict PR requirement retained, except verified AUTHORITY_FOCUSED |
+| ARM64 | Exact-source plan APPLICABLE or UNKNOWN requires success in every PR lane; NOT_APPLICABLE requires skipped |
 
 Database and migration are separate scopes: migration NONE does not justify
 skipping database smoke. That command also exercises application, identity,
@@ -54,6 +55,21 @@ skipped. Missing, failed, cancelled or unexpected results fail the wrapper.
 Existing Lite focused quality behavior and verified AUTHORITY_FOCUSED behavior
 remain intact. Required contexts remain policy-gate, quality-gate, security-gate,
 integration-gate and ci-gate. Security audits and posture handling are unchanged.
+
+ARM64 execution and ci-gate consume the same policy-gate `arm64_artifact` status,
+not the lane. APPLICABLE or UNKNOWN runs the unchanged native artifact build,
+package, verification and load; ci-gate rejects skipped or unsuccessful results.
+NOT_APPLICABLE skips the job, and ci-gate rejects unexpected execution. Invalid
+status fails closed. The integration wrapper's exact-source plan recomputation
+and digest check remain prerequisites for ci-gate success.
+
+Verified AUTHORITY_FOCUSED remains N/A. Complete canonical evidence and path
+coverage can prove docs or non-runtime policy tests N/A, but application tests
+copied into production images retain applicability even with application delta
+NONE. CI execution changes remain conservatively applicable. Push and
+workflow_dispatch explicitly report NOT_APPLICABLE with machine-readable reason
+`PR_ONLY_ARM64_BOUNDARY`, including unknown inputs; this is the existing event
+boundary, not a runtime-impact exemption for PRs.
 
 ## Baseline and replay
 
@@ -84,7 +100,7 @@ This retains the measured 790s smoke and allows 50–110s for setup, scheduling
 and gates. It is an estimate, not measured feature acceleration. The optimization
 PR itself invalidates all scopes because it changes CI execution policy. Measure
 the next actual feature PR using job timestamps after Human merge authorization.
-No dependency cache or Production artifact exemption is added in this phase.
+No dependency cache or runtime-input Production artifact exemption is added.
 
 ## Boundaries and rollback
 

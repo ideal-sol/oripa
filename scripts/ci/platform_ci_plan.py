@@ -92,8 +92,8 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
             status, reason = "APPLICABLE", "Full event/activation validation or affected source inputs"
         else:
             status, reason = "NOT_APPLICABLE", "Canonical component deltas and complete path coverage exclude this scope"
-        if scope == "arm64_artifact" and not authority and not unknown:
-            status, reason = "APPLICABLE", "Retain existing Strict PR artifact validation conservatively"
+        if scope == "arm64_artifact" and event_name != "pull_request":
+            status, reason = "NOT_APPLICABLE", "PR_ONLY_ARM64_BOUNDARY"
         scopes[scope] = {
             "status": status, "reason": reason, "evidence": hits[scope],
             "component_deltas": change["deltas"], "changed_paths_digest": digest(paths, None),
