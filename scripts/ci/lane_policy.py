@@ -330,6 +330,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--secret-scan", action="store_true")
     parser.add_argument("--change-output", type=Path)
+    parser.add_argument("--plan-output", type=Path)
     return parser.parse_args()
 
 
@@ -361,6 +362,14 @@ def main() -> int:
             result["validation_path"] = (change["validation_path"]
                 if arguments.event_name == "pull_request" and result["activation"] == "none" else "NORMAL_STRICT_CI")
             result["change_digest"] = change["record_digest"]
+            if arguments.plan_output:
+                from scripts.ci.platform_ci_plan import build_plan
+                plan = build_plan(change, lane_key=result["lane_key"], activation=result["activation"],
+                                  event_name=arguments.event_name, validation_path=result["validation_path"])
+                arguments.plan_output.write_bytes(canonical(plan))
+                result["plan_digest"] = plan["record_digest"]
+                result["plan_scopes"] = {name: scope["status"] for name, scope in plan["scopes"].items()}
+                result["plan_jobs"] = {name: job["required"] for name, job in plan["jobs"].items()}
         if arguments.secret_scan and arguments.event_name == "pull_request":
             event = json.loads(arguments.event_path.read_text(encoding="utf-8"))
             pull_request = event["pull_request"]
@@ -376,6 +385,10 @@ def main() -> int:
                 with arguments.github_output.open("a", encoding="utf-8") as output:
                     for key in ("validation_path", "change_digest"):
                         print(f"{key}={result[key]}", file=output)
+                    if arguments.plan_output:
+                        print(f"plan_digest={result['plan_digest']}", file=output)
+                        for key in ("plan_scopes", "plan_jobs"):
+                            print(f"{key}={json.dumps(result[key], separators=(',', ':'))}", file=output)
     except (OSError, ValueError, LanePolicyFailure) as error:
         print(f"lane-policy: FAIL: {error}")
         return 1

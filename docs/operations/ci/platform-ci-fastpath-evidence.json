@@ -1,0 +1,466 @@
+{
+  "schema_version": "1.0",
+  "baseline": {
+    "schema_version": "1.0",
+    "source": "GitHub Actions API actual timestamps",
+    "run": {
+      "id": 37940609962,
+      "head_sha": "5e63e1fbae79242a1726f99553c9e88fd14b6da6",
+      "run_started_at": "2026-10-09T13:57:33Z",
+      "updated_at": "2026-10-09T14:16:38Z",
+      "conclusion": "success"
+    },
+    "jobs": [
+      {
+        "name": "policy-gate",
+        "started_at": "2026-10-09T13:57:36Z",
+        "completed_at": "2026-10-09T13:57:57Z",
+        "conclusion": "success",
+        "duration_seconds": 21
+      },
+      {
+        "name": "quality-gate",
+        "started_at": "2026-10-09T13:58:00Z",
+        "completed_at": "2026-10-09T14:01:53Z",
+        "conclusion": "success",
+        "duration_seconds": 233
+      },
+      {
+        "name": "production-arm64-artifact",
+        "started_at": "2026-10-09T13:58:03Z",
+        "completed_at": "2026-10-09T14:01:43Z",
+        "conclusion": "success",
+        "duration_seconds": 220
+      },
+      {
+        "name": "integration-suite",
+        "started_at": "2026-10-09T13:58:00Z",
+        "completed_at": "2026-10-09T14:16:23Z",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-09T13:58:01Z",
+            "completed_at": "2026-10-09T13:58:03Z",
+            "duration_seconds": 2
+          },
+          {
+            "name": "Initialize containers",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-09T13:58:03Z",
+            "completed_at": "2026-10-09T13:58:20Z",
+            "duration_seconds": 17
+          },
+          {
+            "name": "Check out the reviewed commit",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-09T13:58:20Z",
+            "completed_at": "2026-10-09T13:58:23Z",
+            "duration_seconds": 3
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-09T13:58:23Z",
+            "completed_at": "2026-10-09T13:58:23Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-09T13:58:23Z",
+            "completed_at": "2026-10-09T13:58:28Z",
+            "duration_seconds": 5
+          },
+          {
+            "name": "Set up PHP",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-09T13:58:28Z",
+            "completed_at": "2026-10-09T13:58:31Z",
+            "duration_seconds": 3
+          },
+          {
+            "name": "Install locked dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-09T13:58:31Z",
+            "completed_at": "2026-10-09T13:58:45Z",
+            "duration_seconds": 14
+          },
+          {
+            "name": "Apply V1 migrations to the isolated legacy test database",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-09T13:58:45Z",
+            "completed_at": "2026-10-09T13:58:46Z",
+            "duration_seconds": 1
+          },
+          {
+            "name": "Run backend tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-09T13:58:46Z",
+            "completed_at": "2026-10-09T14:01:07Z",
+            "duration_seconds": 141
+          },
+          {
+            "name": "Validate Site Template policy",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-09T14:01:07Z",
+            "completed_at": "2026-10-09T14:01:07Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Build and typecheck legacy frontend",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-09T14:01:07Z",
+            "completed_at": "2026-10-09T14:01:24Z",
+            "duration_seconds": 17
+          },
+          {
+            "name": "Build and validate V2 Admin Auth Shell",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-09T14:01:24Z",
+            "completed_at": "2026-10-09T14:02:09Z",
+            "duration_seconds": 45
+          },
+          {
+            "name": "Generate, build, and test Storefront Client Alpha",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-09T14:02:09Z",
+            "completed_at": "2026-10-09T14:02:17Z",
+            "duration_seconds": 8
+          },
+          {
+            "name": "Generate, build, and test Site Schema Alpha",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-09T14:02:17Z",
+            "completed_at": "2026-10-09T14:02:22Z",
+            "duration_seconds": 5
+          },
+          {
+            "name": "Build and test Storefront Testkit Alpha",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-09T14:02:22Z",
+            "completed_at": "2026-10-09T14:02:30Z",
+            "duration_seconds": 8
+          },
+          {
+            "name": "Validate Platform Alpha Artifact foundation",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-09T14:02:30Z",
+            "completed_at": "2026-10-09T14:02:32Z",
+            "duration_seconds": 2
+          },
+          {
+            "name": "Validate contracts, manifests, and Compose",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-09T14:02:32Z",
+            "completed_at": "2026-10-09T14:03:09Z",
+            "duration_seconds": 37
+          },
+          {
+            "name": "Validate V2 database guard",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 18,
+            "started_at": "2026-10-09T14:03:09Z",
+            "completed_at": "2026-10-09T14:03:09Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Run isolated V2 migration and backup restore smoke",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-09T14:03:09Z",
+            "completed_at": "2026-10-09T14:16:19Z",
+            "duration_seconds": 790
+          },
+          {
+            "name": "Verify no tracked generated changes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-09T14:16:19Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 1
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 37,
+            "started_at": "2026-10-09T14:16:20Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 38,
+            "started_at": "2026-10-09T14:16:20Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Post Check out the reviewed commit",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 39,
+            "started_at": "2026-10-09T14:16:20Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 40,
+            "started_at": "2026-10-09T14:16:20Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 41,
+            "started_at": "2026-10-09T14:16:20Z",
+            "completed_at": "2026-10-09T14:16:20Z",
+            "duration_seconds": 0
+          }
+        ],
+        "duration_seconds": 1103
+      },
+      {
+        "name": "security-gate",
+        "started_at": "2026-10-09T13:58:01Z",
+        "completed_at": "2026-10-09T13:58:31Z",
+        "conclusion": "success",
+        "duration_seconds": 30
+      },
+      {
+        "name": "integration-gate",
+        "started_at": "2026-10-09T14:16:26Z",
+        "completed_at": "2026-10-09T14:16:30Z",
+        "conclusion": "success",
+        "duration_seconds": 4
+      },
+      {
+        "name": "ci-gate",
+        "started_at": "2026-10-09T14:16:33Z",
+        "completed_at": "2026-10-09T14:16:37Z",
+        "conclusion": "success",
+        "duration_seconds": 4
+      }
+    ],
+    "wall_seconds_first_job_to_last_job": 1141
+  },
+  "replays": {
+    "547": {
+      "base_sha": "95a6c581d9a27eaa5741301a774d03d399061afe",
+      "head_sha": "47742e1fd16c542bdd8234deb5c11a6a644d60ab",
+      "tree_sha": "7e782b6d8f380fe62ef596722149d088bb813200",
+      "canonical_change_digest": "sha256:9cb9557d360574d5a382c5ed830134fd53068611a387fd0651a8c95a152b9696",
+      "plan_digest": "sha256:20b1b224506b1f14f6689b177a7b8726740c0b6883f7b654608ac994737cd7f9",
+      "component_deltas": {
+        "application_delta": "NONE",
+        "dependency_delta": "NONE",
+        "migration_delta": "NONE",
+        "contract_delta": "NONE",
+        "authority_delta": "PRESENT",
+        "security_policy_delta": "NONE",
+        "runtime_config_delta": "NONE",
+        "api_write_path_delta": "NONE",
+        "test_delta": "PRESENT",
+        "docs_delta": "PRESENT",
+        "ci_governance_delta": "NONE"
+      },
+      "changed_paths": [
+        "manifests/platform-old-test-approved-source.json",
+        "tests/ops/test_old_test_source_authority.py",
+        "worklogs/new_ver_main.md"
+      ],
+      "scopes": {
+        "backend": "NOT_APPLICABLE",
+        "database": "NOT_APPLICABLE",
+        "migration": "NOT_APPLICABLE",
+        "admin": "NOT_APPLICABLE",
+        "agency": "NOT_APPLICABLE",
+        "legacy_frontend": "NOT_APPLICABLE",
+        "contract": "NOT_APPLICABLE",
+        "storefront_client": "NOT_APPLICABLE",
+        "testkit": "NOT_APPLICABLE",
+        "site_schema": "NOT_APPLICABLE",
+        "site_template": "NOT_APPLICABLE",
+        "release_artifact": "NOT_APPLICABLE",
+        "arm64_artifact": "NOT_APPLICABLE"
+      },
+      "jobs": {
+        "integration-suite": {
+          "required": false,
+          "scopes": [
+            "backend"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        },
+        "integration-database": {
+          "required": false,
+          "scopes": [
+            "database",
+            "migration"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        },
+        "integration-support": {
+          "required": false,
+          "scopes": [
+            "legacy_frontend",
+            "site_template",
+            "release_artifact"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        }
+      },
+      "validation_path": "AUTHORITY_FOCUSED",
+      "result": "PASS",
+      "execution": "Source SHA applicability replay only; no feature CI execution"
+    },
+    "553": {
+      "base_sha": "54a20622d609a13cad4255dba563deee57d387c3",
+      "head_sha": "5e63e1fbae79242a1726f99553c9e88fd14b6da6",
+      "tree_sha": "37339e1ea3c1bfeca19402c777122aebbe77fdb6",
+      "canonical_change_digest": "sha256:26762e217c4d9036d5ae3d8ebe078d2716d6c45ced56484e691b723566d034c8",
+      "plan_digest": "sha256:43345a92c7501f6c903457043055983ee01567e67a786afa6df1edab8a4ec8c4",
+      "component_deltas": {
+        "application_delta": "PRESENT",
+        "dependency_delta": "NONE",
+        "migration_delta": "NONE",
+        "contract_delta": "NONE",
+        "authority_delta": "NONE",
+        "security_policy_delta": "PRESENT",
+        "runtime_config_delta": "PRESENT",
+        "api_write_path_delta": "PRESENT",
+        "test_delta": "PRESENT",
+        "docs_delta": "PRESENT",
+        "ci_governance_delta": "PRESENT"
+      },
+      "changed_paths": [
+        "apps/admin/src/app/layout.tsx",
+        "apps/admin/src/components/announcements/announcement-management-workspace.tsx",
+        "apps/admin/src/components/catalog/asset-delivery-provider.tsx",
+        "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
+        "apps/admin/src/components/catalog/public-asset-preview.tsx",
+        "apps/admin/src/components/catalog/rank-effect-settings-workspace.tsx",
+        "apps/admin/src/components/catalog/rank-master-workspace.tsx",
+        "apps/admin/src/lib/asset-delivery.ts",
+        "apps/admin/src/proxy.ts",
+        "apps/admin/test/asset-delivery.test.tsx",
+        "apps/api/app/Domain/Catalog/Services/V2AssetPublicPathResolver.php",
+        "apps/api/app/Domain/Catalog/Services/V2AssetResponseNormalizer.php",
+        "apps/api/app/Http/Middleware/V2/NormalizeV2AssetResponse.php",
+        "apps/api/app/Providers/AppServiceProvider.php",
+        "apps/api/bootstrap/app.php",
+        "apps/api/config/filesystems.php",
+        "apps/api/config/v2_assets.php",
+        "apps/api/tests/V2/AdminBannerManagementTest.php",
+        "apps/api/tests/V2/AdminGachaRankPrizeManagementTest.php",
+        "apps/api/tests/V2/AdminRankEffectSettingsTest.php",
+        "apps/api/tests/V2/AssetCdnDeliveryTest.php",
+        "docs/operations/s3-cloudfront-platform-admin-phase1.md",
+        "scripts/ci/policy_gate.py",
+        "tests/ci/policy/test_policy_gate.py",
+        "worklogs/new_ver_main.md"
+      ],
+      "scopes": {
+        "backend": "APPLICABLE",
+        "database": "APPLICABLE",
+        "migration": "NOT_APPLICABLE",
+        "admin": "APPLICABLE",
+        "agency": "NOT_APPLICABLE",
+        "legacy_frontend": "NOT_APPLICABLE",
+        "contract": "APPLICABLE",
+        "storefront_client": "NOT_APPLICABLE",
+        "testkit": "NOT_APPLICABLE",
+        "site_schema": "NOT_APPLICABLE",
+        "site_template": "NOT_APPLICABLE",
+        "release_artifact": "APPLICABLE",
+        "arm64_artifact": "APPLICABLE"
+      },
+      "jobs": {
+        "integration-suite": {
+          "required": true,
+          "scopes": [
+            "backend"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        },
+        "integration-database": {
+          "required": true,
+          "scopes": [
+            "database",
+            "migration"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        },
+        "integration-support": {
+          "required": true,
+          "scopes": [
+            "legacy_frontend",
+            "site_template",
+            "release_artifact"
+          ],
+          "reason": "Execute all applicable or UNKNOWN scopes; N/A requires canonical evidence"
+        }
+      },
+      "validation_path": "NORMAL_STRICT_CI",
+      "result": "PASS",
+      "execution": "Source SHA applicability replay only; no feature CI execution"
+    }
+  },
+  "estimate": {
+    "kind": "UNMEASURED_FEATURE_PROJECTION",
+    "baseline_wall_seconds": 1141,
+    "database_smoke_seconds_observed": 790,
+    "expected_wall_seconds_range": [
+      840,
+      900
+    ],
+    "assumptions": "Same smoke duration, comparable GitHub runners; 50-110s scheduling/setup/gate allowance. No smoke checks removed.",
+    "follow_up": "Measure next merged-planner strict feature PR; this governance PR cannot prove feature speedup."
+  }
+}
