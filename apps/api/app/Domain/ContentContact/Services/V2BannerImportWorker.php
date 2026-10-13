@@ -14,6 +14,13 @@ use Throwable;
 
 final class V2BannerImportWorker
 {
+    private bool $stopRequested = false;
+
+    public function requestStop(): void
+    {
+        $this->stopRequested = true;
+    }
+
     public function __construct(
         private readonly V2BannerImportService $service,
         private readonly V2BannerImportImageFetcher $fetcher,
@@ -24,6 +31,9 @@ final class V2BannerImportWorker
     public function claim(): ?array
     {
         V2BannerImportExecution::assertEnabled();
+        if ($this->stopRequested) {
+            return null;
+        }
         return DB::transaction(function (): ?array {
             V2BannerImportExecution::assertEnabled();
             DB::select("SELECT pg_advisory_xact_lock(hashtextextended('v2_banner_import_claim', 0))");
@@ -55,6 +65,11 @@ final class V2BannerImportWorker
                 'lease_generation' => $job->lease_generation + 1,
                 'lease_expires_at' => V2DatabaseTimestamp::format(now()->addSeconds(120)), 'updated_at' => $now,
             ]);
+            app(\App\Domain\Audit\V2\Services\V2AuditLogService::class)->record('content.banner_import.lease_claimed', [
+                'request_id' => $job->request_id, 'actor_type' => 'system', 'target_type' => 'banner_import_job',
+                'target_public_id' => $job->public_id, 'metadata' => ['lease_generation' => $job->lease_generation + 1,
+                    'reclaimed' => $job->status === 'processing'],
+            ]);
             return ['id' => $job->public_id, 'token' => $token];
         });
     }
@@ -73,7 +88,7 @@ final class V2BannerImportWorker
     {
         V2BannerImportExecution::assertEnabled();
         $count = 0;
-        while (true) {
+        while (! $this->stopRequested) {
             $rowId = DB::transaction(function () use ($publicId, $token): ?string {
                 $job = $this->ownedJob($publicId, $token);
                 $now = V2DatabaseTimestamp::format(now());
@@ -107,9 +122,10 @@ final class V2BannerImportWorker
                         'next_attempt_at' => null, 'updated_at' => V2DatabaseTimestamp::format(now()),
                     ]);
                 });
-                $secret = DB::transaction(function () use ($rowId, $token): ?string {
+                $recovered = $this->canonical->recoverStored($rowId, $token);
+                $secret = DB::transaction(function () use ($rowId, $token, $recovered): ?string {
                     $execution = V2BannerImportExecution::fromLease($rowId, $token);
-                    if ($this->canonical->recover($execution)) {
+                    if ($recovered) {
                         return null;
                     }
                     if ($execution->row->url_ciphertext === null || ! CarbonImmutable::parse($execution->job->secret_expires_at)->isFuture()) {
@@ -120,16 +136,7 @@ final class V2BannerImportWorker
                 if ($secret !== null) {
                     $image = $this->fetcher->fetch(Crypt::decryptString($secret));
                     unset($secret);
-                    DB::transaction(function () use ($rowId, $token): void {
-                        $execution = V2BannerImportExecution::fromLease($rowId, $token);
-                        DB::table('content_banner_import_rows')->where('id', $execution->row->id)->update([
-                            'compensation_status' => $execution->row->compensation_status === null
-                                ? 'registration_started' : 'deferred_canonical_review',
-                        ]);
-                    });
-                    DB::transaction(function () use ($rowId, $token, $image): void {
-                        $this->canonical->register(V2BannerImportExecution::fromLease($rowId, $token), $image);
-                    });
+                    $this->canonical->register($rowId, $token, $image);
                     unset($image);
                 }
                 DB::transaction(function () use ($rowId, $token): void {
@@ -145,12 +152,24 @@ final class V2BannerImportWorker
                 $count++;
             } catch (Throwable $exception) {
                 $code = $exception instanceof V2ContentContactException ? $exception->errorCode : 'BANNER_IMPORT_ROW_FAILED';
+                if ($code !== 'BANNER_IMPORT_DISABLED') {
+                    app(\App\Domain\Audit\V2\Services\V2AuditLogService::class)->record('content.banner_import.row_attempt_failed', [
+                        'actor_type' => 'system', 'target_type' => 'banner_import_row', 'target_public_id' => $rowId,
+                        'outcome' => 'failure', 'reason_code' => strtolower(in_array($code, ['BANNER_IMPORT_LEASE_LOST', 'BANNER_IMPORT_AUTHORIZATION_REVOKED'], true)
+                            ? $code : $this->safeCode($code)),
+                    ]);
+                }
                 if (in_array($code, ['BANNER_IMPORT_DISABLED', 'BANNER_IMPORT_LEASE_LOST'], true)) {
                     return $count;
                 }
                 if ($code === 'BANNER_IMPORT_AUTHORIZATION_REVOKED') {
                     DB::transaction(function () use ($publicId, $token, $code): void {
                         $job = $this->ownedJob($publicId, $token);
+                        DB::table('content_banner_asset_operations')->where('job_public_id', $job->public_id)
+                            ->where('status', '<>', 'attached')->update([
+                                'status' => 'manual_review', 'manual_review_reason' => 'authorization_revoked',
+                                'updated_at' => V2DatabaseTimestamp::format(now()),
+                            ]);
                         DB::table('content_banner_import_rows')->where('job_id', $job->id)->whereNotIn('status', ['completed', 'failed'])->update([
                             'status' => 'failed', 'result' => 'failed', 'error_code' => $code, 'url_ciphertext' => null,
                             'url_deleted_at' => V2DatabaseTimestamp::format(now()), 'updated_at' => V2DatabaseTimestamp::format(now()),
@@ -176,6 +195,14 @@ final class V2BannerImportWorker
                 });
             }
         }
+        DB::transaction(function () use ($publicId, $token): void {
+            $job = $this->ownedJob($publicId, $token);
+            DB::table('content_banner_import_jobs')->where('id', $job->id)->update([
+                'status' => 'queued', 'lease_token_hash' => null, 'lease_expires_at' => null,
+                'updated_at' => V2DatabaseTimestamp::format(now()),
+            ]);
+        });
+        return $count;
     }
 
     private function ownedJob(string $id, #[SensitiveParameter] string $token): object

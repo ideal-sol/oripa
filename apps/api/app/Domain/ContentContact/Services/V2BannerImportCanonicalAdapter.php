@@ -33,11 +33,36 @@ class V2BannerImportCanonicalAdapter
         return true;
     }
 
-    public function register(V2BannerImportExecution $execution, #[SensitiveParameter] array $image): void
+    public function recoverStored(string $rowId, #[SensitiveParameter] string $token): bool
+    {
+        V2BannerImportExecution::assertEnabled();
+        if (DB::transactionLevel() !== 0) {
+            throw new \LogicException('Banner asset recovery requires an independent transaction.');
+        }
+        return DB::transaction(fn (): bool => $this->recover(V2BannerImportExecution::fromLease($rowId, $token)))
+            || app(V2BannerImportAssetOperationService::class)->recover($rowId, $token);
+    }
+
+    public function register(string $rowId, #[SensitiveParameter] string $token, #[SensitiveParameter] array $image): void
+    {
+        V2BannerImportExecution::assertEnabled();
+        if (DB::transactionLevel() !== 0) {
+            throw new \LogicException('Banner asset registration requires an independent transaction.');
+        }
+        $reused = DB::transaction(fn (): bool => $this->reuse(V2BannerImportExecution::fromLease($rowId, $token), $image));
+        if (! $reused) {
+            $this->canonical->uploadBannerImportAsset($rowId, $token, $image);
+        }
+    }
+
+    private function reuse(V2BannerImportExecution $execution, #[SensitiveParameter] array $image): bool
     {
         $execution = $execution->revalidate();
         if ($this->recover($execution)) {
-            return;
+            return true;
+        }
+        if (DB::table('content_banner_asset_operations')->where('row_public_id', $execution->row->public_id)->exists()) {
+            return false;
         }
         $banner = DB::table('content_banners')->where('external_id', $execution->row->external_id)
             ->where('status', '<>', 'archived')->lockForUpdate()->first();
@@ -46,17 +71,14 @@ class V2BannerImportCanonicalAdapter
             $version = DB::table('content_versions')->where('banner_id', $banner->id)->orderByDesc('version_number')->value('id');
             $asset = DB::table('content_version_assets as link')->join('catalog_presentation_assets as asset', 'asset.id', '=', 'link.presentation_asset_id')
                 ->where('link.content_version_id', $version)->where('link.usage_type', 'image')->whereNull('asset.archived_at')
-                ->first(['asset.public_id', 'asset.checksum_sha256']);
+                ->first(['asset.*']);
         }
         if ($asset !== null && hash_equals($asset->checksum_sha256, $image['checksum_sha256'])) {
+            app(V2BannerImportAssetOperationService::class)->recordReuse($execution, $asset);
             $this->recordAsset($execution, $asset->public_id, $image['checksum_sha256'], false);
-            return;
+            return true;
         }
-        $uploaded = $this->canonical->uploadBannerImportAsset($execution, [
-            'mime_type' => $image['mime_type'], 'content_base64' => base64_encode($image['bytes']),
-        ]);
-        $execution = $execution->revalidate();
-        $this->recordAsset($execution, $uploaded['id'], $image['checksum_sha256'], true);
+        return false;
     }
 
     public function save(V2BannerImportExecution $execution): array

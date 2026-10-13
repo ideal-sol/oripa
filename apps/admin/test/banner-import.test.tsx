@@ -28,6 +28,9 @@ describe("Banner CSV import", () => {
     fireEvent.change(await screen.findByLabelText("CSVファイル"), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("既定カテゴリ"), { target: { value: category.id } });
     expect(screen.getByLabelText("既存画像を再取得する")).not.toBeChecked();
+    expect(screen.getByText(/最大200行・2MiB/)).toBeVisible();
+    expect(screen.getByText(/保持期限は30分/)).toBeVisible();
+    expect(screen.queryByText(/最大1,000行/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "CSVを取り込む" }));
     await waitFor(() => expect(submit).toHaveBeenCalledOnce());
     expect(submit.mock.calls[0][0]).toMatchObject({ default_category_id: category.id, refresh_existing_images: false });

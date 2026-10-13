@@ -90,7 +90,8 @@ export function BannerImportWorkspace({ categories, canManage }: { categories: A
   if (!enabled) return <p role="status">CSV取込は現在利用できません。</p>;
   return <section className={styles.workspace} aria-label="バナーCSV取込">
     <h2>バナーCSV取込</h2>
-    <p>UTF-8・最大1,000行・2MiB。新規画像は非公開・非トップの下書きとして登録します。既存バナーを自動公開しません。</p>
+    <p>UTF-8・最大200行・2MiB。受付後にバックグラウンド処理します。新規バナーは下書き・トップ非表示として登録し、既存バナーを自動公開しません。画像URL自体のアクセス制限を意味するものではありません。</p>
+    <p>画像URLの保持期限は30分です。大量登録やURL失効で一部失敗する場合があります。成功行は保持されます。失敗行CSVに新しい画像URLを入力して再取込できます。画像差し替えは登録済み景品の画像を自動変更しません。</p>
     {canManage ? <form onSubmit={submit}>
       <label>CSVファイル<input ref={fileInput} type="file" accept=".csv,text/csv" disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] ?? null); key.current = null; }} /></label>
       <label>既定カテゴリ<select value={category} disabled={busy} onChange={(event) => { setCategory(event.target.value); key.current = null; }}><option value="">選択してください</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

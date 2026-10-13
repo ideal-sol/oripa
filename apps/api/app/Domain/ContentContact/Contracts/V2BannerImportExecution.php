@@ -65,6 +65,16 @@ final readonly class V2BannerImportExecution
         return self::fromLease($this->row->public_id, $this->leaseToken);
     }
 
+    public function heartbeat(): self
+    {
+        $execution = $this->revalidate();
+        DB::table('content_banner_import_jobs')->where('id', $execution->job->id)->update([
+            'lease_expires_at' => \App\Support\V2DatabaseTimestamp::format(now()->addSeconds(120)),
+            'updated_at' => \App\Support\V2DatabaseTimestamp::format(now()),
+        ]);
+        return $execution;
+    }
+
     public function auditAttributes(): array
     {
         return [

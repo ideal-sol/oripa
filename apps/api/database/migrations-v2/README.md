@@ -47,6 +47,18 @@ devices, and Admin MFA credential storage.
 
 ## Status
 
+Migration `2026_10_13_000084_create_v2_banner_asset_operations.php` adds the durable
+`content_banner_asset_operations` ledger in Source. It is independent of the
+30-day import Job/Row history and forbids ledger DELETE and identity mutation.
+It is forward-only: `down()` rejects with
+`Banner asset operations require a forward correction migration.`
+Application is authorized only in the dedicated synthetic F2-B test database.
+Source presence does not prove application; OLD, NEW and Production application
+and Runtime activation require separate Human GO. Existing 000082/000083 are
+unchanged. The new 200-row acceptance limit is application-only; the legacy
+1–1,000 Job CHECK remains compatible with retained history. Object deletion and
+automatic ledger retention expiry are HOLD.
+
 Migration `2026_10_11_000082_create_v2_banner_imports.php` is added in Source for
 `content_banner_import_jobs` and `content_banner_import_rows`, including short-lived
 encrypted image URLs. It is forward-only: `down()` rejects with

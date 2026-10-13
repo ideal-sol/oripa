@@ -20,6 +20,8 @@ class BannerImportContractTest(unittest.TestCase):
             self.assertIn(permission, operation['description'])
             self.assertEqual(operation['x-cache-policy'], 'no-store')
         schemas = admin['components']['schemas']
+        self.assertIn('200 data rows', schemas['AdminBannerImportInput']['description'])
+        self.assertIn('legacy jobs', schemas['AdminBannerImportJob']['description'])
         self.assertEqual(schemas['AdminBannerImportInput']['properties']['content_base64']['maxLength'], 2796204)
         self.assertFalse(schemas['AdminBannerImportInput']['properties']['refresh_existing_images']['default'])
         self.assertEqual(schemas['AdminBannerImportValidation']['properties']['errors']['maxItems'], 200)
