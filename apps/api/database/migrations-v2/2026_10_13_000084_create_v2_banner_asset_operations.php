@@ -39,7 +39,7 @@ return new class extends Migration
         DB::statement("CREATE UNIQUE INDEX banner_asset_operation_created_uuid ON content_banner_asset_operations (asset_public_id) WHERE operation_type = 'create'");
         DB::statement("ALTER TABLE content_banner_asset_operations ADD CONSTRAINT banner_asset_operation_values CHECK (owner::text = 'banner_import' AND operation_type::text IN ('create','reuse') AND byte_size BETWEEN 1 AND 5242880 AND checksum_sha256 ~ '^[a-f0-9]{64}$' AND storage_generation ~ '^[a-f0-9]{64}$' AND mime_type::text IN ('image/gif','image/jpeg','image/png','image/webp') AND status::text IN ('prepared','writing','registered','attached','manual_review') AND lease_generation > 0 AND put_attempts BETWEEN 0 AND 1 AND (operation_type::text = 'create' OR (put_attempts = 0 AND status::text IN ('registered','attached','manual_review'))))");
         DB::unprepared(<<<'SQL'
-CREATE FUNCTION guard_banner_asset_operation_identity() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION guard_banner_asset_operation_identity() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP IN ('DELETE', 'TRUNCATE') THEN
         RAISE EXCEPTION 'Banner asset operations require an approved retention migration.';

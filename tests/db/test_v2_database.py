@@ -33,6 +33,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
             with self.assertRaises(v2_database.GuardFailure):
                 v2_database.validate_schema_inventory(invalid)
         self.assertIn("throw new LogicException('" + message + "');", source)
+        self.assertIn("CREATE OR REPLACE FUNCTION guard_banner_asset_operation_identity()", source)
         self.assertNotIn("cascadeOnDelete", source)
         (self.repository / v2_database.MIGRATION_PATH / filename).touch()
         with mock.patch.object(v2_database, "migration_rows", return_value=b"84") as ledger, mock.patch.object(
