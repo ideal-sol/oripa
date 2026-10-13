@@ -3954,7 +3954,7 @@ final class V2CatalogMasterMutationService
                                 ?? $data['gacha_version_revision']
                                 ?? $data['gacha_revision']
                                 ?? null,
-                            ...($action !== 'prize_import' && isset($data['id'], $data['gacha_version_id']))
+                            ...($action !== 'prize_import' && $action !== 'prize_remove' && isset($data['id'], $data['gacha_version_id']))
                                 ? ['schedule_public_id' => $data['id']]
                                 : [],
                             ...isset($data['current_published_version'])

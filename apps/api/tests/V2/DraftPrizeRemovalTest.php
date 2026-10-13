@@ -103,6 +103,12 @@ final class DraftPrizeRemovalTest extends TestCase
         $this->httpRemove(['expected_version_revision' => $revision + 1], $key)
             ->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
         self::assertSame(1, DB::table('audit_logs')->where('action_code', 'catalog.master.prize_removed')->count());
+        $outbox = DB::table('outbox_messages')->where('event_type', 'catalog.master.prize_removed')->sole();
+        self::assertSame('catalog.master.prize_removed', $outbox->event_type);
+        self::assertSame($this->prize['id'], $outbox->aggregate_public_id);
+        $payload = json_decode($outbox->payload, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame($revision + 1, $payload['revision']);
+        self::assertArrayNotHasKey('schedule_public_id', $payload);
         self::assertTrue(app(V2AuditChainVerifier::class)->verify());
     }
 
@@ -296,6 +302,8 @@ final class DraftPrizeRemovalTest extends TestCase
     {
         DB::unprepared("CREATE FUNCTION f4_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_code = 'catalog.master.prize_removed' THEN RAISE EXCEPTION 'F4 audit failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER f4_audit_failure BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION f4_audit_failure()");
         $before = $this->snapshot();
+        $outboxCount = DB::table('outbox_messages')->count();
+        $idempotencyCount = DB::table('idempotency_records')->count();
         try {
             $this->remove();
             self::fail('Audit failure did not roll back');
@@ -303,6 +311,8 @@ final class DraftPrizeRemovalTest extends TestCase
             self::assertStringContainsString('F4 audit failure', $error->getMessage());
         }
         self::assertSame($before, $this->snapshot());
+        self::assertSame($outboxCount, DB::table('outbox_messages')->count());
+        self::assertSame($idempotencyCount, DB::table('idempotency_records')->count());
     }
 
     public function test_concurrent_adjustment_and_removal_have_one_safe_winner(): void
