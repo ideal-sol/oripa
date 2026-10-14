@@ -26,8 +26,8 @@ return new class extends Migration
             $table->timestampTz('completed_at')->nullable();
             $table->timestampsTz();
         });
-        DB::statement("CREATE UNIQUE INDEX notion_one_active_run ON notion_sync_runs ((true)) WHERE status IN ('queued', 'processing')");
-        DB::statement("ALTER TABLE notion_sync_runs ADD CONSTRAINT notion_run_state CHECK (status IN ('queued','processing','completed','failed') AND trigger IN ('manual','periodic','business') AND (status <> 'processing' OR (lease_hash IS NOT NULL AND lease_expires_at IS NOT NULL)))");
+        DB::statement("CREATE UNIQUE INDEX notion_one_active_run ON notion_sync_runs ((true)) WHERE status::text = ANY (ARRAY['queued'::text, 'processing'::text])");
+        DB::statement("ALTER TABLE notion_sync_runs ADD CONSTRAINT notion_run_state CHECK (status::text = ANY (ARRAY['queued'::text,'processing'::text,'completed'::text,'failed'::text]) AND trigger::text = ANY (ARRAY['manual'::text,'periodic'::text,'business'::text]) AND (status <> 'processing' OR (lease_hash IS NOT NULL AND lease_expires_at IS NOT NULL)))");
         Schema::create('notion_sync_snapshot', function (Blueprint $table): void {
             $table->foreignId('run_id')->constrained('notion_sync_runs');
             $table->string('external_id', 64)->collation('C');

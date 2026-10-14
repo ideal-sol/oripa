@@ -14,6 +14,8 @@
 
 - Final contract review aligns manual API error retryable=false with the declared contract; add real middleware HTTP coverage for missing key, invalid configuration, accepted/replayed job, status/history, CSRF and Operator denial. This is synthetic authentication only, not Human-owned real Admin login. Related Backend116 tests/2,202 assertions completed without failures; two opt-in concurrency skips are separately recorded on the PR.
 
+- Final-head CI passed full V2/tests/load/health stages but rejected backup schema equality: PostgreSQL deparsed varchar IN arrays differently after restore in F6's new constraint/index. Reproduced the exact two-line discrepancy in task-only PostgreSQL. Use the repository's explicit text/ANY convention in unpublished migration000085, retaining identical allowed states and active-job uniqueness; strengthen migration assertions. No existing main migration, normalization/checksum guard or assertion is relaxed. Re-run fresh migration/backup/restore and final-head CI; keep prior failing run38531155334 as evidence.
+
 ## INVENTORY-20261014 — F5 card inventory / Human Source Review (2026-10-14)
 
 - Human Feature PRIZECSV-F5-20261014; authorization PRIZECSV_F5_SOURCE_IMPLEMENTATION_GO_20261014. Issue none; Risk R3; Lane Strict Change; Application Runtime Activation deferred. Dedicated branch feat/INVENTORY-20261014 from protected main da0b12f57c0072da03afd59ead86a0528e306b67. Existing dirty primary checkout and other task worktrees remain untouched. Draft PR only; merge, activation, deploy, operational migration and F6 integration are not authorized.

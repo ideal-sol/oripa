@@ -29,6 +29,8 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertEqual(len(tables), 5)
         self.assertIn("throw new LogicException('" + message + "');", source)
         self.assertIn("CREATE UNIQUE INDEX notion_one_active_run", source)
+        self.assertIn("WHERE status::text = ANY (ARRAY['queued'::text, 'processing'::text])", source)
+        self.assertIn("trigger::text = ANY (ARRAY['manual'::text,'periodic'::text,'business'::text])", source)
         self.assertIn("timestampTz('next_request_at', 6)", source)
         (self.repository / v2_database.MIGRATION_PATH / filename).touch()
         with mock.patch.object(v2_database, "migration_rows", return_value=b"85"), mock.patch.object(
