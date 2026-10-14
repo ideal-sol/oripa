@@ -88,6 +88,12 @@ SIGNUP_SMS_GATE_BREAK = {
     "scope": "signup-identity-and-member-sms-required",
 }
 
+NOTION_CACHE_BREAK = {
+    "authority": "human_PRIZECSV-F6-20261014",
+    "change_id": "NOTION-20261014",
+    "scope": "inventory-notion-null-placeholders-to-cached-observations",
+}
+
 
 class ContractFailure(RuntimeError):
     """A deterministic OpenAPI contract violation."""
@@ -152,7 +158,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
     canonical_break = document.get("x-oripa-breaking-change")
     if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK and not (
         surface == "public" and canonical_break in (CONTACT_AUTHENTICATED_BREAK, CONTACT_PHONE_REQUIRED_BREAK, SIGNUP_SMS_GATE_BREAK)
-    ):
+    ) and not (surface == "admin" and canonical_break == NOTION_CACHE_BREAK):
         raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
         raise ContractFailure(f"{surface}: server namespace is invalid")
@@ -457,6 +463,8 @@ def is_authorized_contact_authenticated_break(
 def is_authorized_contact_phone_required_break(
     surface: str, previous: dict[str, Any], current: dict[str, Any]
 ) -> bool:
+    if surface != "public" or previous.get("info", {}).get("version") != "2.0.0-alpha.33":
+        return False
     # Authorize only the Human-approved phone constraint; reject every other diff.
     expected = copy.deepcopy(previous)
     expected["info"]["version"] = "2.0.0-alpha.34"
@@ -473,6 +481,32 @@ def is_authorized_contact_phone_required_break(
         and previous.get("info", {}).get("version") == "2.0.0-alpha.33"
         and current == expected
     )
+
+
+def is_authorized_notion_cache_break(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    if (surface != "admin" or previous.get("info", {}).get("version") != "2.0.0-alpha.40"
+            or current.get("info", {}).get("version") != "2.0.0-alpha.41"
+            or current.get("x-oripa-breaking-change") != NOTION_CACHE_BREAK):
+        return False
+    before = previous.get("components", {}).get("schemas", {}).get("AdminInventoryCard", {}).get("properties", {})
+    after = current.get("components", {}).get("schemas", {}).get("AdminInventoryCard", {}).get("properties", {})
+    types = {"notion_on_hand": ["number", "null"], "notion_available": ["number", "null"],
+             "notion_read_at": ["string", "null"]}
+    if any(before.get(field, {}).get("type") != "null" or after.get(field, {}).get("type") != expected
+           for field, expected in types.items()):
+        return False
+    if after["notion_read_at"].get("format") != "date-time":
+        return False
+    normalized = copy.deepcopy(current["components"]["schemas"]["AdminInventoryCard"])
+    for field in types:
+        normalized["properties"][field] = before[field]
+    if normalized != previous["components"]["schemas"]["AdminInventoryCard"]:
+        return False
+    return set(breaking_changes(previous, current)) == {
+        "components.schemas.AdminInventoryCard." + field + ": type changed" for field in types
+    }
 
 
 def is_authorized_signup_sms_gate_break(
@@ -605,7 +639,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

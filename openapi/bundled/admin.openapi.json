@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.40",
+    "version": "2.0.0-alpha.41",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -27186,9 +27186,9 @@
   },
   "x-oripa-surface": "admin",
   "x-oripa-breaking-change": {
-    "authority": "oripa_v2_rank_master_gacha_rank_canonical_spec_v1.0_2026-08-28",
-    "change_id": "MIG-099",
-    "scope": "rank-master-gacha-rank-clean-cutover"
+    "authority": "human_PRIZECSV-F6-20261014",
+    "change_id": "NOTION-20261014",
+    "scope": "inventory-notion-null-placeholders-to-cached-observations"
   },
   "x-oripa-error-codes": {
     "NOTION_DISABLED": {
