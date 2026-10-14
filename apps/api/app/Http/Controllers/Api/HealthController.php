@@ -53,7 +53,17 @@ class HealthController extends Controller
     private function checkStorage(): string
     {
         try {
-            Storage::disk(config('filesystems.default'))->put('.healthcheck', now()->toIso8601String());
+            $diskName = config('filesystems.default');
+            $disk = Storage::disk($diskName);
+            if (config('filesystems.disks.'.$diskName.'.driver') === 's3') {
+                $disk->getClient()->listObjectsV2([
+                    'Bucket' => $disk->getConfig()['bucket'],
+                    'Prefix' => 'admin-assets/',
+                    'MaxKeys' => 1,
+                ]);
+            } else {
+                $disk->put('.healthcheck', now()->toIso8601String());
+            }
 
             return 'ok';
         } catch (Throwable) {
