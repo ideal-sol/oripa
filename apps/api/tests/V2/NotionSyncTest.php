@@ -373,6 +373,43 @@ final class NotionSyncTest extends TestCase
         self::assertTrue(\Illuminate\Support\Facades\Schema::hasTable('notion_sync_runs'));
     }
 
+    public function test_draw_and_exchange_commit_replay_rollback_and_enqueue_failure_remain_independent(): void
+    {
+        CarbonImmutable::setTestNow('2026-07-30T00:00:00Z');
+        Http::fake();
+        app(V2CatalogFixtureImporter::class)->import(json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR));
+        $user = \Tests\V2\Fixtures\SmsVerifiedUser::create(['email_display' => 'notion-prize@example.test',
+            'email_normalized' => 'notion-prize@example.test', 'email_verified_at' => now(),
+            'password_hash' => app(\App\Domain\Identity\Services\V2PasswordPolicy::class)->hash('synthetic-password'),
+            'state' => \App\Domain\Identity\Enums\V2UserState::Active]);
+        app(\App\Domain\Point\Services\V2PointService::class)->grantFree($user->id, 100000, 'notion-draw-points');
+        $this->app->instance(\App\Domain\Draw\Services\V2CryptographicRandomSource::class,
+            new \App\Domain\Draw\Services\V2CryptographicRandomSource(static fn (int $minimum, int $maximum): int => $minimum));
+        foreach (['first', 'second'] as $key) {
+            app(\App\Domain\Draw\Services\V2DrawService::class)->create($user,
+                '0198a001-0000-7000-8000-000000000011', 1, 'notion-draw-'.$key, (string) Str::uuid7());
+        }
+        self::assertDatabaseCount('notion_sync_runs', 0);
+        $prizes = DB::table('user_prizes')->where('user_id', $user->id)->orderBy('id')->pluck('public_id');
+        $shipping = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class);
+        DB::beginTransaction();
+        $shipping->exchange($user, [$prizes[0]], 'notion-exchange-rollback', (string) Str::uuid7());
+        DB::rollBack();
+        self::assertDatabaseCount('notion_sync_runs', 0);
+        self::assertSame('stored', DB::table('user_prizes')->where('public_id', $prizes[0])->value('status'));
+        $shipping->exchange($user, [$prizes[0]], 'notion-exchange-commit', (string) Str::uuid7());
+        self::assertDatabaseCount('notion_sync_runs', 1);
+        DB::table('notion_sync_runs')->update(['status' => 'completed', 'completed_at' => now()]);
+        self::assertTrue($shipping->exchange($user, [$prizes[0]], 'notion-exchange-commit', (string) Str::uuid7())['idempotent_replay']);
+        self::assertDatabaseCount('notion_sync_runs', 1);
+        DB::statement('ALTER TABLE notion_sync_runs RENAME TO notion_sync_runs_unavailable');
+        try {
+            $shipping->exchange($user, [$prizes[1]], 'notion-exchange-no-queue', (string) Str::uuid7());
+            self::assertSame('converted', DB::table('user_prizes')->where('public_id', $prizes[1])->value('status'));
+        } finally { DB::statement('ALTER TABLE notion_sync_runs_unavailable RENAME TO notion_sync_runs'); }
+        Http::assertNothingSent();
+    }
+
     public function test_thousand_pages_with_hundred_updates_measures_real_limiter(): void
     {
         $this->app->forgetInstance(NotionClock::class);

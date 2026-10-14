@@ -53,7 +53,7 @@ test("permission denial does not issue inventory requests", async ({ page }) => 
 });
 
 test("Admin queues an idempotent sync and sees cached negative stock", async ({ page }) => {
-  await page.context().addCookies([{ name: "__Host-oripa_admin_xsrf", value: "synthetic-xsrf",
+  await page.context().addCookies([{ name: "__Host-oripa_admin_xsrf", value: "a".repeat(64),
     domain: "127.0.0.1", path: "/", secure: true, sameSite: "Strict" }]);
   let queued = false;
   const run = { id: "synthetic-run", status: "queued", trigger: "manual", error_code: null, read_count: 0,
@@ -68,7 +68,7 @@ test("Admin queues an idempotent sync and sees cached negative stock", async ({ 
     if (url.pathname.endsWith("/integrations/notion/status")) return json({ enabled: true, configured: true, latest: queued ? run : null, active: queued ? run : null, last_success_at: null, last_failure_at: null, error_code: null });
     if (url.pathname.endsWith("/integrations/notion/sync-runs")) {
       expect(request.method()).toBe("POST");
-      expect(request.headers()["x-xsrf-token"]).toBe("synthetic-xsrf");
+      expect(request.headers()["x-xsrf-token"]).toBe("a".repeat(64));
       expect(request.headers()["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
       queued = true;
       return json(run, 202);
