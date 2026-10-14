@@ -1607,11 +1607,149 @@
         }
       }
     },
+    "/integrations/notion/sync-runs": {
+      "get": {
+        "operationId": "listAdminNotionSyncRuns",
+        "summary": "Notion同期履歴を参照する",
+        "description": "catalog.read required. Latest 50 runs; no credentials or raw provider responses.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同期履歴。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNotionSyncCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminNotionSyncRun",
+        "summary": "Notion同期を予約する",
+        "description": "catalog.manage required. Existing active run is reused, including requests with different keys. Disabled or invalid configuration fails closed. No synchronous provider requests.",
+        "x-idempotency": "required",
+        "x-rate-limit": "admin-write",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "同期予約。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNotionSyncRun"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/integrations/notion/sync-runs/{id}": {
+      "get": {
+        "operationId": "getAdminNotionSyncRun",
+        "summary": "Notion同期結果を参照する",
+        "description": "catalog.read required. Warning identifiers are bounded to 200 per category.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同期結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNotionSyncRun"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/integrations/notion/status": {
+      "get": {
+        "operationId": "getAdminNotionStatus",
+        "summary": "Notion同期状態を参照する",
+        "description": "catalog.read required. Configuration presence only; no secret, property mapping or provider IDs.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "同期状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminNotionStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/inventory/cards": {
       "get": {
         "operationId": "listAdminInventoryCards",
         "summary": "管理ID別のカード在庫を参照する",
-        "description": "catalog.read required. One PostgreSQL statement snapshot per request; separate cursor requests do not share a snapshot. QA ownership is excluded. Missing published inventory returns PRIZE_INVENTORY_UNAVAILABLE (409). Notion values remain null; negative_only returns an empty collection until F6.",
+        "description": "catalog.read required. One PostgreSQL statement snapshot per request; separate cursor requests do not share a snapshot. QA ownership is excluded. Missing published inventory returns PRIZE_INVENTORY_UNAVAILABLE (409). Notion values are cached observations; unknown values remain null. negative_only filters cached negative available values before pagination.",
         "x-idempotency": "safe",
         "x-rate-limit": "admin-read",
         "x-cache-policy": "no-store",
@@ -13353,6 +13491,194 @@
           }
         }
       },
+      "AdminNotionSyncRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "trigger",
+          "read_count",
+          "updated_count",
+          "unchanged_count",
+          "duplicate_count",
+          "invalid_count",
+          "missing_count",
+          "failed_count",
+          "error_code",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "duplicate_ids",
+          "missing_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "periodic",
+              "business"
+            ]
+          },
+          "read_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unchanged_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicate_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invalid_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duplicate_ids": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_ids": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AdminNotionSyncCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/AdminNotionSyncRun"
+            }
+          }
+        }
+      },
+      "AdminNotionStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "configured",
+          "latest",
+          "active",
+          "last_success_at",
+          "last_failure_at",
+          "error_code"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminNotionSyncRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminNotionSyncRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_failure_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminInventoryCard": {
         "type": "object",
         "additionalProperties": false,
@@ -13412,16 +13738,25 @@
             "minimum": 0
           },
           "notion_on_hand": {
-            "type": "null",
-            "description": "F6未連携。"
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "最後に読んだ手持ち枚数。未確認はnull。"
           },
           "notion_available": {
-            "type": "null",
-            "description": "F6未連携。負数判定不可。"
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Notionの数式による空き在庫。更新後未確認はnull。"
           },
           "notion_read_at": {
-            "type": "null",
-            "description": "F6未連携。"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -26856,6 +27191,26 @@
     "scope": "rank-master-gacha-rank-clean-cutover"
   },
   "x-oripa-error-codes": {
+    "NOTION_DISABLED": {
+      "status": 409,
+      "retryable": false,
+      "description": "Notion連携は無効です。"
+    },
+    "NOTION_CONFIGURATION_INVALID": {
+      "status": 503,
+      "retryable": false,
+      "description": "Notion設定を安全な管理経路で確認してください。"
+    },
+    "NOTION_RUN_NOT_FOUND": {
+      "status": 404,
+      "retryable": false,
+      "description": "同期ジョブが存在しません。"
+    },
+    "NOTION_SYNC_FAILED": {
+      "status": 503,
+      "retryable": false,
+      "description": "同期要求の処理に失敗しました。状態確認後に再試行してください。"
+    },
     "AGENCY_INVALID": {
       "status": 422,
       "retryable": false,

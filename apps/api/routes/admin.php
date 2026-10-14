@@ -177,6 +177,10 @@ Route::prefix('v2')
         Route::put('/point-purchase-plans/{planId}/limited-bonus-campaigns/{campaignId}', [V2AdminLimitedBonusCampaignController::class, 'update'])
             ->whereUuid('planId')->whereUuid('campaignId')
             ->name('v2.admin.point-purchase-plans.limited-bonus-campaigns.update');
+        Route::get('/integrations/notion/status', [\App\Http\Controllers\V2\V2AdminNotionController::class, 'status'])->name('v2.admin.notion.status');
+        Route::get('/integrations/notion/sync-runs', [\App\Http\Controllers\V2\V2AdminNotionController::class, 'index'])->name('v2.admin.notion.index');
+        Route::post('/integrations/notion/sync-runs', [\App\Http\Controllers\V2\V2AdminNotionController::class, 'store'])->name('v2.admin.notion.store');
+        Route::get('/integrations/notion/sync-runs/{id}', [\App\Http\Controllers\V2\V2AdminNotionController::class, 'show'])->whereUuid('id')->name('v2.admin.notion.show');
         Route::get('/inventory/cards', [V2AdminCardInventoryController::class, 'index'])->name('v2.admin.inventory.cards');
         Route::get('/inventory/cards/{externalId}', [V2AdminCardInventoryController::class, 'show'])->name('v2.admin.inventory.card');
         Route::get('/inventory/unlinked-prizes', [V2AdminCardInventoryController::class, 'unlinked'])->name('v2.admin.inventory.unlinked');

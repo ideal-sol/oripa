@@ -1,0 +1,31 @@
+services:
+  api:
+    environment: &notion_environment
+      V2_NOTION_ENABLED: ${V2_NOTION_ENABLED:-false}
+      V2_NOTION_TOKEN: ${V2_NOTION_TOKEN:-}
+      V2_NOTION_DATA_SOURCE_ID: ${V2_NOTION_DATA_SOURCE_ID:-}
+      V2_NOTION_PROPERTY_EXTERNAL_ID: ${V2_NOTION_PROPERTY_EXTERNAL_ID:-管理ID}
+      V2_NOTION_PROPERTY_ON_HAND: ${V2_NOTION_PROPERTY_ON_HAND:-手持ち枚数}
+      V2_NOTION_PROPERTY_AVAILABLE: ${V2_NOTION_PROPERTY_AVAILABLE:-空き在庫}
+      V2_NOTION_PROPERTY_REQUIRED: ${V2_NOTION_PROPERTY_REQUIRED:-確保必要数}
+      V2_NOTION_PROPERTY_ALLOCATION: ${V2_NOTION_PROPERTY_ALLOCATION:-企画割当}
+      V2_NOTION_PROPERTY_STORED: ${V2_NOTION_PROPERTY_STORED:-当選保管中}
+      V2_NOTION_PROPERTY_SHIPPED: ${V2_NOTION_PROPERTY_SHIPPED:-}
+      V2_NOTION_PROPERTY_SYNCED_AT: ${V2_NOTION_PROPERTY_SYNCED_AT:-}
+      V2_NOTION_SYNC_INTERVAL_MINUTES: ${V2_NOTION_SYNC_INTERVAL_MINUTES:-15}
+      V2_NOTION_REQUESTS_PER_SECOND: ${V2_NOTION_REQUESTS_PER_SECOND:-3}
+      V2_NOTION_MAX_RETRIES: ${V2_NOTION_MAX_RETRIES:-5}
+      V2_NOTION_TIMEOUT_SECONDS: ${V2_NOTION_TIMEOUT_SECONDS:-20}
+      V2_NOTION_LEASE_SECONDS: ${V2_NOTION_LEASE_SECONDS:-120}
+      V2_NOTION_FAILURE_BACKOFF_SECONDS: ${V2_NOTION_FAILURE_BACKOFF_SECONDS:-300}
+  notion-worker:
+    image: ${V2_NOTION_WORKER_IMAGE:?Reviewed immutable API image required}
+    profiles: [notion]
+    env_file: ${V2_NOTION_WORKER_ENV_FILE:?Site-specific external API environment file required}
+    environment: *notion_environment
+    command: ["php", "artisan", "v2:notion:sync", "--loop"]
+    restart: unless-stopped
+    stop_grace_period: 90s
+    networks: [v2_private, v2_api_egress]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]

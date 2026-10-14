@@ -16,6 +16,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 - [Shared Preview Credential Rotation](preview-credential-rotation.md)
 - [Shared Preview fincode Callbacks](preview-fincode-callbacks.md)
 - [SMS FourS Worker Activation](sms-fours-worker.md)
+- [F6 Notion Inventory Sync Activation Proposal](notion-inventory-sync.md)
 
 Provider-neutralな構造Example:
 

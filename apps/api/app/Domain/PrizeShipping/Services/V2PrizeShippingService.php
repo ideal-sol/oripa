@@ -1363,6 +1363,7 @@ final class V2PrizeShippingService
             'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
             'created_at' => V2DatabaseTimestamp::format($occurredAt),
         ]);
+        app(\App\Domain\Integrations\Notion\NotionSyncService::class)->afterBusinessCommit();
     }
 
     private function shippingHistory(

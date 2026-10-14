@@ -3985,6 +3985,12 @@ final class V2CatalogMasterMutationService
                     ->where('id', $claim->record->id)
                     ->update(['response_status' => $status]);
 
+                if (in_array($resource, ['prize', 'gacha', 'gacha_version'], true)
+                    && in_array($action, ['create', 'update', 'archive', 'clone', 'discard', 'prize_import', 'prize_remove',
+                        'gacha_immediate_publish', 'gacha_unpublish', 'gacha_schedule_create', 'gacha_schedule_cancel'], true)) {
+                    app(\App\Domain\Integrations\Notion\NotionSyncService::class)->afterBusinessCommit();
+                }
+
                 return [
                     'data' => $data,
                     'idempotent_replay' => false,
@@ -7732,6 +7738,7 @@ final class V2CatalogMasterMutationService
                 ],
                 'catalog-scheduled-publish-'.$schedule->public_id
             );
+            app(\App\Domain\Integrations\Notion\NotionSyncService::class)->afterBusinessCommit();
 
             return [
                 ...$result,

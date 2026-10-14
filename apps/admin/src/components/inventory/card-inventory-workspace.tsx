@@ -5,10 +5,11 @@ import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CursorPagination } from "@/components/catalog/cursor-pagination";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
+import { PermissionGate } from "@/components/permissions/permission-gate";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { AdminInventoryCard, AdminInventoryCardCollection, AdminInventoryCardDetail, AdminInventoryUnlinkedCollection } from "@/lib/admin-api/generated";
+import type { AdminInventoryCard, AdminInventoryCardCollection, AdminInventoryCardDetail, AdminInventoryUnlinkedCollection, AdminNotionStatus } from "@/lib/admin-api/generated";
 import styles from "./card-inventory.module.css";
 
 type Response = AdminInventoryCardCollection | AdminInventoryCardDetail | AdminInventoryUnlinkedCollection;
@@ -31,7 +32,7 @@ export function InventoryContent() {
   const [externalId, setExternalId] = useState("");
   const [searchId, setSearchId] = useState("");
   const [searchName, setSearchName] = useState("");
-  const [filters, setFilters] = useState({ external_id: "", name: "", reserved_only: false });
+  const [filters, setFilters] = useState({ external_id: "", name: "", reserved_only: false, negative_only: false });
   const [history, setHistory] = useState<(string | null)[]>([null]);
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
@@ -66,9 +67,7 @@ export function InventoryContent() {
 
   return <div className={`workspace ${styles.workspace}`}>
     <AdminPageHeader title="カード別在庫" eyebrow="Inventory" description="確保必要数は企画割当（未当選）と当選保管中の合計です。QA当選は含みません。" />
-    <section className={styles.notice} aria-label="Notion連携状態">
-      <strong>Notion：未連携</strong><span>手持ち枚数・空き在庫・最終読取日時：未連携</span>
-    </section>
+    <NotionStatus client={client} onCompleted={() => setReload((value) => value + 1)} />
     {view !== "cards" && <button className="secondary-button" type="button" onClick={() => open("cards")}>カード一覧へ戻る</button>}
     {view === "cards" && <form className={styles.filters} onSubmit={(event) => {
       event.preventDefault();
@@ -80,7 +79,9 @@ export function InventoryContent() {
       <label><input type="checkbox" checked={filters.reserved_only} onChange={(event) => {
         setFilters({ ...filters, reserved_only: event.target.checked }); setHistory([null]);
       }} />確保ありのみ</label>
-      <label><input type="checkbox" disabled />空き在庫がマイナスのみ（未連携）</label>
+      <label><input type="checkbox" checked={filters.negative_only} onChange={(event) => {
+        setFilters({ ...filters, negative_only: event.target.checked }); setHistory([null]);
+      }} />空き在庫がマイナスのみ</label>
       <button className="primary-button" type="submit">検索</button>
     </form>}
     {!current && <p role="status">在庫を読み込んでいます…</p>}
@@ -127,5 +128,60 @@ export function InventoryContent() {
 }
 
 function CardCells({ card }: { card: AdminInventoryCard }) {
-  return <>{[card.allocation, card.stored, card.required_quantity, card.shipped, card.returned].map((value, index) => <td key={index}>{value.toLocaleString("ja-JP")}</td>)}<td>未連携</td><td>未連携</td></>;
+  return <>{[card.allocation, card.stored, card.required_quantity, card.shipped, card.returned].map((value, index) => <td key={index}>{value.toLocaleString("ja-JP")}</td>)}
+    <td>{card.notion_on_hand?.toLocaleString("ja-JP") ?? "未連携・未確認"}<br /><small>最終読取：{formatReadAt(card.notion_read_at)}</small></td>
+    <td className={card.notion_available !== null && card.notion_available < 0 ? styles.negative : undefined}>{card.notion_available?.toLocaleString("ja-JP") ?? "未連携・未確認"}</td></>;
+}
+
+function formatReadAt(value: string | null) {
+  return value === null ? "未読取" : new Date(value).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+}
+
+function NotionStatus({ client, onCompleted }: { client: AdminApiClient; onCompleted: () => void }) {
+  const { expireSession } = useAdminAuth();
+  const [status, setStatus] = useState<AdminNotionStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const read = () => client.notionStatus(controller.signal).then(setStatus).catch((cause: unknown) => {
+      if (controller.signal.aborted) return;
+      if (cause instanceof AdminApiError && cause.status === 401) expireSession();
+      setError("Notion同期状態を取得できませんでした。");
+    });
+    void read();
+    const timer = setInterval(() => { void read(); }, 10000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [client, expireSession, refresh]);
+
+  async function synchronize() {
+    setPending(true);
+    setError(null);
+    try {
+      await client.createNotionSyncRun(crypto.randomUUID());
+      setRefresh((value) => value + 1);
+      onCompleted();
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.status === 401) expireSession();
+      setError("同期を予約できませんでした。権限と設定を確認して再試行してください。");
+    } finally { setPending(false); }
+  }
+
+  return <section className={styles.notice} aria-label="Notion連携状態">
+    <strong>Notion：{status === null ? "確認中" : status.enabled ? "有効" : "無効"}</strong>
+    {status && <>
+      <span>{status.configured ? "設定済み" : "未設定"}</span>
+      <span>最終同期：{formatReadAt(status.latest?.completed_at ?? status.latest?.started_at ?? null)}</span>
+      <span>最終成功：{formatReadAt(status.last_success_at)} / 最終失敗：{formatReadAt(status.last_failure_at)}</span>
+      <span>更新：{status.latest?.updated_count ?? 0}件</span>
+      {status.active && <span role="status">{status.active.status === "queued" ? "同期待機中" : "同期実行中"}</span>}
+      {status.error_code && <span role="alert">{status.error_code}</span>}
+      {Boolean(status.latest?.missing_count) && <p role="alert">Notionに存在しない管理ID：{status.latest?.missing_count}件 {status.latest?.missing_ids.join("、")}</p>}
+      {Boolean(status.latest?.duplicate_count) && <p role="alert">重複管理ID：{status.latest?.duplicate_count}件 {status.latest?.duplicate_ids.join("、")}</p>}
+      {status.enabled && status.configured && <PermissionGate permission="catalog.manage"><button type="button" className="primary-button" disabled={pending || status.active !== null} onClick={() => { void synchronize(); }}>今すぐ同期</button></PermissionGate>}
+    </>}
+    {error && <p role="alert">{error}</p>}
+    <button type="button" className="secondary-button" onClick={() => { setRefresh((value) => value + 1); onCompleted(); }}>状態・在庫を再読込</button>
+  </section>;
 }

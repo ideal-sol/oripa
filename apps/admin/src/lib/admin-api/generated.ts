@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 8263301d38978f2716de1c0331c985c88e359d8186797944fdf372fa0dfc1cf3
+// Contract SHA-256: a9c92bb94d6dd43f4cc140c5d0fcd0a8ff46832f74c543860cfe52d2b04c6d03
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1547,6 +1547,36 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminNotionSyncRun {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  trigger: "manual" | "periodic" | "business";
+  read_count: number;
+  updated_count: number;
+  unchanged_count: number;
+  duplicate_count: number;
+  invalid_count: number;
+  missing_count: number;
+  failed_count: number;
+  error_code: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duplicate_ids: string[];
+  missing_ids: string[];
+}
+export interface AdminNotionSyncCollection {
+  items: AdminNotionSyncRun[];
+}
+export interface AdminNotionStatus {
+  enabled: boolean;
+  configured: boolean;
+  latest: AdminNotionSyncRun | null;
+  active: AdminNotionSyncRun | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  error_code: string | null;
+}
 export interface AdminInventoryCard {
   external_id: string;
   name: string | null;
@@ -1556,9 +1586,9 @@ export interface AdminInventoryCard {
   required_quantity: number;
   shipped: number;
   returned: number;
-  notion_on_hand: null;
-  notion_available: null;
-  notion_read_at: null;
+  notion_on_hand: number | null;
+  notion_available: number | null;
+  notion_read_at: string | null;
 }
 export interface AdminInventoryCardCollection {
   items: AdminInventoryCard[];

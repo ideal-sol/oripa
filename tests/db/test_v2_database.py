@@ -20,6 +20,23 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_notion_migration_inventory_and_forward_only_guard(self):
+        filename = "2026_10_14_000085_create_v2_notion_inventory_sync.php"
+        message = "Notion sync history requires a forward correction migration."
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        tables = sorted("public." + name for name in re.findall(r"Schema::create\('([^']+)'", source))
+        self.assertEqual(tables, [name for name in v2_database.EXPECTED_V2_SCHEMA_INVENTORY if name.startswith("public.notion_")])
+        self.assertEqual(len(tables), 5)
+        self.assertIn("throw new LogicException('" + message + "');", source)
+        self.assertIn("CREATE UNIQUE INDEX notion_one_active_run", source)
+        self.assertIn("timestampTz('next_request_at', 6)", source)
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"85"), mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertIn(message, run.call_args.args[0][-1])
+
     def test_banner_asset_operation_inventory_and_forward_only_guard(self):
         filename = "2026_10_13_000084_create_v2_banner_asset_operations.php"
         message = "Banner asset operations require a forward correction migration."
