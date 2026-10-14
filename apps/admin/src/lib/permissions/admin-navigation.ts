@@ -1,6 +1,7 @@
 import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 
 export type AdminRouteId =
+  | "inventory-cards"
   | "agencies"
   | "agency-users"
   | "agency-sales"
@@ -91,6 +92,7 @@ export interface AdminNavigationGroup {
 export type AdminNavigationNode = AdminNavigationItem | AdminNavigationGroup;
 
 const ADMIN_ROUTE_ITEMS = validateRoutes([
+  route("inventory-cards", "カード別在庫", "/inventory/cards", "catalog.read", "prize", "available"),
   route("agencies", "代理店一覧", "/agencies", "agency.read", "users", "available"),
   route("agency-users", "ユーザー集計", "/agencies/aggregates/users", "agency.read", "reports", "available", "none"),
   route("agency-sales", "売上集計", "/agencies/aggregates/sales", "agency.read", "reports", "available", "none"),
@@ -148,6 +150,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
   group("payment", "決済", "purchase", ["payments"]),
   group("shipping", "配送", "shipping", ["shipping"]),
   navigationItem("user-prizes"),
+  navigationItem("inventory-cards"),
   group("purchase", "ポイント購入", "purchase", [
     "purchase-plans",
     "purchase-plans-create",

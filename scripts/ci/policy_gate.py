@@ -969,7 +969,15 @@ S3_PHASE1_ADMIN_FILES = {
     "apps/admin/test/asset-delivery.test.tsx",
 }
 
+INVENTORY_20261014_ADMIN_FILES = {
+    "apps/admin/e2e/card-inventory.spec.ts",
+    "apps/admin/src/app/inventory/cards/page.tsx",
+    "apps/admin/src/components/inventory/card-inventory-workspace.tsx",
+    "apps/admin/src/components/inventory/card-inventory.module.css",
+    "apps/admin/test/card-inventory.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
+    *INVENTORY_20261014_ADMIN_FILES,
     *S3_PHASE1_ADMIN_FILES,
     "apps/admin/e2e/admin-gacha-notices.spec.ts",
     "apps/admin/src/app/settings/gacha-notices/page.tsx",

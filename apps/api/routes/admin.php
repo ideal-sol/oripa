@@ -38,6 +38,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\V2\V2AdminAuthController;
 use App\Http\Controllers\V2\V2AdminAuthenticationPolicyController;
 use App\Http\Controllers\V2\V2AdminCatalogController;
+use App\Http\Controllers\V2\V2AdminCardInventoryController;
 use App\Http\Controllers\V2\V2AdminPermissionController;
 use App\Http\Controllers\V2\V2AdminQaDrawController;
 use App\Http\Controllers\V2\V2AdminReportingController;
@@ -176,6 +177,9 @@ Route::prefix('v2')
         Route::put('/point-purchase-plans/{planId}/limited-bonus-campaigns/{campaignId}', [V2AdminLimitedBonusCampaignController::class, 'update'])
             ->whereUuid('planId')->whereUuid('campaignId')
             ->name('v2.admin.point-purchase-plans.limited-bonus-campaigns.update');
+        Route::get('/inventory/cards', [V2AdminCardInventoryController::class, 'index'])->name('v2.admin.inventory.cards');
+        Route::get('/inventory/cards/{externalId}', [V2AdminCardInventoryController::class, 'show'])->name('v2.admin.inventory.card');
+        Route::get('/inventory/unlinked-prizes', [V2AdminCardInventoryController::class, 'unlinked'])->name('v2.admin.inventory.unlinked');
         Route::get('/catalog/categories', [V2AdminCatalogController::class, 'categories'])
             ->name('v2.admin.catalog.categories.index');
         Route::post('/catalog/categories', [V2AdminCatalogController::class, 'createCategory'])
