@@ -2,11 +2,11 @@
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
   "task_id": "OLDTEST-20261013",
-  "source_pr": 553,
-  "source_sha": "450ba4ff29bc95d75c189ab963c4f6b7ac5fece4",
+  "source_pr": 562,
+  "source_sha": "da0b12f57c0072da03afd59ead86a0528e306b67",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR #553 squash merge under S3-CSV-STOREFRONT-OLDTEST-20261013; reviewed head d7ea26df451a341b4065cb70084a30c29241689f has the same tree as this payload. Authority Sync merge requires separate exact-PR/head Human GO. Canonical API and Admin artifact preparation follows that GO; runtime activation, migrations, final asset delta upload and Storefront public switch require a subsequent combined Human GO and Human ENV completion. ENV file access is Human-only. No Production or NEW activation is authorized.",
+  "authority": "Human-approved exact OLD Test payload: PR #562 squash merge under OLDTEST-S3-CSV-SIGNUP-CONTINUE-20261014; reviewed head 560364302bbb7e39794a27a6c633d41ed2511fff has the same tree as this payload. Includes S3 and 503 fixes from PR #553, prize and Banner CSV including PR #559, signup/SMS API from PR #555, and read-only S3 ListObjectsV2 healthcheck from PR #562. Supersedes the prior PR #553 payload candidate. Authority Sync PR #561 merge requires separate exact-PR/head Human GO. Canonical API and Admin artifact preparation follows that GO; runtime activation, migrations, final asset delta upload and Storefront public switch require a subsequent combined Human GO and Human ENV completion. ENV file access is Human-only. No Production or NEW activation is authorized.",
   "activation_authorized": false
 }
