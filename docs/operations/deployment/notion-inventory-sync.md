@@ -32,6 +32,11 @@ have its own restricted integration and data source. Never enter tokens in the
 Admin UI, store them in the database/repository, or print resolved Compose config.
 Supply the same environment to API and worker from the approved external secret
 management path. Do not share tokens or data sources across customers.
+The API overlay uses Compose interpolation; the worker takes all settings directly
+from its Site-specific `env_file`, without an `environment` override. Provide the
+complete worker settings there; omitted values use application defaults (OFF),
+not host-shell Notion values. Compose `environment` overrides `env_file` even
+when empty, so do not add the API's interpolation block to the worker.
 
 | Environment | Default / constraint |
 | --- | --- |
@@ -96,6 +101,8 @@ Unknown PATCH outcomes are read back before another PATCH, including the final
 attempt. This suppresses duplicates but does not claim external exactly-once.
 
 Schema and **all** query pages are validated before any PATCH. Pagination is 100;
+each query/retry includes `filter_properties[]` with the validated mapping's
+property IDs, including configured optional columns, excluding unrelated ones.
 `request_status.type` must be complete; the 10,000-page-item ceiling and repeated
 or missing cursors fail closed. Duplicate IDs skip every corresponding page;
 F5-only IDs are reported, Notion-only IDs are reset to zero, invalid IDs skip.
@@ -171,6 +178,8 @@ OLD Test work and AWS connection impact UNKNOWN remain unchanged.
 ## Official protocol references
 
 Checked for the fixed 2026-03-11 protocol, not real Site credentials or data:
+
+- [Compose environment and env_file precedence](https://docs.docker.com/reference/compose-file/services/#env_file)
 
 - [Versioning](https://developers.notion.com/reference/versioning)
 - [Retrieve data source](https://developers.notion.com/reference/retrieve-a-data-source)

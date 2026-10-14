@@ -1,6 +1,6 @@
 services:
   api:
-    environment: &notion_environment
+    environment:
       V2_NOTION_ENABLED: ${V2_NOTION_ENABLED:-false}
       V2_NOTION_TOKEN: ${V2_NOTION_TOKEN:-}
       V2_NOTION_DATA_SOURCE_ID: ${V2_NOTION_DATA_SOURCE_ID:-}
@@ -22,7 +22,6 @@ services:
     image: ${V2_NOTION_WORKER_IMAGE:?Reviewed immutable API image required}
     profiles: [notion]
     env_file: ${V2_NOTION_WORKER_ENV_FILE:?Site-specific external API environment file required}
-    environment: *notion_environment
     command: ["php", "artisan", "v2:notion:sync", "--loop"]
     restart: unless-stopped
     stop_grace_period: 90s

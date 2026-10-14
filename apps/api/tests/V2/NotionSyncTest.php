@@ -241,7 +241,7 @@ final class NotionSyncTest extends TestCase
             self::assertSame(0, DB::transactionLevel());
             if ($request->method() === 'PATCH') { $patches++; return Http::response(['message' => 'synthetic-notion-test-value'], 503); }
             if (str_contains($request->url(), '/pages/')) { return Http::response($this->page('CARD', 0, $page['id'])); }
-            if (str_ends_with($request->url(), '/query')) { return Http::response($this->queryResponse([$page])); }
+            if (str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/query')) { return Http::response($this->queryResponse([$page])); }
             $reads++;
             return $reads === 1 ? Http::response([], 429, ['Retry-After' => '120']) : Http::response($this->schema());
         });
@@ -383,7 +383,7 @@ final class NotionSyncTest extends TestCase
                     'has_more' => false, 'next_cursor' => null]);
             }
             if ($request->method() === 'PATCH') { return Http::response([]); }
-            return Http::response(str_ends_with($request->url(), '/query') ? $this->queryResponse([$page, $trash]) : $this->schema());
+            return Http::response(str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/query') ? $this->queryResponse([$page, $trash]) : $this->schema());
         });
         self::assertSame(1, $this->synchronize()['updated_count']);
         self::assertSame('COMPLETE', DB::table('notion_inventory_cache')->value('external_id'));
@@ -452,7 +452,7 @@ final class NotionSyncTest extends TestCase
             $requests++;
             self::assertSame(0, DB::transactionLevel());
             if ($request->method() === 'PATCH') { return Http::response([]); }
-            if (str_ends_with($request->url(), '/query')) {
+            if (str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/query')) {
                 self::assertSame(100, $request['page_size']);
                 self::assertSame($queries === 0 ? null : (string) $queries, $request['start_cursor'] ?? null);
                 $offset = $queries++ * 100;
@@ -480,6 +480,73 @@ final class NotionSyncTest extends TestCase
         self::assertSame(1, app(NotionSyncWorker::class)->runOnce());
 
         return app(NotionSyncService::class)->result($run['id']);
+    }
+
+    #[DataProvider('queryPropertyOptions')]
+    public function test_query_filters_use_mapped_ids_on_every_page_and_retry(bool $optional): void
+    {
+        config(['v2_notion.properties.external_id' => 'Custom ID',
+            'v2_notion.properties.shipped' => $optional ? 'Custom Shipped' : null,
+            'v2_notion.properties.synced_at' => $optional ? 'Custom Sync Time' : null]);
+        $schema = $this->schema();
+        $pages = [$this->page('DUP', 1), $this->page('ONLY', 1), $this->page('DUP', 2)];
+        $expected = [];
+        foreach ($schema['properties'] as $name => &$property) {
+            $property['id'] = 'mapped%3A'.$property['id'].'&value';
+            $expected[] = $property['id'];
+            foreach ($pages as &$page) {
+                $page['properties'][$name]['id'] = $property['id'];
+            }
+            unset($page);
+        }
+        unset($property);
+        $schema['properties']['Unrelated private notes'] = ['id' => 'unrelated', 'type' => 'rich_text'];
+        $attempts = 0;
+        $completePages = 0;
+        Http::fake(function ($request) use ($schema, $pages, $expected, &$attempts, &$completePages) {
+            if ($request->method() === 'PATCH') {
+                self::assertSame(2, $completePages);
+                return Http::response([]);
+            }
+            if ($request->method() === 'GET') { return Http::response($schema); }
+            parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
+            self::assertSame(['filter_properties' => $expected], $query);
+            self::assertArrayNotHasKey('filter_properties', $request->data());
+            self::assertSame(100, $request['page_size']);
+            self::assertSame($completePages === 0 ? null : 'cursor & next', $request['start_cursor'] ?? null);
+            if (++$attempts === 1) { return Http::response([], 429, ['Retry-After' => '1']); }
+            $completePages++;
+            return Http::response(array_replace($this->queryResponse($completePages === 1 ? array_slice($pages, 0, 2) : [$pages[2]]),
+                ['has_more' => $completePages === 1, 'next_cursor' => $completePages === 1 ? 'cursor & next' : null]));
+        });
+        $result = $this->synchronize();
+        self::assertSame('completed', $result['status']);
+        self::assertCount($optional ? 8 : 6, $expected);
+        self::assertSame(3, $attempts);
+        self::assertSame(1, $result['updated_count']);
+        self::assertSame(['DUP'], $result['duplicate_ids']);
+        Http::assertSentCount(5);
+    }
+
+    public static function queryPropertyOptions(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function test_query_rejects_missing_invalid_or_wrong_mapping_without_unfiltered_requests(): void
+    {
+        Http::fake();
+        $mapping = app(NotionSchema::class)->validate($this->schema());
+        foreach (['missing', 'empty', 'type', 'name'] as $invalid) {
+            $altered = $mapping;
+            if ($invalid === 'missing') { unset($altered['on_hand']); }
+            elseif ($invalid === 'empty') { $altered['on_hand']['id'] = ''; }
+            elseif ($invalid === 'type') { $altered['on_hand']['id'] = 12; }
+            else { $altered['on_hand']['name'] = 'Unrelated'; }
+            try { app(NotionClient::class)->query(null, $altered); self::fail('Unfiltered or incomplete query accepted'); }
+            catch (NotionException $error) { self::assertSame('NOTION_SCHEMA_MISMATCH', $error->errorCode); }
+        }
+        Http::assertNothingSent();
     }
 
     private function schema(): array
@@ -535,7 +602,7 @@ final class NotionSyncTest extends TestCase
                 self::assertArrayNotHasKey('管理ID', $request['properties']);
                 return Http::response([], str_ends_with($request->url(), '/'.$failPage) ? 400 : 200);
             }
-            return Http::response(str_ends_with($request->url(), '/query') ? array_replace($this->queryResponse($pages), $override) : $this->schema());
+            return Http::response(str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/query') ? array_replace($this->queryResponse($pages), $override) : $this->schema());
         });
     }
 }

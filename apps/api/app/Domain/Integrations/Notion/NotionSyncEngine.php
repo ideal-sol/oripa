@@ -60,7 +60,7 @@ final class NotionSyncEngine
         $cursors = [];
         $read = 0;
         do {
-            $response = $this->client->query($cursor);
+            $response = $this->client->query($cursor, $mapping);
             if (($response['request_status']['type'] ?? null) !== 'complete' || ($response['object'] ?? null) !== 'list'
                 || ! is_bool($response['has_more'] ?? null) || ! is_array($response['results'] ?? null)
                 || count($response['results']) > 100) {

@@ -29,11 +29,22 @@ final class NotionClient
         return $this->request('GET', '/data_sources/'.config('v2_notion.data_source_id'));
     }
 
-    public function query(?string $cursor): array
+    public function query(?string $cursor, array $mapping): array
     {
         $this->config->assertReady();
+        $filters = [];
+        foreach (config('v2_notion.properties') as $field => $name) {
+            if ($name === null || $name === '') {
+                continue;
+            }
+            $definition = $mapping[$field] ?? null;
+            if (($definition['name'] ?? null) !== $name || ! is_string($definition['id'] ?? null) || $definition['id'] === '') {
+                throw new NotionException('NOTION_SCHEMA_MISMATCH');
+            }
+            $filters[] = 'filter_properties%5B%5D='.rawurlencode($definition['id']);
+        }
 
-        return $this->request('POST', '/data_sources/'.config('v2_notion.data_source_id').'/query',
+        return $this->request('POST', '/data_sources/'.config('v2_notion.data_source_id').'/query?'.implode('&', $filters),
             ['page_size' => 100, ...($cursor === null ? [] : ['start_cursor' => $cursor])]);
     }
 
