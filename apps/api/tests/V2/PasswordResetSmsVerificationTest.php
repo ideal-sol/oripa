@@ -436,8 +436,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             $validChallenge->public_id
         )['verification_code'];
 
-        $this->travel(59)->minutes();
-        $this->travel(59)->seconds();
+        $this->travelTo($validChallenge->expires_at->copy()->subSecond());
         self::assertSame('accepted', $service->status($validUser)['challenge']['status']);
         self::assertTrue($service->verify(
             $validUser,
@@ -457,7 +456,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             $expiredChallenge->public_id
         )['verification_code'];
 
-        $this->travel(60)->minutes();
+        $this->travelTo($expiredChallenge->expires_at);
         self::assertSame('expired', $service->status($expiredUser)['challenge']['status']);
         try {
             $service->verify(
@@ -471,6 +470,7 @@ final class PasswordResetSmsVerificationTest extends TestCase
             self::assertSame('INVALID_SMS_VERIFICATION', $exception->errorCode);
         }
         self::assertNotNull($expiredChallenge->refresh()->revoked_at);
+        $this->travelBack();
     }
 
     public function test_invalid_sms_otp_ttl_configuration_fails_before_persistence(): void
