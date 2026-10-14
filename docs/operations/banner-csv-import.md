@@ -12,6 +12,20 @@ separate Human GO. Source and synthetic verification are not S3 acceptance.
 
 ## Input and retained results
 
+### Image-host policy amendment
+
+Human decision `BANNERCSV-F2B-HOST-20261014` removes only the application Host
+allowlist. See [the exact specification delta](banner-csv-host-policy-20261014.md)
+for authority mapping, retained controls, residual risks and rollback.
+`V2_BANNER_IMPORT_IMAGE_HOSTS` is no longer read; absent, empty or stale values do
+not restrict eligible domains. Multiple domains in a CSV are validated per row.
+HTTPS/443, valid domain syntax, no IP literal/userinfo, all-DNS-answer Public IP
+checks, pinned connections, no redirect/proxy, TLS verification, time/size/MIME
+limits and secret non-disclosure remain mandatory. Network egress policy is a
+separate control and is not changed by this Source decision. Runtime ENV cleanup
+and OLD Test/Production verification belong to the separately authorized owner;
+this task does not create a deployment candidate or activation handoff.
+
 New submissions accept 1–200 data rows, excluding the header, and 2 MiB UTF-8
 with BOM support. Physical line numbers, quoting, trim and header aliases remain
 unchanged. All validation precedes Job/Row/Idempotency/Asset/Banner writes.
@@ -171,6 +185,6 @@ The latest Human GO permits isolated development independently of that separate
 operational investigation. Current Security HOLD is not lifted by these tests.
 
 Remaining separate acceptance: S3 adapter/ACL + 503 review, destination and timeout
-configuration, live S3/CloudFront behavior, real approved-host egress, runtime worker
+configuration, live S3/CloudFront behavior, separately authorized public-host egress, runtime worker
 and independent purge scheduling, backup/retention policy, OLD Test and Human
 browser acceptance. Production/NEW deployment and automatic GC are not authorized.

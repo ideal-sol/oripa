@@ -17,10 +17,8 @@ final class V2BannerImportUrlPolicy
             $this->reject('IMAGE_URL_INVALID');
         }
         $host = strtolower($parts['host'] ?? '');
-        $allowed = config('v2_banner_import.image_hosts', []);
-        if (! is_array($allowed) || $host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false
-            || ! preg_match('/\A[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\z/', $host)
-            || ! in_array($host, $allowed, true)) {
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false
+            || ! preg_match('/\A[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\z/', $host)) {
             $this->reject('IMAGE_HOST_NOT_ALLOWED');
         }
         return $host;

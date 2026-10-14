@@ -44,7 +44,6 @@ class BannerImportTest extends TestCase
         Storage::set('local', $storage);
         config(['filesystems.disks.local.root' => $storage->path('')]);
         config(['filesystems.default' => 'local', 'cache.default' => 'array', 'v2_banner_import.enabled' => true,
-            'v2_banner_import.image_hosts' => ['images.example.test'],
             'v2_banner_import.storage_generation' => 'synthetic-storage-v1',
             'v2_audit.active_hmac_key_version' => 'v1', 'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_audit.business_timezone' => 'Asia/Tokyo', 'v2_identity.origins.user' => 'https://storefront.example.test']);
@@ -127,6 +126,32 @@ class BannerImportTest extends TestCase
         self::assertDatabaseCount('catalog_presentation_assets', 1);
     }
 
+    public function test_multiple_unlisted_domains_complete_with_encrypted_urls_and_no_secret_in_results_or_audit(): void
+    {
+        config(['v2_banner_import.image_hosts' => ['obsolete.example.test']]);
+        $input = $this->input("CARD-1,画像1,https://first.example.test/a?signature=synthetic-secret,\nCARD-2,画像2,https://second.example.test/a?signature=synthetic-secret,");
+        $key = (string) Str::uuid7();
+        $job = $this->imports->create($this->context, $input, $key);
+        self::assertSame($job['id'], $this->imports->create($this->context, $input, $key)['id']);
+        self::assertDatabaseCount('content_banner_import_jobs', 1);
+        self::assertDatabaseCount('content_banner_import_rows', 2);
+        $resolver = $this->createMock(V2BannerImportResolver::class);
+        $resolver->expects(self::exactly(2))->method('resolve')
+            ->with(self::callback(static fn (string $host): bool => in_array($host, ['first.example.test', 'second.example.test'], true)))
+            ->willReturn(['93.184.215.14']);
+        $this->app->instance(V2BannerImportResolver::class, $resolver);
+        self::assertSame(2, app(V2BannerImportWorker::class)->runOnce());
+        $result = $this->imports->result($job['id']);
+        self::assertSame('completed', $result['status']);
+        self::assertSame(2, $result['created']);
+        self::assertSame(0, $result['failed']);
+        self::assertSame(0, DB::table('content_banner_import_rows')->whereNotNull('url_ciphertext')->count());
+        $exposed = json_encode([$job, $result, DB::table('audit_logs')->get()]);
+        foreach (['first.example.test', 'second.example.test', 'synthetic-secret'] as $secret) {
+            self::assertStringNotContainsString($secret, $exposed);
+        }
+    }
+
     public function test_existing_published_top_settings_and_unmanaged_banner_are_preserved(): void
     {
         $unmanaged = $this->banner(null);
@@ -137,6 +162,9 @@ class BannerImportTest extends TestCase
         $resolver = $this->createMock(V2BannerImportResolver::class);
         $resolver->expects(self::never())->method('resolve');
         $this->app->instance(V2BannerImportResolver::class, $resolver);
+        $transport = $this->createMock(V2BannerImportTransport::class);
+        $transport->expects(self::never())->method('fetch');
+        $this->app->instance(V2BannerImportTransport::class, $transport);
         $job = $this->createJob('CARD-1,変更,not-a-url,');
         self::assertNull(DB::table('content_banner_import_rows')->value('url_ciphertext'));
         self::assertSame(1, app(V2BannerImportWorker::class)->runOnce());

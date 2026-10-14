@@ -98,7 +98,7 @@ final class BannerImportCsvTest extends BannerImportTest
 
     public function test_error_output_is_capped_at_two_hundred_without_values_or_urls(): void
     {
-        try { $this->createJob(str_repeat("bad/id,,https://forbidden.example.test/synthetic-secret,unknown\n", 200)); self::fail('Invalid rows accepted'); }
+        try { $this->createJob(str_repeat("bad/id,,http://forbidden.example.test/synthetic-secret,unknown\n", 200)); self::fail('Invalid rows accepted'); }
         catch (V2CatalogException $exception) {
             self::assertCount(200, $exception->details['errors']);
             self::assertSame(800, $exception->details['error_count']);
