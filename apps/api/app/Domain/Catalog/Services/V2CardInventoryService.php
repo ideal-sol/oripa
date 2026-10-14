@@ -146,7 +146,7 @@ final class V2CardInventoryService
                 SELECT *, external_id AS cursor_key FROM cards
                 WHERE external_id COLLATE "C" > ? COLLATE "C"
                     AND strpos(external_id, ?) > 0 AND strpos(lower(COALESCE(name, '')), lower(?)) > 0
-                    AND (? = 0 OR allocation + stored > 0) AND ? = 0
+                    AND (? = 0 OR allocation + stored > 0) AND (? = 0 OR notion_available < 0)
                 ORDER BY external_id COLLATE "C" LIMIT ?
             )
             SELECT COALESCE((SELECT jsonb_agg(to_jsonb(page) ORDER BY external_id COLLATE "C") FROM page), '[]') AS items,
@@ -245,9 +245,12 @@ final class V2CardInventoryService
             ), cards AS (
                 SELECT identities.external_id, library.name, library.asset_id, library.mime_type, library.alt_text,
                     COALESCE(totals.allocation, 0)::bigint AS allocation, COALESCE(totals.stored, 0)::bigint AS stored,
-                    COALESCE(totals.shipped, 0)::bigint AS shipped, COALESCE(totals.returned, 0)::bigint AS returned
+                    (COALESCE(totals.allocation, 0) + COALESCE(totals.stored, 0))::bigint AS required_quantity,
+                    COALESCE(totals.shipped, 0)::bigint AS shipped, COALESCE(totals.returned, 0)::bigint AS returned,
+                    notion.on_hand AS notion_on_hand, notion.available AS notion_available, notion.read_at AS notion_read_at
                 FROM identities LEFT JOIN totals ON totals.external_id = identities.external_id
                 LEFT JOIN library ON library.external_id = identities.external_id
+                LEFT JOIN notion_inventory_cache notion ON notion.external_id = identities.external_id
             )
             SQL;
     }
@@ -262,10 +265,49 @@ final class V2CardInventoryService
                 'public_path' => '/api/v2/content/assets/'.$row['asset_id'],
             ],
             'allocation' => (int) $row['allocation'], 'stored' => (int) $row['stored'],
-            'required_quantity' => (int) $row['allocation'] + (int) $row['stored'],
+            'required_quantity' => (int) $row['required_quantity'],
             'shipped' => (int) $row['shipped'], 'returned' => (int) $row['returned'],
-            'notion_on_hand' => null, 'notion_available' => null, 'notion_read_at' => null,
+            'notion_on_hand' => $row['notion_on_hand'] === null ? null : (float) $row['notion_on_hand'],
+            'notion_available' => $row['notion_available'] === null ? null : (float) $row['notion_available'],
+            'notion_read_at' => $row['notion_read_at'] === null ? null : \Carbon\CarbonImmutable::parse($row['notion_read_at'])->toIso8601String(),
         ];
+    }
+
+    public function importWarnings(object $version, array $operations): array
+    {
+        if ($operations === [] || config('v2_notion.enabled') !== true) {
+            return [];
+        }
+        $ids = array_column($operations, 'externalId');
+        $placeholders = implode(',', array_fill(0, count($ids), '(?)'));
+        $row = DB::selectOne($this->commonSql().'
+            SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                    \'external_id\', requested.external_id, \'required_quantity\', COALESCE(card.required_quantity, 0),
+                    \'notion_on_hand\', cache.on_hand))
+                FROM (VALUES '.$placeholders.') AS requested(external_id)
+                LEFT JOIN cards card ON card.external_id = requested.external_id
+                LEFT JOIN notion_inventory_cache cache ON cache.external_id = requested.external_id), \'[]\') AS items,
+                EXISTS(SELECT 1 FROM selected_versions WHERE version_id = ?) AS selected,
+                (SELECT invalid FROM integrity) AS invalid', [...$ids, $version->id]);
+        $this->assertIntegrity($row);
+        $cards = array_column(json_decode($row->items, true, 512, JSON_THROW_ON_ERROR), null, 'external_id');
+        $warnings = [];
+        foreach ($operations as $operation) {
+            $card = $cards[$operation['externalId']] ?? null;
+            $onHand = $card['notion_on_hand'] ?? null;
+            $delta = $row->selected ? $operation['after']['quantity']
+                - (int) ($operation['inventory']?->total_quantity ?? $operation['relation']?->initial_inventory ?? 0) : 0;
+            $required = (int) ($card['required_quantity'] ?? 0) + $delta;
+            if ($onHand === null || $required > $onHand) {
+                $warnings[] = ['row' => null, 'column' => '枚数',
+                    'code' => $onHand === null ? 'NOTION_STOCK_UNKNOWN' : 'NOTION_STOCK_INSUFFICIENT',
+                    'message' => $operation['externalId'].($onHand === null
+                        ? '：Notion手持ち枚数が未確認のため、不足判定ができません。'
+                        : '：適用後の確保必要数が最後に読んだNotion手持ち枚数を超えます。')];
+            }
+        }
+
+        return $warnings;
     }
 
     private function assertIntegrity(object $row): void

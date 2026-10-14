@@ -22,6 +22,9 @@ trait V2PrizeImportMutations
             $plan = $builder->build($gacha, $version, $csv, false);
             $builder->assertValid($plan);
 
+            $plan['public']['warnings'] = [...$plan['public']['warnings'],
+                ...app(V2CardInventoryService::class)->importWarnings($version, $plan['operations'])];
+
             return $plan['public'];
         });
     }

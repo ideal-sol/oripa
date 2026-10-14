@@ -12,6 +12,10 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  listAdminNotionSyncRuns: ["get", "/integrations/notion/sync-runs"],
+  createAdminNotionSyncRun: ["post", "/integrations/notion/sync-runs"],
+  getAdminNotionSyncRun: ["get", "/integrations/notion/sync-runs/{id}"],
+  getAdminNotionStatus: ["get", "/integrations/notion/status"],
   listAdminInventoryCards: ["get", "/inventory/cards"],
   getAdminInventoryCard: ["get", "/inventory/cards/{externalId}"],
   listAdminInventoryUnlinkedPrizes: ["get", "/inventory/unlinked-prizes"],
@@ -424,6 +428,9 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
+  "AdminNotionStatus",
+  "AdminNotionSyncRun",
+  "AdminNotionSyncCollection",
   "AdminInventoryCard",
   "AdminInventoryCardCollection",
   "AdminInventoryCardDetail",
@@ -2215,6 +2222,36 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminNotionSyncRun {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  trigger: "manual" | "periodic" | "business";
+  read_count: number;
+  updated_count: number;
+  unchanged_count: number;
+  duplicate_count: number;
+  invalid_count: number;
+  missing_count: number;
+  failed_count: number;
+  error_code: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duplicate_ids: string[];
+  missing_ids: string[];
+}
+export interface AdminNotionSyncCollection {
+  items: AdminNotionSyncRun[];
+}
+export interface AdminNotionStatus {
+  enabled: boolean;
+  configured: boolean;
+  latest: AdminNotionSyncRun | null;
+  active: AdminNotionSyncRun | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  error_code: string | null;
+}
 export interface AdminInventoryCard {
   external_id: string;
   name: string | null;
@@ -2224,9 +2261,9 @@ export interface AdminInventoryCard {
   required_quantity: number;
   shipped: number;
   returned: number;
-  notion_on_hand: null;
-  notion_available: null;
-  notion_read_at: null;
+  notion_on_hand: number | null;
+  notion_available: number | null;
+  notion_read_at: string | null;
 }
 export interface AdminInventoryCardCollection {
   items: AdminInventoryCard[];

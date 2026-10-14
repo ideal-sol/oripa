@@ -1,5 +1,8 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminNotionStatus,
+  type AdminNotionSyncRun,
+  type AdminNotionSyncCollection,
   type AdminInventoryCardCollection,
   type AdminInventoryCardDetail,
   type AdminInventoryUnlinkedCollection,
@@ -1338,6 +1341,22 @@ export class AdminApiClient {
 
   listInventoryCards(query: Record<string, string | number | boolean | undefined>, signal?: AbortSignal): Promise<AdminInventoryCardCollection> {
     return this.inventoryRead("/inventory/cards", query, signal);
+  }
+
+  notionStatus(signal?: AbortSignal): Promise<AdminNotionStatus> {
+    return this.request("GET", "/integrations/notion/status", { signal });
+  }
+
+  listNotionSyncRuns(signal?: AbortSignal): Promise<AdminNotionSyncCollection> {
+    return this.request("GET", "/integrations/notion/sync-runs", { signal });
+  }
+
+  notionSyncRun(id: string, signal?: AbortSignal): Promise<AdminNotionSyncRun> {
+    return this.request("GET", `/integrations/notion/sync-runs/${encodeURIComponent(id)}`, { signal });
+  }
+
+  createNotionSyncRun(idempotencyKey: string, signal?: AbortSignal): Promise<AdminNotionSyncRun> {
+    return this.request("POST", "/integrations/notion/sync-runs", { idempotencyKey, signal });
   }
 
   getInventoryCard(externalId: string, query: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<AdminInventoryCardDetail> {
@@ -3165,6 +3184,7 @@ export class AdminApiClient {
       | `/point-purchase-plans${string}`
       | `/catalog/${string}`
       | `/inventory/${string}`
+      | `/integrations/notion/${string}`
       | `/contact-inquiries${string}`
       | `/content/${string}`
       | `/identity/${string}`
@@ -3191,6 +3211,7 @@ export class AdminApiClient {
         !path.startsWith("/point-purchase-plans") &&
         !path.startsWith("/catalog/") &&
         !path.startsWith("/inventory/") &&
+        !path.startsWith("/integrations/notion/") &&
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&

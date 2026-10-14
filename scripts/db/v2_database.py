@@ -110,6 +110,11 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.mail_deliveries",
     "public.mail_templates",
     "public.migrations",
+    "public.notion_inventory_cache",
+    "public.notion_sync_pages",
+    "public.notion_sync_runs",
+    "public.notion_sync_snapshot",
+    "public.notion_sync_state",
     "public.outbox_messages",
     "public.password_reset_tokens",
     "public.payment_adjustment_point_impacts",
@@ -528,6 +533,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_14_000085_create_v2_notion_inventory_sync.php": "Notion sync history requires a forward correction migration.",
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",
         "2026_10_12_000083_add_v2_signup_sms_gate.php": "Signup SMS qualification requires a forward correction migration.",
         "2026_10_13_000084_create_v2_banner_asset_operations.php": "Banner asset operations require a forward correction migration.",

@@ -23,6 +23,41 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_notion_cache_authority_allows_only_the_three_approved_placeholder_types(self):
+        current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        previous["info"]["version"] = "2.0.0-alpha.40"
+        properties = previous["components"]["schemas"]["AdminInventoryCard"]["properties"]
+        for field in ["notion_on_hand", "notion_available", "notion_read_at"]:
+            properties[field] = {"type": "null"}
+        authorize = openapi_contract_gate.is_authorized_notion_cache_break
+        self.assertTrue(authorize("admin", previous, current))
+        self.assertFalse(authorize("public", previous, current))
+        self.assertFalse(openapi_contract_gate.is_authorized_contact_phone_required_break("admin", previous, current))
+        for mutation in ["authority", "version", "type", "nullable", "date", "auth", "idempotency", "required-removal", "unrelated"]:
+            altered = copy.deepcopy(current)
+            fields = altered["components"]["schemas"]["AdminInventoryCard"]["properties"]
+            if mutation == "authority":
+                altered.pop("x-oripa-breaking-change")
+            elif mutation == "version":
+                altered["info"]["version"] = "2.0.0-alpha.42"
+            elif mutation == "type":
+                fields["notion_on_hand"]["type"] = ["string", "null"]
+            elif mutation == "nullable":
+                fields["notion_available"]["type"] = "number"
+            elif mutation == "date":
+                fields["notion_read_at"].pop("format")
+            elif mutation == "auth":
+                altered["paths"]["/inventory/cards"]["get"]["security"] = [{}]
+            elif mutation == "idempotency":
+                altered["paths"]["/inventory/cards"]["get"]["x-idempotency"] = "not-supported"
+            elif mutation == "required-removal":
+                altered["components"]["schemas"]["AdminInventoryCard"]["required"].remove("allocation")
+            else:
+                fields["allocation"]["type"] = "string"
+            with self.subTest(mutation=mutation):
+                self.assertFalse(authorize("admin", previous, altered))
+
     def test_signup_sms_break_requires_exact_authority_and_rejects_unrelated_breaks(self):
         current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
         previous = copy.deepcopy(current)
