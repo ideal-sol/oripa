@@ -65,6 +65,7 @@ describe("Admin sidebar hierarchy", () => {
       expect.stringContaining("決済"),
       expect.stringContaining("配送"),
       "保有景品",
+      "カード別在庫",
       expect.stringContaining("ポイント購入"),
       expect.stringContaining("お知らせ"),
       expect.stringContaining("バナー"),

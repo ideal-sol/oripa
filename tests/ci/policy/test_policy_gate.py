@@ -21,6 +21,26 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_inventory_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/card-inventory.spec.ts",
+            "apps/admin/src/app/inventory/cards/page.tsx",
+            "apps/admin/src/components/inventory/card-inventory-workspace.tsx",
+            "apps/admin/src/components/inventory/card-inventory.module.css",
+            "apps/admin/test/card-inventory.test.tsx",
+        }
+        self.assertEqual(policy_gate.INVENTORY_20261014_ADMIN_FILES, expected)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in ("apps/admin/src/app/inventory/export/page.tsx", "apps/admin/src/components/inventory/*"):
+            with self.subTest(path=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+        for relative in expected:
+            with self.subTest(missing=relative):
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "files missing"):
+                    policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+
     def test_s3_phase1_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
         expected = {
             "apps/admin/src/components/catalog/asset-delivery-provider.tsx",

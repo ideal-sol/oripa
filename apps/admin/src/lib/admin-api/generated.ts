@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: e400dfadbc02243f96275027526995762c1f3c9b7f478314a40a7663f5c81e51
+// Contract SHA-256: 8263301d38978f2716de1c0331c985c88e359d8186797944fdf372fa0dfc1cf3
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1547,6 +1547,64 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminInventoryCard {
+  external_id: string;
+  name: string | null;
+  asset: AdminCatalogAssetReference | null;
+  allocation: number;
+  stored: number;
+  required_quantity: number;
+  shipped: number;
+  returned: number;
+  notion_on_hand: null;
+  notion_available: null;
+  notion_read_at: null;
+}
+export interface AdminInventoryCardCollection {
+  items: AdminInventoryCard[];
+  next_cursor: string | null;
+  unlinked_prize_count: number;
+}
+export interface AdminInventoryBreakdown {
+  gacha_id: string;
+  gacha_name: string;
+  management_status: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
+  gacha_archived: boolean;
+  version_id: string;
+  version_number: number;
+  is_selected_version: boolean;
+  allocation: number;
+  unwon: number;
+  won: number;
+  stored: number;
+  shipped: number;
+  returned: number;
+}
+export interface AdminInventoryCardDetail {
+  data: AdminInventoryCard;
+  breakdown: AdminInventoryBreakdown[];
+  next_cursor: string | null;
+  status_counts: Record<string, number>;
+}
+export interface AdminInventoryUnlinkedPrize {
+  id: string;
+  prize_id: string;
+  prize_name: string;
+  gacha_id: string;
+  gacha_name: string;
+  management_status: AdminInventoryBreakdown["management_status"];
+  gacha_archived: boolean;
+  version_id: string;
+  version_number: number;
+  allocation: number;
+  stored: number;
+  quantity: number;
+}
+export interface AdminInventoryUnlinkedCollection {
+  items: AdminInventoryUnlinkedPrize[];
+  next_cursor: string | null;
+  total_count: number;
+}
 export interface AdminGachaDraftPrizeRemove {
   expected_version_revision: number;
 }

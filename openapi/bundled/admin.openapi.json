@@ -1607,6 +1607,164 @@
         }
       }
     },
+    "/inventory/cards": {
+      "get": {
+        "operationId": "listAdminInventoryCards",
+        "summary": "管理ID別のカード在庫を参照する",
+        "description": "catalog.read required. One PostgreSQL statement snapshot per request; separate cursor requests do not share a snapshot. QA ownership is excluded. Missing published inventory returns PRIZE_INVENTORY_UNAVAILABLE (409). Notion values remain null; negative_only returns an empty collection until F6.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "name": "external_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "reserved_only",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "negative_only",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理ID昇順。cursorは検索条件に紐づく。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInventoryCardCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/inventory/cards/{externalId}": {
+      "get": {
+        "operationId": "getAdminInventoryCard",
+        "summary": "カード在庫とガチャ・版別内訳を参照する",
+        "description": "catalog.read required. Historical ownership remains included independently of selected allocation versions. Breakdown is cursor paginated; totals and status counts cover the whole card in this request snapshot.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "カード詳細。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInventoryCardDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/inventory/unlinked-prizes": {
+      "get": {
+        "operationId": "listAdminInventoryUnlinkedPrizes",
+        "summary": "管理ID未設定の対象景品を参照する",
+        "description": "catalog.read required. Each item is one version-prize relation selected for allocation or holding non-QA stored ownership, including unpublished/archived origins. quantity equals allocation plus stored. Unreferenced old prize masters are excluded. total_count counts these relations, not cards or units.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "未設定景品の対象版・景品単位の件数と枚数。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInventoryUnlinkedCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/categories": {
       "get": {
         "operationId": "listAdminCatalogCategories",
@@ -13192,6 +13350,315 @@
           },
           "request_id": {
             "$ref": "#/components/schemas/OpaqueId"
+          }
+        }
+      },
+      "AdminInventoryCard": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "external_id",
+          "name",
+          "asset",
+          "allocation",
+          "stored",
+          "required_quantity",
+          "shipped",
+          "returned",
+          "notion_on_hand",
+          "notion_available",
+          "notion_read_at"
+        ],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allocation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stored": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "required_quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "企画割当と当選保管中の合計。"
+          },
+          "shipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notion_on_hand": {
+            "type": "null",
+            "description": "F6未連携。"
+          },
+          "notion_available": {
+            "type": "null",
+            "description": "F6未連携。負数判定不可。"
+          },
+          "notion_read_at": {
+            "type": "null",
+            "description": "F6未連携。"
+          }
+        }
+      },
+      "AdminInventoryCardCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "unlinked_prize_count"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminInventoryCard"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unlinked_prize_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "確保対象の管理ID未設定版・景品の組の件数。枚数ではない。"
+          }
+        }
+      },
+      "AdminInventoryBreakdown": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gacha_id",
+          "gacha_name",
+          "management_status",
+          "gacha_archived",
+          "version_id",
+          "version_number",
+          "is_selected_version",
+          "allocation",
+          "unwon",
+          "won",
+          "stored",
+          "shipped",
+          "returned"
+        ],
+        "properties": {
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_name": {
+            "type": "string"
+          },
+          "management_status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "sales_paused",
+              "unpublished"
+            ]
+          },
+          "gacha_archived": {
+            "type": "boolean"
+          },
+          "version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "is_selected_version": {
+            "type": "boolean"
+          },
+          "allocation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unwon": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "対象版の未当選在庫。企画割当と同値。"
+          },
+          "won": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "全保有状態のQA以外の当選件数。確保必要数への加算項目ではない。"
+          },
+          "stored": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminInventoryCardDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "breakdown",
+          "next_cursor",
+          "status_counts"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminInventoryCard"
+          },
+          "breakdown": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminInventoryBreakdown"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "QAを除いた保有状態別件数。存在しない状態は0件。"
+          }
+        }
+      },
+      "AdminInventoryUnlinkedPrize": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "prize_id",
+          "prize_name",
+          "gacha_id",
+          "gacha_name",
+          "management_status",
+          "gacha_archived",
+          "version_id",
+          "version_number",
+          "allocation",
+          "stored",
+          "quantity"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "prize_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "prize_name": {
+            "type": "string"
+          },
+          "gacha_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "gacha_name": {
+            "type": "string"
+          },
+          "management_status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "sales_paused",
+              "unpublished"
+            ]
+          },
+          "gacha_archived": {
+            "type": "boolean"
+          },
+          "version_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "allocation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stored": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "企画割当と当選保管中の合計枚数。"
+          }
+        }
+      },
+      "AdminInventoryUnlinkedCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "total_count"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AdminInventoryUnlinkedPrize"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total_count": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

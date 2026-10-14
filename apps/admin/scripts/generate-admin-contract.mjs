@@ -12,6 +12,9 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  listAdminInventoryCards: ["get", "/inventory/cards"],
+  getAdminInventoryCard: ["get", "/inventory/cards/{externalId}"],
+  listAdminInventoryUnlinkedPrizes: ["get", "/inventory/unlinked-prizes"],
   removeAdminGachaDraftPrize: ["delete", "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}"],
   listAdminBannerImports: ["get", "/banner-management/imports"],
   createAdminBannerImport: ["post", "/banner-management/imports"],
@@ -421,6 +424,12 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
+  "AdminInventoryCard",
+  "AdminInventoryCardCollection",
+  "AdminInventoryCardDetail",
+  "AdminInventoryBreakdown",
+  "AdminInventoryUnlinkedPrize",
+  "AdminInventoryUnlinkedCollection",
   "AdminGachaType",
   "AdminGachaComposition",
   "AdminGachaCompositionSave",
@@ -2206,6 +2215,64 @@ export interface AdminCompositionPrize {
   percentage: string | null;
 }
 
+export interface AdminInventoryCard {
+  external_id: string;
+  name: string | null;
+  asset: AdminCatalogAssetReference | null;
+  allocation: number;
+  stored: number;
+  required_quantity: number;
+  shipped: number;
+  returned: number;
+  notion_on_hand: null;
+  notion_available: null;
+  notion_read_at: null;
+}
+export interface AdminInventoryCardCollection {
+  items: AdminInventoryCard[];
+  next_cursor: string | null;
+  unlinked_prize_count: number;
+}
+export interface AdminInventoryBreakdown {
+  gacha_id: string;
+  gacha_name: string;
+  management_status: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
+  gacha_archived: boolean;
+  version_id: string;
+  version_number: number;
+  is_selected_version: boolean;
+  allocation: number;
+  unwon: number;
+  won: number;
+  stored: number;
+  shipped: number;
+  returned: number;
+}
+export interface AdminInventoryCardDetail {
+  data: AdminInventoryCard;
+  breakdown: AdminInventoryBreakdown[];
+  next_cursor: string | null;
+  status_counts: Record<string, number>;
+}
+export interface AdminInventoryUnlinkedPrize {
+  id: string;
+  prize_id: string;
+  prize_name: string;
+  gacha_id: string;
+  gacha_name: string;
+  management_status: AdminInventoryBreakdown["management_status"];
+  gacha_archived: boolean;
+  version_id: string;
+  version_number: number;
+  allocation: number;
+  stored: number;
+  quantity: number;
+}
+export interface AdminInventoryUnlinkedCollection {
+  items: AdminInventoryUnlinkedPrize[];
+  next_cursor: string | null;
+  total_count: number;
+}
 export interface AdminGachaDraftPrizeRemove {
   expected_version_revision: number;
 }

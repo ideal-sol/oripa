@@ -1,5 +1,8 @@
 import {
   ADMIN_API_BASE_PATH,
+  type AdminInventoryCardCollection,
+  type AdminInventoryCardDetail,
+  type AdminInventoryUnlinkedCollection,
   type AdminBannerImportInput,
   type AdminBannerImportJob,
   type AdminBannerImportCollection,
@@ -1331,6 +1334,26 @@ export class AdminApiClient {
       `/point-purchase-plans/${encodeURIComponent(planId)}/limited-bonus-campaigns/${encodeURIComponent(campaignId)}`,
       { body, idempotencyKey, signal },
     );
+  }
+
+  listInventoryCards(query: Record<string, string | number | boolean | undefined>, signal?: AbortSignal): Promise<AdminInventoryCardCollection> {
+    return this.inventoryRead("/inventory/cards", query, signal);
+  }
+
+  getInventoryCard(externalId: string, query: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<AdminInventoryCardDetail> {
+    return this.inventoryRead(`/inventory/cards/${encodeURIComponent(externalId)}`, query, signal);
+  }
+
+  listInventoryUnlinkedPrizes(query: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<AdminInventoryUnlinkedCollection> {
+    return this.inventoryRead("/inventory/unlinked-prizes", query, signal);
+  }
+
+  private inventoryRead<T>(path: `/inventory/${string}`, query: Record<string, string | number | boolean | undefined>, signal?: AbortSignal): Promise<T> {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined) parameters.set(name, String(value));
+    }
+    return this.request("GET", `${path}?${parameters.toString()}`, { signal });
   }
 
   listCatalogCategories(
@@ -3141,6 +3164,7 @@ export class AdminApiClient {
       | `/page-management/${string}`
       | `/point-purchase-plans${string}`
       | `/catalog/${string}`
+      | `/inventory/${string}`
       | `/contact-inquiries${string}`
       | `/content/${string}`
       | `/identity/${string}`
@@ -3166,6 +3190,7 @@ export class AdminApiClient {
         !path.startsWith("/page-management/") &&
         !path.startsWith("/point-purchase-plans") &&
         !path.startsWith("/catalog/") &&
+        !path.startsWith("/inventory/") &&
         !path.startsWith("/contact-inquiries") &&
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
