@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "PRIZECSV-20261007",
-  "source_pr": 549,
-  "source_sha": "c4eaca6cc2a851a7da937bf0b499bd3bfb6af5e7",
+  "task_id": "OLDTEST-20261013",
+  "source_pr": 562,
+  "source_sha": "da0b12f57c0072da03afd59ead86a0528e306b67",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR #549 PRIZECSV-20261007 squash merge; Authority Sync candidate for Human review; Source Merge only approved, activation and Performance Acceptance NOT authorized; future API + Admin requires Human review and isolated synthetic HTTP/constraint preflight; 317.173s Apply / 314.985s constraint risk unresolved; no artifact dispatch before review; no migration, 000081 rerun, Storefront or Production operations; existing F1 runtime preserved; Production not authorized",
+  "authority": "Human-approved exact OLD Test payload: PR #562 squash merge under OLDTEST-S3-CSV-SIGNUP-CONTINUE-20261014; reviewed head 560364302bbb7e39794a27a6c633d41ed2511fff has the same tree as this payload. Includes S3 and 503 fixes from PR #553, prize and Banner CSV including PR #559, signup/SMS API from PR #555, and read-only S3 ListObjectsV2 healthcheck from PR #562. Supersedes the prior PR #553 payload candidate. Authority Sync PR #561 merge requires separate exact-PR/head Human GO. Canonical API and Admin artifact preparation follows that GO; runtime activation, migrations, final asset delta upload and Storefront public switch require a subsequent combined Human GO and Human ENV completion. ENV file access is Human-only. No Production or NEW activation is authorized.",
   "activation_authorized": false
 }
