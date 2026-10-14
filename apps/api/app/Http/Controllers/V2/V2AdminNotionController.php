@@ -59,7 +59,7 @@ final class V2AdminNotionController
 
             return response()->json(['type' => 'https://oripa.example/problems/'.strtolower($code),
                 'title' => 'Notion同期の受付・参照を完了できませんでした。', 'status' => $status, 'code' => $code,
-                'request_id' => $requestId, 'retryable' => $status === 503,
+                'request_id' => $requestId, 'retryable' => false,
             ], $status, [...$headers, 'Content-Type' => 'application/problem+json']);
         }
     }

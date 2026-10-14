@@ -281,6 +281,33 @@ final class NotionSyncTest extends TestCase
         self::assertDatabaseCount('notion_sync_runs', 0);
     }
 
+    public function test_manual_http_contract_is_nonretryable_and_preserves_browser_security(): void
+    {
+        Http::fake();
+        config(['v2_identity.origins.admin' => 'https://admin.example.test']);
+        $root = '/admin/api/v2/integrations/notion/sync-runs';
+        $csrf = str_repeat('a', 64);
+        $this->withCredentials()->withUnencryptedCookie('__Host-oripa_admin_session', $this->sessionToken)
+            ->withUnencryptedCookie('__Host-oripa_admin_xsrf', $csrf)->withServerVariables(['HTTPS' => 'on'])
+            ->withHeaders(['Origin' => 'https://admin.example.test', 'Sec-Fetch-Site' => 'same-origin', 'X-XSRF-TOKEN' => $csrf]);
+        $this->postJson($root)->assertUnprocessable()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REQUIRED');
+        $this->withHeader('Idempotency-Key', 'manual-http');
+        config(['v2_notion.token' => null]);
+        $this->postJson($root)->assertStatus(503)->assertJsonPath('code', 'NOTION_CONFIGURATION_INVALID')
+            ->assertJsonPath('retryable', false);
+        config(['v2_notion.token' => 'synthetic-notion-test-value']);
+        $run = $this->postJson($root)->assertStatus(202)->assertJsonPath('status', 'queued')->json();
+        $this->postJson($root)->assertStatus(202)->assertJsonPath('id', $run['id']);
+        $this->getJson($root.'/'.$run['id'])->assertOk()->assertJsonPath('id', $run['id']);
+        $this->getJson($root)->assertOk()->assertJsonCount(1, 'items');
+        $this->withHeader('X-XSRF-TOKEN', 'invalid')->postJson($root)->assertForbidden();
+        $this->withHeader('X-XSRF-TOKEN', $csrf);
+        DB::table('admins')->where('id', $this->context->adminId)->update(['role' => 'operator']);
+        $this->postJson($root)->assertForbidden();
+        self::assertDatabaseCount('notion_sync_runs', 1);
+        Http::assertNothingSent();
+    }
+
     public function test_missing_ids_and_periodic_interval_require_a_complete_query(): void
     {
         DB::table('content_banners')->insert(['public_id' => (string) Str::uuid7(), 'code' => 'MISSING',

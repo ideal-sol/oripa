@@ -487,7 +487,7 @@ def is_authorized_notion_cache_break(
     surface: str, previous: dict[str, Any], current: dict[str, Any]
 ) -> bool:
     if (surface != "admin" or previous.get("info", {}).get("version") != "2.0.0-alpha.40"
-            or current.get("info", {}).get("version") != "2.0.0-alpha.41"
+            or current.get("info", {}).get("version") != "2.0.0-alpha.40"
             or current.get("x-oripa-breaking-change") != NOTION_CACHE_BREAK):
         return False
     before = previous.get("components", {}).get("schemas", {}).get("AdminInventoryCard", {}).get("properties", {})
