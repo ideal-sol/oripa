@@ -33,10 +33,11 @@ final class V2LoginCatalogReadService
             ->join('catalog_gacha_ranks as rank', 'rank.id', '=', 'relation.gacha_rank_id')
             ->join('catalog_rank_masters as master', 'master.id', '=', 'rank.rank_master_id')
             ->join('catalog_rank_master_revisions as revision', 'revision.id', '=', 'relation.published_rank_revision_id')
-            ->join('catalog_gacha_rank_video_revisions as video', 'video.id', '=', 'relation.published_video_revision_id')
+            ->join('catalog_gacha_rank_video_revisions as video', 'video.id', '=', 'rank.current_video_revision_id')
             ->where('relation.gacha_version_id', $row->version_id)->orderBy('revision.display_order')->orderBy('relation.sort_order')
             ->get(['relation.*', 'prize.public_id as prize_public_id', 'master.public_id as rank_public_id',
-                'revision.rank_name', 'revision.lineup_image_asset_id', 'revision.result_image_asset_id', 'video.video_asset_id']);
+                'revision.rank_name', 'revision.lineup_image_asset_id', 'revision.result_image_asset_id', 'video.video_asset_id', 'video.id as video_revision_id']);
+        $sets = app(V2RankVideoService::class)->load($relations->pluck('video_revision_id')->all());
         foreach ($relations as $relation) {
             $prizes[] = [
                 'id' => $relation->prize_public_id, 'name' => $relation->display_name,
@@ -45,6 +46,7 @@ final class V2LoginCatalogReadService
             ];
             $ranks[$relation->rank_public_id] = [
                 'id' => $relation->rank_public_id, 'name' => $relation->rank_name,
+                'videos' => array_column($sets[$relation->video_revision_id] ?? [], 'video'),
                 'lineup_image' => $this->asset($relation->lineup_image_asset_id),
                 'result_image' => $this->asset($relation->result_image_asset_id), 'video' => $this->asset($relation->video_asset_id),
             ];

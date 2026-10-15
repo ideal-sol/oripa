@@ -10,6 +10,69 @@ const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
 const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
 
 for (const type of ["login_daily", "signup_once"] as const) {
+  for (const width of [1440, 390]) {
+    test(`weighted published videos for ${type} at ${width}px preserve composition locks and reload conflicts`, async ({ page }, testInfo) => {
+      await installApi(page);
+      await page.setViewportSize({ width, height: 900 });
+      const secondId = "0198a001-0000-7000-8000-000000000099";
+      const materials = [videoId, secondId].map((id, index) => ({ id, media_type: "video", mime_type: "video/webm", public_path: null, is_public: true, is_default: false, alt_text: `Video ${index + 1}` }));
+      let items = [{ video_asset_id: videoId, weight_percent: "100.00" }];
+      let revision = 1;
+      let conflict = false;
+      const saved: unknown[] = [];
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("dialog", (dialog) => dialog.accept());
+      await page.route("**/catalog/rank-effects?*", (route) => json(route, { items: materials, next_cursor: null }));
+      await page.route(`**/catalog/presentation-assets/${secondId}/content`, (route) => route.fulfill({ contentType: "video/webm", body: videoBytes }));
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: {
+        id: rankId, public_code: gachaId, gacha_type: type, publication_status: "published",
+        first_published_at: "2026-07-01T00:00:00Z", revision: 1,
+      } }));
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => {
+        const data = projection(type);
+        return json(route, { data: { ...data, ranks: data.ranks.map((rank) => ({ ...rank, videos: items })) } });
+      });
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/ranks`, (route) => json(route, { items: [{
+        rank: { id: rankId }, gacha_rank_revision: revision,
+        videos: items.map((item, index) => ({ video: { id: item.video_asset_id }, weight_percent: item.weight_percent, sort_order: index + 1 })),
+      }] }));
+      await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/ranks/${rankId}/videos`, (route) => {
+        if (conflict) return route.fulfill({ status: 409, contentType: "application/problem+json", body: JSON.stringify({ code: "CATALOG_REVISION_CONFLICT", status: 409, request_id: rankId, retryable: false }) });
+        const body = route.request().postDataJSON();
+        saved.push(body);
+        items = body.items;
+        revision++;
+        return json(route, { data: { revision }, idempotent_replay: false });
+      });
+      await page.goto(`/catalog/gachas/${gachaId}`);
+      const section = page.getByRole("region", { name: "抽選演出動画", exact: true });
+      await section.getByRole("button", { name: "動画を追加" }).click();
+      await section.getByLabel("Frozen Aの動画2", { exact: true }).selectOption(secondId);
+      await expect(section.getByRole("button", { name: "動画を保存" })).toBeDisabled();
+      await section.getByLabel("Frozen Aの動画1の割合").fill("80.00");
+      await section.getByLabel("Frozen Aの動画2の割合").fill("20.00");
+      await section.getByRole("button", { name: "動画を保存" }).click();
+      await expect(page.getByText("動画設定を保存しました。")).toBeVisible();
+      expect(saved).toEqual([{ items: [{ video_asset_id: videoId, weight_percent: "80.00" }, { video_asset_id: secondId, weight_percent: "20.00" }], expected_revision: 1 }]);
+      await expect(page.getByLabel("景品名", { exact: true }).first()).toBeDisabled();
+      await expect(page.getByLabel("固定当選確率（%・小数10桁まで）").first()).toBeDisabled();
+      await expect(page.getByRole("button", { name: "構成を一括保存" })).toHaveCount(0);
+      await section.locator("video").first().scrollIntoViewIfNeeded();
+      await expect.poll(() => section.locator("video").first().evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("weighted-videos.png"), fullPage: true });
+      conflict = true;
+      await section.getByLabel("Frozen Aの動画1の割合").fill("70.00");
+      await section.getByLabel("Frozen Aの動画2の割合").fill("30.00");
+      await section.getByRole("button", { name: "動画を保存" }).click();
+      await expect(section.getByLabel("Frozen Aの動画1の割合")).toHaveValue("80.00");
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
+for (const type of ["login_daily", "signup_once"] as const) {
   test(`${type} published external ID backfill leaves composition locked`, async ({ page }) => {
     await installApi(page);
     await page.setViewportSize({ width: 390, height: 900 });
@@ -51,21 +114,24 @@ for (const type of ["login_daily", "signup_once"] as const) {
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
       await page.route("**/catalog/rank-effects?*", (route) => json(route, {
-        items: [{ id: videoId, media_type: "video", is_public: true, is_default: true }], next_cursor: null,
+        items: [{ id: videoId, media_type: "video", mime_type: "video/webm", public_path: null, is_public: true, is_default: true }], next_cursor: null,
       }));
       await page.setViewportSize({ width, height: 900 });
       await page.goto(type === "login_daily" ? "/catalog/gachas/new/login" : "/catalog/gachas/new/signup");
       await page.getByRole("button", { name: "景品を追加" }).click();
-      await expect(page.getByLabel("Aの演出動画", { exact: true })).toHaveValue(videoId);
+      await expect(page.getByLabel("Aの動画1", { exact: true })).toHaveValue(videoId);
       await expect(page.locator("video")).toHaveAttribute("src", `/admin/api/v2/catalog/presentation-assets/${videoId}/content`);
+      await page.locator("video").scrollIntoViewIfNeeded();
       await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: projection(type) }));
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: {
         id: rankId, public_code: gachaId, gacha_type: type, publication_status: "published", first_published_at: "2026-07-01T00:00:00Z", revision: 1,
       } }));
       await page.goto(`/catalog/gachas/${gachaId}`);
+      await page.locator("video").scrollIntoViewIfNeeded();
       await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
       await page.reload();
+      await page.locator("video").scrollIntoViewIfNeeded();
       await expect.poll(() => page.locator("video").evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(1);
       await page.screenshot({ path: testInfo.outputPath("selected-video.png"), fullPage: true });
       expect(errors).toEqual([]);
@@ -98,7 +164,8 @@ test("daily sends a complete exact composition once with JST and an idempotency 
   await page.getByLabel("景品名", { exact: true }).fill("Prize fixture");
   await page.getByRole("combobox", { name: "Banner Category", exact: true }).selectOption(bannerCategoryId);
   await page.getByRole("button", { name: "Card Banner", exact: true }).click();
-  await page.getByLabel("Aの演出動画", { exact: true }).selectOption(videoId);
+  await page.getByRole("button", { name: "動画を追加" }).click();
+  await page.getByLabel("Aの動画1", { exact: true }).selectOption(videoId);
   await page.getByLabel("固定当選確率（%・小数10桁まで）").fill("99.9999999999");
   await expect(page.getByRole("button", { name: "構成を一括保存" })).toBeDisabled();
   await page.getByLabel("固定当選確率（%・小数10桁まで）").fill("100.0000000000");
@@ -162,7 +229,8 @@ async function installApi(page: Page) {
     if (path.endsWith("/catalog/categories") || path.endsWith("/catalog/tags")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/gachas")) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/catalog/ranks")) return json(route, { items: [{ id: rankId, rank_name: "A", status: "active" }], next_cursor: null });
-    if (path.endsWith("/catalog/rank-effects")) return json(route, { items: [], next_cursor: null });
+    if (path.endsWith("/catalog/rank-effects")) return json(route, { items: [{ id: videoId, media_type: "video", mime_type: "video/webm", public_path: null, is_public: true, is_default: false, alt_text: "Video fixture" }], next_cursor: null });
+    if (path.endsWith(`/catalog/gachas/${gachaId}/ranks`)) return json(route, { items: [], next_cursor: null });
     if (path.endsWith("/settings/gacha-notices")) return json(route, { data: { standard: { default_notices: "Standard QA notice", revision: 1 }, login: { default_notices: "Login QA notice", revision: 1 } }, request_id: rankId });
     if (path.endsWith(`/catalog/presentation-assets/${videoId}/content`)) return route.fulfill({ contentType: "video/webm", body: videoBytes });
     if (path.endsWith("/content") && path.includes("/catalog/presentation-assets/")) return route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") });

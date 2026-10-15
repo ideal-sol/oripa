@@ -453,6 +453,16 @@ final class V2AdminCatalogController
         );
     }
 
+    public function setGachaRankVideos(Request $request, string $gachaId, string $rankId): JsonResponse
+    {
+        return $this->mutation(
+            $request,
+            fn (V2AdminAuthorizationContext $context): array => $this->mutations->setGachaRankVideos(
+                $context, $gachaId, $rankId, (string) $request->header('Idempotency-Key', ''), $request->json()->all()
+            )
+        );
+    }
+
     public function unsetGachaRankVideo(
         Request $request,
         string $gachaId,

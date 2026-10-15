@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 817d8b71987262a1c4e1d0a8a7112f0d288611dc324f59c7290b809ceef93d53
+// Contract SHA-256: aa3b172b28cc521b1f0c98b410d190bfd90d23eb339e091e9e0037bb98c13a23
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1415,6 +1415,7 @@ export interface AdminCatalogRankReorderResult {
 }
 
 export interface AdminGachaRank {
+  videos?: AdminRankVideo[];
   id: string;
   gacha_id: string;
   rank: AdminCatalogRank;
@@ -1427,6 +1428,7 @@ export interface AdminGachaRank {
 }
 
 export interface AdminGachaRankListItem {
+  videos?: AdminRankVideo[];
   rank: AdminCatalogRank;
   gacha_rank_id: string | null;
   gacha_rank_revision: number | null;
@@ -1437,6 +1439,22 @@ export interface AdminGachaRankListItem {
 
 export interface AdminGachaRankCollection {
   items: AdminGachaRankListItem[];
+}
+
+export interface AdminRankVideoInput {
+  video_asset_id: string;
+  weight_percent: string;
+}
+
+export interface AdminRankVideo {
+  video: AdminCanonicalAssetSnapshot;
+  weight_percent: string;
+  sort_order: number;
+}
+
+export interface AdminGachaRankVideosSet {
+  items: AdminRankVideoInput[];
+  expected_revision?: number;
 }
 
 export interface AdminGachaRankVideoSet {
@@ -1531,7 +1549,8 @@ export type AdminGachaType = "standard" | "login_daily" | "signup_once";
 export interface AdminCompositionRank {
   rank_id: string;
   rank_revision_number: number | null;
-  video_asset_id: string | null;
+  video_asset_id?: string | null;
+  videos?: AdminRankVideoInput[];
   presentation?: { name: string; lineup_image: AdminCanonicalAssetSnapshot; result_image: AdminCanonicalAssetSnapshot };
 }
 

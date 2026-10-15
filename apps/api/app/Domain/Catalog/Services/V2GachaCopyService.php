@@ -36,10 +36,13 @@ final class V2GachaCopyService
                 $rank = DB::table('catalog_gacha_ranks')->where('id', $relation->gacha_rank_id)->firstOrFail();
                 $master = DB::table('catalog_rank_masters')->where('id', $rank->rank_master_id)->sharedLock()->firstOrFail();
                 $revisionId = $relation->published_rank_revision_id ?? $rank->preferred_rank_revision_id ?? $master->current_revision_id;
-                $videoRevisionId = $relation->published_video_revision_id ?? $rank->current_video_revision_id;
+                $videoRevisionId = $rank->current_video_revision_id;
+                $videos = app(V2RankVideoService::class);
+                $sets = $videos->load([$videoRevisionId]);
                 $rankRevision = DB::table('catalog_rank_master_revisions')->where('id', $revisionId)->firstOrFail();
                 $ranks[$master->public_id] = [
                     'rank_id' => $master->public_id,
+                    ...$videoRevisionId === null ? [] : ['videos' => $videos->input($sets[$videoRevisionId] ?? [])],
                     'rank_revision_number' => (int) $rankRevision->revision_number,
                     'video_asset_id' => $this->publicId('catalog_presentation_assets', $videoRevisionId === null ? null
                         : DB::table('catalog_gacha_rank_video_revisions')->where('id', $videoRevisionId)->value('video_asset_id')),

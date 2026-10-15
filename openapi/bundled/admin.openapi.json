@@ -3968,6 +3968,62 @@
         }
       }
     },
+    "/catalog/gachas/{gacha_id}/ranks/{rank_id}/videos": {
+      "put": {
+        "operationId": "setAdminGachaRankVideos",
+        "summary": "公開後もGacha Rankの動画と割合だけを新しいRevisionとして保存する",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GachaId"
+          },
+          {
+            "name": "rank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminGachaRankVideosSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gacha Rank動画保存結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGachaRankMutationResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset": {
       "post": {
         "operationId": "unsetAdminGachaRankVideo",
@@ -11787,8 +11843,7 @@
         "additionalProperties": false,
         "required": [
           "rank_id",
-          "rank_revision_number",
-          "video_asset_id"
+          "rank_revision_number"
         ],
         "properties": {
           "rank_id": {
@@ -11807,6 +11862,14 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "videos": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankVideoInput"
+            }
           },
           "presentation": {
             "type": "object",
@@ -15612,6 +15675,13 @@
           "updated_at"
         ],
         "properties": {
+          "videos": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankVideo"
+            }
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -15671,6 +15741,13 @@
           "can_unset_video"
         ],
         "properties": {
+          "videos": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankVideo"
+            }
+          },
           "rank": {
             "$ref": "#/components/schemas/AdminCatalogRank"
           },
@@ -15725,6 +15802,70 @@
             "items": {
               "$ref": "#/components/schemas/AdminGachaRankListItem"
             }
+          }
+        }
+      },
+      "AdminRankVideoWeight": {
+        "type": "string",
+        "pattern": "^(?:100(?:\\.0{1,2})?|(?:0|[1-9][0-9]?)(?:\\.[0-9]{1,2})?)$",
+        "description": "0.01%以上、0.01%刻み。動画セットの合計は100%。"
+      },
+      "AdminRankVideoInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "video_asset_id",
+          "weight_percent"
+        ],
+        "properties": {
+          "video_asset_id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "weight_percent": {
+            "$ref": "#/components/schemas/AdminRankVideoWeight"
+          }
+        }
+      },
+      "AdminRankVideo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "video",
+          "weight_percent",
+          "sort_order"
+        ],
+        "properties": {
+          "video": {
+            "$ref": "#/components/schemas/AdminCanonicalAssetSnapshot"
+          },
+          "weight_percent": {
+            "$ref": "#/components/schemas/AdminRankVideoWeight"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "AdminGachaRankVideosSet": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/AdminRankVideoInput"
+            }
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },

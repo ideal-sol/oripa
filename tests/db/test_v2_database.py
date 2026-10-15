@@ -20,6 +20,18 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_rank_video_table_inventory_is_exact_and_fail_closed(self):
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / "2026_10_15_000086_add_v2_rank_video_sets.php").read_text()
+        tables = ["public." + name for name in re.findall(r"Schema::create\('([^']+)'", source)]
+        self.assertEqual(tables, ["public.catalog_gacha_rank_video_items"])
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(sorted(set(inventory)), inventory)
+        self.assertTrue(set(tables).issubset(inventory))
+        v2_database.validate_schema_inventory(inventory)
+        for invalid in [[name for name in inventory if name not in tables], sorted([*inventory, "public.unregistered_video_table"])]:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(invalid)
+
     def test_notion_migration_inventory_and_forward_only_guard(self):
         filename = "2026_10_14_000085_create_v2_notion_inventory_sync.php"
         message = "Notion sync history requires a forward correction migration."
@@ -187,6 +199,16 @@ class V2DatabaseGuardTest(unittest.TestCase):
         ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
             self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
             self.assertIn("Rank video defaults require a forward correction migration.", run.call_args.args[0][-1])
+            self.assertNotIn("migrate:rollback", run.call_args.args[0])
+
+    def test_rank_video_sets_forward_migration_refuses_rollback(self):
+        migration = self.repository / v2_database.MIGRATION_PATH / "2026_10_15_000086_add_v2_rank_video_sets.php"
+        migration.touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"86"), mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ), mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertIn("Rank video sets require a forward correction migration.", run.call_args.args[0][-1])
             self.assertNotIn("migrate:rollback", run.call_args.args[0])
 
     def test_login_forward_migration_refuses_rollback_without_schema_or_ledger_change(self):

@@ -54,6 +54,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.audit_logs",
     "public.catalog_categories",
     "public.catalog_gacha_publish_schedules",
+    "public.catalog_gacha_rank_video_items",
     "public.catalog_gacha_rank_video_revisions",
     "public.catalog_gacha_ranks",
     "public.catalog_gacha_tags",
@@ -534,6 +535,7 @@ def rollback_and_reapply_latest(
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
         "2026_10_14_000085_create_v2_notion_inventory_sync.php": "Notion sync history requires a forward correction migration.",
+        "2026_10_15_000086_add_v2_rank_video_sets.php": "Rank video sets require a forward correction migration.",
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",
         "2026_10_12_000083_add_v2_signup_sms_gate.php": "Signup SMS qualification requires a forward correction migration.",
         "2026_10_13_000084_create_v2_banner_asset_operations.php": "Banner asset operations require a forward correction migration.",

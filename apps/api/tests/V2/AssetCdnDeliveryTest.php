@@ -142,7 +142,9 @@ final class AssetCdnDeliveryTest extends TestCase
         $snapshot = ['id' => $asset['public_id'], 'path' => '/admin/legacy', 'mime_type' => 'image/png'];
         $data = array_fill_keys(['asset', 'presentation_asset', 'thumbnail', 'image_asset', 'video_asset',
             'lineup_image', 'result_image', 'current_video', 'result_image_snapshot', 'rank_lineup_image', 'video_snapshot'], $snapshot);
-        $data += ['ranks' => [['video' => $snapshot]], 'presentation' => ['image' => $snapshot],
+        $data += ['ranks' => [['video' => $snapshot, 'videos' => [$snapshot]]],
+            'items' => [['videos' => [['video' => $snapshot, 'weight_percent' => '100.00', 'sort_order' => 1]]]],
+            'presentation' => ['image' => $snapshot],
             'prize' => ['image' => $snapshot], 'animation' => ['image' => $snapshot, 'video' => $snapshot]];
         DB::enableQueryLog();
         DB::flushQueryLog();

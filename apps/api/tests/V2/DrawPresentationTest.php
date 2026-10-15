@@ -189,6 +189,43 @@ final class DrawPresentationTest extends TestCase
         self::assertSame($resultsBefore, DB::table('draw_results')->orderBy('id')->get()->toJson());
     }
 
+    public function test_weighted_videos_are_selected_after_all_prizes_and_preserve_replay(): void
+    {
+        $user = $this->fixture(array_fill(0, 10, 1));
+        DB::beginTransaction();
+        $baseline = $this->draw($user, 10);
+        $inventory = DB::table('prize_inventories')->orderBy('id')->pluck('available_quantity')->all();
+        DB::rollBack();
+        $videos = app(\App\Domain\Catalog\Services\V2RankVideoService::class);
+        $identifiers = DB::table('catalog_presentation_assets')->where('media_type', 'video')->orderBy('id')->limit(2)->pluck('public_id')->all();
+        $items = [['video_asset_id' => $identifiers[0], 'weight_percent' => '80.00'], ['video_asset_id' => $identifiers[1], 'weight_percent' => '20.00']];
+        foreach (DB::table('catalog_gacha_ranks')->get() as $rank) {
+            $revision = $videos->create((int) $rank->id, $items, now()->toDateTimeString());
+            DB::table('catalog_gacha_ranks')->where('id', $rank->id)->update([
+                'current_video_revision_id' => $revision, 'revision' => $rank->revision + 1,
+            ]);
+        }
+        $this->random([...array_fill(0, 10, 1), 1, 8000, 8001, 10000, 1, 8001, 1, 8001, 1, 8001]);
+        $weighted = $this->draw($user, 10);
+        self::assertSame(array_column(array_column($baseline['results'], 'prize'), 'id'), array_column(array_column($weighted['results'], 'prize'), 'id'));
+        self::assertSame($inventory, DB::table('prize_inventories')->orderBy('id')->pluck('available_quantity')->all());
+        self::assertSame([$identifiers[0], $identifiers[0], $identifiers[1], $identifiers[1]],
+            array_column(array_slice(array_column($weighted['results'], 'video_snapshot'), 0, 4), 'id'));
+        self::assertEquals($weighted['results'][0]['video_snapshot'], $weighted['presentation']['video_snapshot']);
+        foreach (DB::table('draw_results')->get() as $result) {
+            self::assertNotNull($result->gacha_rank_video_item_id);
+            self::assertDatabaseHas('catalog_gacha_rank_video_items', [
+                'id' => $result->gacha_rank_video_item_id, 'video_revision_id' => $result->gacha_rank_video_revision_id,
+            ]);
+        }
+        $stored = DB::table('draw_results')->orderBy('id')->get()->toJson();
+        self::assertEquals($weighted['results'], $this->draw($user, 10)['results']);
+        Auth::guard('v2_user')->setUser($user);
+        self::assertEquals($weighted['results'], $this->getJson('/api/v2/draw-requests/'.$weighted['id'])->assertOk()->json('results'));
+        self::assertSame($stored, DB::table('draw_results')->orderBy('id')->get()->toJson());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
     private function fixture(array $values): User
     {
         $fixture = json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR);

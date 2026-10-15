@@ -1350,6 +1350,7 @@ export interface components {
             asset: components["schemas"]["PresentationAsset"] | null;
         };
         LoginGachaRank: {
+            videos?: components["schemas"]["PresentationAsset"][];
             id: components["schemas"]["OpaqueId"];
             name: string;
             lineup_image: components["schemas"]["PresentationAsset"] | null;
@@ -1982,6 +1983,7 @@ export interface components {
             name: string;
         };
         GachaRankPresentation: {
+            videos?: components["schemas"]["PresentationAsset"][];
             rank_id: components["schemas"]["OpaqueId"];
             rank_name: string;
             lineup_image: components["schemas"]["PresentationAsset"];

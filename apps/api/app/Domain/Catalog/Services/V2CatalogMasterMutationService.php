@@ -1148,8 +1148,41 @@ final class V2CatalogMasterMutationService
         string $idempotencyKey,
         array $input
     ): array {
-        $admin = $this->authorize($context, 'update', 'gacha_rank');
+        $this->authorize($context, 'update', 'gacha_rank');
         $payload = $this->validateGachaRankVideo($input, false);
+
+        return $this->applyGachaRankVideos($context, $gachaPublicId, $rankMasterPublicId, $idempotencyKey, [
+            'items' => [['video_asset_id' => $payload['video_asset_id'], 'weight_percent' => '100.00']],
+            ...isset($payload['expected_revision']) ? ['expected_revision' => $payload['expected_revision']] : [],
+        ], $payload);
+    }
+
+    public function setGachaRankVideos(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $rankMasterPublicId,
+        string $idempotencyKey,
+        array $input
+    ): array {
+        return $this->applyGachaRankVideos($context, $gachaPublicId, $rankMasterPublicId, $idempotencyKey, $input);
+    }
+
+    private function applyGachaRankVideos(
+        V2AdminAuthorizationContext $context,
+        string $gachaPublicId,
+        string $rankMasterPublicId,
+        string $idempotencyKey,
+        array $input,
+        ?array $legacyPayload = null
+    ): array {
+        $admin = $this->authorize($context, 'update', 'gacha_rank');
+        $this->assertFields($input, ['items', 'expected_revision'], ['items']);
+        $videos = app(V2RankVideoService::class);
+        $payload = [
+            'items' => $videos->normalize($input['items']),
+            ...array_key_exists('expected_revision', $input)
+                ? ['expected_revision' => $this->revision($input['expected_revision'])] : [],
+        ];
 
         return $this->execute(
             $context,
@@ -1160,14 +1193,11 @@ final class V2CatalogMasterMutationService
             [
                 'gacha_id' => $gachaPublicId,
                 'rank_id' => $rankMasterPublicId,
-                ...$payload,
+                ...($legacyPayload ?? $payload),
             ],
             200,
-            function () use ($gachaPublicId, $rankMasterPublicId, $payload): object {
+            function () use ($gachaPublicId, $rankMasterPublicId, $payload, $videos, $context, $admin): object {
                 $gacha = $this->find('catalog_gachas', $gachaPublicId, true);
-                if ($gacha->gacha_type !== 'standard' && $gacha->first_published_at !== null) {
-                    throw $this->immutableException();
-                }
                 $master = $this->find('catalog_rank_masters', $rankMasterPublicId, true);
                 if ($master->status !== 'active') {
                     throw new V2CatalogException(
@@ -1176,28 +1206,15 @@ final class V2CatalogMasterMutationService
                         'Inactive Rank Masters cannot be configured on a Gacha.'
                     );
                 }
-                $asset = DB::table('catalog_presentation_assets as asset')
-                    ->join(
-                        'catalog_rank_effect_materials as material',
-                        'material.presentation_asset_id',
-                        '=',
-                        'asset.id'
-                    )
-                    ->where('asset.public_id', $payload['video_asset_id'])
-                    ->where('asset.media_type', 'video')
-                    ->where('asset.is_public', true)
-                    ->whereNull('asset.archived_at')
-                    ->lockForUpdate()
-                    ->first(['asset.*']);
-                if ($asset === null) {
-                    throw $this->validationException();
-                }
                 $gachaRank = DB::table('catalog_gacha_ranks')
                     ->where('gacha_id', $gacha->id)
                     ->where('rank_master_id', $master->id)
                     ->lockForUpdate()
                     ->first();
                 if ($gachaRank === null) {
+                    if ($gacha->gacha_type !== 'standard' && $gacha->first_published_at !== null) {
+                        throw $this->immutableException();
+                    }
                     if (($payload['expected_revision'] ?? 0) !== 0) {
                         throw new V2CatalogException(
                             'CATALOG_REVISION_CONFLICT',
@@ -1230,24 +1247,24 @@ final class V2CatalogMasterMutationService
                         'The Catalog record has changed.'
                     );
                 }
-                $currentVideo = $gachaRank->current_video_revision_id === null
-                    ? null
-                    : DB::table('catalog_gacha_rank_video_revisions')
-                        ->where('id', $gachaRank->current_video_revision_id)
-                        ->firstOrFail();
-                if ($currentVideo !== null && (int) $currentVideo->video_asset_id === (int) $asset->id) {
+                $current = $videos->load([$gachaRank->current_video_revision_id]);
+                if ($videos->input($current[$gachaRank->current_video_revision_id] ?? []) === $payload['items']) {
                     return $gachaRank;
                 }
-                $revisionNumber = (int) DB::table('catalog_gacha_rank_video_revisions')
-                    ->where('gacha_rank_id', $gachaRank->id)
-                    ->max('revision_number') + 1;
-                $videoRevisionId = DB::table('catalog_gacha_rank_video_revisions')
-                    ->insertGetId([
-                        'gacha_rank_id' => $gachaRank->id,
-                        'revision_number' => $revisionNumber,
-                        'video_asset_id' => $asset->id,
-                        'created_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
-                    ]);
+                $videoRevisionId = $videos->create(
+                    (int) $gachaRank->id, $payload['items'], V2DatabaseTimestamp::format(now()->startOfSecond())
+                );
+                $this->audit->record('catalog.gacha_rank.videos_updated', [
+                    'request_id' => $context->requestId,
+                    'actor_type' => 'admin', 'actor_public_id' => $admin->public_id,
+                    'actor_role' => $admin->role->value, 'auth_realm' => 'admin',
+                    'session_correlation_hash' => $context->sessionCorrelationHash,
+                    'action' => 'catalog.gacha_rank.update', 'target_type' => 'catalog_gacha_rank',
+                    'target_public_id' => $gachaRank->public_id, 'outcome' => 'success',
+                    'reason_code' => 'videos_updated',
+                    'before' => $videos->audit($videos->input($current[$gachaRank->current_video_revision_id] ?? []), (int) $gachaRank->revision),
+                    'after' => $videos->audit($payload['items'], $gachaRank->current_video_revision_id === null ? (int) $gachaRank->revision : (int) $gachaRank->revision + 1),
+                ]);
                 DB::table('catalog_gacha_ranks')->where('id', $gachaRank->id)->update([
                     'current_video_revision_id' => $videoRevisionId,
                     'revision' => $gachaRank->current_video_revision_id === null
@@ -8991,6 +9008,8 @@ final class V2CatalogMasterMutationService
     /** @return array<string, mixed> */
     private function mapGachaRank(object $row): array
     {
+        $videos = app(V2RankVideoService::class);
+        $sets = $videos->load([$row->current_video_revision_id]);
         $master = DB::table('catalog_rank_masters')
             ->where('id', $row->rank_master_id)
             ->firstOrFail();
@@ -9015,6 +9034,7 @@ final class V2CatalogMasterMutationService
                 ->where('id', $row->gacha_id)
                 ->value('public_id'),
             'rank' => $this->mapRankMaster($master),
+            'videos' => $videos->admin($sets[$row->current_video_revision_id] ?? []),
             'current_video' => $video === null ? null : [
                 'id' => $video->public_id,
                 'path' => $video->public_path,
@@ -9645,6 +9665,11 @@ final class V2CatalogMasterMutationService
         };
     }
 
+    private function immutableException(): V2CatalogException
+    {
+        return new V2CatalogException('CATALOG_GACHA_IDENTITY_IMMUTABLE', 409, 'Published login Gacha configuration is immutable.');
+    }
+
     private function queryException(QueryException $exception): V2CatalogException
     {
         $state = $exception->errorInfo[0] ?? null;
@@ -9731,10 +9756,10 @@ final class V2CatalogMasterMutationService
         }
         if (
             $state === 'P0001'
-            && str_contains(
+            && (str_contains($message, 'Historical rank video materials must remain available') || str_contains(
                 $message,
                 'Published Catalog references protect this master record'
-            )
+            ))
         ) {
             return new V2CatalogException(
                 'CATALOG_PUBLISHED_REFERENCE_CONFLICT',

@@ -745,6 +745,166 @@ final class LoginGachaTest extends TestCase
         return [['login_daily'], ['signup_once']];
     }
 
+    #[DataProvider('externalIdBackfillTypes')]
+    public function test_published_video_sets_update_without_changing_login_composition_or_history(string $type): void
+    {
+        $gacha = $this->createPublished($type);
+        $user = $this->user();
+        $original = $this->draw($user, $gacha, 'before-video-change');
+        $history = DB::table('draw_results')->orderBy('id')->get()->toJson();
+        $input = $this->input($type);
+        $rankId = $input['ranks'][0]['rank_id'];
+        $rank = DB::table('catalog_gacha_ranks')->where('gacha_id', DB::table('catalog_gachas')->where('public_id', $gacha['id'])->value('id'))->first();
+        $asset = (array) DB::table('catalog_presentation_assets')->where('public_id', $input['ranks'][0]['video_asset_id'])->first();
+        unset($asset['id']);
+        $asset['public_id'] = (string) Str::uuid7();
+        $asset['storage_identifier'] = 'fixture/weighted-login-'.Str::uuid7().'.mp4';
+        $asset['public_path'] = '/assets/'.$asset['storage_identifier'];
+        $asset['is_default_rank_video'] = false;
+        Storage::disk('local')->put($asset['storage_identifier'], 'rank-s');
+        $assetId = DB::table('catalog_presentation_assets')->insertGetId($asset);
+        DB::table('catalog_rank_effect_materials')->insert(['presentation_asset_id' => $assetId, 'created_at' => now()]);
+        $items = [
+            ['video_asset_id' => $input['ranks'][0]['video_asset_id'], 'weight_percent' => '20.00'],
+            ['video_asset_id' => $asset['public_id'], 'weight_percent' => '80.00'],
+        ];
+        $path = '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/ranks/'.$rankId;
+        $updated = $this->mutate('PUT', $path.'/videos', ['items' => $items, 'expected_revision' => (int) $rank->revision], 'weighted-update')
+            ->assertOk()->assertJsonCount(2, 'data.videos')->assertJsonPath('data.current_video.id', $asset['public_id'])->json('data');
+        $this->mutate('PUT', $path.'/videos', ['items' => $items, 'expected_revision' => (int) $rank->revision], 'weighted-update')
+            ->assertOk()->assertJsonPath('idempotent_replay', true);
+        $this->mutate('PUT', $path.'/videos', ['items' => $items, 'expected_revision' => (int) $rank->revision])->assertConflict();
+        $this->mutate('PUT', $path.'/videos', ['items' => []])->assertUnprocessable();
+        $this->mutate('POST', $path.'/video/unset', ['expected_revision' => $updated['revision']])->assertConflict();
+        $this->mutate('PUT', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/composition', [
+            'composition' => $input, 'expected_revision' => $gacha['revision'], 'expected_version_revision' => $gacha['current_version']['revision'],
+        ])->assertConflict();
+        $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(fn (int $minimum, int $maximum): int => $maximum === 10000 ? 10000 : 1));
+        $next = $this->draw($this->user(), $gacha, 'after-video-change');
+        self::assertSame($asset['public_id'], $next['results'][0]['video_snapshot']['id']);
+        self::assertEquals($original['results'], $this->draw($user, $gacha, 'before-video-change')['results']);
+        self::assertSame($history, DB::table('draw_results')->where('draw_request_id', DB::table('draw_requests')->where('public_id', $original['id'])->value('id'))->orderBy('id')->get()->toJson());
+        $public = app(V2LoginCatalogReadService::class)->detail($gacha['id'], $user);
+        self::assertCount(2, $public['data']['ranks'][0]['videos']);
+        self::assertSame($asset['public_id'], $public['data']['ranks'][0]['video']['id']);
+        self::assertStringNotContainsString('weight', json_encode($public, JSON_THROW_ON_ERROR));
+        $this->get('/api/v2/catalog/presentation-assets/'.$asset['public_id'].'/content')->assertOk()->assertContent('rank-s');
+        $copy = app(V2GachaCopyService::class)->projection($gacha['id'], true);
+        self::assertSame($items, $copy['ranks'][0]['videos']);
+        $copy['publish_start_at'] = $input['publish_start_at'];
+        $copied = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $copy)->assertCreated()->json('data');
+        self::assertSame($items, app(V2GachaCopyService::class)->projection($copied['id'], false)['ranks'][0]['videos']);
+        $this->mutate('PUT', $path.'/video', ['video_asset_id' => $asset['public_id'], 'expected_revision' => $updated['revision']])
+            ->assertOk()->assertJsonCount(1, 'data.videos')->assertJsonPath('data.videos.0.weight_percent', '100.00');
+        $audit = DB::table('audit_logs')->where('action_code', 'catalog.gacha_rank.videos_updated')->orderBy('id')->first();
+        self::assertSame('20.00', json_decode($audit->after_redacted, true)['video_1_weight']);
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public function test_rank_video_database_guards_reject_incomplete_mutated_and_invalid_sets(): void
+    {
+        $rank = DB::table('catalog_gacha_ranks')->first();
+        $item = DB::table('catalog_gacha_rank_video_items')->where('video_revision_id', $rank->current_video_revision_id)->first();
+        $invalid = [
+            fn () => DB::table('catalog_gacha_rank_video_items')->where('id', $item->id)->update(['weight_units' => 9000]),
+            fn () => DB::table('catalog_gacha_rank_video_items')->where('id', $item->id)->delete(),
+            fn () => DB::statement('TRUNCATE catalog_gacha_rank_video_items CASCADE'),
+            fn () => DB::table('catalog_gacha_rank_video_items')->insert(['video_revision_id' => $rank->current_video_revision_id, 'video_asset_id' => $item->video_asset_id, 'weight_units' => 1, 'sort_order' => 2]),
+            fn () => DB::table('catalog_presentation_assets')->where('id', $item->video_asset_id)->update(['is_public' => false, 'revision' => DB::raw('revision + 1')]),
+        ];
+        foreach ($invalid as $mutation) {
+            try {
+                DB::transaction($mutation);
+                self::fail('Historical video data must remain protected.');
+            } catch (QueryException $exception) {
+                self::assertStringContainsString('SQLSTATE', $exception->getMessage());
+            }
+        }
+        foreach ([0, 2, 11] as $count) {
+            try {
+                DB::transaction(function () use ($rank, $item, $count): void {
+                    DB::table('catalog_gacha_rank_video_revisions')->insert([
+                        'gacha_rank_id' => $rank->id, 'revision_number' => 100, 'video_asset_id' => $item->video_asset_id,
+                        'video_count' => $count, 'created_at' => now(),
+                    ]);
+                    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+                });
+                self::fail('Empty or incomplete video revisions must fail at commit.');
+            } catch (QueryException $exception) {
+                self::assertStringContainsString('SQLSTATE', $exception->getMessage());
+            }
+        }
+        self::assertSame(10000, (int) DB::table('catalog_gacha_rank_video_items')->where('id', $item->id)->value('weight_units'));
+    }
+
+    public function test_video_set_http_validation_and_permission_are_shared_with_legacy(): void
+    {
+        $gacha = $this->createPublished();
+        $rankId = $this->input()['ranks'][0]['rank_id'];
+        $path = '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/ranks/'.$rankId.'/videos';
+        $item = ['video_asset_id' => $this->input()['ranks'][0]['video_asset_id'], 'weight_percent' => '100.00'];
+        foreach ([[], [$item, $item], array_fill(0, 11, $item), [[...$item, 'weight_percent' => '80.000']],
+            [[...$item, 'weight_percent' => '99.99']], [[...$item, 'weight_percent' => 100]], [[...$item, 'weight_percent' => '0']],
+            [[...$item, 'video_asset_id' => '0198a001-0000-7000-8000-000000000005']],
+        ] as $items) {
+            $this->mutate('PUT', $path, ['items' => $items])->assertUnprocessable();
+        }
+        DB::table('admins')->update(['role' => 'operator']);
+        $this->mutate('PUT', $path, ['items' => [$item]])->assertForbidden();
+    }
+
+    public function test_database_rejects_invalid_multi_sets_and_protects_nonrepresentative_history(): void
+    {
+        $rank = DB::table('catalog_gacha_ranks')->firstOrFail();
+        $original = DB::table('catalog_presentation_assets')->where('media_type', 'video')->firstOrFail();
+        $asset = (array) $original;
+        unset($asset['id']);
+        $asset['public_id'] = (string) Str::uuid7();
+        $asset['public_path'] = '/assets/nonrepresentative-history.mp4';
+        $asset['storage_identifier'] = 'fixture/nonrepresentative-history.mp4';
+        $asset['is_default_rank_video'] = false;
+        $assetId = DB::table('catalog_presentation_assets')->insertGetId($asset);
+        DB::table('catalog_rank_effect_materials')->insert(['presentation_asset_id' => $assetId, 'created_at' => now()]);
+        $imageId = DB::table('catalog_presentation_assets')->where('media_type', 'image')->value('id');
+        foreach ([
+            [$assetId, 8000, 1000, 2],
+            [$original->id, 8000, 2000, 2],
+            [$assetId, 0, 10000, 2],
+            [$assetId, 8000, 2000, 1],
+            [$imageId, 8000, 2000, 2],
+        ] as [$secondAsset, $firstWeight, $secondWeight, $secondOrder]) {
+            try {
+                DB::transaction(function () use ($rank, $original, $secondAsset, $firstWeight, $secondWeight, $secondOrder): void {
+                    $revision = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
+                        'gacha_rank_id' => $rank->id, 'revision_number' => 500, 'video_asset_id' => $original->id,
+                        'video_count' => 2, 'created_at' => now(),
+                    ]);
+                    DB::table('catalog_gacha_rank_video_items')->insert([
+                        ['video_revision_id' => $revision, 'video_asset_id' => $original->id, 'weight_units' => $firstWeight, 'sort_order' => 1],
+                        ['video_revision_id' => $revision, 'video_asset_id' => $secondAsset, 'weight_units' => $secondWeight, 'sort_order' => $secondOrder],
+                    ]);
+                    DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+                });
+                self::fail('Invalid multi-video data must be rejected by PostgreSQL.');
+            } catch (QueryException $exception) {
+                self::assertStringContainsString('SQLSTATE', $exception->getMessage());
+            }
+        }
+        app(\App\Domain\Catalog\Services\V2RankVideoService::class)->create((int) $rank->id, [
+            ['video_asset_id' => $original->public_id, 'weight_percent' => '80.00'],
+            ['video_asset_id' => $asset['public_id'], 'weight_percent' => '20.00'],
+        ], now()->toDateTimeString());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+        foreach ([['is_public' => false], ['archived_at' => now()]] as $change) {
+            try {
+                DB::transaction(fn () => DB::table('catalog_presentation_assets')->where('id', $assetId)->update([...$change, 'revision' => DB::raw('revision + 1')]));
+                self::fail('Even nonrepresentative historical materials must remain available.');
+            } catch (QueryException $exception) {
+                self::assertStringContainsString('Historical rank video materials must remain available', $exception->getMessage());
+            }
+        }
+    }
+
     private function input(string $type = 'login_daily'): array
     {
         $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');

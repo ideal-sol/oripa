@@ -89,6 +89,7 @@ import {
   type AdminGachaRankCollection,
   type AdminGachaRankMutationResult,
   type AdminGachaRankVideoSet,
+  type AdminGachaRankVideosSet,
   type AdminGachaRankVideoUnset,
   type AdminGachaVersionPrizeCollection,
   type AdminGachaVersionPrizeCreate,
@@ -1803,6 +1804,18 @@ export class AdminApiClient {
     );
   }
 
+  setGachaRankVideos(
+    gachaId: string,
+    rankId: string,
+    body: AdminGachaRankVideosSet,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminGachaRankMutationResult> {
+    return this.gachaRankMutation(
+      "PUT", gachaId, rankId, "videos", body, idempotencyKey, signal,
+    );
+  }
+
   unsetGachaRankVideo(
     gachaId: string,
     rankId: string,
@@ -2941,7 +2954,7 @@ export class AdminApiClient {
     method: "POST" | "PUT",
     gachaId: string,
     rankId: string,
-    action: "video" | "video/unset",
+    action: "video" | "videos" | "video/unset",
     body: unknown,
     idempotencyKey: string,
     signal?: AbortSignal,

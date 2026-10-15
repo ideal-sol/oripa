@@ -22,6 +22,117 @@ use Tests\Support\V2TimestampFixture;
 
 final class ZLoginGachaConcurrencyTest extends TestCase
 {
+    public function test_video_update_and_draw_serialize_on_real_connections(): void
+    {
+        if (getenv('V2_RANK_VIDEO_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('Requires an explicitly isolated rank video concurrency database.');
+        }
+        self::assertTrue(app()->environment('testing'));
+        self::assertSame('oripa_v2_rankvideo_multi_synthetic', DB::connection()->getDatabaseName());
+        self::assertTrue(function_exists('pcntl_fork'));
+        self::assertSame(0, DB::table('catalog_gachas')->count());
+        $fixture = json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR);
+        foreach ($fixture['gacha_prizes'] as &$prize) {
+            $prize['initial_inventory'] = 200;
+        }
+        unset($prize);
+        app(V2CatalogFixtureImporter::class)->import($fixture);
+        $context = $this->adminContext();
+        $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(static fn (): int => 1));
+        $originalAsset = DB::table('catalog_presentation_assets')->where('media_type', 'video')->firstOrFail();
+        $asset = (array) $originalAsset;
+        unset($asset['id']);
+        $asset['public_id'] = (string) Str::uuid7();
+        $asset['public_path'] = '/assets/synthetic-concurrency-video.mp4';
+        $asset['storage_identifier'] = 'fixture/synthetic-concurrency-video.mp4';
+        $asset['is_default_rank_video'] = false;
+        $assetId = DB::table('catalog_presentation_assets')->insertGetId($asset);
+        DB::table('catalog_rank_effect_materials')->insert(['presentation_asset_id' => $assetId, 'created_at' => now()]);
+        foreach (['standard', 'login_daily', 'signup_once'] as $type) {
+            $gacha = DB::table('catalog_gachas')->where('public_id', '0198a001-0000-7000-8000-000000000011')->firstOrFail();
+            if ($type !== 'standard') {
+                $input = app(V2GachaCopyService::class)->projection($gacha->public_id, true);
+                $input = [...$input, 'gacha_type' => $type, 'price_points' => 0,
+                    'minimum_exchange_points' => $type === 'login_daily' ? 0 : null,
+                    'category_id' => null, 'tag_ids' => [], 'total_count' => null,
+                    'daily_draw_limit' => $type === 'login_daily' ? 1 : 0, 'audience_code' => 'all_users',
+                    'first_time_eligible_days' => 7, 'allowed_draw_counts' => [1],
+                    'publish_start_at' => '2026-07-01T00:00:00Z', 'publish_end_at' => null];
+                foreach ($input['prizes'] as &$prize) {
+                    $prize['percentage'] = '50';
+                    $prize['external_id'] = null;
+                    $prize['initial_inventory'] = 100;
+                }
+                unset($prize);
+                $composition = app(V2GachaCompositionService::class);
+                $gacha = DB::transaction(fn (): object => $composition->save($composition->validate($input), null, null, $context));
+                $version = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)->firstOrFail();
+                app(V2CatalogMasterMutationService::class)->publishGachaVersionImmediately($context, $gacha->public_id, $version->public_id,
+                    'video-publish-'.$type, ['expected_revision' => (int) $version->revision, 'expected_gacha_revision' => (int) $gacha->revision]);
+            }
+            foreach ([true, false] as $updateFirst) {
+                $user = $this->user();
+                if ($type === 'standard') {
+                    app(\App\Domain\Point\Services\V2PointService::class)->grantFree($user->id, 100000, 'race-funding-'.$user->public_id);
+                }
+                $rank = DB::table('catalog_gacha_ranks')->where('gacha_id', $gacha->id)->orderBy('id')->firstOrFail();
+                $rankId = DB::table('catalog_rank_masters')->where('id', $rank->rank_master_id)->value('public_id');
+                $items = [
+                    ['video_asset_id' => $originalAsset->public_id, 'weight_percent' => $updateFirst ? '80.00' : '20.00'],
+                    ['video_asset_id' => $asset['public_id'], 'weight_percent' => $updateFirst ? '20.00' : '80.00'],
+                ];
+                $draw = fn (): array => app(V2DrawService::class)->create(User::query()->findOrFail($user->id), $gacha->public_id, $type === 'standard' ? 10 : 1, 'race-draw-'.$user->public_id, (string) Str::uuid7());
+                $update = fn (): array => app(V2CatalogMasterMutationService::class)->setGachaRankVideos($context, $gacha->public_id, $rankId,
+                    'race-update-'.$user->public_id, ['items' => $items, 'expected_revision' => (int) $rank->revision]);
+                $path = tempnam(sys_get_temp_dir(), 'rank-video-race-');
+                [$parentSocket, $childSocket] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+                DB::disconnect();
+                $processId = pcntl_fork();
+                self::assertNotSame(-1, $processId);
+                if ($processId === 0) {
+                    fclose($parentSocket);
+                    fread($childSocket, 1);
+                    DB::reconnect();
+                    try {
+                        DB::statement("SET lock_timeout = '10s'");
+                        $response = $updateFirst ? $draw() : $update();
+                        file_put_contents($path, json_encode(['response' => $response], JSON_THROW_ON_ERROR));
+                    } catch (\Throwable $exception) {
+                        file_put_contents($path, json_encode(['error' => $exception->getMessage()], JSON_THROW_ON_ERROR));
+                    }
+                    DB::disconnect();
+                    fclose($childSocket);
+                    exit(0);
+                }
+                fclose($childSocket);
+                DB::reconnect();
+                DB::transaction(function () use ($gacha, $parentSocket, $updateFirst, $update, $draw): void {
+                    DB::table('catalog_gachas')->where('id', $gacha->id)->lockForUpdate()->firstOrFail();
+                    fwrite($parentSocket, '1');
+                    usleep(200000);
+                    $updateFirst ? $update() : $draw();
+                });
+                pcntl_waitpid($processId, $status);
+                fclose($parentSocket);
+                $outcome = json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+                unlink($path);
+                self::assertTrue(pcntl_wifexited($status));
+                self::assertSame(0, pcntl_wexitstatus($status));
+                self::assertArrayNotHasKey('error', $outcome, json_encode($outcome));
+                $current = DB::table('catalog_gacha_ranks')->where('id', $rank->id)->value('current_video_revision_id');
+                self::assertNotSame((int) $rank->current_video_revision_id, (int) $current);
+                $results = DB::table('draw_results')->whereIn('draw_request_id', DB::table('draw_requests')->where('user_id', $user->id)->select('id'))->get();
+                self::assertCount($type === 'standard' ? 10 : 1, $results);
+                $rankRevisions = DB::table('catalog_gacha_rank_video_revisions')->where('gacha_rank_id', $rank->id)->pluck('id')->all();
+                $matching = $results->whereIn('gacha_rank_video_revision_id', $rankRevisions);
+                self::assertNotEmpty($matching);
+                self::assertSame([(int) ($updateFirst ? $current : $rank->current_video_revision_id)],
+                    $matching->pluck('gacha_rank_video_revision_id')->map(fn ($value): int => (int) $value)->unique()->values()->all());
+                self::assertTrue($matching->every(fn ($result): bool => $result->gacha_rank_video_item_id !== null));
+            }
+        }
+    }
+
     public function test_real_connections_serialize_daily_signup_replay_and_last_inventory(): void
     {
         if (getenv('V2_LOGIN_DRAW_CONCURRENCY_TEST') !== '1') {

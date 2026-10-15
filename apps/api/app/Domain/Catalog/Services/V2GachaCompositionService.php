@@ -48,9 +48,9 @@ final class V2GachaCompositionService
             'first_time_eligible_days' => 'required|integer|min:1|max:365',
             'allowed_draw_counts' => 'required|array|min:1|max:5', 'allowed_draw_counts.*' => 'integer|in:1,5,10,100,1000|distinct',
             'publish_start_at' => 'required|date', 'publish_end_at' => 'nullable|date|after:publish_start_at',
-            'ranks' => 'required|array|min:1|max:100', 'ranks.*' => 'array:rank_id,rank_revision_number,video_asset_id',
+            'ranks' => 'required|array|min:1|max:100', 'ranks.*' => 'array:rank_id,rank_revision_number,video_asset_id,videos',
             'ranks.*.rank_id' => 'required|uuid|distinct', 'ranks.*.rank_revision_number' => 'present|nullable|integer|min:1',
-            'ranks.*.video_asset_id' => 'present|nullable|uuid',
+            'ranks.*.video_asset_id' => 'nullable|uuid',
             'prizes' => 'required|array|min:1|max:1000',
             'prizes.*' => 'array:external_id,name,presentation_asset_id,rank_id,exchange_points,cost_price,initial_inventory,shipping_only,percentage',
             'prizes.*.name' => 'required|string|max:191', 'prizes.*.presentation_asset_id' => 'required|uuid',
@@ -75,7 +75,13 @@ final class V2GachaCompositionService
                 $input[$field] = V2DatabaseTimestamp::format(CarbonImmutable::parse($input[$field]));
             }
         }
-        foreach ($input['ranks'] as $rank) {
+        foreach ($input['ranks'] as $index => $rank) {
+            if (array_key_exists('videos', $rank)) {
+                $input['ranks'][$index]['videos'] = app(V2RankVideoService::class)->normalize($rank['videos']);
+            } elseif (! array_key_exists('video_asset_id', $rank)) {
+                throw $this->invalid();
+            }
+            $input['ranks'][$index]['video_asset_id'] ??= null;
             if ($rank['rank_revision_number'] !== null && ! is_int($rank['rank_revision_number'])) {
                 throw $this->invalid();
             }
@@ -261,12 +267,10 @@ final class V2GachaCompositionService
                 'preferred_rank_revision_id' => $preferred, 'revision' => 1, 'created_at' => $now, 'updated_at' => $now,
             ]) : (int) $rank->id;
             $videoRevision = null;
-            if ($rankInput['video_asset_id'] !== null) {
-                $video = $this->asset($rankInput['video_asset_id'], 'video');
-                $videoRevision = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
-                    'gacha_rank_id' => $rankId, 'revision_number' => 1 + (int) DB::table('catalog_gacha_rank_video_revisions')->where('gacha_rank_id', $rankId)->max('revision_number'),
-                    'video_asset_id' => $video->id, 'created_at' => $now,
-                ]);
+            if (isset($rankInput['videos']) || $rankInput['video_asset_id'] !== null) {
+                $videoRevision = app(V2RankVideoService::class)->create($rankId, $rankInput['videos'] ?? [
+                    ['video_asset_id' => $rankInput['video_asset_id'], 'weight_percent' => '100.00'],
+                ], $now);
             }
             if ($rank !== null || $videoRevision !== null) {
                 DB::table('catalog_gacha_ranks')->where('id', $rankId)->update([

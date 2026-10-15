@@ -320,6 +320,7 @@ final class V2DrawService
                         (int) $context['version']->price_points,
                         $occurredAt
                     )));
+                $outcomes['rows'] = $this->selectVideos($outcomes['rows'], $drawMetadata['video_sets']);
                 $this->persistInventory($inventories, $outcomes['inventory_won'], $occurredAt);
                 $state->forceFill([
                     'sold_count' => $state->sold_count + $executedCount,
@@ -927,7 +928,7 @@ final class V2DrawService
                 'catalog_gacha_rank_video_revisions as video_revision',
                 'video_revision.id',
                 '=',
-                DB::raw('COALESCE(relation.published_video_revision_id, gacha_rank.current_video_revision_id)')
+                'gacha_rank.current_video_revision_id'
             )
             ->join(
                 'catalog_presentation_assets as video_asset',
@@ -1018,7 +1019,40 @@ final class V2DrawService
         return [
             'legacy_stage' => $legacyStage,
             'prizes' => $prizes,
+            'video_sets' => app(\App\Domain\Catalog\Services\V2RankVideoService::class)
+                ->load($prizeRows->pluck('gacha_rank_video_revision_id')->all()),
         ];
+    }
+
+    private function selectVideos(array $rows, array $sets): array
+    {
+        $videos = app(\App\Domain\Catalog\Services\V2RankVideoService::class);
+        foreach ($rows as &$row) {
+            $row['gacha_rank_video_item_id'] = null;
+            if ($row['gacha_rank_video_revision_id'] === null) {
+                continue;
+            }
+            $items = $sets[$row['gacha_rank_video_revision_id']] ?? [];
+            if ($row['prize']['fixed_video'] ?? false) {
+                foreach ($items as $item) {
+                    if ($item['video']['id'] === $row['display_snapshot']['video_snapshot']['id']) {
+                        $row['gacha_rank_video_item_id'] = $item['id'];
+                        break;
+                    }
+                }
+                continue;
+            }
+            $selected = $videos->select($items, $this->random);
+            $row['gacha_rank_video_item_id'] = $selected['id'];
+            $row['display_snapshot']['video_snapshot'] = $selected['video'];
+            $row['display_snapshot_json'] = json_encode(
+                $row['display_snapshot'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+            $row['display_snapshot_sha256'] = hash('sha256', $row['display_snapshot_json']);
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /** @param Collection<int, PrizeInventory> $inventories */
@@ -1354,6 +1388,7 @@ final class V2DrawService
                 ...$prize,
                 'animation_image' => $selected['fixed_image'] ?? $prize['animation_image'],
                 'animation_video' => $selected['fixed_video'] ?? $prize['animation_video'],
+                'fixed_video' => isset($selected['fixed_video']),
             ];
             $rows[] = $this->prizeOutcomeRow(
                 $index + 1,
@@ -1513,6 +1548,7 @@ final class V2DrawService
                 'point_back_amount' => $row['point_back_amount'],
                 'random_value' => $row['random_value'],
                 'display_snapshot' => $row['display_snapshot_json'],
+                'gacha_rank_video_item_id' => $row['gacha_rank_video_item_id'],
                 'display_snapshot_sha256' => $row['display_snapshot_sha256'],
                 'occurred_at' => V2DatabaseTimestamp::format($row['occurred_at']),
                 'created_at' => V2DatabaseTimestamp::format($occurredAt),

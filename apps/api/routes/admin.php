@@ -265,6 +265,9 @@ Route::prefix('v2')
             ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.gachas.show');
         Route::get('/catalog/gachas/{gachaId}/ranks', [V2AdminCatalogController::class, 'gachaRanks'])
             ->where('gachaId', $v2GachaIdentifierPattern)->name('v2.admin.catalog.gacha-ranks.index');
+        Route::put('/catalog/gachas/{gachaId}/ranks/{rankId}/videos', [V2AdminCatalogController::class, 'setGachaRankVideos'])
+            ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('rankId')
+            ->name('v2.admin.catalog.gacha-ranks.videos.update');
         Route::put('/catalog/gachas/{gachaId}/ranks/{rankId}/video', [V2AdminCatalogController::class, 'setGachaRankVideo'])
             ->where('gachaId', $v2GachaIdentifierPattern)->whereUuid('rankId')
             ->name('v2.admin.catalog.gacha-ranks.video.update');
