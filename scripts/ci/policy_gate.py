@@ -963,8 +963,6 @@ LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
     "apps/admin/src/lib/catalog/login-gacha.ts",
     "apps/admin/test/login-gacha.test.tsx",
-    "apps/admin/src/components/catalog/rank-video-editor.tsx",
-    "apps/admin/test/rank-video-editor.test.tsx",
 }
 
 S3_PHASE1_ADMIN_FILES = {
@@ -981,6 +979,8 @@ INVENTORY_20261014_ADMIN_FILES = {
     "apps/admin/test/card-inventory.test.tsx",
 }
 ADMIN_SKELETON_FILES = {
+    "apps/admin/src/components/catalog/rank-video-editor.tsx",
+    "apps/admin/test/rank-video-editor.test.tsx",
     *INVENTORY_20261014_ADMIN_FILES,
     *S3_PHASE1_ADMIN_FILES,
     "apps/admin/e2e/admin-gacha-notices.spec.ts",

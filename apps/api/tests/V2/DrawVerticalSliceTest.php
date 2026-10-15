@@ -175,6 +175,7 @@ final class DrawVerticalSliceTest extends TestCase
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        DB::table('catalog_rank_effect_materials')->insert(['presentation_asset_id' => $newVideoAssetId, 'created_at' => $now]);
         $newVideoRevisionId = DB::table('catalog_gacha_rank_video_revisions')->insertGetId([
             'gacha_rank_id' => $relation->gacha_rank_id,
             'revision_number' => (int) $videoRevision->revision_number + 1,
