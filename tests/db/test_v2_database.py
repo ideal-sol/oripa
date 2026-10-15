@@ -20,6 +20,18 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_rank_video_table_inventory_is_exact_and_fail_closed(self):
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / "2026_10_15_000086_add_v2_rank_video_sets.php").read_text()
+        tables = ["public." + name for name in re.findall(r"Schema::create\('([^']+)'", source)]
+        self.assertEqual(tables, ["public.catalog_gacha_rank_video_items"])
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(sorted(set(inventory)), inventory)
+        self.assertTrue(set(tables).issubset(inventory))
+        v2_database.validate_schema_inventory(inventory)
+        for invalid in [[name for name in inventory if name not in tables], sorted([*inventory, "public.unregistered_video_table"])]:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(invalid)
+
     def test_notion_migration_inventory_and_forward_only_guard(self):
         filename = "2026_10_14_000085_create_v2_notion_inventory_sync.php"
         message = "Notion sync history requires a forward correction migration."

@@ -54,6 +54,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.audit_logs",
     "public.catalog_categories",
     "public.catalog_gacha_publish_schedules",
+    "public.catalog_gacha_rank_video_items",
     "public.catalog_gacha_rank_video_revisions",
     "public.catalog_gacha_ranks",
     "public.catalog_gacha_tags",
