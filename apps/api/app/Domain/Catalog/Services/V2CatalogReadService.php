@@ -77,8 +77,8 @@ final class V2CatalogReadService
                         ->orWhereColumn('rank_revision.result_image_asset_id', 'asset.id');
                 })->orWhereExists(function (Builder $revision): void {
                     $revision->selectRaw('1')
-                        ->from('catalog_gacha_rank_video_revisions as video_revision')
-                        ->whereColumn('video_revision.video_asset_id', 'asset.id');
+                        ->from('catalog_gacha_rank_video_items as video_item')
+                        ->whereColumn('video_item.video_asset_id', 'asset.id');
                 });
             })
             ->first();
@@ -609,7 +609,7 @@ final class V2CatalogReadService
 
     private function ranks(int $gachaVersionId): array
     {
-        return DB::table('catalog_gacha_version_prizes as gvp')
+        $rows = DB::table('catalog_gacha_version_prizes as gvp')
             ->join('catalog_prizes as prize', 'prize.id', '=', 'gvp.prize_id')
             ->join(
                 'catalog_gacha_ranks as gacha_rank',
@@ -656,6 +656,7 @@ final class V2CatalogReadService
             ->where('gvp.gacha_version_id', $gachaVersionId)
             ->where('master.status', 'active')
             ->groupBy([
+                'video_revision.id',
                 'master.public_id', 'revision.rank_name', 'revision.show_total_stock',
                 'revision.display_order', 'lineup_asset.public_id',
                 'lineup_asset.public_path', 'lineup_asset.checksum_sha256',
@@ -668,6 +669,7 @@ final class V2CatalogReadService
             ->orderBy('revision.display_order')
             ->orderBy('master.public_id')
             ->get([
+                'video_revision.id as video_revision_id',
                 'master.public_id as rank_id', 'revision.rank_name',
                 'revision.show_total_stock', 'revision.display_order',
                 DB::raw('SUM(inventory.total_quantity)::bigint as total_stock'),
@@ -683,7 +685,11 @@ final class V2CatalogReadService
                 'video_asset.media_type as video_media_type',
                 'video_asset.mime_type as video_mime_type',
                 'video_asset.alt_text as video_alt_text',
-            ])->map(fn (object $rank): array => [
+            ]);
+        $sets = app(V2RankVideoService::class)->load($rows->pluck('video_revision_id')->all());
+
+        return $rows->map(fn (object $rank): array => [
+                'videos' => array_column($sets[$rank->video_revision_id] ?? [], 'video'),
                 'rank_id' => $rank->rank_id,
                 'rank_name' => $rank->rank_name,
                 'lineup_image' => $this->prefixedAsset($rank, 'lineup'),

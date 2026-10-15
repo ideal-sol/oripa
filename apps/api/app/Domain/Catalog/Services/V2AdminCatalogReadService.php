@@ -213,9 +213,11 @@ final class V2AdminCatalogReadService
                 'video_asset.alt_text as video_asset_alt_text',
                 'video_asset.public_path as video_asset_public_path',
             ]);
+        $videos = app(V2RankVideoService::class);
+        $sets = $videos->load($rows->pluck('video_revision_id')->all());
 
         return [
-            'items' => $rows->map(function (object $row): array {
+            'items' => $rows->map(function (object $row) use ($videos, $sets, $gacha): array {
                 $prizeExists = $row->gacha_rank_internal_id !== null
                     && DB::table('catalog_prizes')
                         ->where('gacha_rank_id', $row->gacha_rank_internal_id)
@@ -224,6 +226,7 @@ final class V2AdminCatalogReadService
                 return [
                     'rank' => $this->mapRankMaster($row),
                     'gacha_rank_id' => $row->gacha_rank_public_id,
+                    'videos' => $videos->admin($sets[$row->video_revision_id] ?? []),
                     'gacha_rank_revision' => $row->gacha_rank_revision === null
                         ? null
                         : (int) $row->gacha_rank_revision,
@@ -236,7 +239,7 @@ final class V2AdminCatalogReadService
                         'mime_type' => $row->video_asset_mime_type,
                         'alt_text' => $row->video_asset_alt_text,
                     ],
-                    'can_unset_video' => ! $prizeExists,
+                    'can_unset_video' => ! $prizeExists && ($gacha->gacha_type === 'standard' || $gacha->first_published_at === null),
                 ];
             })->all(),
         ];

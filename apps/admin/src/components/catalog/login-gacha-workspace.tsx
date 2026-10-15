@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
+import { RankVideoEditor, videoWeightTotal } from "@/components/catalog/rank-video-editor";
 import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -17,7 +18,7 @@ import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type {
   AdminCatalogCategory, AdminCatalogGacha, AdminCatalogPresentationAsset, AdminCatalogRank, AdminCatalogTag,
-  AdminCompositionPrize, AdminGachaComposition, AdminGachaType, AdminGachaVersionPrize,
+  AdminCompositionPrize, AdminGachaComposition, AdminGachaType, AdminGachaVersionPrize, AdminGachaRankListItem, AdminRankEffect,
 } from "@/lib/admin-api/generated";
 import { emptyGachaComposition, gachaTypeLabels, jstInput, jstTimestamp, percentageTotal } from "@/lib/catalog/login-gacha";
 
@@ -33,6 +34,8 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   const [gacha, setGacha] = useState<AdminCatalogGacha | null>(null);
   const [ranks, setRanks] = useState<AdminCatalogRank[]>([]);
   const [assets, setAssets] = useState<AdminCatalogPresentationAsset[]>([]);
+  const [rankMaterials, setRankMaterials] = useState<AdminRankEffect[]>([]);
+  const [rankSettings, setRankSettings] = useState<AdminGachaRankListItem[]>([]);
   const [defaultVideoId, setDefaultVideoId] = useState<string | null>(null);
   const noticeDefault = useRef<{ type: AdminGachaType; value: string | null } | null>(null);
   const [categories, setCategories] = useState<AdminCatalogCategory[]>([]);
@@ -74,13 +77,17 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         nextDraft.notices = noticeDefault.current.value;
       }
       let defaultVideo: string | null = null;
-      if (!sourceId) {
+      const materials: AdminRankEffect[] = [];
+      {
         let cursor: string | undefined;
         do {
           const videos = await client.listRankEffects({ media_type: "video", visibility: "visible", limit: 100, cursor }, controller.signal);
+          materials.push(...videos.items);
           defaultVideo = videos.items.find((video) => video.is_default)?.id ?? defaultVideo;
           cursor = videos.next_cursor ?? undefined;
-        } while (cursor && !defaultVideo);
+        } while (cursor);
+      }
+      if (!sourceId) {
         nextDraft.ranks = rankResponse.items.map((rank) => ({
           rank_id: rank.id, rank_revision_number: null, video_asset_id: defaultVideo,
         }));
@@ -93,6 +100,9 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         ]);
         nextDraft = composition.data;
         current = source.data;
+        if (!copy && current.first_published_at !== null) {
+          setRankSettings((await client.listGachaRanks(sourceId, controller.signal)).items);
+        }
         if (!copy && current.current_version) {
           currentInventory = (await client.listGachaVersionPrizes(sourceId, current.current_version.id, controller.signal)).items;
         }
@@ -106,6 +116,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         includeReferences(tagResponse.items, nextDraft.tag_ids, (identifier) => client.getCatalogTag(identifier, controller.signal)),
       ]);
       if (controller.signal.aborted) return;
+      setRankMaterials(materials.filter((material) => material.media_type === "video" && material.is_public));
       setRanks(selectedRanks); setAssets(selectedAssets); setCategories(selectedCategories); setTags(selectedTags);
       setDefaultVideoId(defaultVideo);
       setThumbnailFile(null); thumbnailUpload.current = null;
@@ -163,6 +174,10 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       setNotice("選択したBanner CategoryからBannerを選択してください。");
       return;
     }
+    if (draft.ranks.some((rank) => rank.videos && !videoWeightTotal(rank.videos).valid)) {
+      setNotice("演出動画の割合合計を100%にしてください。");
+      return;
+    }
     const thumbnailError = gachaThumbnailError(thumbnailFile, draft.presentation_asset_id);
     if (thumbnailError) { setNotice(thumbnailError); return; }
     if (sourceId && !copy && typeof gacha?.current_version?.revision !== "number") {
@@ -170,7 +185,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       return;
     }
     const body = { ...draft, publish_start_at: draft.publish_start_at, ranks: draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id))
-      .map(({ rank_id, rank_revision_number, video_asset_id }) => ({ rank_id, rank_revision_number, video_asset_id })) };
+      .map(({ rank_id, rank_revision_number, video_asset_id, videos }) => ({ rank_id, rank_revision_number, video_asset_id, ...(videos ? { videos } : {}) })) };
     if (draft.prizes.length === 0 || draft.prizes.some((prize) => !Number.isSafeInteger(prize.exchange_points) || !Number.isSafeInteger(prize.initial_inventory)
       || !Number.isSafeInteger(prize.cost_price) || (draft.gacha_type === "login_daily" && prize.exchange_points < (draft.minimum_exchange_points ?? 0)))) {
       setNotice("景品、交換ポイント、初期在庫を確認してください。");
@@ -228,7 +243,6 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
     });
   }
 
-  const videoOptions = assets.filter((asset) => asset.media_type === "video" && asset.is_public);
 
   return <AdminShell><ProtectedAdminRoute permission={sourceId && !copy ? "catalog.read" : "catalog.manage"}><div className="workspace">
     <AdminPageHeader eyebrow="ガチャ管理" title={`${gachaTypeLabels[draft.gacha_type]}${copy ? "をコピー" : sourceId ? "の管理" : "の登録"}`}
@@ -297,21 +311,33 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
             }}>景品を削除</button> : null}
           </section>)}
           {!locked ? <button type="button" className="secondary-button" disabled={!ranks.length} onClick={addPrize}>景品を追加</button> : null}
-          {draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id)).map((rank) => <label className="catalog-rank-video-control" key={rank.rank_id}>
-            {rank.presentation?.name ?? ranks.find((master) => master.id === rank.rank_id)?.rank_name ?? "ランク"}の演出動画
-            <select aria-label={`${rank.presentation?.name ?? ranks.find((master) => master.id === rank.rank_id)?.rank_name ?? "ランク"}の演出動画`} required value={rank.video_asset_id ?? ""} onChange={(event) => setDraft({ ...draft, ranks: draft.ranks.map((item) => item.rank_id === rank.rank_id ? { ...item, video_asset_id: event.target.value || null } : item) })}>
-              <option value="">選択してください</option>{videoOptions.map((asset) => <option key={asset.id} value={asset.id}>{asset.alt_text ?? asset.id}</option>)}
-            </select>
-            {rank.rank_revision_number ? <span>参照ランクリビジョン: {rank.rank_revision_number}</span> : null}
-            {rank.video_asset_id
-              ? <PublicAssetPreview allowAuthenticatedContent asset={assets.find((asset) => asset.id === rank.video_asset_id) ?? null} />
-              : <span>未設定</span>}
-            {(rank.presentation ? [rank.presentation.lineup_image, rank.presentation.result_image] : []).map((asset, index) =>
-              <PublicAssetPreview allowAuthenticatedContent key={`${asset.id}:${index}`} asset={{ id: asset.id, public_path: asset.path, mime_type: asset.mime_type, alt_text: asset.alt_text, media_type: "image", is_public: true }} />)}
-          </label>)}
         </fieldset>
+        <section aria-label="抽選演出動画">
+          {draft.ranks.filter((rank) => draft.prizes.some((prize) => prize.rank_id === rank.rank_id)).map((rank) => {
+            const published = !!sourceId && !copy && gacha?.first_published_at != null;
+            const setting = rankSettings.find((item) => item.rank.id === rank.rank_id);
+            const items = rank.videos ?? (rank.video_asset_id ? [{ video_asset_id: rank.video_asset_id, weight_percent: "100.00" }] : []);
+            return <RankVideoEditor key={rank.rank_id}
+              name={rank.presentation?.name ?? ranks.find((master) => master.id === rank.rank_id)?.rank_name ?? "ランク"}
+              items={items} materials={rankMaterials} disabled={!canManage || busy || (locked && !published)}
+              onChange={(videos) => setDraft((current) => ({ ...current, ranks: current.ranks.map((item) => item.rank_id === rank.rank_id ? { ...item, videos } : item) }))}
+              onSave={published ? () => {
+                if (!setting?.gacha_rank_revision || !window.confirm("抽選演出動画を変更しますか？\n\n公開中のガチャです。\n変更後に開始される抽選から新しい動画が適用されます。\n変更前の抽選結果には影響しません。")) return;
+                void act(async () => {
+                  try {
+                    const body = { items, expected_revision: setting.gacha_rank_revision! };
+                    await client.setGachaRankVideos(sourceId!, rank.rank_id, body, mutationKey(JSON.stringify({ rank: rank.rank_id, ...body })));
+                    setNotice("動画設定を保存しました。");
+                  } finally {
+                    setReload((value) => value + 1);
+                  }
+                });
+              } : undefined}
+            />;
+          })}
+        </section>
         {login ? <p role="status">確率合計: {total.label} {total.valid ? "（100%・保存可能）" : "（各景品を正の値、合計を厳密に100%にしてください）"}</p> : null}
-        {!locked ? <div className="catalog-dialog-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => router.push("/catalog/gachas")}>取り消し</button><button type="submit" className="primary-button" disabled={busy || (login && !total.valid) || !draft.prizes.length}>構成を一括保存</button></div> : null}
+        {!locked ? <div className="catalog-dialog-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => router.push("/catalog/gachas")}>取り消し</button><button type="submit" className="primary-button" disabled={busy || (login && !total.valid) || !draft.prizes.length || draft.ranks.some((rank) => rank.videos && !videoWeightTotal(rank.videos).valid)}>構成を一括保存</button></div> : null}
       </form>
       </CatalogGachaFormCard>
       {login && sourceId && !copy && gacha?.first_published_at ? <section className="catalog-detail" aria-label="公開済み景品の管理ID"><h2>景品の管理ID</h2><p>未設定の場合のみ設定できます。設定後の変更・解除はできません。構成は変更しません。</p>

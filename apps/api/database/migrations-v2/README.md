@@ -103,3 +103,18 @@ time policy with idle 6 hours / absolute 12 hours. Migration `000074` can roll
 back only before Agency session, audit, or email-change delivery history exists.
 After use, retain schema and roll back the API/Portal images or apply a forward
 correction. Migration application and domain routing activation are independent.
+# Rank video sets (000086)
+
+Migration `2026_10_15_000086_add_v2_rank_video_sets.php` backfills every historical
+video revision as one immutable 100% item. New sets contain 1–10 distinct rank
+effect materials with positive integer weights totaling 10000. The legacy asset
+column remains the highest-weight item (ties use display order); single-video
+inserts still create one 100% item. Deferred database checks validate complete
+sets. Draw results retain their old revision and snapshots, with a nullable item
+reference for newly selected videos. Published login Gachas permit only new video
+revisions and their active pointer updates; composition remains immutable.
+
+Runtime activation is deferred. Apply schema before the new application. Retain
+the additive schema on application rollback; older applications cannot implement
+weighted selection or the revised login behavior, so restoring them requires
+pausing affected draws until a forward fix. Migration down is deliberately refused.

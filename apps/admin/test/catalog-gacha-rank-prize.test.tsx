@@ -201,7 +201,7 @@ describe("Canonical Gacha Rank and Prize manager", () => {
   });
 
   it("renders every active Rank Master without creating a GachaRank row", async () => {
-    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideos")
       .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
@@ -235,26 +235,28 @@ describe("Canonical Gacha Rank and Prize manager", () => {
     expect(screen.queryByRole("dialog", { name: "新規景品登録" })).not.toBeInTheDocument();
   });
 
-  it("lazily creates the GachaRank and saves a selected video immediately", async () => {
-    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+  it("lazily creates the GachaRank when the selected video is saved", async () => {
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideos")
       .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
-    const picker = await screen.findByLabelText("SSランクの動画");
+    fireEvent.click(await screen.findByRole("button", { name: "動画を追加" }));
+    const picker = screen.getByLabelText("SSランクの動画1");
     fireEvent.change(picker, { target: { value: VIDEO_ASSET_ID } });
+    fireEvent.click(screen.getByRole("button", { name: "動画を保存" }));
 
     await waitFor(() => expect(setVideo).toHaveBeenCalledOnce());
     expect(setVideo).toHaveBeenCalledWith(
       GACHA_ID,
       RANK_ID,
-      { video_asset_id: VIDEO_ASSET_ID },
+      { items: [{ video_asset_id: VIDEO_ASSET_ID, weight_percent: "100.00" }] },
       expect.any(String),
     );
   });
 
   it("requires confirmation but allows a published Gacha video change", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideo")
+    const setVideo = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideos")
       .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(
       <CatalogGachaRankPrizeManager
@@ -265,9 +267,11 @@ describe("Canonical Gacha Rank and Prize manager", () => {
       />,
     );
 
-    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
+    fireEvent.click(await screen.findByRole("button", { name: "動画を追加" }));
+    fireEvent.change(screen.getByLabelText("SSランクの動画1"), {
       target: { value: VIDEO_ASSET_ID },
     });
+    fireEvent.click(screen.getByRole("button", { name: "動画を保存" }));
 
     await waitFor(() => expect(setVideo).toHaveBeenCalledOnce());
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("公開中のガチャです"));
@@ -281,9 +285,7 @@ describe("Canonical Gacha Rank and Prize manager", () => {
       .mockResolvedValue({ data: savedGachaRank(), idempotent_replay: false });
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
-    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
-      target: { value: "" },
-    });
+    fireEvent.click(await screen.findByRole("button", { name: "未設定に戻す" }));
 
     await waitFor(() => expect(unset).toHaveBeenCalledOnce());
     expect(unset).toHaveBeenCalledWith(
@@ -303,9 +305,7 @@ describe("Canonical Gacha Rank and Prize manager", () => {
     );
     render(<CatalogGachaRankPrizeManager canManage gachaId={GACHA_ID} version={version()} />);
 
-    fireEvent.change(await screen.findByLabelText("SSランクの動画"), {
-      target: { value: "" },
-    });
+    fireEvent.click(await screen.findByRole("button", { name: "未設定に戻す" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "景品が登録されているため、抽選演出動画を未設定に戻せません。",

@@ -207,6 +207,24 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_rank_video_set_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_15_000086_add_v2_rank_video_sets.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000086" if change == "duplicate_number" else "000087"
+                    unexpected = migration.with_name(f"2026_10_15_{number}_unregistered.php")
+                    shutil.copy2(migration, unexpected)
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
     def test_banner_asset_operation_migration_registration_is_exact(self):
         relative = "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php"
         self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
@@ -247,6 +265,23 @@ class PolicyGateTest(unittest.TestCase):
                 policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid),
                     f"[{invalid}] Signup SMS gate", data["changed_paths"], data["base_sha"])
         self.assertIn("apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php", policy_gate.V2_IDENTITY_REQUIRED_FILES)
+
+    def test_rank_video_multi_task_identifier_is_exact(self):
+        data = fixture("positive.json")
+        task = "RANKVIDEO-MULTI-20261015"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task),
+            f"[{task}] Weighted videos", data["changed_paths"], data["base_sha"])
+        for invalid in ("RANKVIDEO-MULTI-20261016", "RANKVIDEO-MULTI-*", task + "-EXTRA"):
+            with self.subTest(task=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid),
+                    f"[{invalid}] Weighted videos", data["changed_paths"], data["base_sha"])
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for unexpected in ("apps/admin/src/components/catalog/rank-video-other.tsx",
+                           "apps/admin/src/components/catalog/rank-video-editor/extra.tsx",
+                           "apps/admin/test/rank-video-other.test.tsx"):
+            with self.subTest(path=unexpected), self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                policy_gate.validate_admin_skeleton(ROOT, paths | {unexpected})
 
     def test_external_id_admin_registration_is_exact(self):
         relative = "apps/admin/src/components/catalog/external-id-field.tsx"
@@ -2736,6 +2771,20 @@ python3 scripts/db/v2_database.py smoke \\
             bundle.write_text(json.dumps(contract))
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "storage_identifier"):
                 policy_gate.validate_v2_catalog_boundary(root, paths)
+
+    def test_rank_video_set_only_exact_put_is_registered(self):
+        approved = "/catalog/gachas/{gacha_id}/ranks/{rank_id}/videos"
+        for target, method in [(approved, "post"), (approved, "delete"), (approved + "/other", "put")]:
+            with self.subTest(target=target, method=method), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_catalog_boundary(root)
+                policy_gate.validate_v2_catalog_boundary(root, paths)
+                bundle = root / "openapi/bundled/admin.openapi.json"
+                contract = json.loads(bundle.read_text())
+                contract["paths"].setdefault(target, {})[method] = contract["paths"][approved]["put"]
+                bundle.write_text(json.dumps(contract))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "prohibited mutation"):
+                    policy_gate.validate_v2_catalog_boundary(root, paths)
 
     def test_v2_catalog_scheduled_worker_mutation_fails(self):
         with tempfile.TemporaryDirectory() as temporary:

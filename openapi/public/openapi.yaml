@@ -2307,6 +2307,7 @@ components:
       additionalProperties: false
       required: [id, name, lineup_image, result_image, video]
       properties:
+        videos: {type: array, minItems: 1, maxItems: 10, items: {$ref: '#/components/schemas/PresentationAsset'}}
         id: {$ref: '#/components/schemas/OpaqueId'}
         name: {type: string}
         lineup_image: {oneOf: [{$ref: '#/components/schemas/PresentationAsset'}, {type: 'null'}]}
@@ -3730,6 +3731,7 @@ components:
       additionalProperties: false
       required: [rank_id, rank_name, lineup_image, show_total_stock, total_stock, display_order, current_video]
       properties:
+        videos: {type: array, minItems: 1, maxItems: 10, items: {$ref: '#/components/schemas/PresentationAsset'}}
         rank_id:
           $ref: '#/components/schemas/OpaqueId'
         rank_name:

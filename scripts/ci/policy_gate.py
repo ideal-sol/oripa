@@ -287,6 +287,7 @@ ACCT_001_V2_IDENTITY_FILES = {
 }
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_14_000085_create_v2_notion_inventory_sync.php",
+    "apps/api/database/migrations-v2/2026_10_15_000086_add_v2_rank_video_sets.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -839,6 +840,8 @@ MIG_061H_ADMIN_SKELETON_FILES = {
 MIG_061K_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
     "apps/admin/test/catalog-gacha-rank-prize.test.tsx",
+    "apps/admin/src/components/catalog/rank-video-editor.tsx",
+    "apps/admin/test/rank-video-editor.test.tsx",
 }
 MIG_061L_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/admin-gacha-usage-history.spec.ts",
@@ -1361,7 +1364,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -3120,6 +3123,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_12_000083_add_v2_signup_sms_gate.php",
         "2026_10_13_000084_create_v2_banner_asset_operations.php",
         "2026_10_14_000085_create_v2_notion_inventory_sync.php",
+        "2026_10_15_000086_add_v2_rank_video_sets.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4604,6 +4608,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "archiveAdminCatalogProbabilityDraft",
         "listAdminGachaRanks",
         "setAdminGachaRankVideo",
+        "setAdminGachaRankVideos",
         "unsetAdminGachaRankVideo",
         "listAdminGachaVersionPrizes",
         "createAdminGachaRankPrize",
@@ -4650,6 +4655,7 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/archive": {"post"},
         "/catalog/gachas/{gacha_id}/ranks": {"get"},
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video": {"put"},
+        "/catalog/gachas/{gacha_id}/ranks/{rank_id}/videos": {"put"},
         "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset": {"post"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes": {"get"},
         "/catalog/gachas/{gacha_id}/versions/{gacha_version_id}/prizes/{prize_id}": {"delete"},

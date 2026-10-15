@@ -279,6 +279,10 @@ const operations = {
     "put",
     "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video",
   ],
+  setAdminGachaRankVideos: [
+    "put",
+    "/catalog/gachas/{gacha_id}/ranks/{rank_id}/videos",
+  ],
   unsetAdminGachaRankVideo: [
     "post",
     "/catalog/gachas/{gacha_id}/ranks/{rank_id}/video/unset",
@@ -654,6 +658,9 @@ const requiredSchemas = [
   "AdminGachaRank",
   "AdminGachaRankCollection",
   "AdminGachaRankVideoSet",
+  "AdminGachaRankVideosSet",
+  "AdminRankVideoInput",
+  "AdminRankVideo",
   "AdminGachaRankVideoUnset",
   "AdminGachaRankMutationResult",
   "AdminGachaVersionPrizeCreate",
@@ -2090,6 +2097,7 @@ export interface AdminCatalogRankReorderResult {
 }
 
 export interface AdminGachaRank {
+  videos?: AdminRankVideo[];
   id: string;
   gacha_id: string;
   rank: AdminCatalogRank;
@@ -2102,6 +2110,7 @@ export interface AdminGachaRank {
 }
 
 export interface AdminGachaRankListItem {
+  videos?: AdminRankVideo[];
   rank: AdminCatalogRank;
   gacha_rank_id: string | null;
   gacha_rank_revision: number | null;
@@ -2112,6 +2121,22 @@ export interface AdminGachaRankListItem {
 
 export interface AdminGachaRankCollection {
   items: AdminGachaRankListItem[];
+}
+
+export interface AdminRankVideoInput {
+  video_asset_id: string;
+  weight_percent: string;
+}
+
+export interface AdminRankVideo {
+  video: AdminCanonicalAssetSnapshot;
+  weight_percent: string;
+  sort_order: number;
+}
+
+export interface AdminGachaRankVideosSet {
+  items: AdminRankVideoInput[];
+  expected_revision?: number;
 }
 
 export interface AdminGachaRankVideoSet {
@@ -2206,7 +2231,8 @@ export type AdminGachaType = "standard" | "login_daily" | "signup_once";
 export interface AdminCompositionRank {
   rank_id: string;
   rank_revision_number: number | null;
-  video_asset_id: string | null;
+  video_asset_id?: string | null;
+  videos?: AdminRankVideoInput[];
   presentation?: { name: string; lineup_image: AdminCanonicalAssetSnapshot; result_image: AdminCanonicalAssetSnapshot };
 }
 

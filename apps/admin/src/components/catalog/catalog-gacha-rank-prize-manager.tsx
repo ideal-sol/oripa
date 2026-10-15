@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
+import { RankVideoEditor } from "@/components/catalog/rank-video-editor";
 import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogPrizeImport } from "@/components/catalog/catalog-prize-import";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
@@ -17,6 +18,7 @@ import type {
   AdminGachaRankListItem,
   AdminGachaVersionPrize,
   AdminRankEffect,
+  AdminRankVideoInput,
 } from "@/lib/admin-api/generated";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -41,10 +43,11 @@ export function CatalogGachaRankPrizeManager({
   version: AdminCatalogGachaVersion | null;
 }) {
   const headingId = useId();
-  const assetOrigin = useAssetPublicOrigin();
   const client = useMemo(() => new AdminApiClient(), []);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [videoDrafts, setVideoDrafts] = useState<Record<string, AdminRankVideoInput[]>>({});
+  const [videoNotice, setVideoNotice] = useState("");
   const [ranks, setRanks] = useState<AdminGachaRankListItem[]>([]);
   const [prizes, setPrizes] = useState<AdminGachaVersionPrize[]>([]);
   const [rankEffects, setRankEffects] = useState<AdminRankEffect[]>([]);
@@ -70,6 +73,10 @@ export function CatalogGachaRankPrizeManager({
         listAllRankEffects(client, signal),
       ]);
       setRanks(rankResult.items);
+      setVideoDrafts(Object.fromEntries(rankResult.items.map((rank) => [rank.rank.id,
+        rank.videos?.map((item) => ({ video_asset_id: item.video.id, weight_percent: item.weight_percent }))
+          ?? (rank.current_video ? [{ video_asset_id: rank.current_video.id, weight_percent: "100.00" }] : []),
+      ])));
       setPrizes(prizeResult.items);
       setRankEffects(rankEffectResult.filter((effect) => effect.media_type === "video" && effect.is_public));
       setVersionRevision(prizeResult.version_revision);
@@ -127,14 +134,15 @@ export function CatalogGachaRankPrizeManager({
     }
   }
 
-  async function saveVideo(rank: AdminGachaRankListItem, assetId: string) {
-    if (!canManage || assetId === rank.current_video?.id) return;
-    if (presentationOnly && !confirmVideoChange(assetId === "")) return;
-    if (assetId === "" && rank.current_video === null) return;
+  async function saveVideo(rank: AdminGachaRankListItem, unset = false) {
+    if (!canManage) return;
+    if (presentationOnly && !confirmVideoChange(unset)) return;
+    if (unset && rank.current_video === null) return;
     setBusyRankId(rank.rank.id);
     setError(null);
+    setVideoNotice("");
     try {
-      if (assetId === "") {
+      if (unset) {
         if (!rank.can_unset_video || rank.gacha_rank_revision === null) {
           throw new AdminApiError(409, "CATALOG_GACHA_RANK_VIDEO_REQUIRED", null, null, false);
         }
@@ -145,11 +153,11 @@ export function CatalogGachaRankPrizeManager({
           crypto.randomUUID(),
         );
       } else {
-        await client.setGachaRankVideo(
+        await client.setGachaRankVideos(
           gachaId,
           rank.rank.id,
           {
-            video_asset_id: assetId,
+            items: videoDrafts[rank.rank.id] ?? [],
             ...(rank.gacha_rank_revision === null
               ? {}
               : { expected_revision: rank.gacha_rank_revision }),
@@ -158,6 +166,7 @@ export function CatalogGachaRankPrizeManager({
         );
       }
       await load();
+      setVideoNotice("動画設定を保存しました。");
     } catch (cause) {
       const message = errorMessage(cause);
       await load();
@@ -250,6 +259,7 @@ export function CatalogGachaRankPrizeManager({
         </div>
       </header>
       {loadState === "loading" ? <p className="catalog-inline-loading"><LoaderCircle aria-hidden="true" size={18} /> 読み込み中</p> : null}
+      {videoNotice ? <p role="status">{videoNotice}</p> : null}
       {error && !removal ? <p className="form-field-error" role="alert">{error}</p> : null}
       {loadState === "ready" && ranks.length === 0 ? <p className="catalog-version-empty">有効なRank Masterはありません。</p> : null}
       {ranks.length > 0 ? (
@@ -262,18 +272,13 @@ export function CatalogGachaRankPrizeManager({
                 <td><RankImage asset={rank.rank.lineup_image} /></td>
                 <td><RankImage asset={rank.rank.result_image} /></td>
                 <td>
-                  <div className="catalog-rank-video-control">
-                    {rank.current_video && assetDeliveryUrl(rank.current_video.path, assetOrigin) ? <video aria-label={`${rank.rank.rank_name}の抽選演出`} controls muted playsInline preload="metadata" src={assetDeliveryUrl(rank.current_video.path, assetOrigin)!} /> : <span>未設定</span>}
-                    <select
-                      aria-label={`${rank.rank.rank_name}の動画`}
-                      disabled={!canManage || busyRankId === rank.rank.id}
-                      onChange={(event) => void saveVideo(rank, event.target.value)}
-                      value={rank.current_video?.id ?? ""}
-                    >
-                      <option disabled={!rank.can_unset_video || rank.current_video === null} value="">未設定に戻す</option>
-                      {rankEffects.map((effect) => <option key={effect.id} value={effect.id}>{effect.alt_text ?? effect.id}</option>)}
-                    </select>
-                  </div>
+                  <RankVideoEditor name={rank.rank.rank_name} items={videoDrafts[rank.rank.id] ?? []}
+                    materials={rankEffects} disabled={!canManage || loadState !== "ready" || busyRankId !== null}
+                    busy={busyRankId === rank.rank.id}
+                    onChange={(items) => setVideoDrafts((current) => ({ ...current, [rank.rank.id]: items }))}
+                    onSave={() => void saveVideo(rank)}
+                    onUnset={rank.can_unset_video && rank.current_video ? () => void saveVideo(rank, true) : undefined}
+                  />
                 </td>
                 <td>{canManage && !presentationOnly ? (
                   <button className="secondary-button" onClick={() => openPrizeCreate(rank)} type="button"><Plus aria-hidden="true" size={16} />景品登録</button>

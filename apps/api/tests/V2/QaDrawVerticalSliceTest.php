@@ -106,6 +106,35 @@ final class QaDrawVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_fixed_qa_video_outside_current_set_is_preserved_without_a_video_roll(): void
+    {
+        [$user, $owner] = $this->fixture();
+        $asset = (array) DB::table('catalog_presentation_assets')->where('public_id', self::VIDEO_ID)->firstOrFail();
+        unset($asset['id']);
+        $asset['public_id'] = (string) Str::uuid7();
+        $asset['public_path'] = '/assets/qa-current-set.mp4';
+        $asset['storage_identifier'] = 'fixture/qa-current-set.mp4';
+        $asset['is_default_rank_video'] = false;
+        $assetId = DB::table('catalog_presentation_assets')->insertGetId($asset);
+        DB::table('catalog_rank_effect_materials')->insert(['presentation_asset_id' => $assetId, 'created_at' => now()]);
+        foreach (DB::table('catalog_gacha_ranks')->get() as $rank) {
+            $revision = app(\App\Domain\Catalog\Services\V2RankVideoService::class)->create((int) $rank->id,
+                [['video_asset_id' => $asset['public_id'], 'weight_percent' => '100.00']], now()->toDateTimeString());
+            DB::table('catalog_gacha_ranks')->where('id', $rank->id)->update(['current_video_revision_id' => $revision, 'revision' => $rank->revision + 1]);
+        }
+        $this->enableMode($owner, $user);
+        $this->qaPlan($owner, $user, [$this->item(self::PRIZE_S_ID, 1, 1, self::IMAGE_ID, self::VIDEO_ID)]);
+        $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(static function (): int {
+            self::fail('A fixed QA video must not consume randomness.');
+        }));
+        $response = $this->draw($user, 1, 'fixed-qa-outside-video-set');
+        self::assertSame(self::VIDEO_ID, $response['results'][0]['video_snapshot']['id']);
+        self::assertNull(DB::table('draw_results')->value('gacha_rank_video_item_id'));
+        self::assertNotNull(DB::table('draw_results')->value('gacha_rank_video_revision_id'));
+        self::assertEquals($response['results'], $this->draw($user, 1, 'fixed-qa-outside-video-set')['results']);
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
     public function test_qa_draw_does_not_consume_first_time_or_daily_normal_draw_eligibility(): void
     {
         [$user, $owner] = $this->fixture(
