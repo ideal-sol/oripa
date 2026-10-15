@@ -840,8 +840,6 @@ MIG_061H_ADMIN_SKELETON_FILES = {
 MIG_061K_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/catalog-gacha-rank-prize-manager.tsx",
     "apps/admin/test/catalog-gacha-rank-prize.test.tsx",
-    "apps/admin/src/components/catalog/rank-video-editor.tsx",
-    "apps/admin/test/rank-video-editor.test.tsx",
 }
 MIG_061L_ADMIN_SKELETON_FILES = {
     "apps/admin/e2e/admin-gacha-usage-history.spec.ts",
@@ -965,6 +963,8 @@ LOGIN_GACHA_20261001_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/login-gacha-workspace.tsx",
     "apps/admin/src/lib/catalog/login-gacha.ts",
     "apps/admin/test/login-gacha.test.tsx",
+    "apps/admin/src/components/catalog/rank-video-editor.tsx",
+    "apps/admin/test/rank-video-editor.test.tsx",
 }
 
 S3_PHASE1_ADMIN_FILES = {
