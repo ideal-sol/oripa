@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "4b7d00e8e31223136cd0b70134916d091dfea6cb",
-  "change_id": "SEC-20261006",
-  "pr_number": 543,
-  "authority": "Human-approved exact Runtime Source: PR #543 Security merge; Application business Source unchanged from accepted application payload 0ce41ab473fd5a4fb44773041ae097ffb40b14ce; source-map-js 1.2.2 and prosemirror-view 1.42.3 with target-specific Security PASS; Contract 2.0.0-alpha.43 unchanged; OLD Test Technical PASS and Human Focused Browser PASS; authority sync has no Application Runtime delta; Production Artifact Build is separately authorized through its canonical workflow; NEW operations, Migration and Activation are separate and remain unauthorized",
+  "source_sha": "aef1759d072dab48be4b052d53e2ef969feddd9f",
+  "change_id": "SMSOTP-20261014",
+  "pr_number": 566,
+  "authority": "Human-approved exact Runtime Source: PRODUCTION-OLDTEST-PARITY-20261015-CANDIDATE-01 pins PR #566 and tree 96c2ef6ed5bc34faf13125bd5662d142d93d3d6c; accepted OLD Test Technical evidence and exact-source CI/Security evidence are reused, not rerun. Contract 2.0.0-alpha.44 artifact 11745799489 remains immutable. Production candidate build only, linux/arm64 API/Admin/Agency; later protected-main application changes including RANKVIDEO-MULTI and migration 000086 are excluded. Migration target 000085; F2-B and F6 remain OFF for Production; F5 Human Production Browser confirmation remains pending. OLD Test topology, origins and payment settings are not Production settings. No Production/NEW connection, runtime activation, database or AWS operation is authorized by this manifest",
   "activation_authorized": false
 }

@@ -10,13 +10,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
+APPROVED = "aef1759d072dab48be4b052d53e2ef969feddd9f"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "SEC-20261006"
-SOURCE_PR = 543
+SOURCE_CHANGE = "SMSOTP-20261014"
+SOURCE_PR = 566
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -193,6 +193,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "4b7d00e8e31223136cd0b70134916d091dfea6cb",
+                "04acd7de03ba6832ad94b90e68b4b0fbef5ecc4f",
+                "51a4598ccb5fc7b6748d57b2f8d550bef426d6be",
                 "538a208c025fcc5a7d6f9914d3c428b9ef702dbe",
                 "75395ded58c0924d39441f51fd351c03ad12e908",
                 "0ce41ab473fd5a4fb44773041ae097ffb40b14ce",
@@ -241,6 +244,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertNotIn("source-map-js@1.2.1", legacy_lock)
 
     def test_approved_source_to_preflight_authority_has_only_metadata_delta(self):
+        APPROVED = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
         subprocess.run([
             "git", "-C", str(ROOT), "merge-base", "--is-ancestor",
             "0ce41ab473fd5a4fb44773041ae097ffb40b14ce", APPROVED,
@@ -257,6 +261,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         })
 
     def test_storefront_contract_artifact_source_remains_distinct_from_runtime_target(self):
+        APPROVED = "4b7d00e8e31223136cd0b70134916d091dfea6cb"
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
         contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.43"]
         self.assertEqual(len(contracts), 1)
@@ -283,6 +288,22 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                 ROOT, "show", f"{APPROVED}:packages/{package}/package.json",
             ))
             self.assertEqual(manifest["version"], "2.0.0-alpha.43")
+
+    def test_parity_payload_contract_and_migration_boundary(self):
+        self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"),
+                         "96c2ef6ed5bc34faf13125bd5662d142d93d3d6c")
+        contract_source = "8f4c79d2964186f704f14f4ddc2af228bf1047c9"
+        subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", contract_source, APPROVED], check=True)
+        self.assertEqual(MODULE["git"](ROOT, "diff", "--name-only", contract_source, APPROVED,
+                                      "--", "openapi/public.yaml", "packages/storefront-client", "packages/storefront-testkit"), "")
+        for package in ["storefront-client", "storefront-testkit"]:
+            manifest = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:packages/{package}/package.json"))
+            self.assertEqual(manifest["version"], "2.0.0-alpha.44")
+        migrations = [path for path in MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED,
+                                  "apps/api/database/migrations-v2").splitlines() if path.endswith(".php")]
+        self.assertEqual(len(migrations), 85)
+        self.assertTrue(any("000085_create_v2_notion_inventory_sync.php" in path for path in migrations))
+        self.assertFalse(any("000086" in path for path in migrations))
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
         self.authority["activation_authorized"] = True
