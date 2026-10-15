@@ -42,5 +42,8 @@ final class ZRankVideoUpgradeTest extends TestCase
             ]);
         }
         self::assertSame(0, Artisan::call('migrate', ['--path' => 'database/migrations-v2', '--force' => true]));
+        $definition = DB::selectOne("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'catalog_gacha_rank_video_items'::regclass AND conname = 'rank_video_item_values_check'")->definition;
+        DB::statement('CREATE TEMP TABLE rank_video_constraint_roundtrip (weight_units smallint, sort_order smallint, CONSTRAINT rank_video_roundtrip '.$definition.')');
+        self::assertSame($definition, DB::selectOne("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = 'rank_video_constraint_roundtrip'::regclass AND conname = 'rank_video_roundtrip'")->definition);
     }
 }

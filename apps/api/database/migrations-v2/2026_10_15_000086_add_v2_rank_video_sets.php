@@ -22,7 +22,7 @@ return new class extends Migration
             $table->unique(['video_revision_id', 'sort_order'], 'rank_video_item_order_unique');
         });
         DB::statement('ALTER TABLE catalog_gacha_rank_video_revisions ADD CONSTRAINT rank_video_count_check CHECK (video_count BETWEEN 1 AND 10)');
-        DB::statement('ALTER TABLE catalog_gacha_rank_video_items ADD CONSTRAINT rank_video_item_values_check CHECK (weight_units BETWEEN 1 AND 10000 AND sort_order BETWEEN 1 AND 10)');
+        DB::statement('ALTER TABLE catalog_gacha_rank_video_items ADD CONSTRAINT rank_video_item_values_check CHECK (weight_units >= 1 AND weight_units <= 10000 AND sort_order >= 1 AND sort_order <= 10)');
         DB::statement('INSERT INTO catalog_gacha_rank_video_items (video_revision_id, video_asset_id, weight_units, sort_order) SELECT id, video_asset_id, 10000, 1 FROM catalog_gacha_rank_video_revisions');
         Schema::table('draw_results', function (Blueprint $table): void {
             $table->foreignId('gacha_rank_video_item_id')->nullable()->constrained('catalog_gacha_rank_video_items')->restrictOnDelete();
