@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-20261013",
-  "source_pr": 562,
-  "source_sha": "da0b12f57c0072da03afd59ead86a0528e306b67",
+  "task_id": "OLDTEST-20261015",
+  "source_pr": 566,
+  "source_sha": "aef1759d072dab48be4b052d53e2ef969feddd9f",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR #562 squash merge under OLDTEST-S3-CSV-SIGNUP-CONTINUE-20261014; reviewed head 560364302bbb7e39794a27a6c633d41ed2511fff has the same tree as this payload. Includes S3 and 503 fixes from PR #553, prize and Banner CSV including PR #559, signup/SMS API from PR #555, and read-only S3 ListObjectsV2 healthcheck from PR #562. Supersedes the prior PR #553 payload candidate. Authority Sync PR #561 merge requires separate exact-PR/head Human GO. Canonical API and Admin artifact preparation follows that GO; runtime activation, migrations, final asset delta upload and Storefront public switch require a subsequent combined Human GO and Human ENV completion. ENV file access is Human-only. No Production or NEW activation is authorized.",
+  "authority": "Human-approved exact OLD Test payload under OLDTEST-F2B-F5-F6-20261015: PR #566 squash merge; reviewed head 3374db15c1ffa04d3c737c4eb6bf0f4c2a81690d and payload share tree 96c2ef6ed5bc34faf13125bd5662d142d93d3d6c. Includes F5 #563, F6 #564, F2-B host restriction removal #565 and SMS OTP test correction #566. Authority Sync merge requires separate exact-PR/head Human GO before canonical linux/amd64 API and Admin artifact generation. OLD Test activation and shared-database migration 000085 require separate Human GO. Shared Admin routing and existing SMS worker restart guards must be resolved before activation without changing normal OLD runtime. F2-B enabling and CSV workers, Notion enabling and workers, SMS worker changes, Storefront, S3 changes, normal OLD activation and NEW Production are outside this task. Secret handling restrictions remain unchanged.",
   "activation_authorized": false
 }
