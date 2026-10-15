@@ -28,6 +28,35 @@ function selections() {
   vi.spyOn(AdminApiClient.prototype, "listCatalogTags").mockResolvedValue({ items: [], next_cursor: null });
 }
 
+it.each(["login_daily", "signup_once"] as const)("uses the same %s video read for displayed values and optimistic revision", async (type) => {
+  thumbnailFixture(type, "published");
+  const composition = await vi.mocked(AdminApiClient.prototype.getGachaComposition)("source", false);
+  composition.data.ranks = [{ rank_id: "rank", rank_revision_number: 1, video_asset_id: "old-video",
+    videos: [{ video_asset_id: "old-video", weight_percent: "100.00" }] }];
+  const rank = (await vi.mocked(AdminApiClient.prototype.listCatalogRanks)({})).items[0];
+  const videos = ["new-video", "second-video"].map((id, index) => ({
+    video: { id, path: "/synthetic-video", mime_type: "video/mp4", alt_text: id }, weight_percent: index ? "20.00" : "80.00", sort_order: index + 1,
+  }));
+  vi.mocked(AdminApiClient.prototype.listGachaRanks).mockResolvedValue({ items: [{
+    rank, videos, gacha_rank_id: "gacha-rank", gacha_rank_revision: 9, video_revision_number: 9,
+    current_video: videos[0].video, can_unset_video: false,
+  }] });
+  vi.mocked(AdminApiClient.prototype.listRankEffects).mockResolvedValue({
+    items: videos.map((item) => ({ ...thumbnail, id: item.video.id, media_type: "video", mime_type: "video/mp4",
+      public_path: null, content_path: "/synthetic-video", is_default: false })), next_cursor: null,
+  });
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  const save = vi.spyOn(AdminApiClient.prototype, "setGachaRankVideos").mockRejectedValue(new Error("Synthetic save boundary"));
+  render(<LoginGachaWorkspace type={type} sourceId="source" />);
+  expect(await screen.findByLabelText("Aの動画1")).toHaveValue("new-video");
+  expect(screen.getByLabelText("Aの動画1の割合")).toHaveValue("80.00");
+  expect(screen.getByLabelText("景品名")).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "動画を保存" }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith("source", "rank", {
+    expected_revision: 9, items: [{ video_asset_id: "new-video", weight_percent: "80.00" }, { video_asset_id: "second-video", weight_percent: "20.00" }],
+  }, expect.any(String)));
+});
+
 describe("Login Gacha composition", () => {
   it.each(["login_daily", "signup_once"] as const)("snapshots the shared login default for %s and retries load errors", async (type) => {
     selections();

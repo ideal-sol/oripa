@@ -96,7 +96,8 @@ final class V2RankVideoService
                     'checksum_sha256' => $row->checksum_sha256, 'media_type' => $row->media_type,
                     'mime_type' => $row->mime_type, 'alt_text' => $row->alt_text,
                 ],
-                'admin_video' => ['id' => $row->public_id, 'path' => $row->public_path, 'mime_type' => $row->mime_type, 'alt_text' => $row->alt_text],
+                'admin_video' => ['id' => $row->public_id, 'path' => $row->public_path ?? '/api/v2/catalog/presentation-assets/'.$row->public_id.'/content',
+                    'mime_type' => $row->mime_type, 'alt_text' => $row->alt_text],
             ];
         }
 

@@ -43,7 +43,8 @@ final class V2AssetResponseNormalizer
 
         return in_array($field, self::ASSET_FIELDS, true)
             || ($field === 'image' && in_array($parent, ['presentation', 'prize', 'animation'], true))
-            || ($field === 'video' && in_array($parent, ['animation', 'ranks'], true))
+            || ($field === 'video' && in_array($parent, ['animation', 'ranks', 'videos'], true))
+            || ($field === 'videos' && $parent === 'ranks')
             || ($assetResource && in_array($field, ['', 'data', 'items'], true));
     }
 

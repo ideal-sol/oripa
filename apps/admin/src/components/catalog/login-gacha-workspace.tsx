@@ -101,7 +101,14 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         nextDraft = composition.data;
         current = source.data;
         if (!copy && current.first_published_at !== null) {
-          setRankSettings((await client.listGachaRanks(sourceId, controller.signal)).items);
+          const settings = (await client.listGachaRanks(sourceId, controller.signal)).items;
+          setRankSettings(settings);
+          nextDraft.ranks = nextDraft.ranks.map((rank) => {
+            const setting = settings.find((item) => item.rank.id === rank.rank_id);
+            return setting?.videos ? { ...rank, videos: setting.videos.map((item) => ({
+              video_asset_id: item.video.id, weight_percent: item.weight_percent,
+            })) } : rank;
+          });
         }
         if (!copy && current.current_version) {
           currentInventory = (await client.listGachaVersionPrizes(sourceId, current.current_version.id, controller.signal)).items;
