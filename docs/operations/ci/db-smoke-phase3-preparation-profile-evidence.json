@@ -1,0 +1,2325 @@
+{
+  "adopted_optimizations": [],
+  "base_sha": "b5c28015ef94cb80f6702a61b1237cacd91d9863",
+  "classes": {
+    "Tests\\V2\\BannerAssetLifecycleTest": {
+      "preparation": {
+        "max_seconds": 4.715611212,
+        "median_seconds": 4.285886417,
+        "min_seconds": 3.682301963,
+        "sum_seconds": 93.665100017
+      },
+      "stages": {
+        "application_boot": 0.847169175,
+        "argon2id": 7.752633335,
+        "auth_fixture_excluding_hash": 0.29359108,
+        "migration_command": 83.509001024,
+        "other_preparation": 0.664383668,
+        "schema_create": 0.576796543,
+        "storage_http_mock_init": 0.021525192
+      },
+      "tests": 22
+    },
+    "Tests\\V2\\BannerImportCsvTest": {
+      "preparation": {
+        "max_seconds": 4.54622378,
+        "median_seconds": 4.334119354,
+        "min_seconds": 3.8006401,
+        "sum_seconds": 51.660978252
+      },
+      "stages": {
+        "application_boot": 0.365882933,
+        "argon2id": 4.511178713,
+        "auth_fixture_excluding_hash": 0.117928531,
+        "migration_command": 46.054859258,
+        "other_preparation": 0.298829187,
+        "schema_create": 0.300281377,
+        "storage_http_mock_init": 0.012018253
+      },
+      "tests": 12
+    },
+    "Tests\\V2\\BannerImportTest": {
+      "preparation": {
+        "max_seconds": 4.800046423,
+        "median_seconds": 4.379539845,
+        "min_seconds": 4.191363976,
+        "sum_seconds": 26.57179294
+      },
+      "stages": {
+        "application_boot": 0.257650546,
+        "argon2id": 2.307791294,
+        "auth_fixture_excluding_hash": 0.055821579,
+        "migration_command": 23.594323772,
+        "other_preparation": 0.169177447,
+        "schema_create": 0.180053459,
+        "storage_http_mock_init": 0.006974843
+      },
+      "tests": 6
+    },
+    "Tests\\V2\\BannerImportWorkerTest": {
+      "preparation": {
+        "max_seconds": 4.712945461,
+        "median_seconds": 4.282514957,
+        "min_seconds": 3.593217485,
+        "sum_seconds": 101.416433311
+      },
+      "stages": {
+        "application_boot": 0.829163611,
+        "argon2id": 8.278553366,
+        "auth_fixture_excluding_hash": 0.268964599,
+        "migration_command": 90.87327097,
+        "other_preparation": 0.585375825,
+        "schema_create": 0.566631041,
+        "storage_http_mock_init": 0.014473899
+      },
+      "tests": 24
+    },
+    "Tests\\V2\\NotionSyncTest": {
+      "preparation": {
+        "max_seconds": 4.965595415,
+        "median_seconds": 4.244670329,
+        "min_seconds": 3.685962299,
+        "sum_seconds": 111.395539164
+      },
+      "stages": {
+        "application_boot": 0.982395791,
+        "argon2id": 8.865667869,
+        "auth_fixture_excluding_hash": 0.267627167,
+        "migration_command": 100.610716116,
+        "other_preparation": 0.030139163,
+        "schema_create": 0.635204001,
+        "storage_http_mock_init": 0.003789057
+      },
+      "tests": 26
+    }
+  },
+  "cleanup": {
+    "task_configuration_removed": true,
+    "task_resources_cleanup": "PASS"
+  },
+  "control_preparation": {
+    "max_seconds": 18.903359742,
+    "median_seconds": 4.916048736,
+    "min_seconds": 3.522031488,
+    "sum_seconds": 540.947773184
+  },
+  "counts": {
+    "app_boot": 90,
+    "argon2id": 90,
+    "migration_queries": 154260,
+    "migration_up": 7830
+  },
+  "database_after_profile": {
+    "active_sessions": 1,
+    "banner_schemas": 0,
+    "fsync": "on",
+    "notion_schemas": 0,
+    "postgres": "17.10",
+    "schema_count": 0,
+    "synchronous_commit": "on",
+    "table_count": 0
+  },
+  "evidence_sha256": {
+    "aggregate.py": "c7ea87525e7f639e340cf97748aba86022baf1ecd5a6955db5c7b63609620a11",
+    "control/preparation.json": "2416f194e9dedf34a34ffdb49e0a146223e1a58fab51bbaaa296166085b87f04",
+    "preparation_profile.php": "a587b5d5f0dc1de1394788e922e731defd42f6ce80dc648df30256743bca98e8",
+    "profile/preparation.json": "6df2ee36d4dd4a1afae2b3b0d41344eda896e8cadc5b34e6f7177b5a691752d6",
+    "run_profile.py": "4f1eb2cf0b211d4d8db576a6ed82772b07503eec2b8d4c3a81e99ee06504996f"
+  },
+  "fsync": "on",
+  "historical_breakdown_reason": "Cannot retrospectively measure missing boundaries",
+  "historical_pr572_head": "d74247babf2cabf4e334bfac8fe34451b5933b90",
+  "historical_preparation_seconds": 171.572794,
+  "historical_stage_breakdown": null,
+  "incomplete_attempt": {
+    "cause": "An ambiguous Notion setup anchor failed exact-one validation; dependent launch was stopped.",
+    "junit_result": "INCOMPLETE_XML_REJECTED",
+    "migration_applications": null,
+    "remediation": "Validate every transformation before writing; require four-file checksum manifest before profile launch; reset task-only resources.",
+    "stage_measurements": null,
+    "status": "ABORTED_INVALID_INSTRUMENTATION",
+    "test_result": "INCOMPLETE_NOT_PASS"
+  },
+  "invocations": [
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2776490000,
+      "nested_migration_up_ns": 2810375728,
+      "ordinal": 1,
+      "preparation_ns": 4100181077,
+      "stages_ns": {
+        "application_boot": 191615669,
+        "argon2id": 367543354,
+        "auth_fixture_excluding_hash": 27397998,
+        "migration_command": 3404217120,
+        "other_preparation": 82853682,
+        "schema_create": 18925793,
+        "storage_http_mock_init": 7627461
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3403240000,
+      "nested_migration_up_ns": 3400336657,
+      "ordinal": 2,
+      "preparation_ns": 4423732095,
+      "stages_ns": {
+        "application_boot": 28624524,
+        "argon2id": 369194916,
+        "auth_fixture_excluding_hash": 9757251,
+        "migration_command": 3972752283,
+        "other_preparation": 25717731,
+        "schema_create": 16929690,
+        "storage_http_mock_init": 755700
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3784700000,
+      "nested_migration_up_ns": 3787561964,
+      "ordinal": 3,
+      "preparation_ns": 4711057441,
+      "stages_ns": {
+        "application_boot": 19315191,
+        "argon2id": 314827848,
+        "auth_fixture_excluding_hash": 12251791,
+        "migration_command": 4321622879,
+        "other_preparation": 24767363,
+        "schema_create": 17595821,
+        "storage_http_mock_init": 676548
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2996300000,
+      "nested_migration_up_ns": 3026351534,
+      "ordinal": 4,
+      "preparation_ns": 3925030086,
+      "stages_ns": {
+        "application_boot": 21767824,
+        "argon2id": 353544913,
+        "auth_fixture_excluding_hash": 7804655,
+        "migration_command": 3497311102,
+        "other_preparation": 19596217,
+        "schema_create": 24360197,
+        "storage_http_mock_init": 645178
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3341800000,
+      "nested_migration_up_ns": 3358827124,
+      "ordinal": 5,
+      "preparation_ns": 4385720700,
+      "stages_ns": {
+        "application_boot": 28030723,
+        "argon2id": 379118365,
+        "auth_fixture_excluding_hash": 7816290,
+        "migration_command": 3910634079,
+        "other_preparation": 34903327,
+        "schema_create": 24641902,
+        "storage_http_mock_init": 576014
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2986400000,
+      "nested_migration_up_ns": 2990831980,
+      "ordinal": 6,
+      "preparation_ns": 3905599670,
+      "stages_ns": {
+        "application_boot": 25804073,
+        "argon2id": 323271266,
+        "auth_fixture_excluding_hash": 8288968,
+        "migration_command": 3465360924,
+        "other_preparation": 39650555,
+        "schema_create": 41699718,
+        "storage_http_mock_init": 1524166
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3633060000,
+      "nested_migration_up_ns": 3619153716,
+      "ordinal": 7,
+      "preparation_ns": 4631277086,
+      "stages_ns": {
+        "application_boot": 36273132,
+        "argon2id": 315162235,
+        "auth_fixture_excluding_hash": 50425115,
+        "migration_command": 4178112226,
+        "other_preparation": 31804467,
+        "schema_create": 18774722,
+        "storage_http_mock_init": 725189
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2981050000,
+      "nested_migration_up_ns": 2997371942,
+      "ordinal": 8,
+      "preparation_ns": 3928954306,
+      "stages_ns": {
+        "application_boot": 31908117,
+        "argon2id": 319796112,
+        "auth_fixture_excluding_hash": 11096004,
+        "migration_command": 3510074012,
+        "other_preparation": 31388431,
+        "schema_create": 23907514,
+        "storage_http_mock_init": 784116
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3064110000,
+      "nested_migration_up_ns": 3071042220,
+      "ordinal": 9,
+      "preparation_ns": 4211809928,
+      "stages_ns": {
+        "application_boot": 19557222,
+        "argon2id": 561634672,
+        "auth_fixture_excluding_hash": 6362966,
+        "migration_command": 3578202765,
+        "other_preparation": 19123474,
+        "schema_create": 25892449,
+        "storage_http_mock_init": 1036380
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2983790000,
+      "nested_migration_up_ns": 3028667297,
+      "ordinal": 10,
+      "preparation_ns": 3964594222,
+      "stages_ns": {
+        "application_boot": 25381001,
+        "argon2id": 319103890,
+        "auth_fixture_excluding_hash": 13114549,
+        "migration_command": 3559019776,
+        "other_preparation": 27705574,
+        "schema_create": 19811387,
+        "storage_http_mock_init": 458045
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3151040000,
+      "nested_migration_up_ns": 3157208419,
+      "ordinal": 11,
+      "preparation_ns": 4056551121,
+      "stages_ns": {
+        "application_boot": 18644914,
+        "argon2id": 259218664,
+        "auth_fixture_excluding_hash": 8327625,
+        "migration_command": 3733296313,
+        "other_preparation": 19678094,
+        "schema_create": 16914758,
+        "storage_http_mock_init": 470753
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3446210000,
+      "nested_migration_up_ns": 3411533366,
+      "ordinal": 12,
+      "preparation_ns": 4405179705,
+      "stages_ns": {
+        "application_boot": 31084411,
+        "argon2id": 308704811,
+        "auth_fixture_excluding_hash": 8517443,
+        "migration_command": 3980357157,
+        "other_preparation": 35482049,
+        "schema_create": 40422544,
+        "storage_http_mock_init": 611290
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3320900000,
+      "nested_migration_up_ns": 3337321346,
+      "ordinal": 13,
+      "preparation_ns": 4715611212,
+      "stages_ns": {
+        "application_boot": 24715393,
+        "argon2id": 715022686,
+        "auth_fixture_excluding_hash": 32341318,
+        "migration_command": 3865219734,
+        "other_preparation": 60404286,
+        "schema_create": 17132573,
+        "storage_http_mock_init": 775222
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3518130000,
+      "nested_migration_up_ns": 3491385711,
+      "ordinal": 14,
+      "preparation_ns": 4533950440,
+      "stages_ns": {
+        "application_boot": 26132026,
+        "argon2id": 320157124,
+        "auth_fixture_excluding_hash": 9376064,
+        "migration_command": 4106414799,
+        "other_preparation": 21339544,
+        "schema_create": 49886286,
+        "storage_http_mock_init": 644597
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3451330000,
+      "nested_migration_up_ns": 3449657496,
+      "ordinal": 15,
+      "preparation_ns": 4443249347,
+      "stages_ns": {
+        "application_boot": 32804819,
+        "argon2id": 317170846,
+        "auth_fixture_excluding_hash": 9492904,
+        "migration_command": 4030153776,
+        "other_preparation": 27543075,
+        "schema_create": 25520924,
+        "storage_http_mock_init": 563003
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3313930000,
+      "nested_migration_up_ns": 3311736503,
+      "ordinal": 16,
+      "preparation_ns": 4326576328,
+      "stages_ns": {
+        "application_boot": 30701803,
+        "argon2id": 327587813,
+        "auth_fixture_excluding_hash": 23864139,
+        "migration_command": 3873496308,
+        "other_preparation": 31905034,
+        "schema_create": 38473227,
+        "storage_http_mock_init": 548004
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2777270000,
+      "nested_migration_up_ns": 2793284646,
+      "ordinal": 17,
+      "preparation_ns": 3682301963,
+      "stages_ns": {
+        "application_boot": 44336230,
+        "argon2id": 317491722,
+        "auth_fixture_excluding_hash": 8085400,
+        "migration_command": 3268792699,
+        "other_preparation": 22120322,
+        "schema_create": 20861533,
+        "storage_http_mock_init": 614057
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3288440000,
+      "nested_migration_up_ns": 3271144836,
+      "ordinal": 18,
+      "preparation_ns": 4201418756,
+      "stages_ns": {
+        "application_boot": 40263750,
+        "argon2id": 285726666,
+        "auth_fixture_excluding_hash": 7217141,
+        "migration_command": 3807499195,
+        "other_preparation": 21019292,
+        "schema_create": 39239826,
+        "storage_http_mock_init": 452886
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3633350000,
+      "nested_migration_up_ns": 3633481740,
+      "ordinal": 19,
+      "preparation_ns": 4562326225,
+      "stages_ns": {
+        "application_boot": 39197276,
+        "argon2id": 287168600,
+        "auth_fixture_excluding_hash": 7592714,
+        "migration_command": 4192188631,
+        "other_preparation": 18539699,
+        "schema_create": 17169372,
+        "storage_http_mock_init": 469933
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3297310000,
+      "nested_migration_up_ns": 3282605030,
+      "ordinal": 20,
+      "preparation_ns": 4245196506,
+      "stages_ns": {
+        "application_boot": 42518084,
+        "argon2id": 330751537,
+        "auth_fixture_excluding_hash": 8764926,
+        "migration_command": 3808470546,
+        "other_preparation": 19387637,
+        "schema_create": 34762391,
+        "storage_http_mock_init": 541385
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2790240000,
+      "nested_migration_up_ns": 2794154161,
+      "ordinal": 21,
+      "preparation_ns": 3817927447,
+      "stages_ns": {
+        "application_boot": 58022346,
+        "argon2id": 394124647,
+        "auth_fixture_excluding_hash": 7818012,
+        "migration_command": 3308912147,
+        "other_preparation": 21597571,
+        "schema_create": 26960013,
+        "storage_http_mock_init": 492711
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerAssetLifecycleTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3570790000,
+      "nested_migration_up_ns": 3565133772,
+      "ordinal": 22,
+      "preparation_ns": 4486854356,
+      "stages_ns": {
+        "application_boot": 30470647,
+        "argon2id": 266310648,
+        "auth_fixture_excluding_hash": 7877807,
+        "migration_command": 4136892553,
+        "other_preparation": 27856244,
+        "schema_create": 16913903,
+        "storage_http_mock_init": 532554
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3604250000,
+      "nested_migration_up_ns": 3627137744,
+      "ordinal": 23,
+      "preparation_ns": 4546223780,
+      "stages_ns": {
+        "application_boot": 43704914,
+        "argon2id": 265506984,
+        "auth_fixture_excluding_hash": 7804752,
+        "migration_command": 4171144253,
+        "other_preparation": 20627898,
+        "schema_create": 36220924,
+        "storage_http_mock_init": 1214055
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3355680000,
+      "nested_migration_up_ns": 3355314873,
+      "ordinal": 24,
+      "preparation_ns": 4380348017,
+      "stages_ns": {
+        "application_boot": 41514161,
+        "argon2id": 329313959,
+        "auth_fixture_excluding_hash": 7974922,
+        "migration_command": 3928489974,
+        "other_preparation": 27035426,
+        "schema_create": 41934809,
+        "storage_http_mock_init": 4084766
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3048720000,
+      "nested_migration_up_ns": 3061745198,
+      "ordinal": 25,
+      "preparation_ns": 3989745175,
+      "stages_ns": {
+        "application_boot": 20137478,
+        "argon2id": 351216946,
+        "auth_fixture_excluding_hash": 7418567,
+        "migration_command": 3572699511,
+        "other_preparation": 20880510,
+        "schema_create": 16784380,
+        "storage_http_mock_init": 607783
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3399210000,
+      "nested_migration_up_ns": 3421608981,
+      "ordinal": 26,
+      "preparation_ns": 4505928966,
+      "stages_ns": {
+        "application_boot": 33612321,
+        "argon2id": 425397116,
+        "auth_fixture_excluding_hash": 7813390,
+        "migration_command": 3988885743,
+        "other_preparation": 20720738,
+        "schema_create": 29012345,
+        "storage_http_mock_init": 487313
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3326560000,
+      "nested_migration_up_ns": 3375040467,
+      "ordinal": 27,
+      "preparation_ns": 4370841424,
+      "stages_ns": {
+        "application_boot": 19673617,
+        "argon2id": 422717287,
+        "auth_fixture_excluding_hash": 8248752,
+        "migration_command": 3877448620,
+        "other_preparation": 22489548,
+        "schema_create": 19397510,
+        "storage_http_mock_init": 866090
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3209740000,
+      "nested_migration_up_ns": 3222541859,
+      "ordinal": 28,
+      "preparation_ns": 4260094255,
+      "stages_ns": {
+        "application_boot": 19676532,
+        "argon2id": 441107701,
+        "auth_fixture_excluding_hash": 8230180,
+        "migration_command": 3749799988,
+        "other_preparation": 23541073,
+        "schema_create": 17147646,
+        "storage_http_mock_init": 591135
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3078110000,
+      "nested_migration_up_ns": 3107265646,
+      "ordinal": 29,
+      "preparation_ns": 4223167402,
+      "stages_ns": {
+        "application_boot": 18029580,
+        "argon2id": 536725090,
+        "auth_fixture_excluding_hash": 8909478,
+        "migration_command": 3614869550,
+        "other_preparation": 26530996,
+        "schema_create": 16798208,
+        "storage_http_mock_init": 1304500
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3300940000,
+      "nested_migration_up_ns": 3346308772,
+      "ordinal": 30,
+      "preparation_ns": 4232750775,
+      "stages_ns": {
+        "application_boot": 20349088,
+        "argon2id": 282816255,
+        "auth_fixture_excluding_hash": 6956162,
+        "migration_command": 3874418056,
+        "other_preparation": 19304646,
+        "schema_create": 28392351,
+        "storage_http_mock_init": 514217
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3429290000,
+      "nested_migration_up_ns": 3438190962,
+      "ordinal": 31,
+      "preparation_ns": 4543222639,
+      "stages_ns": {
+        "application_boot": 36296119,
+        "argon2id": 401308069,
+        "auth_fixture_excluding_hash": 23821947,
+        "migration_command": 4002869323,
+        "other_preparation": 41819379,
+        "schema_create": 36579182,
+        "storage_http_mock_init": 528620
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3270060000,
+      "nested_migration_up_ns": 3312950475,
+      "ordinal": 32,
+      "preparation_ns": 4297397284,
+      "stages_ns": {
+        "application_boot": 31956559,
+        "argon2id": 386411302,
+        "auth_fixture_excluding_hash": 9357169,
+        "migration_command": 3813632022,
+        "other_preparation": 30616426,
+        "schema_create": 24840964,
+        "storage_http_mock_init": 582842
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3013720000,
+      "nested_migration_up_ns": 3078306138,
+      "ordinal": 33,
+      "preparation_ns": 3800640100,
+      "stages_ns": {
+        "application_boot": 48103620,
+        "argon2id": 286661508,
+        "auth_fixture_excluding_hash": 6086759,
+        "migration_command": 3424072345,
+        "other_preparation": 19799572,
+        "schema_create": 15361106,
+        "storage_http_mock_init": 555190
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportCsvTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3510170000,
+      "nested_migration_up_ns": 3537993880,
+      "ordinal": 34,
+      "preparation_ns": 4510618435,
+      "stages_ns": {
+        "application_boot": 32828944,
+        "argon2id": 381996496,
+        "auth_fixture_excluding_hash": 15306453,
+        "migration_command": 4036529873,
+        "other_preparation": 25462975,
+        "schema_create": 17811952,
+        "storage_http_mock_init": 681742
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3222750000,
+      "nested_migration_up_ns": 3176828428,
+      "ordinal": 35,
+      "preparation_ns": 4268658232,
+      "stages_ns": {
+        "application_boot": 84922820,
+        "argon2id": 326344965,
+        "auth_fixture_excluding_hash": 7289892,
+        "migration_command": 3774985845,
+        "other_preparation": 32111863,
+        "schema_create": 42460521,
+        "storage_http_mock_init": 542326
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3641230000,
+      "nested_migration_up_ns": 3665568449,
+      "ordinal": 36,
+      "preparation_ns": 4585833787,
+      "stages_ns": {
+        "application_boot": 28843373,
+        "argon2id": 308034243,
+        "auth_fixture_excluding_hash": 9677844,
+        "migration_command": 4185248033,
+        "other_preparation": 24571617,
+        "schema_create": 28914192,
+        "storage_http_mock_init": 544485
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3131240000,
+      "nested_migration_up_ns": 3143587085,
+      "ordinal": 37,
+      "preparation_ns": 4235469064,
+      "stages_ns": {
+        "application_boot": 61711100,
+        "argon2id": 399663066,
+        "auth_fixture_excluding_hash": 9547490,
+        "migration_command": 3696611304,
+        "other_preparation": 19954142,
+        "schema_create": 44199585,
+        "storage_http_mock_init": 3782377
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3033840000,
+      "nested_migration_up_ns": 3077629089,
+      "ordinal": 38,
+      "preparation_ns": 4191363976,
+      "stages_ns": {
+        "application_boot": 32914233,
+        "argon2id": 492265778,
+        "auth_fixture_excluding_hash": 11310914,
+        "migration_command": 3601046155,
+        "other_preparation": 29954176,
+        "schema_create": 23275971,
+        "storage_http_mock_init": 596749
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3372580000,
+      "nested_migration_up_ns": 3379921349,
+      "ordinal": 39,
+      "preparation_ns": 4490421458,
+      "stages_ns": {
+        "application_boot": 18472372,
+        "argon2id": 402835438,
+        "auth_fixture_excluding_hash": 10944524,
+        "migration_command": 4014093750,
+        "other_preparation": 27494011,
+        "schema_create": 15795134,
+        "storage_http_mock_init": 786229
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3709780000,
+      "nested_migration_up_ns": 3704624007,
+      "ordinal": 40,
+      "preparation_ns": 4800046423,
+      "stages_ns": {
+        "application_boot": 30786648,
+        "argon2id": 378647804,
+        "auth_fixture_excluding_hash": 7050915,
+        "migration_command": 4322338685,
+        "other_preparation": 35091638,
+        "schema_create": 25408056,
+        "storage_http_mock_init": 722677
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3187950000,
+      "nested_migration_up_ns": 3205911790,
+      "ordinal": 41,
+      "preparation_ns": 4106085319,
+      "stages_ns": {
+        "application_boot": 20024074,
+        "argon2id": 304934114,
+        "auth_fixture_excluding_hash": 8414164,
+        "migration_command": 3730866429,
+        "other_preparation": 23739470,
+        "schema_create": 17441297,
+        "storage_http_mock_init": 665771
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2921680000,
+      "nested_migration_up_ns": 2905343358,
+      "ordinal": 42,
+      "preparation_ns": 4018943864,
+      "stages_ns": {
+        "application_boot": 33251697,
+        "argon2id": 478520509,
+        "auth_fixture_excluding_hash": 17423200,
+        "migration_command": 3439298241,
+        "other_preparation": 28680440,
+        "schema_create": 21086304,
+        "storage_http_mock_init": 683473
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3071720000,
+      "nested_migration_up_ns": 3045024284,
+      "ordinal": 43,
+      "preparation_ns": 3982087202,
+      "stages_ns": {
+        "application_boot": 21229630,
+        "argon2id": 280804129,
+        "auth_fixture_excluding_hash": 23042187,
+        "migration_command": 3618168127,
+        "other_preparation": 17946968,
+        "schema_create": 20310809,
+        "storage_http_mock_init": 585352
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3430790000,
+      "nested_migration_up_ns": 3464013949,
+      "ordinal": 44,
+      "preparation_ns": 4336075726,
+      "stages_ns": {
+        "application_boot": 22964457,
+        "argon2id": 277519700,
+        "auth_fixture_excluding_hash": 6849932,
+        "migration_command": 3993793772,
+        "other_preparation": 18041137,
+        "schema_create": 16291070,
+        "storage_http_mock_init": 615658
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3514050000,
+      "nested_migration_up_ns": 3540400213,
+      "ordinal": 45,
+      "preparation_ns": 4445003530,
+      "stages_ns": {
+        "application_boot": 47681427,
+        "argon2id": 321847394,
+        "auth_fixture_excluding_hash": 8752143,
+        "migration_command": 4025186641,
+        "other_preparation": 23936033,
+        "schema_create": 17051335,
+        "storage_http_mock_init": 548557
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2675030000,
+      "nested_migration_up_ns": 2698738940,
+      "ordinal": 46,
+      "preparation_ns": 3593217485,
+      "stages_ns": {
+        "application_boot": 53165154,
+        "argon2id": 294868173,
+        "auth_fixture_excluding_hash": 9447563,
+        "migration_command": 3176214006,
+        "other_preparation": 25885109,
+        "schema_create": 32961524,
+        "storage_http_mock_init": 675956
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2887390000,
+      "nested_migration_up_ns": 2869945856,
+      "ordinal": 47,
+      "preparation_ns": 3744551275,
+      "stages_ns": {
+        "application_boot": 29204608,
+        "argon2id": 280835076,
+        "auth_fixture_excluding_hash": 7420048,
+        "migration_command": 3390698068,
+        "other_preparation": 19013841,
+        "schema_create": 16922989,
+        "storage_http_mock_init": 456645
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3633340000,
+      "nested_migration_up_ns": 3654014070,
+      "ordinal": 48,
+      "preparation_ns": 4625266847,
+      "stages_ns": {
+        "application_boot": 25038064,
+        "argon2id": 304609297,
+        "auth_fixture_excluding_hash": 6994194,
+        "migration_command": 4251092362,
+        "other_preparation": 18038934,
+        "schema_create": 19007586,
+        "storage_http_mock_init": 486410
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3625890000,
+      "nested_migration_up_ns": 3655904966,
+      "ordinal": 49,
+      "preparation_ns": 4712945461,
+      "stages_ns": {
+        "application_boot": 46123755,
+        "argon2id": 381112821,
+        "auth_fixture_excluding_hash": 8199319,
+        "migration_command": 4222105383,
+        "other_preparation": 23545241,
+        "schema_create": 31189701,
+        "storage_http_mock_init": 669241
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3554260000,
+      "nested_migration_up_ns": 3527478784,
+      "ordinal": 50,
+      "preparation_ns": 4547574181,
+      "stages_ns": {
+        "application_boot": 39949732,
+        "argon2id": 300831697,
+        "auth_fixture_excluding_hash": 8049089,
+        "migration_command": 4141595353,
+        "other_preparation": 26055603,
+        "schema_create": 30422617,
+        "storage_http_mock_init": 670090
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2981240000,
+      "nested_migration_up_ns": 3007262958,
+      "ordinal": 51,
+      "preparation_ns": 3916918177,
+      "stages_ns": {
+        "application_boot": 32812664,
+        "argon2id": 340502269,
+        "auth_fixture_excluding_hash": 8759754,
+        "migration_command": 3478222981,
+        "other_preparation": 36725148,
+        "schema_create": 19260846,
+        "storage_http_mock_init": 634515
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3341160000,
+      "nested_migration_up_ns": 3344089438,
+      "ordinal": 52,
+      "preparation_ns": 4288964553,
+      "stages_ns": {
+        "application_boot": 27401012,
+        "argon2id": 297916009,
+        "auth_fixture_excluding_hash": 7375299,
+        "migration_command": 3909010574,
+        "other_preparation": 24986350,
+        "schema_create": 21814797,
+        "storage_http_mock_init": 460512
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3511300000,
+      "nested_migration_up_ns": 3507684273,
+      "ordinal": 53,
+      "preparation_ns": 4440666127,
+      "stages_ns": {
+        "application_boot": 25998167,
+        "argon2id": 299178811,
+        "auth_fixture_excluding_hash": 33112487,
+        "migration_command": 4035348789,
+        "other_preparation": 19129045,
+        "schema_create": 27300212,
+        "storage_http_mock_init": 598616
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3529150000,
+      "nested_migration_up_ns": 3569925324,
+      "ordinal": 54,
+      "preparation_ns": 4625244346,
+      "stages_ns": {
+        "application_boot": 30569939,
+        "argon2id": 429382975,
+        "auth_fixture_excluding_hash": 10042449,
+        "migration_command": 4103450072,
+        "other_preparation": 26685828,
+        "schema_create": 24410573,
+        "storage_http_mock_init": 702510
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3112020000,
+      "nested_migration_up_ns": 3143207403,
+      "ordinal": 55,
+      "preparation_ns": 4240096264,
+      "stages_ns": {
+        "application_boot": 34064417,
+        "argon2id": 465972225,
+        "auth_fixture_excluding_hash": 21421702,
+        "migration_command": 3665824314,
+        "other_preparation": 35471471,
+        "schema_create": 16799532,
+        "storage_http_mock_init": 542603
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3243110000,
+      "nested_migration_up_ns": 3235772472,
+      "ordinal": 56,
+      "preparation_ns": 4158271175,
+      "stages_ns": {
+        "application_boot": 19926729,
+        "argon2id": 299197704,
+        "auth_fixture_excluding_hash": 8606134,
+        "migration_command": 3793637179,
+        "other_preparation": 19779908,
+        "schema_create": 16615086,
+        "storage_http_mock_init": 508435
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3313020000,
+      "nested_migration_up_ns": 3317948914,
+      "ordinal": 57,
+      "preparation_ns": 4317788957,
+      "stages_ns": {
+        "application_boot": 45007284,
+        "argon2id": 303657110,
+        "auth_fixture_excluding_hash": 9041313,
+        "migration_command": 3892311851,
+        "other_preparation": 25273958,
+        "schema_create": 41817178,
+        "storage_http_mock_init": 680263
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3317760000,
+      "nested_migration_up_ns": 3385193624,
+      "ordinal": 58,
+      "preparation_ns": 4476029526,
+      "stages_ns": {
+        "application_boot": 44339048,
+        "argon2id": 487915686,
+        "auth_fixture_excluding_hash": 7260815,
+        "migration_command": 3876884068,
+        "other_preparation": 22142416,
+        "schema_create": 36821241,
+        "storage_http_mock_init": 666252
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2987940000,
+      "nested_migration_up_ns": 3030753780,
+      "ordinal": 59,
+      "preparation_ns": 3914145790,
+      "stages_ns": {
+        "application_boot": 19625786,
+        "argon2id": 309425865,
+        "auth_fixture_excluding_hash": 7963096,
+        "migration_command": 3539321048,
+        "other_preparation": 19335697,
+        "schema_create": 17961976,
+        "storage_http_mock_init": 512322
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3089150000,
+      "nested_migration_up_ns": 3126424980,
+      "ordinal": 60,
+      "preparation_ns": 4276065361,
+      "stages_ns": {
+        "application_boot": 34767907,
+        "argon2id": 541131104,
+        "auth_fixture_excluding_hash": 18423957,
+        "migration_command": 3615590692,
+        "other_preparation": 33463024,
+        "schema_create": 32052106,
+        "storage_http_mock_init": 636571
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2919950000,
+      "nested_migration_up_ns": 2940970379,
+      "ordinal": 61,
+      "preparation_ns": 3843523072,
+      "stages_ns": {
+        "application_boot": 18046170,
+        "argon2id": 323212928,
+        "auth_fixture_excluding_hash": 8843638,
+        "migration_command": 3446753124,
+        "other_preparation": 28050187,
+        "schema_create": 17949646,
+        "storage_http_mock_init": 667379
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3508450000,
+      "nested_migration_up_ns": 3539829762,
+      "ordinal": 62,
+      "preparation_ns": 4450392253,
+      "stages_ns": {
+        "application_boot": 31038042,
+        "argon2id": 311226584,
+        "auth_fixture_excluding_hash": 6762302,
+        "migration_command": 4055111420,
+        "other_preparation": 19347124,
+        "schema_create": 26342159,
+        "storage_http_mock_init": 564622
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3430770000,
+      "nested_migration_up_ns": 3417834035,
+      "ordinal": 63,
+      "preparation_ns": 4494850801,
+      "stages_ns": {
+        "application_boot": 96127350,
+        "argon2id": 337151699,
+        "auth_fixture_excluding_hash": 8604997,
+        "migration_command": 4009944138,
+        "other_preparation": 23589316,
+        "schema_create": 18919335,
+        "storage_http_mock_init": 513966
+      }
+    },
+    {
+      "class": "Tests\\V2\\BannerImportWorkerTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2930470000,
+      "nested_migration_up_ns": 2923261053,
+      "ordinal": 64,
+      "preparation_ns": 3861726019,
+      "stages_ns": {
+        "application_boot": 30806498,
+        "argon2id": 306799487,
+        "auth_fixture_excluding_hash": 8154817,
+        "migration_command": 3462842338,
+        "other_preparation": 26513577,
+        "schema_create": 25881122,
+        "storage_http_mock_init": 728180
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3413830000,
+      "nested_migration_up_ns": 3399905117,
+      "ordinal": 65,
+      "preparation_ns": 4414922258,
+      "stages_ns": {
+        "application_boot": 45508890,
+        "argon2id": 380792168,
+        "auth_fixture_excluding_hash": 18544556,
+        "migration_command": 3949698917,
+        "other_preparation": 642818,
+        "schema_create": 18407098,
+        "storage_http_mock_init": 1327811
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3431540000,
+      "nested_migration_up_ns": 3449853210,
+      "ordinal": 66,
+      "preparation_ns": 4452290131,
+      "stages_ns": {
+        "application_boot": 56141546,
+        "argon2id": 332574215,
+        "auth_fixture_excluding_hash": 7118671,
+        "migration_command": 4028945968,
+        "other_preparation": 1210577,
+        "schema_create": 26203772,
+        "storage_http_mock_init": 95382
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3077870000,
+      "nested_migration_up_ns": 3035145532,
+      "ordinal": 67,
+      "preparation_ns": 4125679250,
+      "stages_ns": {
+        "application_boot": 42697488,
+        "argon2id": 454860020,
+        "auth_fixture_excluding_hash": 13643191,
+        "migration_command": 3597095528,
+        "other_preparation": 684626,
+        "schema_create": 16595803,
+        "storage_http_mock_init": 102594
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2855450000,
+      "nested_migration_up_ns": 2876867939,
+      "ordinal": 68,
+      "preparation_ns": 3722299956,
+      "stages_ns": {
+        "application_boot": 36932413,
+        "argon2id": 298893491,
+        "auth_fixture_excluding_hash": 8831015,
+        "migration_command": 3359878717,
+        "other_preparation": 565730,
+        "schema_create": 17050145,
+        "storage_http_mock_init": 148445
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2813380000,
+      "nested_migration_up_ns": 2829844368,
+      "ordinal": 69,
+      "preparation_ns": 3885160992,
+      "stages_ns": {
+        "application_boot": 30057339,
+        "argon2id": 425185439,
+        "auth_fixture_excluding_hash": 11782210,
+        "migration_command": 3392455880,
+        "other_preparation": 648400,
+        "schema_create": 24935763,
+        "storage_http_mock_init": 95961
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2812190000,
+      "nested_migration_up_ns": 2860390081,
+      "ordinal": 70,
+      "preparation_ns": 3685962299,
+      "stages_ns": {
+        "application_boot": 20379821,
+        "argon2id": 313489757,
+        "auth_fixture_excluding_hash": 7681393,
+        "migration_command": 3327752644,
+        "other_preparation": 616556,
+        "schema_create": 15965916,
+        "storage_http_mock_init": 76212
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3190520000,
+      "nested_migration_up_ns": 3254841050,
+      "ordinal": 71,
+      "preparation_ns": 4041551045,
+      "stages_ns": {
+        "application_boot": 25053483,
+        "argon2id": 265510442,
+        "auth_fixture_excluding_hash": 9239080,
+        "migration_command": 3723235130,
+        "other_preparation": 537380,
+        "schema_create": 17871009,
+        "storage_http_mock_init": 104521
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3361630000,
+      "nested_migration_up_ns": 3429255570,
+      "ordinal": 72,
+      "preparation_ns": 4243226333,
+      "stages_ns": {
+        "application_boot": 18502767,
+        "argon2id": 264035537,
+        "auth_fixture_excluding_hash": 11013007,
+        "migration_command": 3932534090,
+        "other_preparation": 553191,
+        "schema_create": 16494636,
+        "storage_http_mock_init": 93105
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3393030000,
+      "nested_migration_up_ns": 3428590734,
+      "ordinal": 73,
+      "preparation_ns": 4246114325,
+      "stages_ns": {
+        "application_boot": 41875400,
+        "argon2id": 258913349,
+        "auth_fixture_excluding_hash": 7376653,
+        "migration_command": 3917170796,
+        "other_preparation": 724385,
+        "schema_create": 19963801,
+        "storage_http_mock_init": 89941
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3456460000,
+      "nested_migration_up_ns": 3445752157,
+      "ordinal": 74,
+      "preparation_ns": 4529191076,
+      "stages_ns": {
+        "application_boot": 45934462,
+        "argon2id": 405854305,
+        "auth_fixture_excluding_hash": 16654382,
+        "migration_command": 4035501234,
+        "other_preparation": 585823,
+        "schema_create": 24547842,
+        "storage_http_mock_init": 113028
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3566530000,
+      "nested_migration_up_ns": 3586295532,
+      "ordinal": 75,
+      "preparation_ns": 4782356246,
+      "stages_ns": {
+        "application_boot": 36397518,
+        "argon2id": 551599825,
+        "auth_fixture_excluding_hash": 10296419,
+        "migration_command": 4148888374,
+        "other_preparation": 640106,
+        "schema_create": 34430389,
+        "storage_http_mock_init": 103615
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3719940000,
+      "nested_migration_up_ns": 3744074094,
+      "ordinal": 76,
+      "preparation_ns": 4679870218,
+      "stages_ns": {
+        "application_boot": 57247049,
+        "argon2id": 284178476,
+        "auth_fixture_excluding_hash": 7480762,
+        "migration_command": 4302645617,
+        "other_preparation": 647480,
+        "schema_create": 27556418,
+        "storage_http_mock_init": 114416
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3374620000,
+      "nested_migration_up_ns": 3400053263,
+      "ordinal": 77,
+      "preparation_ns": 4360131333,
+      "stages_ns": {
+        "application_boot": 36017267,
+        "argon2id": 338306543,
+        "auth_fixture_excluding_hash": 7655441,
+        "migration_command": 3943722176,
+        "other_preparation": 4047093,
+        "schema_create": 30284083,
+        "storage_http_mock_init": 98730
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 2812430000,
+      "nested_migration_up_ns": 2803710062,
+      "ordinal": 78,
+      "preparation_ns": 3741878037,
+      "stages_ns": {
+        "application_boot": 49765342,
+        "argon2id": 361576331,
+        "auth_fixture_excluding_hash": 6907568,
+        "migration_command": 3303706397,
+        "other_preparation": 793093,
+        "schema_create": 19018708,
+        "storage_http_mock_init": 110598
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3095600000,
+      "nested_migration_up_ns": 3076577572,
+      "ordinal": 79,
+      "preparation_ns": 3989926855,
+      "stages_ns": {
+        "application_boot": 33993390,
+        "argon2id": 292522889,
+        "auth_fixture_excluding_hash": 9425859,
+        "migration_command": 3635915366,
+        "other_preparation": 872137,
+        "schema_create": 17099858,
+        "storage_http_mock_init": 97356
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3183200000,
+      "nested_migration_up_ns": 3215955163,
+      "ordinal": 80,
+      "preparation_ns": 4181497958,
+      "stages_ns": {
+        "application_boot": 51658312,
+        "argon2id": 367198779,
+        "auth_fixture_excluding_hash": 7893787,
+        "migration_command": 3719827113,
+        "other_preparation": 701885,
+        "schema_create": 34110761,
+        "storage_http_mock_init": 107321
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3246540000,
+      "nested_migration_up_ns": 3205876202,
+      "ordinal": 81,
+      "preparation_ns": 4227675446,
+      "stages_ns": {
+        "application_boot": 56470874,
+        "argon2id": 324242273,
+        "auth_fixture_excluding_hash": 17884515,
+        "migration_command": 3789574032,
+        "other_preparation": 1337998,
+        "schema_create": 38071886,
+        "storage_http_mock_init": 93868
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3199990000,
+      "nested_migration_up_ns": 3215829665,
+      "ordinal": 82,
+      "preparation_ns": 4146838179,
+      "stages_ns": {
+        "application_boot": 68807692,
+        "argon2id": 326082910,
+        "auth_fixture_excluding_hash": 12827665,
+        "migration_command": 3702844508,
+        "other_preparation": 8212977,
+        "schema_create": 27969734,
+        "storage_http_mock_init": 92693
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3059490000,
+      "nested_migration_up_ns": 3030907209,
+      "ordinal": 83,
+      "preparation_ns": 3982719163,
+      "stages_ns": {
+        "application_boot": 33562086,
+        "argon2id": 291268215,
+        "auth_fixture_excluding_hash": 8238894,
+        "migration_command": 3629663248,
+        "other_preparation": 641831,
+        "schema_create": 19256308,
+        "storage_http_mock_init": 88581
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3879200000,
+      "nested_migration_up_ns": 3939938860,
+      "ordinal": 84,
+      "preparation_ns": 4906197031,
+      "stages_ns": {
+        "application_boot": 32579309,
+        "argon2id": 339047959,
+        "auth_fixture_excluding_hash": 11515108,
+        "migration_command": 4484308541,
+        "other_preparation": 785927,
+        "schema_create": 37846398,
+        "storage_http_mock_init": 113789
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3408390000,
+      "nested_migration_up_ns": 3460434034,
+      "ordinal": 85,
+      "preparation_ns": 4349577657,
+      "stages_ns": {
+        "application_boot": 37213940,
+        "argon2id": 312466301,
+        "auth_fixture_excluding_hash": 7610351,
+        "migration_command": 3961383477,
+        "other_preparation": 1495859,
+        "schema_create": 29333066,
+        "storage_http_mock_init": 74663
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3663630000,
+      "nested_migration_up_ns": 3683549148,
+      "ordinal": 86,
+      "preparation_ns": 4703922694,
+      "stages_ns": {
+        "application_boot": 31845395,
+        "argon2id": 389484613,
+        "auth_fixture_excluding_hash": 8442659,
+        "migration_command": 4240323389,
+        "other_preparation": 834270,
+        "schema_create": 32895035,
+        "storage_http_mock_init": 97333
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3608350000,
+      "nested_migration_up_ns": 3607146636,
+      "ordinal": 87,
+      "preparation_ns": 4545600392,
+      "stages_ns": {
+        "application_boot": 21782854,
+        "argon2id": 330999606,
+        "auth_fixture_excluding_hash": 7024077,
+        "migration_command": 4156524755,
+        "other_preparation": 512961,
+        "schema_create": 28663063,
+        "storage_http_mock_init": 93076
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3464610000,
+      "nested_migration_up_ns": 3500351676,
+      "ordinal": 88,
+      "preparation_ns": 4395539069,
+      "stages_ns": {
+        "application_boot": 21543216,
+        "argon2id": 331285596,
+        "auth_fixture_excluding_hash": 16500123,
+        "migration_command": 4008651288,
+        "other_preparation": 562888,
+        "schema_create": 16906644,
+        "storage_http_mock_init": 89314
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3968750000,
+      "nested_migration_up_ns": 3984451487,
+      "ordinal": 89,
+      "preparation_ns": 4965595415,
+      "stages_ns": {
+        "application_boot": 25766337,
+        "argon2id": 320773217,
+        "auth_fixture_excluding_hash": 8670185,
+        "migration_command": 4587365686,
+        "other_preparation": 634664,
+        "schema_create": 22295344,
+        "storage_http_mock_init": 89982
+      }
+    },
+    {
+      "class": "Tests\\V2\\NotionSyncTest",
+      "counts": {
+        "app_boot": 1,
+        "argon2id": 1,
+        "migration_queries": 1714,
+        "migration_up": 87
+      },
+      "nested_migration_queries_ns": 3171510000,
+      "nested_migration_up_ns": 3218166294,
+      "ordinal": 90,
+      "preparation_ns": 4089815806,
+      "stages_ns": {
+        "application_boot": 24661601,
+        "argon2id": 304525613,
+        "auth_fixture_excluding_hash": 7369596,
+        "migration_command": 3731103245,
+        "other_preparation": 648508,
+        "schema_create": 21430521,
+        "storage_http_mock_init": 76722
+      }
+    }
+  ],
+  "migration_command_outside_up": {
+    "max_seconds": 0.634172401,
+    "median_seconds": 0.534007899,
+    "min_seconds": 0.345766207,
+    "sum_seconds": 48.27974329
+  },
+  "migration_file_count": 87,
+  "migration_set_sha256": "8717ca2512b108ca938b879616b2fb418a49cadc8204fa9c45d3673f8697655f",
+  "migration_source_copy_byte_equal": true,
+  "nested_migration_queries": {
+    "max_seconds": 3.96875,
+    "median_seconds": 3.313475,
+    "min_seconds": 2.67503,
+    "sum_seconds": 295.11402
+  },
+  "nested_migration_up": {
+    "max_seconds": 3.984451487,
+    "median_seconds": 3.32763513,
+    "min_seconds": 2.69873894,
+    "sum_seconds": 296.36242785
+  },
+  "opcache_cli": false,
+  "ordered_migration_manifest_sha256": "18f42def6b70ac23d1fadb158f23369bbdbb4c6961b60fdc1d130554e54c73ef",
+  "partition_reconciliation": "PASS",
+  "php_cpu_quota": 1,
+  "php_memory_limit": "512M",
+  "php_version": "8.4.23",
+  "phpunit_version": "12.5.29",
+  "postgres_version": "17.10",
+  "probe_overhead_seconds": null,
+  "probes": {
+    "app/Domain/Identity/Services/V2PasswordPolicy.php": {
+      "instrumented_sha256": "cc19e4f6a32d65870731be28eaf52ea6ff4c0c02dcb866ae8c4ebc569542ce58",
+      "original_sha256": "6e46195cb42b256ff32aff594b3cb4118c807e08bcc04546683f6125f1efd0f8",
+      "probe_removal_byte_equal": true
+    },
+    "tests/TestCase.php": {
+      "instrumented_sha256": "40cfc48aca948c95926d4506ae3a228fe6f13b1dfb510c9c4688f74fb17305a8",
+      "original_sha256": "c7c209f5579c42647c1f7b2a79ac828e8b54ac62a98442045a6e94fa2c0d0ebc",
+      "probe_removal_byte_equal": true
+    },
+    "tests/V2/BannerImportTest.php": {
+      "instrumented_sha256": "9caf3321b2eeaf5100d6dd462d687cf2383a4137eefcbc1028daa09f37c48427",
+      "original_sha256": "a594c21f05d30fb9a0276d7208bd745e4b28954ecc62e5d162c1c21ed01271cc",
+      "probe_removal_byte_equal": true
+    },
+    "tests/V2/NotionSyncTest.php": {
+      "instrumented_sha256": "f64368711feacd8d42f556ed58847e89349606fd412de6789266e4f5ee29649e",
+      "original_sha256": "ee31646083aa3d835e735cb3de5f454be23f2119a8b8e9a48fb20af2197cd20a",
+      "probe_removal_byte_equal": true
+    }
+  },
+  "profile_preparation": {
+    "max_seconds": 4.965595415,
+    "median_seconds": 4.282514957,
+    "min_seconds": 3.593217485,
+    "sum_seconds": 384.709843684
+  },
+  "raw_reports_retained": false,
+  "replacement_path_measurements": null,
+  "runner_class": "task-isolated-local-shared-host",
+  "runs": {
+    "control": {
+      "assertions": 1337,
+      "classes": {
+        "Tests\\V2\\BannerAssetLifecycleTest": {
+          "assertions": 272,
+          "junit_seconds": 366.498664,
+          "skipped": 0,
+          "tests": 22
+        },
+        "Tests\\V2\\BannerImportCsvTest": {
+          "assertions": 147,
+          "junit_seconds": 106.033188,
+          "skipped": 0,
+          "tests": 12
+        },
+        "Tests\\V2\\BannerImportTest": {
+          "assertions": 80,
+          "junit_seconds": 62.00088,
+          "skipped": 0,
+          "tests": 6
+        },
+        "Tests\\V2\\BannerImportWorkerTest": {
+          "assertions": 240,
+          "junit_seconds": 189.603789,
+          "skipped": 1,
+          "tests": 24
+        },
+        "Tests\\V2\\NotionSyncTest": {
+          "assertions": 598,
+          "junit_seconds": 255.903153,
+          "skipped": 0,
+          "tests": 26
+        }
+      },
+      "errors": 0,
+      "exit": 0,
+      "failures": 0,
+      "junit_seconds": 980.0396740000002,
+      "label": "control",
+      "skipped": 1,
+      "tests": 90,
+      "wall_seconds": 988.4065051521175
+    },
+    "profile": {
+      "assertions": 1337,
+      "classes": {
+        "Tests\\V2\\BannerAssetLifecycleTest": {
+          "assertions": 272,
+          "junit_seconds": 190.713471,
+          "skipped": 0,
+          "tests": 22
+        },
+        "Tests\\V2\\BannerImportCsvTest": {
+          "assertions": 147,
+          "junit_seconds": 83.094604,
+          "skipped": 0,
+          "tests": 12
+        },
+        "Tests\\V2\\BannerImportTest": {
+          "assertions": 80,
+          "junit_seconds": 42.425548,
+          "skipped": 0,
+          "tests": 6
+        },
+        "Tests\\V2\\BannerImportWorkerTest": {
+          "assertions": 240,
+          "junit_seconds": 165.717965,
+          "skipped": 1,
+          "tests": 24
+        },
+        "Tests\\V2\\NotionSyncTest": {
+          "assertions": 598,
+          "junit_seconds": 228.845143,
+          "skipped": 0,
+          "tests": 26
+        }
+      },
+      "errors": 0,
+      "exit": 0,
+      "failures": 0,
+      "junit_seconds": 710.796731,
+      "label": "profile",
+      "skipped": 1,
+      "tests": 90,
+      "wall_seconds": 712.5913580090273
+    }
+  },
+  "same_order_identities_assertions_skips": true,
+  "schema_version": "oripa.preparation-profile.v1",
+  "speedup_proven": false,
+  "stages": {
+    "application_boot": {
+      "max_seconds": 0.191615669,
+      "median_seconds": 0.032267934,
+      "min_seconds": 0.01802958,
+      "sum_seconds": 3.282262056
+    },
+    "argon2id": {
+      "max_seconds": 0.715022686,
+      "median_seconds": 0.325162591,
+      "min_seconds": 0.258913349,
+      "sum_seconds": 31.715824577
+    },
+    "auth_fixture_excluding_hash": {
+      "max_seconds": 0.050425115,
+      "median_seconds": 0.008605566,
+      "min_seconds": 0.006086759,
+      "sum_seconds": 1.003932956
+    },
+    "migration_command": {
+      "max_seconds": 4.587365686,
+      "median_seconds": 3.873957182,
+      "min_seconds": 3.176214006,
+      "sum_seconds": 344.64217114
+    },
+    "other_preparation": {
+      "max_seconds": 0.082853682,
+      "median_seconds": 0.020949901,
+      "min_seconds": 0.000512961,
+      "sum_seconds": 1.74790529
+    },
+    "schema_create": {
+      "max_seconds": 0.049886286,
+      "median_seconds": 0.023591742,
+      "min_seconds": 0.015361106,
+      "sum_seconds": 2.258966421
+    },
+    "storage_http_mock_init": {
+      "max_seconds": 0.007627461,
+      "median_seconds": 0.000548281,
+      "min_seconds": 7.4663e-05,
+      "sum_seconds": 0.058781244
+    }
+  },
+  "status": "DBSMOKE_PHASE3_PREPARATION_PROFILE_HUMAN_REVIEW_PENDING",
+  "synchronous_commit": "on",
+  "task_id": "DBSMOKE-P3-20261016",
+  "ci_task_id": "DBPROFILE-20261016"
+}
