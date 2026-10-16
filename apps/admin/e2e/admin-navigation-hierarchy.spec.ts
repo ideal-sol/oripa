@@ -127,12 +127,12 @@ test("Rank settings is immediately above rank effects and opens the canonical ac
   const settingsLinks = settingsControls.getByRole("link");
   await expect(settingsLinks).toHaveText([
     "ページ設定",
-    "ランク設定",
+    "景品ランク設定",
     "ランク動画",
     "LINE設定",
     "メール設定",
   ]);
-  const rankSettings = settingsControls.getByRole("link", { name: "ランク設定" });
+  const rankSettings = settingsControls.getByRole("link", { name: "景品ランク設定", exact: true });
   await expect(rankSettings).toHaveCount(1);
   await expect(rankSettings).toHaveAttribute("href", "/catalog/ranks");
   await expect(settingsControls.getByRole("link", { name: "ランク動画" })).toHaveAttribute(

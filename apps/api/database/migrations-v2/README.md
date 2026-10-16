@@ -1,5 +1,19 @@
 # V2 Migration Root
 
+## MEMBERRANK-20261016 (M1)
+
+Migration `2026_10_16_000088_create_v2_member_rank_settings.php` is allocated
+under the exclusive Migration Allocation Lock. It adds only a disabled singleton,
+immutable setting versions and seven constrained rank values per version.
+Deferred completeness/order constraints and irreversible activation history guards
+protect stored settings. M1's API refuses initial activation. Settings and
+cancellations append a version effective at next month 00:00 Asia/Tokyo;
+reads select it without a worker. Existing migrations are unchanged.
+Test application is restricted to disposable isolated databases. Operational
+application, runtime activation and feature enablement require separate Human GO.
+Rollback retains the additive schema and uses the previous application; down()
+rejects. The allocation remains reserved through Change closeout.
+
 ## SIGNUP-SMS-GATE-20261012
 
 Migration `2026_10_12_000083_add_v2_signup_sms_gate.php` adds nullable User

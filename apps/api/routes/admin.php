@@ -55,6 +55,7 @@ use App\Http\Controllers\V2\V2AdminLineMessagingController;
 use App\Http\Controllers\V2\V2AdminLimitedBonusCampaignController;
 use App\Http\Controllers\V2\V2AdminMailTemplateController;
 use App\Http\Controllers\V2\V2AdminReferralPointSettingController;
+use App\Http\Controllers\V2\V2AdminMemberRankSettingsController;
 use App\Http\Controllers\V2\V2AdminGachaNoticeDefaultController;
 use App\Http\Controllers\V2\V2AdminPointPurchasePlanController;
 use App\Http\Controllers\V2\V2AdminPaymentController;
@@ -154,6 +155,10 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.update');
         Route::post('/identity/line-messaging/preview', [V2AdminLineMessagingController::class, 'preview'])
             ->name('v2.admin.identity.line-messaging.preview');
+        Route::get('/settings/member-ranks', [V2AdminMemberRankSettingsController::class, 'show']);
+        Route::put('/settings/member-ranks', [V2AdminMemberRankSettingsController::class, 'update']);
+        Route::delete('/settings/member-ranks/scheduled', [V2AdminMemberRankSettingsController::class, 'cancel']);
+        Route::get('/settings/member-ranks/revisions', [V2AdminMemberRankSettingsController::class, 'history']);
         Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])
             ->name('v2.admin.settings.referral-points.show');
         Route::get('/settings/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminShow']);

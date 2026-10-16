@@ -289,6 +289,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_14_000085_create_v2_notion_inventory_sync.php",
     "apps/api/database/migrations-v2/2026_10_15_000086_add_v2_rank_video_sets.php",
     "apps/api/database/migrations-v2/2026_10_16_000087_create_v2_pre_registration.php",
+    "apps/api/database/migrations-v2/2026_10_16_000088_create_v2_member_rank_settings.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -946,6 +947,14 @@ PREREG_V14_ADMIN_FILES = {
     "apps/admin/src/components/users/admin-user-pre-registration.tsx",
     "apps/admin/test/pre-registration-settings.test.tsx",
 }
+MEMBER_RANK_M1_ADMIN_FILES = {
+    "apps/admin/e2e/admin-member-rank-settings.spec.ts",
+    "apps/admin/src/app/settings/member-ranks/page.tsx",
+    "apps/admin/src/components/settings/member-rank-settings.module.css",
+    "apps/admin/src/components/settings/member-rank-settings.tsx",
+    "apps/admin/test/member-rank-fixture.ts",
+    "apps/admin/test/member-rank-settings.test.tsx",
+}
 MIG_099_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-master-workspace.tsx",
 }
@@ -1134,6 +1143,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_078_ADMIN_SKELETON_FILES,
     *MIG_084_ADMIN_SKELETON_FILES,
     *PREREG_V14_ADMIN_FILES,
+    *MEMBER_RANK_M1_ADMIN_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
     "apps/admin/test/rich-text-editor-compatibility.test.tsx",
@@ -3134,6 +3144,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_14_000085_create_v2_notion_inventory_sync.php",
         "2026_10_15_000086_add_v2_rank_video_sets.php",
         "2026_10_16_000087_create_v2_pre_registration.php",
+        "2026_10_16_000088_create_v2_member_rank_settings.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
@@ -4546,6 +4557,10 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         if isinstance(operation, dict)
     }
     required_admin_operations = {
+        "getAdminMemberRankSettings",
+        "updateAdminMemberRankSettings",
+        "cancelAdminMemberRankSettings",
+        "listAdminMemberRankSettingsRevisions",
         "listAdminCatalogCategories",
         "getAdminCatalogCategory",
         "listAdminCatalogTags",

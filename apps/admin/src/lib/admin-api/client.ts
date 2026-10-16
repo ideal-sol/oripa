@@ -406,6 +406,23 @@ export class AdminApiError extends Error {
 }
 
 export class AdminApiClient {
+  getMemberRankSettings(signal?: AbortSignal): Promise<import("./generated").AdminMemberRankSettingsResponse> {
+    return this.request("GET", "/settings/member-ranks", { signal });
+  }
+
+  updateMemberRankSettings(body: import("./generated").AdminMemberRankSettingsUpdate, idempotencyKey: string): Promise<import("./generated").AdminMemberRankSettingsMutation> {
+    return this.request("PUT", "/settings/member-ranks", { body, idempotencyKey });
+  }
+
+  cancelMemberRankSettings(expectedRevision: number, idempotencyKey: string): Promise<import("./generated").AdminMemberRankSettingsMutation> {
+    return this.request("DELETE", "/settings/member-ranks/scheduled", { body: { expected_revision: expectedRevision }, idempotencyKey });
+  }
+
+  getMemberRankSettingsHistory(beforeRevision?: number, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankSettingsHistory> {
+    const query = beforeRevision === undefined ? "" : "?before_revision=" + encodeURIComponent(beforeRevision);
+    return this.request("GET", `/settings/member-ranks/revisions${query}`, { signal });
+  }
+
   getPreRegistration(signal?: AbortSignal): Promise<import("./generated").AdminPreRegistrationResponse> {
     return this.request("GET", "/settings/pre-registration", { signal });
   }
@@ -3227,6 +3244,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | `/settings/member-ranks${string}`
       | "/settings/pre-registration"
       | "/settings/pre-registration/preview"
       | "/settings/pre-registration/activate"
@@ -3258,6 +3276,10 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        path !== "/settings/member-ranks" &&
+        path !== "/settings/member-ranks/scheduled" &&
+        path !== "/settings/member-ranks/revisions" &&
+        !path.startsWith("/settings/member-ranks/revisions?") &&
         path !== "/settings/pre-registration" &&
         path !== "/settings/pre-registration/preview" &&
         path !== "/settings/pre-registration/activate" &&

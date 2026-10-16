@@ -4,6 +4,10 @@ namespace App\Domain\Identity\Enums;
 
 enum V2Permission: string
 {
+    case ReadMemberRankSettings = 'member_rank.settings.read';
+    case ManageMemberRankSettings = 'member_rank.settings.manage';
+    case ManageMemberRankUser = 'member_rank.user.manage';
+    case ManagePaymentAdjustment = 'payment.adjustment.manage';
     case ReadAgency = 'agency.read';
     case ManageAgency = 'agency.manage';
     case ReadAdminIdentity = 'identity.admin.read';

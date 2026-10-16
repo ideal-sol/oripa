@@ -83,7 +83,7 @@ describe("Admin sidebar hierarchy", () => {
       ["お知らせ", ["一覧", "登録"]],
       ["バナー", ["一覧", "登録"]],
       ["お問い合わせ", ["一覧"]],
-      ["各種設定", ["ページ設定", "ランク設定", "ランク動画", "紹介ポイント設定", "事前登録特典設定", "ガチャ注意事項設定", "LINE設定", "メール設定"]],
+      ["各種設定", ["ページ設定", "景品ランク設定", "ランク動画", "紹介ポイント設定", "事前登録特典設定", "会員ランク設定", "ガチャ注意事項設定", "LINE設定", "メール設定"]],
     ]);
     for (const [parent, labels] of expectedChildren) {
       const button = screen.getByRole("button", { name: parent });
@@ -96,8 +96,8 @@ describe("Admin sidebar hierarchy", () => {
     const settings = screen.getByRole("button", { name: "各種設定" });
     expect(settings).toHaveAttribute("aria-expanded", "true");
     const settingsControls = document.getElementById(settings.getAttribute("aria-controls")!);
-    expect(within(settingsControls!).getAllByRole("link", { name: "ランク設定" })).toHaveLength(1);
-    expect(within(settingsControls!).getByRole("link", { name: "ランク設定" })).toHaveAttribute(
+    expect(within(settingsControls!).getAllByRole("link", { name: "景品ランク設定" })).toHaveLength(1);
+    expect(within(settingsControls!).getByRole("link", { name: "景品ランク設定" })).toHaveAttribute(
       "href",
       "/catalog/ranks",
     );
