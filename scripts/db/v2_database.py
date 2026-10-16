@@ -832,6 +832,7 @@ def identity_bytecode_options(base: list[str], repository: Path) -> dict[str, An
         options = [] if available == "loaded" else ["-d", "zend_extension=opcache"]
         for setting in (
             "opcache.enable=1", "opcache.enable_cli=1", "opcache.jit=disable",
+            "opcache.jit_buffer_size=0", "opcache.memory_consumption=128",
             "opcache.file_cache=", "opcache.file_cache_only=0",
             "opcache.validate_timestamps=1", "opcache.revalidate_freq=0",
             "opcache.optimization_level=0", "opcache.save_comments=1",

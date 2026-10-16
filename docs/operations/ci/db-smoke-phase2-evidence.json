@@ -222,6 +222,225 @@
       "content_contact_performance_tests": "PASS"
     }
   },
+  "comparable_baseline": {
+    "run_id": 38864095716,
+    "ci_wall_seconds": 1213,
+    "database_job_seconds": 1166,
+    "artifact": {
+      "id": 12031207466,
+      "sha256": "359d10e1bc753434ac0a8b661a082a90f3d02b608853e47a5a2ce5f4e4fc80e7"
+    },
+    "timing": {
+      "build_cache": [
+        {
+          "cached_steps": 0,
+          "classification": "cold-or-unreported",
+          "completed_steps": 46,
+          "phase": "docker_image_build"
+        }
+      ],
+      "cache_mode": "native-buildkit-only-no-import",
+      "cleanup_outcome": "PASS",
+      "cpu_count": 4,
+      "environment": "testing",
+      "identity_bytecode_cache": "DISABLED_NORMAL_EXECUTION",
+      "migration_file_count": 87,
+      "migration_set_sha256": "8717ca2512b108ca938b879616b2fb418a49cadc8204fa9c45d3673f8697655f",
+      "outcome": "PASS",
+      "phases": [
+        {
+          "duration_seconds": 3.529674,
+          "name": "image_pull",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 59.004282,
+          "name": "docker_image_build",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.458471,
+          "name": "source_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 2.152024,
+          "name": "first_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 3.300912,
+          "name": "second_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 1.165578,
+          "name": "rollback_forward_only",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.304845,
+          "name": "migration_status",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 908.171254,
+          "name": "identity",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 72.500847,
+          "name": "draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 27.797281,
+          "name": "qa_draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 20.164593,
+          "name": "reporting",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 8.119996,
+          "name": "content_contact",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.137629,
+          "name": "api_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.107676,
+          "name": "admin_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.12609,
+          "name": "source_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.450952,
+          "name": "source_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.120581,
+          "name": "source_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 3.93649,
+          "name": "backup",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 6.051652,
+          "name": "restore_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 16.316459,
+          "name": "restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.120041,
+          "name": "restore_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.376538,
+          "name": "restore_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.115364,
+          "name": "restore_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.000059,
+          "name": "exact_restore_comparison",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 1.17749,
+          "name": "cleanup_restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.268108,
+          "name": "cleanup_source",
+          "outcome": "PASS"
+        }
+      ],
+      "runner_arch": "x86_64",
+      "runner_class": "github-hosted",
+      "runner_os": "Linux",
+      "schema_version": "oripa.db-smoke-timing.v1",
+      "source_sha": "9ae96bf6dce97206085e67bd977b558adbda8613",
+      "test_counts": [
+        {
+          "counts": {
+            "assertions": 17497,
+            "skipped": 18,
+            "tests": 1336
+          },
+          "phase": "identity"
+        },
+        {
+          "counts": {
+            "assertions": 45,
+            "skipped": 4,
+            "tests": 6
+          },
+          "phase": "draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 13,
+            "tests": 1
+          },
+          "phase": "qa_draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 22,
+            "tests": 1
+          },
+          "phase": "reporting"
+        },
+        {
+          "counts": {
+            "assertions": 31,
+            "tests": 1
+          },
+          "phase": "content_contact"
+        }
+      ],
+      "total_duration_seconds": 1158.179326,
+      "tree_sha": "4d1c7bcd479f904b6b241533c5c87c7f70831f63",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "38864095716"
+    },
+    "validation": {
+      "migrate_fresh_runs": 2,
+      "latest_migration_rollback_reapply": "FORWARD_ONLY_REJECTION_PASS",
+      "source_schema_sha256": "ba05673e6e61fb4b9491a4f0a9bb62820470298e5dd2edf26b69f76e95ab51d9",
+      "restore_schema_sha256": "ba05673e6e61fb4b9491a4f0a9bb62820470298e5dd2edf26b69f76e95ab51d9",
+      "source_migration_rows_sha256": "d881c841bc4eac1cf8cc9667a39d22eabacf96d293467784afbd6a4f4d12dda9",
+      "restore_migration_rows_sha256": "d881c841bc4eac1cf8cc9667a39d22eabacf96d293467784afbd6a4f4d12dda9",
+      "backup_sha256": "f243c557e5cb1949d12a2f58a1e488957d05ced12fce6e384606354b08373260",
+      "backup_restore_match": true,
+      "resource_cleanup": "PASS",
+      "all_health_and_performance_suites": "PASS"
+    }
+  },
   "limitations": [
     "Baseline build progress was unreported; zero parsed steps does not establish a cold cache.",
     "No cross-run cache imported. Base-image pulls remain included in build duration.",

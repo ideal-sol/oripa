@@ -82,6 +82,23 @@ streams; any cached step may also be intra-build reuse. Neither run imports a
 cross-run cache. Base-image pulls remain within build time; registry/network and
 runner hardware variation are not independently controlled.
 
+### Comparable baseline after official main synchronization
+
+Run [38864095716](https://github.com/ideal-sol/oripa/actions/runs/38864095716)
+at head `9ae96bf6dce97206085e67bd977b558adbda8613`, tree
+`4d1c7bcd479f904b6b241533c5c87c7f70831f63`, passes every Required Check.
+It includes all 87 migrations and explicitly disables the bytecode opt-in.
+CI wall is 1213 seconds, DB job 1166 seconds, smoke 1158.179326 seconds,
+full V2 908.171254 seconds, build 59.004282 seconds. Full V2 discovers
+1336 tests / 17497 assertions / 18 existing opt-in skips. Other invocation
+counts remain Draw 6/45/4 skips, QA 1/13, Reporting 1/22, Content/Contact 1/31.
+Both fresh runs, forward-only refusal, all health/load checks, schema/ledger
+equality, backup/restore and both resource cleanups pass. Build progress contains
+46 completed steps and zero cached steps; no cross-run cache is imported.
+The exact phase table and validation digests are in the JSON evidence. Compare
+the final candidate against this 87-migration run, not the earlier 86-migration
+observation. Hosted-machine variation remains uncontrolled.
+
 ## Selected improvement
 
 The full V2 suite accounts for about 77.3% of smoke time; build is about 6.2%.
@@ -100,7 +117,9 @@ probe files are removed. Unavailable/failed cache probes fall back to the origin
 normal execution; a failed PHPUnit invocation is never retried or downgraded.
 Bytecode cache is process-local, disk file-cache is disabled, timestamp validation
 is on with revalidation on every access, comments are retained, and JIT and extra
-opcode optimization are disabled. No cache is imported, exported, or treated as
+opcode optimization are disabled. The process-local opcode cache is bounded to
+128 MiB in addition to the unchanged PHP allocator limit; no memory improvement
+is claimed. No cache is imported, exported, or treated as
 verification authority. PHP's [configuration reference](https://www.php.net/manual/en/opcache.configuration.php)
 defines these controls. The probe passed on local PHP 8.3.31 without a DB or
 container; target PHP 8.4 and complete evidence are verified by final-head CI.

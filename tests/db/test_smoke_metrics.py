@@ -17,7 +17,7 @@ class SmokeMetricsTest(unittest.TestCase):
         self.directory = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.stack.enter_context(mock.patch("sys.stdout", new_callable=io.StringIO))
         self.stack.enter_context(mock.patch.object(database, "migration_checksum", return_value=(86, "digest")))
-        self.run = self.stack.enter_context(mock.patch.object(database, "run", return_value=b"a" * 40))
+        self.command_mock = self.stack.enter_context(mock.patch.object(database, "run", return_value=b"a" * 40))
         self.metrics = database.SmokeMetrics(self.directory)
 
     def test_monotonic_duration_and_failed_outcome_without_exception_details(self):
@@ -47,36 +47,36 @@ class SmokeMetricsTest(unittest.TestCase):
     def test_bytecode_probe_enables_only_process_local_validated_cache(self):
         for available in (b"loaded", b"available"):
             with self.subTest(available=available):
-                self.run.reset_mock()
-                self.run.side_effect = [available, b"BYTECODE_MISS_HIT_INVALIDATION_PASS"]
+                self.command_mock.reset_mock()
+                self.command_mock.side_effect = [available, b"BYTECODE_MISS_HIT_INVALIDATION_PASS"]
                 result = database.identity_bytecode_options(["docker", "compose"], self.directory)
                 self.assertEqual(result["status"], "PROCESS_LOCAL_MISS_HIT_INVALIDATION_PASS")
                 for setting in ("opcache.file_cache=", "opcache.validate_timestamps=1", "opcache.revalidate_freq=0", "opcache.optimization_level=0", "opcache.jit=disable"):
                     self.assertIn(setting, result["options"])
                 self.assertEqual("zend_extension=opcache" in result["options"], available == b"available")
-                self.assertIn("BYTECODE_MISS_HIT_INVALIDATION_PASS", self.run.call_args.args[0][-1])
+                self.assertIn("BYTECODE_MISS_HIT_INVALIDATION_PASS", self.command_mock.call_args.args[0][-1])
 
     def test_unavailable_or_invalid_bytecode_cache_falls_back_to_normal_execution(self):
         for responses in ([b"unavailable"], [b"unknown"], [b"available", b"invalid"], [b"available", database.GuardFailure("probe failure")]):
             with self.subTest(responses=responses):
-                self.run.side_effect = responses
+                self.command_mock.side_effect = responses
                 self.assertEqual(database.identity_bytecode_options([], self.directory)["options"], [])
 
     def test_identity_command_keeps_suite_and_memory_limit_and_never_retries(self):
         options = ["-d", "opcache.enable_cli=1"]
-        self.run.reset_mock()
+        self.command_mock.reset_mock()
         database.run_identity_tests([], self.directory, False, php_options=options)
-        command = self.run.call_args.args[0]
+        command = self.command_mock.call_args.args[0]
         self.assertEqual(command, ["exec", "-T", "api", "php", "-d", "memory_limit=512M", *options, "vendor/bin/phpunit", "--configuration", "phpunit.v2.xml"])
-        self.run.reset_mock()
-        self.run.side_effect = database.GuardFailure("test failure")
+        self.command_mock.reset_mock()
+        self.command_mock.side_effect = database.GuardFailure("test failure")
         with self.assertRaises(database.GuardFailure):
             database.run_identity_tests([], self.directory, False, php_options=options)
-        self.run.assert_called_once()
+        self.command_mock.assert_called_once()
 
     def test_persistent_identity_command_does_not_enable_bytecode_cache(self):
         database.run_identity_tests([], self.directory, True)
-        self.assertEqual(self.run.call_args.args[0], ["run", "--rm", "--no-deps", "api", "php", "-d", "memory_limit=512M", "vendor/bin/phpunit", "--configuration", "phpunit.v2.xml"])
+        self.assertEqual(self.command_mock.call_args.args[0], ["run", "--rm", "--no-deps", "api", "php", "-d", "memory_limit=512M", "vendor/bin/phpunit", "--configuration", "phpunit.v2.xml"])
 
     def test_phpunit_counts_exclude_raw_test_output(self):
         self.metrics.observe(["vendor/bin/phpunit"], b"private fixture\nOK (10 tests, 32 assertions)\n", b"")
@@ -112,7 +112,7 @@ class SmokeMetricsTest(unittest.TestCase):
         self.assertEqual(result["resource_cleanup"], "PASS")
         self.assertEqual(mocks["migrate_fresh"].call_count, 2)
         self.assertEqual(mocks["cleanup_project"].call_count, 2)
-        commands = [call.args[0] for call in self.run.call_args_list]
+        commands = [call.args[0] for call in self.command_mock.call_args_list]
         self.assertTrue(any(command[-3:] == ["build", "api", "admin"] for command in commands))
         self.assertTrue(any("--no-build" in command for command in commands))
         evidence = json.loads((Path(args.evidence_dir) / "smoke-timing.json").read_text())
@@ -131,7 +131,7 @@ class SmokeMetricsTest(unittest.TestCase):
                 mocks[name].assert_called_once()
         for name in ("schema_inventory", "schema_dump", "migration_rows"):
             self.assertEqual(mocks[name].call_count, 2)
-        commands = [call.args[0] for call in self.run.call_args_list]
+        commands = [call.args[0] for call in self.command_mock.call_args_list]
         self.assertEqual(sum("http://localhost:8000/api/health" in command for command in commands), 1)
         self.assertEqual(sum("http://127.0.0.1:3000/api/health" in command for command in commands), 1)
         phases = json.loads((Path(args.evidence_dir) / "smoke-timing.json").read_text())["phases"]
@@ -165,10 +165,10 @@ class SmokeMetricsTest(unittest.TestCase):
                 raise database.GuardFailure("build failed")
             return b"a" * 40
 
-        self.run.side_effect = command_result
+        self.command_mock.side_effect = command_result
         with self.assertRaises(database.GuardFailure):
             database.run_smoke(args)
-        commands = [call.args[0] for call in self.run.call_args_list]
+        commands = [call.args[0] for call in self.command_mock.call_args_list]
         self.assertEqual(sum("build" in command for command in commands), 1)
         self.assertFalse(any("up" in command for command in commands))
         mocks["run_identity_tests"].assert_not_called()
