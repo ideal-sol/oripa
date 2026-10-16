@@ -20,6 +20,8 @@ enum V2Permission: string
     case ApprovePaidPointAdjustment = 'point.adjustment.paid.approve';
     case ManagePointAdjustment = 'point.adjustment.manage';
     case ReadReferralSettings = 'referral.settings.read';
+    case ReadPreRegistrationSettings = 'pre_registration.settings.read';
+    case ManagePreRegistrationSettings = 'pre_registration.settings.manage';
     case ManageReferralSettings = 'referral.settings.manage';
     case ReadPointPurchasePlan = 'payment.plan.read';
     case ManagePointPurchasePlan = 'payment.plan.manage';

@@ -184,7 +184,7 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
     public function test_safe_redirect_allowlist_is_exact_and_closed(): void
     {
         self::assertSame(
-            ['/', '/mypage'],
+            ['/', '/mypage', '/pre-register/sms'],
             config('v2_identity.email_verification.redirect_allowlist')
         );
 
@@ -196,6 +196,9 @@ final class DirectEmailVerificationDeliveryTest extends TestCase
             'mypage',
             '/mypage/*',
             '/mypage?next=%2Fnot-allowlisted',
+            '/pre-register/sms/',
+            '/pre-register/sms?next=/mypage',
+            '/pre-register/thanks',
         ] as $index => $redirectPath) {
             try {
                 $service->register(

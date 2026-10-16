@@ -62,7 +62,7 @@ final class V2PointProductReadService
             )
         )->values()->all();
 
-        $expiresAt = $user?->first_sms_verified_at?->utc()->addHours(24);
+        $expiresAt = $user === null ? null : $this->eligibility->qualifiedAt($user)?->addHours(24);
         $hasEligibleOffer = collect($products)->contains(
             fn (array $product): bool => $product['audience']['code']
                 === V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE

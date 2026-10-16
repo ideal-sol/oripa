@@ -156,6 +156,11 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.preview');
         Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])
             ->name('v2.admin.settings.referral-points.show');
+        Route::get('/settings/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminShow']);
+        Route::put('/settings/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminUpdate']);
+        Route::post('/settings/pre-registration/preview', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminPreview']);
+        Route::post('/settings/pre-registration/activate', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminActivate']);
+        Route::get('/users/{userId}/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminUser'])->whereUuid('userId');
         Route::get('/settings/gacha-notices', [V2AdminGachaNoticeDefaultController::class, 'show'])
             ->name('v2.admin.settings.gacha-notices.show');
         Route::put('/settings/gacha-notices', [V2AdminGachaNoticeDefaultController::class, 'update'])

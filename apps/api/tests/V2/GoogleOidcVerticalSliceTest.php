@@ -74,6 +74,7 @@ final class GoogleOidcVerticalSliceTest extends TestCase
         self::assertFalse($result['user']->password_login_enabled);
         self::assertNotNull($result['user']->email_verified_at);
         self::assertNotNull($result['user']->first_registration_qualified_at);
+        self::assertNull($result['user']->pre_registered_at);
         self::assertTrue($result['user']->first_registration_qualified_at->equalTo($result['user']->email_verified_at));
         self::assertDatabaseHas('external_identity_accounts', [
             'user_id' => $result['user']->getKey(),

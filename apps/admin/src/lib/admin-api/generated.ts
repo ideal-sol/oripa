@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 81e094a5921dcc558f54bd63bd87af3f10d1ecf51ef78e49acf9c433e50de80e
+// Contract SHA-256: 3898b1ec13f1b9ce7c67d1fa0a3e7370c865f43ad1a260c6cbbcee1611ab1684
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -21,6 +21,8 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.manage",
   "referral.settings.read",
   "referral.settings.manage",
+  "pre_registration.settings.read",
+  "pre_registration.settings.manage",
   "payment.plan.read",
   "payment.plan.manage",
   "catalog.read",
@@ -842,6 +844,40 @@ export interface AdminGachaNoticeDefaultsResponse {
 
 export interface AdminGachaNoticeDefaultsMutationResult extends AdminGachaNoticeDefaultsResponse {
   idempotent_replay: boolean;
+}
+
+export interface AdminPreRegistrationUpdate {
+  expected_revision: number;
+  is_enabled: boolean;
+  cutoff_at: string | null;
+  point_amount: number;
+}
+
+export interface AdminPreRegistrationResponse {
+  idempotent_replay?: boolean;
+  data: {
+    is_enabled: boolean;
+    cutoff_at: string | null;
+    point_amount: number;
+    revision: number;
+    snapshot_amount: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+    summary: {
+      applicants: number; email_pending: number; sms_pending: number;
+      eligible: number; pending: number; activated: number;
+      failed: number; excluded: number; granted_points: number;
+    };
+    results: { user_id: string; status: "pending" | "activated" | "failed" | "excluded"; reason: string | null }[];
+  };
+}
+
+export interface AdminUserPreRegistrationResponse {
+  data: {
+    pre_registered_at: string | null; created_at: string;
+    email_verified: boolean; sms_verified: boolean;
+    activated_at: string | null; point_amount: number | null; expires_at: string | null;
+  };
 }
 
 export interface AdminReferralPointSetting {

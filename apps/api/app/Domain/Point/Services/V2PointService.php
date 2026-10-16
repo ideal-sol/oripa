@@ -233,6 +233,32 @@ final class V2PointService
         return $operation;
     }
 
+    public function grantPreRegistrationReward(int $userId, int $amount, CarbonInterface $occurredAt, int $adminId): PointOperation
+    {
+        if (DB::transactionLevel() < 1 || $amount < 1 || $amount > 1_000_000) {
+            throw new V2PointException('Pre-registration reward input is invalid.');
+        }
+        $user = User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+        $businessKey = 'pre_registration.bonus:'.$user->public_id;
+        $existing = PointOperation::query()->where('business_key', $businessKey)->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $wallet = $this->lockWallet($userId);
+        $before = (int) $wallet->free_balance;
+        $operation = $this->operation($userId, 'free_grant', 'pre_registration', $businessKey, $occurred, 'admin', $adminId);
+        $lot = new PointLot();
+        $lot->forceFill([
+            'user_id' => $userId, 'grant_operation_id' => $operation->id, 'point_type' => 'free',
+            'granted_amount' => $amount, 'remaining_amount' => $amount, 'reserved_amount' => 0,
+            'granted_at' => $occurred, 'expire_at' => $this->expiryPolicy->expiresAt($occurred),
+        ])->save();
+        $wallet->forceFill(['free_balance' => $before + $amount, 'lock_version' => (int) $wallet->lock_version + 1])->save();
+        $this->ledger($operation, $wallet, $lot, 1, 'free', 'grant', $amount, (int) $wallet->free_balance, $amount, $occurred);
+        return $operation;
+    }
+
     public function grantReferralReward(
         int $userId,
         int $referralId,

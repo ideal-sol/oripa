@@ -17,6 +17,115 @@
     }
   ],
   "paths": {
+    "/auth/pre-register": {
+      "post": {
+        "operationId": "preRegisterUser",
+        "summary": "締切前の専用事前登録を申し込む",
+        "description": "受付有効かつサーバー時刻が締切より前の場合のみ登録。メール認証後は /pre-register/sms へ遷移する。登録・SMS時にはポイントを付与しない。",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "ip-5-per-hour-and-email-3-per-hour",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreRegistrationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "メール認証待ち。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRegistration"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PRE_REGISTRATION_CLOSED。受付無効または締切到達。",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      }
+    },
+    "/campaigns/pre-registration": {
+      "get": {
+        "operationId": "getPreRegistrationCampaign",
+        "summary": "事前登録の受付状態を取得する",
+        "x-idempotency": "safe",
+        "x-rate-limit": "public-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "サーバー判定の受付状態と予定無償ポイント。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreRegistrationCampaignResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/me/pre-registration-bonus": {
+      "get": {
+        "operationId": "getMyPreRegistrationBonus",
+        "summary": "本人の事前登録・認証・手動切替の状態を取得する",
+        "description": "SMS未認証でも閲覧可。付与失敗時はawaiting_activation。管理用例外・電話番号・HMACは返さない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Laravelが導出した本人の状態。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreRegistrationBonusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/login-gachas": {
       "get": {
         "operationId": "listLoginGachas",
@@ -7745,6 +7854,198 @@
             "type": "string",
             "default": "/",
             "pattern": "^/(?!/)"
+          }
+        }
+      },
+      "PreRegistrationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "full_name",
+          "birth_date",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "writeOnly": true
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "writeOnly": true,
+            "description": "JST当日で18歳以上。"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "advertising_code": {
+            "$ref": "#/components/schemas/AdvertisingCodeCandidate"
+          }
+        }
+      },
+      "PreRegistrationCampaignResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "is_enabled",
+              "cutoff_at",
+              "point_amount",
+              "point_type",
+              "status"
+            ],
+            "properties": {
+              "is_enabled": {
+                "type": "boolean"
+              },
+              "cutoff_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "point_amount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "point_type": {
+                "type": "string",
+                "const": "free"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "not_started",
+                  "accepting",
+                  "closed"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "PreRegistrationBonus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "reason",
+          "pre_registered_at",
+          "email_verified",
+          "sms_verified",
+          "registration_completed",
+          "activated_at",
+          "point_amount",
+          "granted_at",
+          "expires_at"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_applicant",
+              "email_pending",
+              "sms_pending",
+              "pre_registered",
+              "awaiting_activation",
+              "activated",
+              "not_eligible"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              null,
+              "not_pre_registration_entry",
+              "registration_after_cutoff",
+              "email_after_cutoff",
+              "sms_after_cutoff",
+              "phone_already_rewarded",
+              "account_unavailable",
+              "phone_unavailable",
+              "qualification_unavailable"
+            ]
+          },
+          "pre_registered_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "sms_verified": {
+            "type": "boolean"
+          },
+          "registration_completed": {
+            "type": "boolean",
+            "description": "締切前の申込・メール・初回SMSが完了。ポイント付与済みの意味ではない。"
+          },
+          "activated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "point_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "granted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PreRegistrationBonusResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PreRegistrationBonus"
           }
         }
       },

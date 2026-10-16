@@ -33,6 +33,7 @@ import {
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_SMS_VERIFICATION_FIXTURES,
+  PUBLIC_PRE_REGISTRATION_FIXTURES,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_LINE_FRIEND_STATE_FIXTURES,
   PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES,
@@ -943,6 +944,19 @@ test("Compatibility Family不一致とRequired Capability不足を拒否する",
   );
 });
 
+test("Pre-registration fixtures distinguish eligibility from actual grants without PII", () => {
+  const fixtures = PUBLIC_PRE_REGISTRATION_FIXTURES;
+  for (const [status, fixture] of Object.entries(fixtures)) {
+    if (status !== "activated") assert.equal(fixture.point_amount, null);
+    assert.equal(Object.hasOwn(fixture, "phone_hmac"), false);
+    assert.equal(Object.hasOwn(fixture, "email"), false);
+  }
+  assert.equal(fixtures.awaiting_activation.registration_completed, true);
+  assert.equal(fixtures.awaiting_activation.granted_at, null);
+  assert.equal(fixtures.sms_after_cutoff.reason, "sms_after_cutoff");
+  assert.equal(Date.parse(fixtures.activated.expires_at) - Date.parse(fixtures.activated.granted_at), 180 * 86400000);
+});
+
 test("Advertising fixtures keep validity minimal and new registration candidates optional", () => {
   const fixtures = PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES;
   assert.deepEqual(fixtures.valid, { valid: true });
@@ -954,9 +968,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつLogin Gacha読取を含むOperation 78件である", () => {
+test("Public OpenAPIは3.1.1かつ事前登録を含むOperation 81件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 78);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 81);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -984,9 +998,11 @@ test("Public OpenAPIは3.1.1かつLogin Gacha読取を含むOperation 78件で�
     "getGachaPresentation",
     "getLineFriendState",
     "getLoginGacha",
+    "getMyPreRegistrationBonus",
     "getPayment",
     "getPaymentCardRegistration",
     "getPaymentCardUiBootstrap",
+    "getPreRegistrationCampaign",
     "getShippingAddress",
     "getShippingRequest",
     "getSmsVerificationStatus",
@@ -1013,6 +1029,7 @@ test("Public OpenAPIは3.1.1かつLogin Gacha読取を含むOperation 78件で�
     "logoutUser",
     "normalizeFincodePaymentFailureReturn",
     "normalizeFincodePaymentReturn",
+    "preRegisterUser",
     "reauthenticateUserPassword",
     "reconcileFincodeCardRegistrationFailureReturn",
     "reconcileFincodeCardRegistrationReturn",
@@ -1218,6 +1235,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_POINT_HISTORY_FIXTURES",
     "PUBLIC_POINT_PRODUCT_FIXTURES",
     "PUBLIC_POINT_READ_PROBLEM_FIXTURES",
+    "PUBLIC_PRE_REGISTRATION_FIXTURES",
     "PUBLIC_RESPONSE_METADATA_FIXTURE",
     "PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE",
     "PUBLIC_SHIPPING_REQUEST_FIXTURE",

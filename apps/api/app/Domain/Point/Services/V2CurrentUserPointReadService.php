@@ -187,6 +187,7 @@ final class V2CurrentUserPointReadService
             $sourceType === 'payment_adjustment' => 'ポイント購入の調整',
             $sourceType === 'line_friend' => 'LINE友だち特典',
             $sourceType === 'referral' => '紹介特典',
+            $sourceType === 'pre_registration' => '事前登録特典',
             $operationType === 'free_grant', $operationType === 'paid_grant' => 'ポイント付与',
             default => 'その他',
         };

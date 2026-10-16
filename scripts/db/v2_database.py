@@ -140,6 +140,10 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.point_purchase_plans",
     "public.point_reconciliation_discrepancies",
     "public.point_reconciliation_runs",
+    "public.pre_registration_batches",
+    "public.pre_registration_grants",
+    "public.pre_registration_settings",
+    "public.pre_registration_targets",
     "public.prize_exchange_request_items",
     "public.prize_exchange_requests",
     "public.prize_inventories",
@@ -534,6 +538,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_16_000087_create_v2_pre_registration.php": "Pre-registration history requires a forward-only migration.",
         "2026_10_14_000085_create_v2_notion_inventory_sync.php": "Notion sync history requires a forward correction migration.",
         "2026_10_15_000086_add_v2_rank_video_sets.php": "Rank video sets require a forward correction migration.",
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",

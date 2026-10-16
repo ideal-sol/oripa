@@ -113,10 +113,15 @@ final class V2PointPurchaseEligibilityService
 
     private function isWithinFirstUserWindow(User $user, CarbonImmutable $asOf): bool
     {
-        $qualifiedAt = $user->first_sms_verified_at?->utc();
+        $qualifiedAt = $this->qualifiedAt($user);
 
         return $qualifiedAt !== null
             && $qualifiedAt->lessThanOrEqualTo($asOf)
             && $asOf->lessThan($qualifiedAt->addHours(24));
+    }
+
+    public function qualifiedAt(User $user): ?CarbonImmutable
+    {
+        return app(\App\Domain\Identity\Services\V2RegistrationQualification::class)->origin($user, 'first_sms_verified_at');
     }
 }

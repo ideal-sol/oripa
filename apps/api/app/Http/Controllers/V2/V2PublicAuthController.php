@@ -62,6 +62,24 @@ final class V2PublicAuthController
         ], 202));
     }
 
+    public function preRegister(Request $request): JsonResponse
+    {
+        if (array_diff(array_keys($request->all()), ['full_name', 'birth_date', 'email', 'password', 'advertising_code']) !== []) {
+            throw new V2AuthenticationException('INVALID_REQUEST', 422);
+        }
+        $data = $this->validate($request, [
+            'full_name' => ['required', 'string', 'max:255'],
+            'birth_date' => ['required', 'date_format:Y-m-d'],
+            'email' => ['required', 'string', 'email:rfc', 'max:320'],
+            'password' => ['required', 'string'],
+        ]);
+        $user = $this->authentication->register(
+            $data['email'], $data['password'], '/pre-register/sms', $request->ip() ?? 'unknown',
+            $request->input('advertising_code'), $data['full_name'], $data['birth_date'], true
+        );
+        return $this->privateResponse(response()->json(['status' => 'pending_verification', 'user_id' => $user->public_id], 202));
+    }
+
     public function resendVerification(Request $request): JsonResponse
     {
         $data = $this->validate($request, [
