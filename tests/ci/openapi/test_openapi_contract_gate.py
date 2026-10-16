@@ -25,6 +25,7 @@ def fixture(group, name):
 class OpenApiContractGateTest(unittest.TestCase):
     def test_notion_cache_authority_allows_only_the_three_approved_placeholder_types(self):
         current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        current["info"]["version"] = "2.0.0-alpha.40"
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.40"
         properties = previous["components"]["schemas"]["AdminInventoryCard"]["properties"]
@@ -60,6 +61,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_signup_sms_break_requires_exact_authority_and_rejects_unrelated_breaks(self):
         current = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
+        current["info"]["version"] = "2.0.0-alpha.40"
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.39"
         registration = previous["components"]["schemas"]["UserRegistrationRequest"]
@@ -181,7 +183,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.40", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.41", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

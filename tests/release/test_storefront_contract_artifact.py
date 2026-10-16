@@ -140,6 +140,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = copy.deepcopy(artifact.validate_governance(self.governance()))
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.45')
+        value['candidate'] = None
         self.assertIsNone(value['candidate'])
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.44')
         self.assertEqual(value['immutable_history'][-1], value['latest_immutable'])
@@ -235,6 +237,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_released_alpha_43_has_exact_publication_evidence_and_no_republish_candidate(self):
         value = artifact.validate_governance(self.governance())
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.45')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['release_mode'], 'contract-additive')
+        self.assertFalse(value['candidate']['breaking_change'])
+        value['candidate'] = None
         self.assertIsNone(value['candidate'])
         released = value['latest_immutable']
         self.assertEqual(released, value['immutable_history'][-1])
@@ -262,8 +269,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         target = artifact.verification_target(value)
         self.assertEqual(target['source_commit'], released['source_commit'])
         self.assertTrue(target['breaking_change'])
-        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
-            artifact.pending_candidate(ROOT)
+        with mock.patch.object(artifact, 'governance', return_value=value):
+            with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                artifact.pending_candidate(ROOT)
         released = value['immutable_history'][-2]
         self.assertEqual(released['bundle_version'], '2.0.0-alpha.43')
         self.assertEqual(value['immutable_history'][-3]['bundle_version'], '2.0.0-alpha.42')
@@ -434,7 +442,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.44",
+            "2.0.0-alpha.45",
         )
         with mock.patch.object(
             artifact,
