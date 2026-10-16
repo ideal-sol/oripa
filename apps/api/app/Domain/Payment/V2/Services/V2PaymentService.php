@@ -87,6 +87,7 @@ final class V2PaymentService
                     ->firstOrFail();
             }
             $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)->materialize((int) $user->id);
             if ($requireSmsVerification) {
                 app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($user);
             }
