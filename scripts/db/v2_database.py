@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextvars import ContextVar
 import datetime as dt
 import hashlib
 import json
@@ -14,8 +15,15 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import tempfile
+import time
 from typing import Any, Iterable
+
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.db.phpunit_timing import TimingFailure, source_test_names, summarize_phpunit_timing
 
 
 MIGRATION_PATH = "apps/api/database/migrations-v2"
@@ -180,6 +188,90 @@ class GuardFailure(RuntimeError):
     """A redacted validation or lifecycle failure."""
 
 
+SMOKE_METRICS = ContextVar("smoke_metrics", default=None)
+
+
+class SmokeMetrics:
+    def __init__(self, repository: Path):
+        self.started = time.monotonic()
+        self.phases = []
+        self.tests = []
+        self.build_cache = []
+        self.current_phase = None
+        migration_count, migration_set = migration_checksum(repository)
+        self.metadata = {
+            "schema_version": "oripa.db-smoke-timing.v1",
+            "source_sha": run(["git", "rev-parse", "HEAD"], cwd=repository).decode().strip(),
+            "tree_sha": run(["git", "rev-parse", "HEAD^{tree}"], cwd=repository).decode().strip(),
+            "migration_set_sha256": migration_set,
+            "migration_file_count": migration_count,
+            "environment": "testing",
+            "runner_class": "github-hosted" if os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" else "other",
+            "runner_os": os.uname().sysname,
+            "runner_arch": os.uname().machine,
+            "cpu_count": os.cpu_count(),
+            "workflow_run_id": self.numeric_environment("GITHUB_RUN_ID"),
+            "workflow_run_attempt": self.numeric_environment("GITHUB_RUN_ATTEMPT"),
+            "cache_mode": "native-buildkit-only-no-import",
+        }
+
+    @staticmethod
+    def numeric_environment(name: str) -> str | None:
+        value = os.environ.get(name, "")
+        return value if re.fullmatch(r"[0-9]+", value) else None
+
+    def call(self, name: str, operation, *arguments, **keywords):
+        started = time.monotonic()
+        previous = self.current_phase
+        self.current_phase = name
+        outcome = "FAIL"
+        try:
+            result = operation(*arguments, **keywords)
+            outcome = "PASS"
+            return result
+        finally:
+            phase = {
+                "name": name,
+                "duration_seconds": round(time.monotonic() - started, 6),
+                "outcome": outcome,
+            }
+            self.phases.append(phase)
+            self.current_phase = previous
+            print(json.dumps({"db_smoke_phase": phase}), flush=True)
+
+    def observe(self, command: list[str], stdout: bytes, stderr: bytes) -> None:
+        if "build" in command:
+            output = (stdout + stderr).decode("utf-8", errors="replace")
+            cached = len(re.findall(r"(?m)^#[0-9]+ CACHED$", output))
+            self.build_cache.append({
+                "phase": self.current_phase,
+                "cached_steps": cached,
+                "completed_steps": len(re.findall(r"(?m)^#[0-9]+ DONE", output)),
+                "classification": "warm" if cached else "cold-or-unreported",
+            })
+        if "vendor/bin/phpunit" in command:
+            output = re.sub(r"\x1b\[[0-9;]*m", "", stdout.decode("utf-8", errors="replace"))
+            counts = dict((key.lower(), int(value)) for key, value in re.findall(
+                r"(Tests|Assertions|Skipped|Incomplete|Warnings|Deprecations): ([0-9]+)", output
+            ))
+            successful = re.search(r"OK \(([0-9]+) tests?, ([0-9]+) assertions?\)", output)
+            if successful:
+                counts.update(tests=int(successful[1]), assertions=int(successful[2]))
+            self.tests.append({"phase": self.current_phase, "counts": counts})
+
+    def write(self, path: Path, outcome: str) -> None:
+        cleanup = [phase for phase in self.phases if phase["name"].startswith("cleanup_")]
+        write_json(path, {
+            **self.metadata,
+            "phases": self.phases,
+            "test_counts": self.tests,
+            "build_cache": self.build_cache,
+            "total_duration_seconds": round(time.monotonic() - self.started, 6),
+            "outcome": outcome,
+            "cleanup_outcome": "PASS" if cleanup and all(phase["outcome"] == "PASS" for phase in cleanup) else "FAIL_OR_NOT_STARTED",
+        })
+
+
 def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace(
         "+00:00", "Z"
@@ -192,6 +284,7 @@ def run(
     cwd: Path,
     input_bytes: bytes | None = None,
     capture: bool = True,
+    safe_error_only: bool = False,
 ) -> bytes:
     environment = os.environ.copy()
     environment["COMPOSE_BAKE"] = "false"
@@ -220,7 +313,7 @@ def run(
         operation = next((item for item in command[1:] if item in safe_operations), None)
         suffix = f" during {operation}" if operation is not None else ""
         detail = ""
-        if operation in {"exec", "run", "up"}:
+        if not safe_error_only and operation in {"exec", "run", "up"}:
             lines = (
                 error.stdout.decode("utf-8", errors="replace").splitlines()
                 + error.stderr.decode("utf-8", errors="replace").splitlines()
@@ -247,6 +340,9 @@ def run(
             if candidates:
                 detail = ": "+" | ".join(candidates[:20] + candidates[-4:])[:2400]
         raise GuardFailure(f"{executable} operation failed{suffix}{detail}") from error
+    metrics = SMOKE_METRICS.get()
+    if metrics is not None:
+        metrics.observe(command, completed.stdout, completed.stderr)
     return completed.stdout if capture else b""
 
 
@@ -729,10 +825,65 @@ def validate_schema_inventory(inventory: list[str]) -> None:
         raise GuardFailure("Unexpected V2 schema inventory")
 
 
+def identity_bytecode_options(base: list[str], repository: Path) -> dict[str, Any]:
+    fallback = {"status": "UNAVAILABLE_NORMAL_EXECUTION", "options": []}
+    try:
+        available = run(
+            base + ["exec", "-T", "api", "php", "-r",
+                    'echo extension_loaded("Zend OPcache") ? "loaded" : '
+                    '(is_file(ini_get("extension_dir")."/opcache.so") ? "available" : "unavailable");'],
+            cwd=repository,
+        ).decode().strip()
+        if available not in {"loaded", "available"}:
+            return fallback
+        options = [] if available == "loaded" else ["-d", "zend_extension=opcache"]
+        for setting in (
+            "opcache.enable=1", "opcache.enable_cli=1", "opcache.jit=disable",
+            "opcache.jit_buffer_size=0", "opcache.memory_consumption=128",
+            "opcache.file_cache=", "opcache.file_cache_only=0",
+            "opcache.validate_timestamps=1", "opcache.revalidate_freq=0",
+            "opcache.optimization_level=0", "opcache.save_comments=1",
+        ):
+            options.extend(["-d", setting])
+        probe = '''
+$status = opcache_get_status(false);
+if (!is_array($status) || !$status['opcache_enabled'] || ini_get('opcache.file_cache') !== '') {
+    exit(1);
+}
+$path = tempnam(sys_get_temp_dir(), 'db-smoke-bytecode-');
+if ($path === false) { exit(1); }
+try {
+    if (file_put_contents($path, '<?php return 41;') === false || !touch($path, time() - 100)) { throw new RuntimeException('cache probe failed'); }
+    clearstatcache(true, $path);
+    if (opcache_is_script_cached($path) || (include $path) !== 41 || !opcache_is_script_cached($path)) { throw new RuntimeException('cache probe failed'); }
+    $hits = opcache_get_status(false)['opcache_statistics']['hits'];
+    if ((include $path) !== 41 || opcache_get_status(false)['opcache_statistics']['hits'] <= $hits) { throw new RuntimeException('cache probe failed'); }
+    if (file_put_contents($path, '<?php return 42;') === false || !touch($path, time() - 90)) { throw new RuntimeException('cache probe failed'); }
+    clearstatcache(true, $path);
+    if ((include $path) !== 42) { throw new RuntimeException('cache probe failed'); }
+    echo 'BYTECODE_MISS_HIT_INVALIDATION_PASS';
+} finally {
+    opcache_invalidate($path, true);
+    unlink($path);
+}
+'''
+        result = run(base + ["exec", "-T", "api", "php", *options, "-r", probe], cwd=repository)
+        if result.strip() != b"BYTECODE_MISS_HIT_INVALIDATION_PASS":
+            return fallback
+        return {"status": "PROCESS_LOCAL_MISS_HIT_INVALIDATION_PASS", "options": options}
+    except GuardFailure:
+        return fallback
+
+
 def run_identity_tests(
-    base: list[str], repository: Path, one_shot: bool
+    base: list[str], repository: Path, one_shot: bool, php_options: Iterable[str] = (),
+    timing_directory: str | None = None,
 ) -> None:
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
+    logging_options = [] if timing_directory is None else [
+        "--log-junit", timing_directory + "/junit.xml",
+        "--log-events-verbose-text", timing_directory + "/events.txt",
+    ]
     run(
         base
         + prefix
@@ -741,13 +892,38 @@ def run_identity_tests(
             "php",
             "-d",
             "memory_limit=512M",
+            *php_options,
             "vendor/bin/phpunit",
             "--configuration",
             "phpunit.v2.xml",
+            *logging_options,
         ],
         cwd=repository,
         capture=False,
     )
+
+
+def run_identity_diagnostics(base: list[str], repository: Path, metrics: SmokeMetrics, evidence_dir: Path, php_options: Iterable[str]) -> None:
+    directory = "/tmp/oripa-full-v2-timing-" + secrets.token_hex(12)
+    paths = [directory + "/junit.xml", directory + "/events.txt"]
+    run(base + ["exec", "-T", "api", "mkdir", "-m", "700", directory], cwd=repository)
+    try:
+        run_identity_tests(base, repository, False, php_options=php_options, timing_directory=directory)
+        reports = [run(
+            base + ["exec", "-T", "api", "php", "-r",
+                    '$size = filesize($argv[1]); if ($size === false || $size > 33554432) { exit(1); } readfile($argv[1]);', path],
+            cwd=repository, safe_error_only=True,
+        ) for path in paths]
+        try:
+            report = summarize_phpunit_timing(*reports, source_test_names(repository), metrics.tests[-1]["counts"])
+        except TimingFailure as error:
+            raise GuardFailure(f"Full V2 timing aggregation failed (code {error.code})") from None
+        except (UnicodeError, IndexError):
+            raise GuardFailure("Full V2 timing aggregation failed") from None
+        write_json(evidence_dir / "full-v2-timing.json", {**metrics.metadata, **report})
+    finally:
+        run(base + ["exec", "-T", "api", "rm", "-f", "--", *paths], cwd=repository, safe_error_only=True)
+        run(base + ["exec", "-T", "api", "rmdir", "--", directory], cwd=repository, safe_error_only=True)
 
 
 def run_draw_load_tests(base: list[str], repository: Path) -> None:
@@ -1033,6 +1209,28 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
+    metrics = SmokeMetrics(Path(args.repository).resolve())
+    token = SMOKE_METRICS.set(metrics)
+    outcome = "FAIL"
+    try:
+        evidence = run_measured_smoke(args, metrics)
+        outcome = "PASS"
+        return evidence
+    finally:
+        SMOKE_METRICS.reset(token)
+        metrics.write(Path(args.evidence_dir) / "smoke-timing.json", outcome)
+
+
+def compare_restored_database(source_inventory, restore_inventory, source_schema, restore_schema, source_rows, restore_rows) -> None:
+    if source_inventory != restore_inventory:
+        raise GuardFailure("Backup restore schema inventory mismatch")
+    if source_schema != restore_schema:
+        raise GuardFailure("Backup restore schema checksum mismatch")
+    if source_rows != restore_rows:
+        raise GuardFailure("Backup restore migration checksum mismatch")
+
+
+def run_measured_smoke(args: argparse.Namespace, metrics: SmokeMetrics) -> dict[str, Any]:
     require_database_markers(args)
     repository = Path(args.repository).resolve()
     compose_file = (repository / args.compose_file).resolve()
@@ -1071,14 +1269,17 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         source_started = False
         restore_started = False
         try:
+            metrics.call("image_pull", run, source_base + ["pull", "--policy", "missing", "postgres", "redis"], cwd=repository, capture=False)
+            metrics.call("docker_image_build", run, source_base + ["build", "api", "admin"], cwd=repository, capture=False)
             source_started = True
-            run(
+            metrics.call(
+                "source_startup_health", run,
                 source_base
                 + [
                     "up",
                     "--detach",
                     "--wait",
-                    "--build",
+                    "--no-build",
                     "api",
                     "admin",
                     "postgres",
@@ -1096,7 +1297,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     args.purpose,
                     "empty",
                 )
-            migrate_fresh(source_base, repository, one_shot=False)
+            metrics.call("first_migrate_fresh", migrate_fresh, source_base, repository, one_shot=False)
             if args.task_id and args.purpose:
                 assert_database_target(
                     source_base,
@@ -1106,19 +1307,29 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     args.purpose,
                     "repository",
                 )
-            migrate_fresh(source_base, repository, one_shot=False)
-            rollback_verification = rollback_and_reapply_latest(
+            metrics.call("second_migrate_fresh", migrate_fresh, source_base, repository, one_shot=False)
+            rollback_verification = metrics.call(
+                "rollback_forward_only", rollback_and_reapply_latest,
                 source_base, repository, one_shot=False
             )
-            migration_status(source_base, repository, one_shot=False)
-            run_identity_tests(source_base, repository, one_shot=False)
-            run_draw_load_tests(source_base, repository)
-            run_qa_draw_load_tests(source_base, repository)
-            run_reporting_performance_tests(source_base, repository)
-            content_contact_performance = run_content_contact_performance_tests(
+            metrics.call("migration_status", migration_status, source_base, repository, one_shot=False)
+            bytecode = {"status": "DISABLED_NORMAL_EXECUTION", "options": []}
+            if args.identity_bytecode_cache:
+                bytecode = metrics.call("identity_bytecode_probe", identity_bytecode_options, source_base, repository)
+            metrics.metadata["identity_bytecode_cache"] = bytecode["status"]
+            if args.identity_timing:
+                metrics.call("identity", run_identity_diagnostics, source_base, repository, metrics, evidence_dir, bytecode["options"])
+            else:
+                metrics.call("identity", run_identity_tests, source_base, repository, one_shot=False, php_options=bytecode["options"])
+            metrics.call("draw_load", run_draw_load_tests, source_base, repository)
+            metrics.call("qa_draw_load", run_qa_draw_load_tests, source_base, repository)
+            metrics.call("reporting", run_reporting_performance_tests, source_base, repository)
+            content_contact_performance = metrics.call(
+                "content_contact", run_content_contact_performance_tests,
                 source_base, repository
             )
-            run(
+            metrics.call(
+                "api_health", run,
                 source_base
                 + [
                     "exec",
@@ -1131,7 +1342,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 ],
                 cwd=repository,
             )
-            run(
+            metrics.call(
+                "admin_health", run,
                 source_base
                 + [
                     "exec",
@@ -1144,18 +1356,19 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 ],
                 cwd=repository,
             )
-            source_inventory = schema_inventory(source_base, repository)
+            source_inventory = metrics.call("source_inventory", schema_inventory, source_base, repository)
             validate_schema_inventory(source_inventory)
-            source_schema_raw = schema_dump(source_base, repository)
+            source_schema_raw = metrics.call("source_schema", schema_dump, source_base, repository)
             source_schema = normalize_schema_dump(source_schema_raw)
-            source_rows = migration_rows(source_base, repository)
-            backup = backup_database(source_base, repository)
+            source_rows = metrics.call("source_migration_ledger", migration_rows, source_base, repository)
+            backup = metrics.call("backup", backup_database, source_base, repository)
             backup_path = evidence_dir / "v2-identity-database.dump"
             backup_path.write_bytes(backup)
             os.chmod(backup_path, 0o600)
 
             restore_started = True
-            run(
+            metrics.call(
+                "restore_startup_health", run,
                 restore_base + ["up", "--detach", "--wait", "postgres", "redis"],
                 cwd=repository,
                 capture=False,
@@ -1169,23 +1382,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     args.purpose,
                     "empty",
                 )
-            restore_database(restore_base, repository, backup)
-            restore_inventory = schema_inventory(restore_base, repository)
-            restore_schema_raw = schema_dump(restore_base, repository)
+            metrics.call("restore", restore_database, restore_base, repository, backup)
+            restore_inventory = metrics.call("restore_inventory", schema_inventory, restore_base, repository)
+            restore_schema_raw = metrics.call("restore_schema", schema_dump, restore_base, repository)
             restore_schema = normalize_schema_dump(restore_schema_raw)
-            restore_rows = migration_rows(restore_base, repository)
+            restore_rows = metrics.call("restore_migration_ledger", migration_rows, restore_base, repository)
             source_schema_path = evidence_dir / "source-schema.sql"
             restore_schema_path = evidence_dir / "restore-schema.sql"
             source_schema_path.write_bytes(source_schema_raw)
             restore_schema_path.write_bytes(restore_schema_raw)
             os.chmod(source_schema_path, 0o600)
             os.chmod(restore_schema_path, 0o600)
-            if source_inventory != restore_inventory:
-                raise GuardFailure("Backup restore schema inventory mismatch")
-            if source_schema != restore_schema:
-                raise GuardFailure("Backup restore schema checksum mismatch")
-            if source_rows != restore_rows:
-                raise GuardFailure("Backup restore migration checksum mismatch")
+            metrics.call(
+                "exact_restore_comparison", compare_restored_database,
+                source_inventory, restore_inventory, source_schema, restore_schema,
+                source_rows, restore_rows,
+            )
             migration_count, migration_set = migration_checksum(repository)
             evidence = {
                 "schema_version": "1.0",
@@ -1219,10 +1431,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             }
             write_json(evidence_dir / "ephemeral-result.json", evidence)
         finally:
-            if restore_started:
-                cleanup_project(restore_base, restore_project, repository)
-            if source_started:
-                cleanup_project(source_base, source_project, repository)
+            try:
+                if restore_started:
+                    metrics.call("cleanup_restore", cleanup_project, restore_base, restore_project, repository)
+            finally:
+                if source_started:
+                    metrics.call("cleanup_source", cleanup_project, source_base, source_project, repository)
         evidence["resource_cleanup"] = "PASS"
         write_json(evidence_dir / "ephemeral-result.json", evidence)
         return evidence
@@ -1257,6 +1471,8 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--project-prefix", required=True)
     smoke.add_argument("--migration-path", required=True)
     smoke.add_argument("--evidence-dir", required=True)
+    smoke.add_argument("--identity-bytecode-cache", action="store_true")
+    smoke.add_argument("--identity-timing", action="store_true")
     smoke.add_argument("--task-id")
     smoke.add_argument(
         "--purpose",

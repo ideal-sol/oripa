@@ -1,0 +1,454 @@
+{
+  "schema_version": "oripa.db-smoke-phase2-comparison.v1",
+  "task_id": "DBSMOKE-20261016",
+  "baseline": {
+    "run_id": 38861040458,
+    "ci_wall_seconds": 925,
+    "database_job_seconds": 883,
+    "artifact": {
+      "id": 12029576506,
+      "sha256": "11285eb9248663b31f485a9a9c2d43e832a6193649459a64b7cffc777786b313"
+    },
+    "timing": {
+      "build_cache": [
+        {
+          "cached_steps": 0,
+          "classification": "cold-or-unreported",
+          "completed_steps": 0,
+          "phase": "docker_image_build"
+        }
+      ],
+      "cache_mode": "native-buildkit-only-no-import",
+      "cleanup_outcome": "PASS",
+      "cpu_count": 4,
+      "environment": "testing",
+      "migration_file_count": 86,
+      "migration_set_sha256": "d426e5aa0d4cb0189c26eb406c078f84fbcbb5b218a5d369522c50b682d63818",
+      "outcome": "PASS",
+      "phases": [
+        {
+          "duration_seconds": 6.19516,
+          "name": "image_pull",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 53.572943,
+          "name": "docker_image_build",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 12.136912,
+          "name": "source_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 1.492488,
+          "name": "first_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 2.193098,
+          "name": "second_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.898181,
+          "name": "rollback_forward_only",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.236743,
+          "name": "migration_status",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 673.125455,
+          "name": "identity",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 46.697774,
+          "name": "draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 18.355586,
+          "name": "qa_draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.93397,
+          "name": "reporting",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 5.541119,
+          "name": "content_contact",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.097624,
+          "name": "api_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.080987,
+          "name": "admin_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.092084,
+          "name": "source_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.247049,
+          "name": "source_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.091767,
+          "name": "source_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 2.420505,
+          "name": "backup",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 6.874266,
+          "name": "restore_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 13.622897,
+          "name": "restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.103146,
+          "name": "restore_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.246882,
+          "name": "restore_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.097127,
+          "name": "restore_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 2.582056,
+          "name": "cleanup_restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.941653,
+          "name": "cleanup_source",
+          "outcome": "PASS"
+        }
+      ],
+      "runner_arch": "x86_64",
+      "runner_class": "github-hosted",
+      "runner_os": "Linux",
+      "schema_version": "oripa.db-smoke-timing.v1",
+      "source_sha": "544f217882d60332f321d506b52b6cc4ceb5fe73",
+      "test_counts": [
+        {
+          "counts": {
+            "assertions": 17344,
+            "skipped": 17,
+            "tests": 1324
+          },
+          "phase": "identity"
+        },
+        {
+          "counts": {
+            "assertions": 45,
+            "skipped": 4,
+            "tests": 6
+          },
+          "phase": "draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 13,
+            "tests": 1
+          },
+          "phase": "qa_draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 22,
+            "tests": 1
+          },
+          "phase": "reporting"
+        },
+        {
+          "counts": {
+            "assertions": 31,
+            "tests": 1
+          },
+          "phase": "content_contact"
+        }
+      ],
+      "total_duration_seconds": 871.058014,
+      "tree_sha": "897424d779d0f27019a1e295a693ab77b306316d",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "38861040458"
+    },
+    "validation": {
+      "migration_file_count": 86,
+      "migration_set_sha256": "d426e5aa0d4cb0189c26eb406c078f84fbcbb5b218a5d369522c50b682d63818",
+      "migrate_fresh_runs": 2,
+      "latest_migration_rollback_reapply": "FORWARD_ONLY_REJECTION_PASS",
+      "source_schema_sha256": "739428552c010ae835196407554430da40bfbbda6396e0bd8a3d8a7e08abf26e",
+      "restore_schema_sha256": "739428552c010ae835196407554430da40bfbbda6396e0bd8a3d8a7e08abf26e",
+      "source_migration_rows_sha256": "823fdcd6aee72fd7c36f168d398aae19332ece5366a171734941764d3310fc2c",
+      "restore_migration_rows_sha256": "823fdcd6aee72fd7c36f168d398aae19332ece5366a171734941764d3310fc2c",
+      "backup_sha256": "28151030ee87837c1e785e9b5adf665ebfbe90e9dacb27a398726872b2071ff1",
+      "backup_restore_match": true,
+      "resource_cleanup": "PASS",
+      "api_health": "PASS",
+      "admin_health": "PASS",
+      "identity_tests": "PASS",
+      "draw_load_tests": "PASS",
+      "qa_draw_load_tests": "PASS",
+      "reporting_performance_tests": "PASS",
+      "content_contact_performance_tests": "PASS"
+    }
+  },
+  "comparable_baseline": {
+    "run_id": 38864095716,
+    "ci_wall_seconds": 1213,
+    "database_job_seconds": 1166,
+    "artifact": {
+      "id": 12031207466,
+      "sha256": "359d10e1bc753434ac0a8b661a082a90f3d02b608853e47a5a2ce5f4e4fc80e7"
+    },
+    "timing": {
+      "build_cache": [
+        {
+          "cached_steps": 0,
+          "classification": "cold-or-unreported",
+          "completed_steps": 46,
+          "phase": "docker_image_build"
+        }
+      ],
+      "cache_mode": "native-buildkit-only-no-import",
+      "cleanup_outcome": "PASS",
+      "cpu_count": 4,
+      "environment": "testing",
+      "identity_bytecode_cache": "DISABLED_NORMAL_EXECUTION",
+      "migration_file_count": 87,
+      "migration_set_sha256": "8717ca2512b108ca938b879616b2fb418a49cadc8204fa9c45d3673f8697655f",
+      "outcome": "PASS",
+      "phases": [
+        {
+          "duration_seconds": 3.529674,
+          "name": "image_pull",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 59.004282,
+          "name": "docker_image_build",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.458471,
+          "name": "source_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 2.152024,
+          "name": "first_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 3.300912,
+          "name": "second_migrate_fresh",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 1.165578,
+          "name": "rollback_forward_only",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.304845,
+          "name": "migration_status",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 908.171254,
+          "name": "identity",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 72.500847,
+          "name": "draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 27.797281,
+          "name": "qa_draw_load",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 20.164593,
+          "name": "reporting",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 8.119996,
+          "name": "content_contact",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.137629,
+          "name": "api_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.107676,
+          "name": "admin_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.12609,
+          "name": "source_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.450952,
+          "name": "source_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.120581,
+          "name": "source_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 3.93649,
+          "name": "backup",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 6.051652,
+          "name": "restore_startup_health",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 16.316459,
+          "name": "restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.120041,
+          "name": "restore_inventory",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.376538,
+          "name": "restore_schema",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.115364,
+          "name": "restore_migration_ledger",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 0.000059,
+          "name": "exact_restore_comparison",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 1.17749,
+          "name": "cleanup_restore",
+          "outcome": "PASS"
+        },
+        {
+          "duration_seconds": 11.268108,
+          "name": "cleanup_source",
+          "outcome": "PASS"
+        }
+      ],
+      "runner_arch": "x86_64",
+      "runner_class": "github-hosted",
+      "runner_os": "Linux",
+      "schema_version": "oripa.db-smoke-timing.v1",
+      "source_sha": "9ae96bf6dce97206085e67bd977b558adbda8613",
+      "test_counts": [
+        {
+          "counts": {
+            "assertions": 17497,
+            "skipped": 18,
+            "tests": 1336
+          },
+          "phase": "identity"
+        },
+        {
+          "counts": {
+            "assertions": 45,
+            "skipped": 4,
+            "tests": 6
+          },
+          "phase": "draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 13,
+            "tests": 1
+          },
+          "phase": "qa_draw_load"
+        },
+        {
+          "counts": {
+            "assertions": 22,
+            "tests": 1
+          },
+          "phase": "reporting"
+        },
+        {
+          "counts": {
+            "assertions": 31,
+            "tests": 1
+          },
+          "phase": "content_contact"
+        }
+      ],
+      "total_duration_seconds": 1158.179326,
+      "tree_sha": "4d1c7bcd479f904b6b241533c5c87c7f70831f63",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "38864095716"
+    },
+    "validation": {
+      "migrate_fresh_runs": 2,
+      "latest_migration_rollback_reapply": "FORWARD_ONLY_REJECTION_PASS",
+      "source_schema_sha256": "ba05673e6e61fb4b9491a4f0a9bb62820470298e5dd2edf26b69f76e95ab51d9",
+      "restore_schema_sha256": "ba05673e6e61fb4b9491a4f0a9bb62820470298e5dd2edf26b69f76e95ab51d9",
+      "source_migration_rows_sha256": "d881c841bc4eac1cf8cc9667a39d22eabacf96d293467784afbd6a4f4d12dda9",
+      "restore_migration_rows_sha256": "d881c841bc4eac1cf8cc9667a39d22eabacf96d293467784afbd6a4f4d12dda9",
+      "backup_sha256": "f243c557e5cb1949d12a2f58a1e488957d05ced12fce6e384606354b08373260",
+      "backup_restore_match": true,
+      "resource_cleanup": "PASS",
+      "all_health_and_performance_suites": "PASS"
+    }
+  },
+  "limitations": [
+    "Baseline build progress was unreported; zero parsed steps does not establish a cold cache.",
+    "No cross-run cache imported. Base-image pulls remain included in build duration.",
+    "Different GitHub-hosted machines; CPU model and network conditions not controlled.",
+    "Existing opt-in skips are retained; test counts are per invocation, not distinct totals."
+  ],
+  "final_evidence": "https://github.com/ideal-sol/oripa/pull/572",
+  "merge_authorized": false,
+  "production_impact": "NONE",
+  "runtime_activation": "NONE"
+}
