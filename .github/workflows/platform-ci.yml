@@ -509,7 +509,7 @@ jobs:
             --repository . \
             --project-prefix "mig054-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --migration-path apps/api/database/migrations-v2 \
-            --identity-bytecode-cache \
+            --identity-timing \
             --evidence-dir "$RUNNER_TEMP/mig054-v2-reporting-evidence"
 
       - name: Preserve DB smoke timing evidence
@@ -517,7 +517,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: db-smoke-timing-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/mig054-v2-reporting-evidence/smoke-timing.json
+          path: |
+            ${{ runner.temp }}/mig054-v2-reporting-evidence/smoke-timing.json
+            ${{ runner.temp }}/mig054-v2-reporting-evidence/full-v2-timing.json
           if-no-files-found: error
           retention-days: 14
 

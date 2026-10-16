@@ -1,8 +1,54 @@
 # DB smoke Phase 2
 
 Change DBSMOKE-20261016; Strict Change, Risk R4, Activation none.
-Status: optimization candidate implemented; Draft only, Human review required
-before merge. Final-head measurements and checks are recorded on PR #572.
+Status: `PR572_HUMAN_REVIEW_HOLD_PERFORMANCE_NOT_DEMONSTRATED`.
+Draft only; merge is not authorized. Full V2 diagnosis and final-head evidence
+are recorded on PR #572. The bytecode flag is removed from standard CI.
+
+## Human-review follow-up: Full V2 diagnosis
+
+Human reviewed head `24a90d0f78855ce4d2af04affd3765f04dae3301`, tree
+`5e8219e77ba3d888504d2476f475df4ccfff6fd6`, and held performance adoption.
+Smoke 1158.179326s -> 1170.974336s and Full V2 908.171254s -> 915.618347s
+do not demonstrate acceleration. Reuse those measurements; do not rerun the
+whole smoke merely to seek a favorable time. Existing cache code remains an
+explicit, nonstandard experimental opt-in; it is not approved for adoption.
+
+The next necessary source-head CI run diagnoses the unchanged full invocation
+with stock PHPUnit 12.5.29 `--log-junit` and `--log-events-verbose-text`.
+No filter, order, fixture, hash cost, timeout, assertion or skip change is made.
+No custom subscriber, application instrumentation or profiling dependency is
+introduced. Private raw files live only in a random mode-0700 directory in the
+disposable API container; they are removed on success/failure/interruption.
+Raw reads suppress exception-output excerpts. Neither raw file is uploaded.
+
+Only source-allowlisted class/method identifiers, numeric invocation ordinals,
+counts and timing aggregates escape. Dataset labels, paths, XML properties,
+system output, exception bodies and telemetry messages are discarded. Invalid,
+oversized, unknown or inconsistent reports fail the diagnostic; they never
+downgrade a test failure. JUnit totals must match the unchanged PHPUnit summary,
+and per-class event completion counts must match JUnit. Output contains top 20
+test invocations and top 10 classes, not a raw per-test/event dump.
+
+The [pinned JUnit logger](https://github.com/sebastianbergmann/phpunit/blob/9aa66a47db3ea70f1a468e66dd969f67e594945a/src/Logging/JUnit/JunitXmlLogger.php)
+measures the test lifecycle, including preparation and teardown for prepared
+tests. Standard telemetry separates PreparationStarted -> Prepared, including
+framework preparation, setUp and preconditions. It is **not** an isolated setUp
+method profiler. Tests skipped before Prepared are excluded from that preparation
+subtotal; prepared tests that later skip remain included. The remainder includes
+body, verification, teardown and framework work.
+The [pinned lifecycle](https://github.com/sebastianbergmann/phpunit/blob/9aa66a47db3ea70f1a468e66dd969f67e594945a/src/Framework/TestCase.php)
+emits hook-called events after hooks execute, so their preceding event delta
+cannot safely be called isolated teardown time. DB initialization and password
+hashing are not independently timed by these stock logs. They remain explicitly
+unmeasured until correlated source analysis or separately justified profiling.
+The [official logging options](https://docs.phpunit.de/en/12.5/textui.html#logging)
+do not select or reorder tests. Logging overhead and runner variation prevent
+using this diagnostic run alone as an optimization before/after claim.
+
+Record measured rankings, source-linked cost classification, safe candidates
+(or why none is proved), fresh checks and exact-head review on the Draft PR.
+No speculative optimization is authorized by a slow test name alone.
 
 ## Authority and scope
 

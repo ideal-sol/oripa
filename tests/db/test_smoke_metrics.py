@@ -86,7 +86,7 @@ class SmokeMetricsTest(unittest.TestCase):
         self.assertNotIn("private fixture", json.dumps(self.metrics.tests))
 
     def smoke(self, failure=None, mismatch=None):
-        args = argparse.Namespace(repository=str(self.directory), compose_file="docker-compose.v2.yml", evidence_dir=str(self.directory / "evidence"), project_prefix="mig054-v2-metrics-test", migration_path=database.MIGRATION_PATH, task_id=None, purpose=None, identity_bytecode_cache=True)
+        args = argparse.Namespace(repository=str(self.directory), compose_file="docker-compose.v2.yml", evidence_dir=str(self.directory / "evidence"), project_prefix="mig054-v2-metrics-test", migration_path=database.MIGRATION_PATH, task_id=None, purpose=None, identity_bytecode_cache=True, identity_timing=False)
         functions = {
             "create_env_file": None, "validate": {}, "migrate_fresh": None,
             "rollback_and_reapply_latest": "FORWARD_ONLY_REJECTION_PASS", "migration_status": None,
@@ -155,6 +155,19 @@ class SmokeMetricsTest(unittest.TestCase):
         mocks["identity_bytecode_options"].assert_not_called()
         self.assertEqual(mocks["run_identity_tests"].call_args.kwargs["php_options"], [])
         for name in ("run_draw_load_tests", "run_qa_draw_load_tests", "run_reporting_performance_tests", "run_content_contact_performance_tests"):
+            mocks[name].assert_called_once()
+
+    def test_diagnostic_mode_retains_all_other_smoke_checks_without_cache(self):
+        args, mocks = self.smoke()
+        args.identity_bytecode_cache = False
+        args.identity_timing = True
+        with mock.patch.object(database, "run_identity_diagnostics") as diagnostics:
+            database.run_smoke(args)
+        diagnostics.assert_called_once()
+        self.assertEqual(diagnostics.call_args.args[-1], [])
+        mocks["identity_bytecode_options"].assert_not_called()
+        self.assertEqual(mocks["migrate_fresh"].call_count, 2)
+        for name in ("run_draw_load_tests", "run_qa_draw_load_tests", "run_reporting_performance_tests", "run_content_contact_performance_tests", "backup_database", "restore_database"):
             mocks[name].assert_called_once()
 
     def test_build_failure_is_not_retried_or_replaced_by_an_old_image(self):

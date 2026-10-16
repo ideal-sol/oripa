@@ -15,9 +15,15 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any, Iterable
+
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.db.phpunit_timing import TimingFailure, source_test_names, summarize_phpunit_timing
 
 
 MIGRATION_PATH = "apps/api/database/migrations-v2"
@@ -278,6 +284,7 @@ def run(
     cwd: Path,
     input_bytes: bytes | None = None,
     capture: bool = True,
+    safe_error_only: bool = False,
 ) -> bytes:
     environment = os.environ.copy()
     environment["COMPOSE_BAKE"] = "false"
@@ -306,7 +313,7 @@ def run(
         operation = next((item for item in command[1:] if item in safe_operations), None)
         suffix = f" during {operation}" if operation is not None else ""
         detail = ""
-        if operation in {"exec", "run", "up"}:
+        if not safe_error_only and operation in {"exec", "run", "up"}:
             lines = (
                 error.stdout.decode("utf-8", errors="replace").splitlines()
                 + error.stderr.decode("utf-8", errors="replace").splitlines()
@@ -869,9 +876,14 @@ try {
 
 
 def run_identity_tests(
-    base: list[str], repository: Path, one_shot: bool, php_options: Iterable[str] = ()
+    base: list[str], repository: Path, one_shot: bool, php_options: Iterable[str] = (),
+    timing_directory: str | None = None,
 ) -> None:
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
+    logging_options = [] if timing_directory is None else [
+        "--log-junit", timing_directory + "/junit.xml",
+        "--log-events-verbose-text", timing_directory + "/events.txt",
+    ]
     run(
         base
         + prefix
@@ -884,10 +896,32 @@ def run_identity_tests(
             "vendor/bin/phpunit",
             "--configuration",
             "phpunit.v2.xml",
+            *logging_options,
         ],
         cwd=repository,
         capture=False,
     )
+
+
+def run_identity_diagnostics(base: list[str], repository: Path, metrics: SmokeMetrics, evidence_dir: Path, php_options: Iterable[str]) -> None:
+    directory = "/tmp/oripa-full-v2-timing-" + secrets.token_hex(12)
+    paths = [directory + "/junit.xml", directory + "/events.txt"]
+    run(base + ["exec", "-T", "api", "mkdir", "-m", "700", directory], cwd=repository)
+    try:
+        run_identity_tests(base, repository, False, php_options=php_options, timing_directory=directory)
+        reports = [run(
+            base + ["exec", "-T", "api", "php", "-r",
+                    '$size = filesize($argv[1]); if ($size === false || $size > 33554432) { exit(1); } readfile($argv[1]);', path],
+            cwd=repository, safe_error_only=True,
+        ) for path in paths]
+        try:
+            report = summarize_phpunit_timing(*reports, source_test_names(repository), metrics.tests[-1]["counts"])
+        except (TimingFailure, UnicodeError, IndexError):
+            raise GuardFailure("Full V2 timing aggregation failed") from None
+        write_json(evidence_dir / "full-v2-timing.json", {**metrics.metadata, **report})
+    finally:
+        run(base + ["exec", "-T", "api", "rm", "-f", "--", *paths], cwd=repository, safe_error_only=True)
+        run(base + ["exec", "-T", "api", "rmdir", "--", directory], cwd=repository, safe_error_only=True)
 
 
 def run_draw_load_tests(base: list[str], repository: Path) -> None:
@@ -1281,7 +1315,10 @@ def run_measured_smoke(args: argparse.Namespace, metrics: SmokeMetrics) -> dict[
             if args.identity_bytecode_cache:
                 bytecode = metrics.call("identity_bytecode_probe", identity_bytecode_options, source_base, repository)
             metrics.metadata["identity_bytecode_cache"] = bytecode["status"]
-            metrics.call("identity", run_identity_tests, source_base, repository, one_shot=False, php_options=bytecode["options"])
+            if args.identity_timing:
+                metrics.call("identity", run_identity_diagnostics, source_base, repository, metrics, evidence_dir, bytecode["options"])
+            else:
+                metrics.call("identity", run_identity_tests, source_base, repository, one_shot=False, php_options=bytecode["options"])
             metrics.call("draw_load", run_draw_load_tests, source_base, repository)
             metrics.call("qa_draw_load", run_qa_draw_load_tests, source_base, repository)
             metrics.call("reporting", run_reporting_performance_tests, source_base, repository)
@@ -1433,6 +1470,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--migration-path", required=True)
     smoke.add_argument("--evidence-dir", required=True)
     smoke.add_argument("--identity-bytecode-cache", action="store_true")
+    smoke.add_argument("--identity-timing", action="store_true")
     smoke.add_argument("--task-id")
     smoke.add_argument(
         "--purpose",
