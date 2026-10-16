@@ -1,3 +1,10 @@
+## DBSMOKE-20261016 — CI database smoke Phase 2 (2026-10-16)
+
+- Human PCDP task; Issue none, Risk R4, Strict Change, Application Runtime Activation none. Base `3faa1872c7fe23ba0d50e829b8251b7add57da67`; dedicated branch `fix/DBSMOKE-20261016` and worktree preserve existing uncommitted records and all parallel tasks. Root-owned exact-path GitHub delivery policy selected for CI scope; merge/ready/auto-merge operations excluded. Migration Allocation Lock not applicable: no migration creation.
+- PR #571 is Draft at `a12665b8d1d591541696aad483a9d4376932d4f9`. Read-only diff confirms its shared runner changes are inventory/forward-only registration only. Those regions and its tests remain untouched; no semantic source overlap, Source Lock none. New tests are isolated in `tests/db/test_smoke_metrics.py`.
+- Measurement revision preserves all sequential smoke checks, splits build/start timing, exports safe monotonic JSON and attempts both project cleanups on cleanup failure. DB regression 75 tests PASS. Full smoke/baseline and remaining governance checks pending; no speedup or CI PASS is claimed yet. Details: `docs/operations/ci/db-smoke-phase2.md`.
+- Host container builds/full smoke not run due to shared workload and resource pressure; GitHub-hosted disposable CI is the full-smoke authority. Production/OLD/NEW runtime, operational DB, migration application, deployment, feature activation and publication all NONE. Draft/Human review stop is mandatory; MERGE AUTHORIZATION NOT AUTHORIZED.
+
 ## OLDTEST-20261015 — F2-B/F5/F6 OLD Test artifact authority (2026-10-15)
 
 - Human Task OLDTEST-F2B-F5-F6-20261015; canonical Task OLDTEST-20261015. Issue none; Risk R3; Strict Change; Application Runtime Activation deferred. Dedicated authority branch/worktree based on protected main `aef1759d072dab48be4b052d53e2ef969feddd9f`; existing worktrees and uncommitted work are preserved. Scope is the approval manifest and this Worklog; no application Source, dependency, migration Source or workflow changes.
