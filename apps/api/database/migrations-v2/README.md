@@ -1,5 +1,19 @@
 # V2 Migration Root
 
+## RANKPOINTS-20261016 (M2)
+
+Migration `2026_10_16_000089_create_v2_member_rank_accounting.php` is reserved
+under the exclusive Migration Allocation Lock after verifying all open PRs,
+worktrees and prior allocations. Six additive tables separate rank state,
+monthly totals, append-only payment entries, changes, achievements and current
+entitlements. Deferred total reconciliation and verified payment-origin guards
+protect accounting. Generation-specific achievements preserve future recovery
+and regrant history. Existing migrations, activation gates and Public contracts
+are unchanged. M3 monthly judgment and M7/M8 adjustment/recovery remain future.
+Apply only to task-owned disposable PostgreSQL for tests. Operational application
+and runtime activation are deferred. `down()` rejects; rollback retains schema
+and history and uses a separately reviewed source change.
+
 ## MEMBERRANK-20261016 (M1)
 
 Migration `2026_10_16_000088_create_v2_member_rank_settings.php` is allocated

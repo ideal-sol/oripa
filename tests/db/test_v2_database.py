@@ -26,7 +26,7 @@ class V2DatabaseGuardTest(unittest.TestCase):
         source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
         tables = sorted("public." + name for name in re.findall(r"CREATE TABLE (member_rank_[a-z_]+)", source))
         inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
-        self.assertEqual(tables, [name for name in inventory if name.startswith("public.member_rank_")])
+        self.assertEqual(tables, [name for name in inventory if name.startswith("public.member_rank_setting")])
         self.assertEqual(len(tables), 3)
         self.assertEqual(sorted(set(inventory)), inventory)
         (self.repository / v2_database.MIGRATION_PATH / filename).touch()

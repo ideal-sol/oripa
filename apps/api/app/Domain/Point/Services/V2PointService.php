@@ -259,6 +259,58 @@ final class V2PointService
         return $operation;
     }
 
+    public function grantMemberRankPromotion(
+        int $userId,
+        int $achievementId,
+        string $achievementPublicId,
+        int $amount,
+        CarbonInterface $occurredAt
+    ): ?PointOperation {
+        if (DB::transactionLevel() < 1 || $amount < 0 || $amount > 1_000_000 || ! Str::isUuid($achievementPublicId)) {
+            throw new V2PointException('Member rank promotion reward input is invalid.');
+        }
+        if (! DB::table('member_rank_settings')->where('id', 1)->value('enabled')) {
+            return null;
+        }
+        User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+        if (! DB::table('member_rank_achievements')->where('id', $achievementId)
+            ->where('public_id', $achievementPublicId)->where('user_id', $userId)->where('bonus_amount', $amount)->exists()) {
+            throw new V2PointException('Member rank promotion requires a matching achievement.');
+        }
+        if ($amount === 0) {
+            return null;
+        }
+        $businessKey = 'member_rank.promotion:'.$achievementPublicId;
+        $wallet = $this->lockWallet($userId);
+        $existing = PointOperation::query()->where('business_key', $businessKey)->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $before = (int) $wallet->free_balance;
+        if ($before > PHP_INT_MAX - $amount) {
+            throw new V2PointException('Member rank promotion exceeds the supported balance.');
+        }
+        $operation = $this->operation(
+            $userId, 'free_grant', 'member_rank_promotion', $businessKey, $occurred, 'system', null, $achievementId
+        );
+        $lot = new PointLot();
+        $lot->forceFill([
+            'user_id' => $userId, 'grant_operation_id' => $operation->id, 'point_type' => 'free',
+            'granted_amount' => $amount, 'remaining_amount' => $amount, 'reserved_amount' => 0,
+            'granted_at' => $occurred, 'expire_at' => $this->expiryPolicy->expiresAt($occurred),
+        ])->save();
+        $wallet->forceFill(['free_balance' => $before + $amount, 'lock_version' => (int) $wallet->lock_version + 1])->save();
+        $this->ledger($operation, $wallet, $lot, 1, 'free', 'grant', $amount, (int) $wallet->free_balance, $amount, $occurred);
+        $this->audit->record('point.member_rank_promotion_granted', [
+            'target_type' => 'member_rank_achievement', 'target_public_id' => $achievementPublicId,
+            'before' => ['free_balance' => $before], 'after' => ['free_balance' => (int) $wallet->free_balance],
+            'metadata' => ['amount' => $amount, 'operation_public_id' => $operation->public_id],
+        ]);
+
+        return $operation;
+    }
+
     public function grantReferralReward(
         int $userId,
         int $referralId,

@@ -448,6 +448,8 @@ final class V2PaymentService
             if (! in_array('succeeded', self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
                 throw new V2PaymentException('PAYMENT_STATUS_TRANSITION_INVALID');
             }
+            $memberRanks = app(\App\Domain\MemberRank\Services\V2MemberRankAccountingService::class);
+            $memberRanks->lockUserIfEnabled((int) $payment->user_id);
             $plan = DB::table('point_purchase_plans')
                 ->where('id', $payment->point_purchase_plan_id)
                 ->lockForUpdate()
@@ -473,6 +475,7 @@ final class V2PaymentService
                 'points_granted_at' => V2DatabaseTimestamp::format($grant->granted_at),
                 'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
+            $memberRanks->accountGrantedPayment((int) $payment->id);
             $this->providerAttempt($event->id, 'success');
             $this->audit->record('payment.succeeded', [
                 'target_type' => 'payment',

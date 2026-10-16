@@ -290,6 +290,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_15_000086_add_v2_rank_video_sets.php",
     "apps/api/database/migrations-v2/2026_10_16_000087_create_v2_pre_registration.php",
     "apps/api/database/migrations-v2/2026_10_16_000088_create_v2_member_rank_settings.php",
+    "apps/api/database/migrations-v2/2026_10_16_000089_create_v2_member_rank_accounting.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -3145,6 +3146,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_15_000086_add_v2_rank_video_sets.php",
         "2026_10_16_000087_create_v2_pre_registration.php",
         "2026_10_16_000088_create_v2_member_rank_settings.php",
+        "2026_10_16_000089_create_v2_member_rank_accounting.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
