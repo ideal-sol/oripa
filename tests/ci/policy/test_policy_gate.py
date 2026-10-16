@@ -1256,12 +1256,20 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.45')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['release_mode'], 'contract-additive')
-        self.assertFalse(value['candidate']['breaking_change'])
-        value['candidate'] = None
         self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 25)
+        self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
+        released = value['latest_immutable']
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.45')
+        self.assertEqual(released['source_commit'], 'c4efbee32a7846bc94f7375d0d5f71779aa0ac77')
+        self.assertEqual(released['manifest_sha256'], '0fd03ceb42cf316fc01de0c9757ee20be3bc1242b25cd52bc20870c50c2ce3a5')
+        self.assertEqual(released['publication']['artifact_id'], 12031381227)
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-additive')
+        self.assertFalse(released['breaking_change'])
+        self.assertEqual(released['public_openapi']['operation_count'], 81)
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])
         self.assertEqual(released['bundle_version'], '2.0.0-alpha.44')
