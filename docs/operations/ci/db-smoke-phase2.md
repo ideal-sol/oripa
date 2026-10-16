@@ -6,10 +6,13 @@ before merge. Final-head measurements and checks are recorded on PR #572.
 
 ## Authority and scope
 
-Base `3faa1872c7fe23ba0d50e829b8251b7add57da67`. PR #571 remains Draft at
-`a12665b8d1d591541696aad483a9d4376932d4f9`; its inventory and forward-only
-registration changes are independent of this smoke execution work. No migration
-is created or imported. Existing 86 migrations and all smoke checks remain.
+Initial base `3faa1872c7fe23ba0d50e829b8251b7add57da67`. PR #571 merged at
+06:43:58 UTC as `c4efbee32a7846bc94f7375d0d5f71779aa0ac77` during this Task.
+Normal merge `df26339ae9cd677cf1602f6a7318cd2a1859634e` synchronizes that official
+main; the canonical merge tree matches, with no conflicts and only this Change's
+six paths in the net diff. Current base is the PR #571 squash SHA. Its inventory,
+forward-only registration and migration 000087 are preserved byte-for-byte.
+No migration is created by this Change; all 87 current-main migrations remain.
 The canonical Phase 1 applicability plan and required wrappers are unchanged.
 
 ## Measurement
@@ -82,8 +85,10 @@ runner hardware variation are not independently controlled.
 ## Selected improvement
 
 The full V2 suite accounts for about 77.3% of smoke time; build is about 6.2%.
-The candidate enables PHP bytecode caching only for that disposable PHPUnit
-process. It retains the same suite, ordering, 512M memory limit, fixtures,
+The candidate's `--identity-bytecode-cache` opt-in enables PHP bytecode caching
+only for that disposable PHPUnit process. Without the flag, the original uncached
+execution remains available for controlled comparisons. It retains the same
+suite, ordering, 512M memory limit, fixtures,
 password hashing, assertions and skip conditions. Separate Draw/QA/Reporting/
 Content load invocations retain their original PHP options and thresholds.
 Persistent-development commands and all image/runtime configuration are unchanged.
