@@ -231,7 +231,7 @@ class SmokeMetrics:
 
     def observe(self, command: list[str], stdout: bytes, stderr: bytes) -> None:
         if "build" in command:
-            output = stderr.decode("utf-8", errors="replace")
+            output = (stdout + stderr).decode("utf-8", errors="replace")
             cached = len(re.findall(r"(?m)^#[0-9]+ CACHED$", output))
             self.build_cache.append({
                 "phase": self.current_phase,
@@ -813,8 +813,57 @@ def validate_schema_inventory(inventory: list[str]) -> None:
         raise GuardFailure("Unexpected V2 schema inventory")
 
 
+def identity_bytecode_options(base: list[str], repository: Path) -> dict[str, Any]:
+    fallback = {"status": "UNAVAILABLE_NORMAL_EXECUTION", "options": []}
+    try:
+        available = run(
+            base + ["exec", "-T", "api", "php", "-r",
+                    'echo extension_loaded("Zend OPcache") ? "loaded" : '
+                    '(is_file(ini_get("extension_dir")."/opcache.so") ? "available" : "unavailable");'],
+            cwd=repository,
+        ).decode().strip()
+        if available not in {"loaded", "available"}:
+            return fallback
+        options = [] if available == "loaded" else ["-d", "zend_extension=opcache"]
+        for setting in (
+            "opcache.enable=1", "opcache.enable_cli=1", "opcache.jit=disable",
+            "opcache.file_cache=", "opcache.file_cache_only=0",
+            "opcache.validate_timestamps=1", "opcache.revalidate_freq=0",
+            "opcache.optimization_level=0", "opcache.save_comments=1",
+        ):
+            options.extend(["-d", setting])
+        probe = '''
+$status = opcache_get_status(false);
+if (!is_array($status) || !$status['opcache_enabled'] || ini_get('opcache.file_cache') !== '') {
+    exit(1);
+}
+$path = tempnam(sys_get_temp_dir(), 'db-smoke-bytecode-');
+if ($path === false) { exit(1); }
+try {
+    if (file_put_contents($path, '<?php return 41;') === false || !touch($path, time() - 100)) { throw new RuntimeException('cache probe failed'); }
+    clearstatcache(true, $path);
+    if (opcache_is_script_cached($path) || (include $path) !== 41 || !opcache_is_script_cached($path)) { throw new RuntimeException('cache probe failed'); }
+    $hits = opcache_get_status(false)['opcache_statistics']['hits'];
+    if ((include $path) !== 41 || opcache_get_status(false)['opcache_statistics']['hits'] <= $hits) { throw new RuntimeException('cache probe failed'); }
+    if (file_put_contents($path, '<?php return 42;') === false || !touch($path, time() - 90)) { throw new RuntimeException('cache probe failed'); }
+    clearstatcache(true, $path);
+    if ((include $path) !== 42) { throw new RuntimeException('cache probe failed'); }
+    echo 'BYTECODE_MISS_HIT_INVALIDATION_PASS';
+} finally {
+    opcache_invalidate($path, true);
+    unlink($path);
+}
+'''
+        result = run(base + ["exec", "-T", "api", "php", *options, "-r", probe], cwd=repository)
+        if result.strip() != b"BYTECODE_MISS_HIT_INVALIDATION_PASS":
+            return fallback
+        return {"status": "PROCESS_LOCAL_MISS_HIT_INVALIDATION_PASS", "options": options}
+    except GuardFailure:
+        return fallback
+
+
 def run_identity_tests(
-    base: list[str], repository: Path, one_shot: bool
+    base: list[str], repository: Path, one_shot: bool, php_options: Iterable[str] = ()
 ) -> None:
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     run(
@@ -825,6 +874,7 @@ def run_identity_tests(
             "php",
             "-d",
             "memory_limit=512M",
+            *php_options,
             "vendor/bin/phpunit",
             "--configuration",
             "phpunit.v2.xml",
@@ -1129,6 +1179,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         metrics.write(Path(args.evidence_dir) / "smoke-timing.json", outcome)
 
 
+def compare_restored_database(source_inventory, restore_inventory, source_schema, restore_schema, source_rows, restore_rows) -> None:
+    if source_inventory != restore_inventory:
+        raise GuardFailure("Backup restore schema inventory mismatch")
+    if source_schema != restore_schema:
+        raise GuardFailure("Backup restore schema checksum mismatch")
+    if source_rows != restore_rows:
+        raise GuardFailure("Backup restore migration checksum mismatch")
+
+
 def run_measured_smoke(args: argparse.Namespace, metrics: SmokeMetrics) -> dict[str, Any]:
     require_database_markers(args)
     repository = Path(args.repository).resolve()
@@ -1212,7 +1271,11 @@ def run_measured_smoke(args: argparse.Namespace, metrics: SmokeMetrics) -> dict[
                 source_base, repository, one_shot=False
             )
             metrics.call("migration_status", migration_status, source_base, repository, one_shot=False)
-            metrics.call("identity", run_identity_tests, source_base, repository, one_shot=False)
+            bytecode = {"status": "DISABLED_NORMAL_EXECUTION", "options": []}
+            if args.identity_bytecode_cache:
+                bytecode = metrics.call("identity_bytecode_probe", identity_bytecode_options, source_base, repository)
+            metrics.metadata["identity_bytecode_cache"] = bytecode["status"]
+            metrics.call("identity", run_identity_tests, source_base, repository, one_shot=False, php_options=bytecode["options"])
             metrics.call("draw_load", run_draw_load_tests, source_base, repository)
             metrics.call("qa_draw_load", run_qa_draw_load_tests, source_base, repository)
             metrics.call("reporting", run_reporting_performance_tests, source_base, repository)
@@ -1285,12 +1348,11 @@ def run_measured_smoke(args: argparse.Namespace, metrics: SmokeMetrics) -> dict[
             restore_schema_path.write_bytes(restore_schema_raw)
             os.chmod(source_schema_path, 0o600)
             os.chmod(restore_schema_path, 0o600)
-            if source_inventory != restore_inventory:
-                raise GuardFailure("Backup restore schema inventory mismatch")
-            if source_schema != restore_schema:
-                raise GuardFailure("Backup restore schema checksum mismatch")
-            if source_rows != restore_rows:
-                raise GuardFailure("Backup restore migration checksum mismatch")
+            metrics.call(
+                "exact_restore_comparison", compare_restored_database,
+                source_inventory, restore_inventory, source_schema, restore_schema,
+                source_rows, restore_rows,
+            )
             migration_count, migration_set = migration_checksum(repository)
             evidence = {
                 "schema_version": "1.0",
@@ -1364,6 +1426,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--project-prefix", required=True)
     smoke.add_argument("--migration-path", required=True)
     smoke.add_argument("--evidence-dir", required=True)
+    smoke.add_argument("--identity-bytecode-cache", action="store_true")
     smoke.add_argument("--task-id")
     smoke.add_argument(
         "--purpose",
