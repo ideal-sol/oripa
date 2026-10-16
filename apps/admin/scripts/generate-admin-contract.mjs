@@ -12,6 +12,10 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminMemberRankSettings: ["get", "/settings/member-ranks"],
+  updateAdminMemberRankSettings: ["put", "/settings/member-ranks"],
+  cancelAdminMemberRankSettings: ["delete", "/settings/member-ranks/scheduled"],
+  listAdminMemberRankSettingsRevisions: ["get", "/settings/member-ranks/revisions"],
   getAdminPreRegistration: ["get", "/settings/pre-registration"],
   updateAdminPreRegistration: ["put", "/settings/pre-registration"],
   previewAdminPreRegistration: ["post", "/settings/pre-registration/preview"],
@@ -565,6 +569,14 @@ const requiredSchemas = [
   "AdminLineMessagingPreview",
   "AdminLineMessagingMutationResult",
   "AdminReferralPointSetting",
+  "AdminMemberRankValue",
+  "AdminMemberRankSettingsVersion",
+  "AdminMemberRankSettings",
+  "AdminMemberRankSettingsUpdate",
+  "AdminMemberRankSettingsCancel",
+  "AdminMemberRankSettingsResponse",
+  "AdminMemberRankSettingsMutation",
+  "AdminMemberRankSettingsHistory",
   "AdminPreRegistrationResponse",
   "AdminPreRegistrationUpdate",
   "AdminUserPreRegistrationResponse",
@@ -1566,6 +1578,59 @@ export interface AdminUserPreRegistrationResponse {
     email_verified: boolean; sms_verified: boolean;
     activated_at: string | null; point_amount: number | null; expires_at: string | null;
   };
+}
+
+export interface AdminMemberRankValue {
+  code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+  reach_line: number | null;
+  maintain_line: number | null;
+  promotion_bonus: number;
+  purchase_bonus_rate_bp: number;
+}
+
+export interface AdminMemberRankSettingsVersion {
+  revision: number;
+  action: "initial" | "schedule" | "cancel";
+  effective_at: string;
+  saved_at: string;
+  saved_by: string | null;
+  default_skip_count: number;
+  ranks: AdminMemberRankValue[];
+}
+
+export interface AdminMemberRankSettings {
+  revision: number;
+  enabled: boolean;
+  activated_at: string | null;
+  current: AdminMemberRankSettingsVersion;
+  scheduled: AdminMemberRankSettingsVersion | null;
+  next_effective_at: string;
+}
+
+export interface AdminMemberRankSettingsUpdate {
+  expected_revision: number;
+  enabled: boolean;
+  default_skip_count: number;
+  ranks: AdminMemberRankValue[];
+}
+
+export interface AdminMemberRankSettingsCancel {
+  expected_revision: number;
+}
+
+export interface AdminMemberRankSettingsResponse {
+  data: AdminMemberRankSettings;
+  request_id: string;
+}
+
+export interface AdminMemberRankSettingsMutation extends AdminMemberRankSettingsResponse {
+  idempotent_replay: boolean;
+}
+
+export interface AdminMemberRankSettingsHistory {
+  items: { before: AdminMemberRankSettingsVersion | null; after: AdminMemberRankSettingsVersion }[];
+  next_before_revision: number | null;
+  request_id: string;
 }
 
 export interface AdminReferralPointSetting {

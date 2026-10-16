@@ -14,6 +14,30 @@ x-oripa-breaking-change:
   change_id: NOTION-20261014
   scope: inventory-notion-null-placeholders-to-cached-observations
 x-oripa-error-codes:
+  MEMBER_RANK_SETTINGS_INVALID:
+    status: 422
+    retryable: false
+    description: 会員ランク設定の入力値を確認してください。
+  MEMBER_RANK_SETTINGS_REVISION_CONFLICT:
+    status: 409
+    retryable: false
+    description: 設定が更新されました。最新の設定を取得してください。
+  MEMBER_RANK_ACTIVATION_NOT_READY:
+    status: 409
+    retryable: false
+    description: 会員ランク機能は準備中のため有効化できません。
+  MEMBER_RANK_DEACTIVATION_FORBIDDEN:
+    status: 409
+    retryable: false
+    description: 運用開始後は無効化できません。
+  MEMBER_RANK_SCHEDULE_NOT_FOUND:
+    status: 409
+    retryable: false
+    description: 取消可能な翌月設定がありません。
+  MEMBER_RANK_SETTINGS_UNAVAILABLE:
+    status: 503
+    retryable: false
+    description: 会員ランク設定を取得できません。
   NOTION_DISABLED:
     status: 409
     retryable: false
@@ -544,6 +568,93 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminGachaNoticeDefaultsMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
+  /settings/member-ranks:
+    get:
+      operationId: getAdminMemberRankSettings
+      summary: 会員ランク設定を取得する
+      description: 設定は翌月1日00時JSTに適用。M1では有効化を409で拒否し、開始後の無効化も禁止する。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: 会員ランク設定。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankSettingsResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminMemberRankSettings
+      summary: 翌月の会員ランク設定を予約する
+      description: 設定は翌月1日00時JSTに適用。M1では有効化を409で拒否し、開始後の無効化も禁止する。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminMemberRankSettingsUpdate'}
+      responses:
+        '200':
+          description: 会員ランク設定。
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankSettingsMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /settings/member-ranks/scheduled:
+    delete:
+      operationId: cancelAdminMemberRankSettings
+      summary: 翌月設定の予約を取り消す
+      description: 設定は翌月1日00時JSTに適用。M1では有効化を409で拒否し、開始後の無効化も禁止する。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminMemberRankSettingsCancel'}
+      responses:
+        '200':
+          description: 会員ランク設定。
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankSettingsMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /settings/member-ranks/revisions:
+    get:
+      operationId: listAdminMemberRankSettingsRevisions
+      summary: 会員ランク設定履歴を取得する
+      description: 設定は翌月1日00時JSTに適用。M1では有効化を409で拒否し、開始後の無効化も禁止する。
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {name: before_revision, in: query, required: false, schema: {type: integer, minimum: 1}}
+      responses:
+        '200':
+          description: 会員ランク設定。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankSettingsHistory'}
         default: {$ref: '#/components/responses/Problem'}
   /settings/referral-points:
     get:
@@ -5646,6 +5757,100 @@ components:
             activated_at: {type: [string, 'null'], format: date-time}
             point_amount: {type: [integer, 'null'], minimum: 1}
             expires_at: {type: [string, 'null'], format: date-time}
+    AdminMemberRankValue:
+      type: object
+      additionalProperties: false
+      required: [code, reach_line, maintain_line, promotion_bonus, purchase_bonus_rate_bp]
+      properties:
+        code: {type: string, enum: [beginner, bronze, silver, gold, platinum, diamond, vip]}
+        reach_line: {type: [integer, 'null'], minimum: 1, maximum: 9007199254740991}
+        maintain_line: {type: [integer, 'null'], minimum: 0, maximum: 9007199254740991}
+        promotion_bonus: {type: integer, minimum: 0, maximum: 1000000}
+        purchase_bonus_rate_bp: {type: integer, minimum: 0, maximum: 10000, description: 購入ボーナス率。1単位は0.01%。無償ポイント。}
+    AdminMemberRankSettingsVersion:
+      type: object
+      additionalProperties: false
+      required: [revision, action, effective_at, saved_at, saved_by, default_skip_count, ranks]
+      properties:
+        revision: {type: integer, minimum: 1}
+        action: {type: string, enum: [initial, schedule, cancel]}
+        effective_at: {type: string, format: date-time}
+        saved_at: {type: string, format: date-time}
+        saved_by: {type: [string, 'null']}
+        default_skip_count: {type: integer, minimum: 0, maximum: 12}
+        ranks:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: {$ref: '#/components/schemas/AdminMemberRankValue'}
+    AdminMemberRankSettings:
+      type: object
+      additionalProperties: false
+      required: [revision, enabled, activated_at, current, scheduled, next_effective_at]
+      properties:
+        revision: {type: integer, minimum: 1}
+        enabled: {type: boolean}
+        activated_at: {type: [string, 'null'], format: date-time}
+        current: {$ref: '#/components/schemas/AdminMemberRankSettingsVersion'}
+        scheduled:
+          oneOf:
+            - {$ref: '#/components/schemas/AdminMemberRankSettingsVersion'}
+            - {type: 'null'}
+        next_effective_at: {type: string, format: date-time}
+    AdminMemberRankSettingsUpdate:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, enabled, default_skip_count, ranks]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+        enabled: {type: boolean}
+        default_skip_count: {type: integer, minimum: 0, maximum: 12}
+        ranks:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: {$ref: '#/components/schemas/AdminMemberRankValue'}
+    AdminMemberRankSettingsCancel:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      properties:
+        expected_revision: {type: integer, minimum: 1}
+    AdminMemberRankSettingsResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminMemberRankSettings'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminMemberRankSettingsMutation:
+      type: object
+      additionalProperties: false
+      required: [data, request_id, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminMemberRankSettings'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+        idempotent_replay: {type: boolean}
+    AdminMemberRankSettingsHistory:
+      type: object
+      additionalProperties: false
+      required: [items, next_before_revision, request_id]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [before, after]
+            properties:
+              before:
+                oneOf:
+                  - {$ref: '#/components/schemas/AdminMemberRankSettingsVersion'}
+                  - {type: 'null'}
+              after: {$ref: '#/components/schemas/AdminMemberRankSettingsVersion'}
+        next_before_revision: {type: [integer, 'null'], minimum: 1}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
     AdminReferralPointSetting:
       type: object
       additionalProperties: false
@@ -9526,6 +9731,10 @@ components:
         - point.adjustment.paid.approve
         - point.adjustment.manage
         - referral.settings.read
+        - member_rank.settings.read
+        - member_rank.settings.manage
+        - member_rank.user.manage
+        - payment.adjustment.manage
         - referral.settings.manage
         - pre_registration.settings.read
         - pre_registration.settings.manage

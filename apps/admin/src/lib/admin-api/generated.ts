@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3898b1ec13f1b9ce7c67d1fa0a3e7370c865f43ad1a260c6cbbcee1611ab1684
+// Contract SHA-256: 093351898730bea10aab0152f69eff012e2a75a5d1e1c85f791cb35fc6176622
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -20,6 +20,10 @@ export const ADMIN_PERMISSION_CODES = [
   "point.adjustment.paid.approve",
   "point.adjustment.manage",
   "referral.settings.read",
+  "member_rank.settings.read",
+  "member_rank.settings.manage",
+  "member_rank.user.manage",
+  "payment.adjustment.manage",
   "referral.settings.manage",
   "pre_registration.settings.read",
   "pre_registration.settings.manage",
@@ -878,6 +882,59 @@ export interface AdminUserPreRegistrationResponse {
     email_verified: boolean; sms_verified: boolean;
     activated_at: string | null; point_amount: number | null; expires_at: string | null;
   };
+}
+
+export interface AdminMemberRankValue {
+  code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+  reach_line: number | null;
+  maintain_line: number | null;
+  promotion_bonus: number;
+  purchase_bonus_rate_bp: number;
+}
+
+export interface AdminMemberRankSettingsVersion {
+  revision: number;
+  action: "initial" | "schedule" | "cancel";
+  effective_at: string;
+  saved_at: string;
+  saved_by: string | null;
+  default_skip_count: number;
+  ranks: AdminMemberRankValue[];
+}
+
+export interface AdminMemberRankSettings {
+  revision: number;
+  enabled: boolean;
+  activated_at: string | null;
+  current: AdminMemberRankSettingsVersion;
+  scheduled: AdminMemberRankSettingsVersion | null;
+  next_effective_at: string;
+}
+
+export interface AdminMemberRankSettingsUpdate {
+  expected_revision: number;
+  enabled: boolean;
+  default_skip_count: number;
+  ranks: AdminMemberRankValue[];
+}
+
+export interface AdminMemberRankSettingsCancel {
+  expected_revision: number;
+}
+
+export interface AdminMemberRankSettingsResponse {
+  data: AdminMemberRankSettings;
+  request_id: string;
+}
+
+export interface AdminMemberRankSettingsMutation extends AdminMemberRankSettingsResponse {
+  idempotent_replay: boolean;
+}
+
+export interface AdminMemberRankSettingsHistory {
+  items: { before: AdminMemberRankSettingsVersion | null; after: AdminMemberRankSettingsVersion }[];
+  next_before_revision: number | null;
+  request_id: string;
 }
 
 export interface AdminReferralPointSetting {

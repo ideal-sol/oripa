@@ -110,6 +110,9 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.line_webhook_events",
     "public.mail_deliveries",
     "public.mail_templates",
+    "public.member_rank_setting_values",
+    "public.member_rank_setting_versions",
+    "public.member_rank_settings",
     "public.migrations",
     "public.notion_inventory_cache",
     "public.notion_sync_pages",
@@ -539,6 +542,7 @@ def rollback_and_reapply_latest(
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
         "2026_10_16_000087_create_v2_pre_registration.php": "Pre-registration history requires a forward-only migration.",
+        "2026_10_16_000088_create_v2_member_rank_settings.php": "Member rank settings history requires a forward-only migration.",
         "2026_10_14_000085_create_v2_notion_inventory_sync.php": "Notion sync history requires a forward correction migration.",
         "2026_10_15_000086_add_v2_rank_video_sets.php": "Rank video sets require a forward correction migration.",
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",

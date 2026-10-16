@@ -21,6 +21,24 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_member_rank_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/admin-member-rank-settings.spec.ts",
+            "apps/admin/src/app/settings/member-ranks/page.tsx",
+            "apps/admin/src/components/settings/member-rank-settings.module.css",
+            "apps/admin/src/components/settings/member-rank-settings.tsx",
+            "apps/admin/test/member-rank-fixture.ts",
+            "apps/admin/test/member-rank-settings.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.MEMBER_RANK_M1_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/member-rank-unreviewed.tsx"})
+
     def test_pre_registration_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
         expected = {
             "apps/admin/e2e/admin-pre-registration.spec.ts",

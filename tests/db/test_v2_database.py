@@ -20,6 +20,26 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_member_rank_inventory_and_forward_only_rejection_preserve_schema_and_ledger(self):
+        filename = "2026_10_16_000088_create_v2_member_rank_settings.php"
+        message = "Member rank settings history requires a forward-only migration."
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        tables = sorted("public." + name for name in re.findall(r"CREATE TABLE (member_rank_[a-z_]+)", source))
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(tables, [name for name in inventory if name.startswith("public.member_rank_")])
+        self.assertEqual(len(tables), 3)
+        self.assertEqual(sorted(set(inventory)), inventory)
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"88") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as command:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            self.assertIn(message, command.call_args.args[0][-1])
+        with self.assertRaises(v2_database.GuardFailure):
+            v2_database.validate_schema_inventory([name for name in inventory if name not in tables])
+
     def test_pre_registration_inventory_and_forward_only_guards(self):
         filename = "2026_10_16_000087_create_v2_pre_registration.php"
         source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()

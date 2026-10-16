@@ -1,0 +1,11 @@
+.panel { display: grid; gap: 20px; min-width: 0; }
+.section { padding: 20px; border: 1px solid var(--border, #ddd); border-radius: 12px; background: white; min-width: 0; }
+.scroll { overflow-x: auto; max-width: 100%; }
+.table { border-collapse: collapse; width: 100%; min-width: 760px; }
+.table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+.table input { width: 130px; padding: 8px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.history { overflow-wrap: anywhere; }
+.history summary { cursor: pointer; padding: 12px 0; }
+.diff { padding-left: 24px; }
+.diff li { margin: 8px 0; }
