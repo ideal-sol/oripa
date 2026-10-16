@@ -61,7 +61,7 @@ return new class extends Migration
         DB::statement("ALTER TABLE pre_registration_targets ADD CONSTRAINT pre_registration_target_status CHECK (status IN ('pending', 'activated', 'failed', 'excluded') AND attempts >= 0)");
         DB::statement("ALTER TABLE pre_registration_grants ADD CONSTRAINT pre_registration_grant_values CHECK (point_amount BETWEEN 1 AND 1000000 AND setting_revision > 0 AND phone_hmac ~ '^[0-9a-f]{64}$' AND expires_at = activated_at + INTERVAL '180 days')");
         DB::unprepared(<<<'SQL'
-            CREATE FUNCTION v2_pre_registration_user_guard() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_pre_registration_user_guard() RETURNS trigger AS $$
             BEGIN
                 IF TG_OP = 'INSERT' THEN
                     IF NEW.pre_registered_at IS NOT NULL AND NEW.pre_registered_at IS DISTINCT FROM NEW.created_at THEN
@@ -80,14 +80,14 @@ return new class extends Migration
             $$ LANGUAGE plpgsql;
             CREATE TRIGGER v2_pre_registration_user_guard BEFORE INSERT OR UPDATE ON users
                 FOR EACH ROW EXECUTE FUNCTION v2_pre_registration_user_guard();
-            CREATE FUNCTION v2_pre_registration_grant_guard() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_pre_registration_grant_guard() RETURNS trigger AS $$
             BEGIN
                 RAISE EXCEPTION 'pre_registration grants are immutable';
             END;
             $$ LANGUAGE plpgsql;
             CREATE TRIGGER v2_pre_registration_grant_guard BEFORE UPDATE OR DELETE ON pre_registration_grants
                 FOR EACH ROW EXECUTE FUNCTION v2_pre_registration_grant_guard();
-            CREATE FUNCTION v2_pre_registration_snapshot_guard() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_pre_registration_snapshot_guard() RETURNS trigger AS $$
             BEGIN
                 IF OLD.started_at IS NOT NULL AND (
                     NEW.snapshot_amount IS DISTINCT FROM OLD.snapshot_amount OR
@@ -109,6 +109,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        throw new RuntimeException('Pre-registration history requires a forward-only migration.');
+        throw new LogicException('Pre-registration history requires a forward-only migration.');
     }
 };

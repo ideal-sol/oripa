@@ -31,7 +31,19 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertIn("pre_registration timestamp is immutable", source)
         self.assertIn("pre_registration grants are immutable", source)
         self.assertIn("pre_registration campaign snapshot is immutable", source)
-        self.assertIn("throw new RuntimeException('Pre-registration history requires a forward-only migration.');", source)
+        message = "Pre-registration history requires a forward-only migration."
+        self.assertIn("throw new LogicException('" + message + "');", source)
+        for guard in ["user", "grant", "snapshot"]:
+            self.assertIn("CREATE OR REPLACE FUNCTION v2_pre_registration_" + guard + "_guard()", source)
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"87") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as run:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            self.assertIn(filename, run.call_args.args[0][-1])
+            self.assertIn(message, run.call_args.args[0][-1])
         for invalid in [[name for name in inventory if name not in tables], sorted([*inventory, "public.unregistered_grant"])]:
             with self.assertRaises(v2_database.GuardFailure):
                 v2_database.validate_schema_inventory(invalid)
