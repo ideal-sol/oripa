@@ -150,9 +150,12 @@ final class V2DrawEligibilityService
                 ->where('request.completed_at', '<', $bounds['end']->toIso8601String());
         }
         $used = $usage->exists();
+        $qualifiedAt = $gacha->gacha_type === 'signup_once'
+            ? app(\App\Domain\Identity\Services\V2RegistrationQualification::class)->origin($user, 'first_registration_qualified_at')
+            : null;
         $qualified = $gacha->gacha_type === 'login_daily'
-            || ($gacha->gacha_type === 'signup_once' && $user->first_registration_qualified_at !== null
-                && CarbonImmutable::parse($user->first_registration_qualified_at)->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
+            || ($gacha->gacha_type === 'signup_once' && $qualifiedAt !== null
+                && $qualifiedAt->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
 
         return [
             'eligible' => $qualified && ! $used,

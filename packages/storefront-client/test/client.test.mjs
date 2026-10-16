@@ -76,6 +76,24 @@ const browserConfig = (fetch) => ({
   fetch,
 });
 
+test("pre-registration uses dedicated server authority and authenticated thin transport", async () => {
+  const calls = [];
+  const identity = createStorefrontIdentityClient({ request: async (input) => {
+    calls.push(input);
+    return { data: {}, metadata: {} };
+  } });
+  const input = { full_name: "Synthetic Member", birth_date: "1990-01-01", email: "prereg@example.test", password: "synthetic password" };
+  await identity.preRegister(input);
+  await identity.getPreRegistrationCampaign();
+  await identity.getPreRegistrationBonus();
+  assert.equal(calls[0].path, "/auth/pre-register");
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].csrf, "required");
+  assert.deepEqual(calls[0].body, input);
+  assert.equal(calls[1].path, "/campaigns/pre-registration");
+  assert.equal(calls[2].path, "/me/pre-registration-bonus");
+});
+
 test("SMS requirement is a recognizable non-retryable error on every member facade", async () => {
   let calls = 0;
   const client = createBrowserStorefrontClient(browserConfig(async () => {

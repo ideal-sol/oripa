@@ -20,6 +20,22 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_pre_registration_inventory_and_forward_only_guards(self):
+        filename = "2026_10_16_000087_create_v2_pre_registration.php"
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        tables = sorted("public." + name for name in re.findall(r"Schema::create\('([^']+)'", source))
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        self.assertEqual(tables, [name for name in inventory if name.startswith("public.pre_registration_")])
+        self.assertEqual(len(tables), 4)
+        self.assertEqual(sorted(set(inventory)), inventory)
+        self.assertIn("pre_registration timestamp is immutable", source)
+        self.assertIn("pre_registration grants are immutable", source)
+        self.assertIn("pre_registration campaign snapshot is immutable", source)
+        self.assertIn("throw new RuntimeException('Pre-registration history requires a forward-only migration.');", source)
+        for invalid in [[name for name in inventory if name not in tables], sorted([*inventory, "public.unregistered_grant"])]:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(invalid)
+
     def test_rank_video_table_inventory_is_exact_and_fail_closed(self):
         source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / "2026_10_15_000086_add_v2_rank_video_sets.php").read_text()
         tables = ["public." + name for name in re.findall(r"Schema::create\('([^']+)'", source)]

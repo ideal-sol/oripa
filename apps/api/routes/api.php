@@ -37,6 +37,9 @@ use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/campaigns/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'campaign']);
+    Route::get('/me/pre-registration-bonus', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'status'])
+        ->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user']);
     Route::get('/advertising-code-validation', \App\Http\Controllers\V2\V2AdvertisingCodeController::class)
         ->name('v2.public.advertising-code-validation');
     Route::post('/payment-returns/fincode/normal', [V2FincodeReturnController::class, 'normal'])
@@ -240,6 +243,8 @@ Route::prefix('v2/auth')
     ->group(function (): void {
         Route::post('/register', [V2PublicAuthController::class, 'register'])
             ->name('v2.public.auth.register');
+        Route::post('/pre-register', [V2PublicAuthController::class, 'preRegister'])
+            ->name('v2.public.auth.pre-register');
         Route::post('/login', [V2PublicAuthController::class, 'login'])
             ->name('v2.public.auth.login');
         Route::post('/external/google/start', [

@@ -9,6 +9,23 @@ export {
   PUBLIC_CONTRACT_FIXTURE,
 } from "./generated/public-contract.js";
 
+const preRegistrationPending = {
+  status: "sms_pending", reason: null, pre_registered_at: "2026-10-20T00:00:00Z",
+  email_verified: true, sms_verified: false, registration_completed: false,
+  activated_at: null, point_amount: null, granted_at: null, expires_at: null,
+} as const satisfies PublicComponents["schemas"]["PreRegistrationBonus"];
+
+export const PUBLIC_PRE_REGISTRATION_FIXTURES = Object.freeze({
+  not_applicant: { ...preRegistrationPending, status: "not_applicant", reason: "not_pre_registration_entry", pre_registered_at: null },
+  email_pending: { ...preRegistrationPending, status: "email_pending", email_verified: false },
+  sms_pending: preRegistrationPending,
+  pre_registered: { ...preRegistrationPending, status: "pre_registered", sms_verified: true, registration_completed: true },
+  awaiting_activation: { ...preRegistrationPending, status: "awaiting_activation", sms_verified: true, registration_completed: true },
+  activated: { ...preRegistrationPending, status: "activated", sms_verified: true, registration_completed: true,
+    activated_at: "2026-10-21T00:15:00Z", point_amount: 500, granted_at: "2026-10-21T00:15:00Z", expires_at: "2027-04-19T00:15:00Z" },
+  sms_after_cutoff: { ...preRegistrationPending, status: "not_eligible", reason: "sms_after_cutoff", sms_verified: true },
+} as const satisfies Record<string, PublicComponents["schemas"]["PreRegistrationBonus"]>);
+
 export const PUBLIC_PAYMENT_GRANT_FIXTURES = Object.freeze({
   without_limited_bonus: {
     paid_points: 10000,

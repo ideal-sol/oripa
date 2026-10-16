@@ -19,6 +19,7 @@ final class User extends Authenticatable
         'full_name',
         'birth_date',
         'first_sms_verified_at',
+        'pre_registered_at',
         'email_display',
         'email_normalized',
         'email_verified_at',
@@ -47,6 +48,7 @@ final class User extends Authenticatable
         return [
             'birth_date' => 'immutable_date',
             'first_sms_verified_at' => 'immutable_datetime',
+            'pre_registered_at' => 'immutable_datetime',
             'email_verified_at' => 'immutable_datetime',
             'first_registration_qualified_at' => 'immutable_datetime',
             'password_login_enabled' => 'boolean',

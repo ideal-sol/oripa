@@ -38,7 +38,8 @@ final class V2UserAuthenticationService
         string $ip,
         mixed $advertisingCode = null,
         ?string $fullName = null,
-        ?string $birthDate = null
+        ?string $birthDate = null,
+        bool $preRegistration = false
     ): User {
         $fullName = preg_replace('/\A[\s\p{Z}]+|[\s\p{Z}]+\z/u', '', $fullName ?? '') ?? '';
         $validator = \Illuminate\Support\Facades\Validator::make(
@@ -74,9 +75,11 @@ final class V2UserAuthenticationService
             $redirectPath,
             $advertisingCode,
             $fullName,
-            $birthDate
+            $birthDate,
+            $preRegistration
         ): User {
-            $user = User::query()->create([
+            $registeredAt = $preRegistration ? app(V2PreRegistrationService::class)->assertAccepting() : null;
+            $user = new User([
                 'email_display' => trim($email),
                 'full_name' => $fullName,
                 'birth_date' => $birthDate,
@@ -84,6 +87,10 @@ final class V2UserAuthenticationService
                 'password_hash' => $passwordHash,
                 'state' => V2UserState::PendingVerification,
             ]);
+            if ($registeredAt !== null) {
+                $user->forceFill(['created_at' => $registeredAt, 'pre_registered_at' => $registeredAt]);
+            }
+            $user->save();
             $this->attributions->attributeNewUserFromAdvertisingCode($user, $advertisingCode);
             $rawToken = $this->tokens->generate();
             $verificationCreatedAt = now()->startOfSecond();
@@ -127,6 +134,10 @@ final class V2UserAuthenticationService
             ->first();
         if ($user === null) {
             return;
+        }
+
+        if ($user->pre_registered_at !== null) {
+            $redirectPath = '/pre-register/sms';
         }
 
         $this->rateLimiter->assertSubject('verification_resend_hour', $publicId);
@@ -236,12 +247,14 @@ final class V2UserAuthenticationService
                     'realm' => 'user',
                     'subject_id' => $user->public_id,
                 ]);
-                $this->templateMail->schedule(
-                    'registration_completed',
-                    'registration.completed:'.$user->public_id,
-                    'user',
-                    $user->public_id
-                );
+                if ($user->pre_registered_at === null || ! app(V2PreRegistrationService::class)->suppressWelcome($user)) {
+                    $this->templateMail->schedule(
+                        'registration_completed',
+                        'registration.completed:'.$user->public_id,
+                        'user',
+                        $user->public_id
+                    );
+                }
 
                 return [
                     'user' => $user,
