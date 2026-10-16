@@ -140,8 +140,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = copy.deepcopy(artifact.validate_governance(self.governance()))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.44')
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.44')
+        self.assertEqual(value['immutable_history'][-1], value['latest_immutable'])
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertIsNone(value['candidate'])
         released = value['immutable_history'][-1]
         self.assertEqual(released, value['latest_immutable'])
@@ -232,13 +235,38 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_released_alpha_43_has_exact_publication_evidence_and_no_republish_candidate(self):
         value = artifact.validate_governance(self.governance())
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.44')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['release_mode'], 'contract-breaking')
-        self.assertTrue(value['candidate']['breaking_change'])
+        self.assertIsNone(value['candidate'])
         released = value['latest_immutable']
+        self.assertEqual(released, value['immutable_history'][-1])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.44')
+        self.assertEqual(released['source_commit'], '8f4c79d2964186f704f14f4ddc2af228bf1047c9')
+        self.assertEqual(released['manifest_sha256'], '1b12edfd6ddf54fca221a45cd3be4181861f5b49b3b8eba2f5c5aba45b42c692')
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-breaking')
+        self.assertTrue(released['breaking_change'])
+        self.assertEqual(released['contract_versions'], dict.fromkeys(['public', 'admin', 'webhook'], '2.0.0-alpha.40'))
+        self.assertEqual(released['public_openapi']['operation_count'], 78)
+        self.assertEqual(released['publication'], {
+            'workflow_run_id': 38247721027,
+            'workflow_run_attempt': 1,
+            'artifact_id': 11745799489,
+            'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.44',
+            'github_digest': 'sha256:63388a1fcf0b6d7105834d074d947123fe865036de55541193c7bb8dd08715ac',
+            'sha256sums_sha256': '587c17804f4c3a45acfcbf58cf280a68a390760a716d5ab0704449b44de8ad77',
+        })
+        self.assertEqual(released['public_openapi']['sha256'], '0041ff6a99f4bfb9c162a434d14c8924aa6763e8c81e7a3933e079e189366d1c')
+        self.assertEqual(released['packages']['@oripa/storefront-client']['version'], '2.0.0-alpha.44')
+        self.assertEqual(released['packages']['@oripa/storefront-client']['sha256'], '49d8026b1bc21f641b3c36f53f88cb0b620d7e45dd80ad9e7d95e5124001ce80')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['version'], '2.0.0-alpha.44')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['sha256'], '0b7865beacc4a37202549b0b30d2068f4db1ea84c28bd9628e8be5094d15d99e')
+        target = artifact.verification_target(value)
+        self.assertEqual(target['source_commit'], released['source_commit'])
+        self.assertTrue(target['breaking_change'])
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+            artifact.pending_candidate(ROOT)
+        released = value['immutable_history'][-2]
         self.assertEqual(released['bundle_version'], '2.0.0-alpha.43')
-        self.assertEqual(value['immutable_history'][-2]['bundle_version'], '2.0.0-alpha.42')
+        self.assertEqual(value['immutable_history'][-3]['bundle_version'], '2.0.0-alpha.42')
         self.assertEqual(released['publication'], {
             'workflow_run_id': 37319224331,
             'workflow_run_attempt': 1,
@@ -250,11 +278,11 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(released['public_openapi']['sha256'], '37cdeb7a214d42f0f69458d578a81c5c7869132e2a6cbd02ca8d150f1abf6faa')
         self.assertEqual(released['packages']['@oripa/storefront-client']['sha256'], '9f14026a53d24413d860975d5c012988a5381771600b81e8309e5119a10792b0')
         self.assertEqual(released['packages']['@oripa/storefront-testkit']['sha256'], 'd5bb5b0d785437e0f400b369ff97663a6c69d4a329c1b82710017087a92af9fb')
-        value['candidate'] = None
+        value['immutable_history'].pop()
+        value['latest_immutable'] = released
         target = artifact.verification_target(value)
         self.assertEqual(target['source_commit'], '0ce41ab473fd5a4fb44773041ae097ffb40b14ce')
         self.assertFalse(target['breaking_change'])
-        self.assertEqual(artifact.pending_candidate(ROOT)['bundle_version'], '2.0.0-alpha.44')
 
     def test_released_alpha_37_has_no_republish_candidate(self):
         value = self.governance()
