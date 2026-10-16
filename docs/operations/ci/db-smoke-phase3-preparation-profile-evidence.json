@@ -2320,5 +2320,6 @@
   },
   "status": "DBSMOKE_PHASE3_PREPARATION_PROFILE_HUMAN_REVIEW_PENDING",
   "synchronous_commit": "on",
-  "task_id": "DBSMOKE-P3-20261016"
+  "task_id": "DBSMOKE-P3-20261016",
+  "ci_task_id": "DBPROFILE-20261016"
 }

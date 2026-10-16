@@ -4,8 +4,10 @@ Status: `DBSMOKE_PHASE3_PREPARATION_PROFILE_HUMAN_REVIEW_PENDING`
 
 ## Authority and scope
 
-- Change ID: `DBSMOKE-P3-20261016` (delivery identifier for Human task
-  `DBSMOKE-PHASE3-PREPARATION-PROFILE`). Issue: none; this Draft PR is the
+- Change ID: `DBSMOKE-P3-20261016` (existing branch/App transport identifier;
+  canonical CI Task ID `DBPROFILE-20261016` identifies the same single Change,
+  branch and PR #576) for Human task
+  `DBSMOKE-PHASE3-PREPARATION-PROFILE`. Issue: none; this Draft PR is the
   pending-decision record. Risk R4; Lane **Strict Change**; Application Runtime
   Activation **none**.
 - Start-time protected main: `b5c28015ef94cb80f6702a61b1237cacd91d9863`;
@@ -322,11 +324,20 @@ source are retained. No operational migration was applied; control performed
 
 Metrics: two complete bounded measurement invocations plus one aborted probe
 attempt; application/image Build count **0**, Runtime Activation count **0**,
-GitHub Check rerun count **0**, Human wait **0**. Complete measurement process
+GitHub Check rerun count **1**, Human wait **0**. Complete measurement process
 wall totals **1,700.997863s**, excluding preparation/recovery/analysis/CI. Total
 task elapsed was not independently clocked and is **NOT_MEASURED**. CI wait and
 final head/check identities are recorded on the PR after delivery; do not
 substitute test wall time for total task elapsed.
+
+Initial PR CI run38890912118 failed policy-gate because its PR body omitted
+required headings. A local complete-body validation also identified that the
+original transport ID does not satisfy CI's narrower Task ID format. The same
+PR/branch is retained: canonical CI ID `DBPROFILE-20261016` maps explicitly to
+the existing App transport identifier, and required headings/changed paths are
+declared. PR title/body and these records are corrected; no policy regex,
+workflow, wrapper, required check or scope control is weakened. The failure
+remains historical evidence; a new documentation head receives fresh checks.
 
 Full V2 / complete DB smoke / Browser / E2E / frontend build / template restore /
 parallel execution / deployment: **NOT RUN** in this task. PR #572's full-suite
