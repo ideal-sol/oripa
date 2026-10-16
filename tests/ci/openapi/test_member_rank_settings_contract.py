@@ -1,16 +1,14 @@
+import json
 import unittest
 from pathlib import Path
-
-import yaml
-
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class MemberRankSettingsContractTest(unittest.TestCase):
     def test_admin_boundary_and_mutation_guards(self):
-        admin = yaml.safe_load((ROOT / "openapi/admin/openapi.yaml").read_text())
-        public = yaml.safe_load((ROOT / "openapi/public/openapi.yaml").read_text())
+        admin = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        public = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
         for path, method in [
             ("/settings/member-ranks", "get"),
             ("/settings/member-ranks", "put"),
