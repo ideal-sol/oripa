@@ -221,7 +221,7 @@ final class PreRegistrationTest extends TestCase
         $this->update(['cutoff_at' => null])->assertUnprocessable();
         $this->update(['extra' => true])->assertUnprocessable();
         $stale = $this->adminSession(V2AdminRole::Owner, false);
-        $this->activate($stale)->assertForbidden()->assertJsonPath('code', 'FRESH_AUTHENTICATION_REQUIRED');
+        $this->activate($stale)->assertConflict()->assertJsonPath('code', 'PRE_REGISTRATION_REVISION_CONFLICT');
         $this->adminRequest($token)->withHeader('X-XSRF-TOKEN', 'incorrect')->putJson('/admin/api/v2/settings/pre-registration', $this->payload())->assertForbidden();
     }
 

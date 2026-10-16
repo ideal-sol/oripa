@@ -8,7 +8,6 @@ import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminPreRegistrationResponse, AdminPreRegistrationUpdate } from "@/lib/admin-api/generated";
-import { getWebauthnAssertion } from "@/lib/admin-api/webauthn";
 import { navigationItem } from "@/lib/permissions/admin-navigation";
 
 type Setting = AdminPreRegistrationResponse["data"];
@@ -28,7 +27,6 @@ export function PreRegistrationSettings() {
   const [error, setError] = useState<AdminApiError | null>(null);
   const [confirmation, setConfirmation] = useState<"save" | "activate" | null>(null);
   const [affected, setAffected] = useState(0);
-  const [code, setCode] = useState("");
   const [notice, setNotice] = useState("");
   const pending = useRef<{ action: string; key: string; fingerprint: string } | null>(null);
 
@@ -83,21 +81,6 @@ export function PreRegistrationSettings() {
     finally { setBusy(false); }
   }
 
-  async function reauthenticate(method: "totp" | "webauthn") {
-    setBusy(true);
-    try {
-      if (method === "totp") await client.reauthenticate({ method, code });
-      else {
-        const options = await client.createReauthenticationWebauthnOptions();
-        const credential = await getWebauthnAssertion(options.options);
-        await client.reauthenticate({ method, credential, challenge_token: options.challenge_token });
-      }
-      setError(null);
-      setNotice("再認証しました。内容を確認して切替を確定してください。");
-    } catch (caught) { setError(apiError(caught)); }
-    finally { setCode(""); setBusy(false); }
-  }
-
   const amountLocked = setting?.started_at !== null && setting?.completed_at === null;
   const invalid = draft !== null && (!Number.isInteger(draft.point_amount) || draft.point_amount < 1 || draft.point_amount > 1_000_000 || (draft.is_enabled && !draft.cutoff_at));
   return <AdminShell><ProtectedAdminRoute permission="pre_registration.settings.read"><div className="workspace">
@@ -128,7 +111,6 @@ export function PreRegistrationSettings() {
         <button className="primary-button" type="button" disabled={busy} onClick={() => void execute()}>確定する</button>
         <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmation(null)}>キャンセル</button>
       </section> : null}
-      {error?.requiresFreshMfa ? <section className="settings-panel"><h2>MFA再認証</h2><label>認証コード<input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" /></label><button type="button" disabled={busy || !/^\d{6}$/.test(code)} onClick={() => void reauthenticate("totp")}>認証コードで再認証</button><button type="button" disabled={busy} onClick={() => void reauthenticate("webauthn")}>パスキーで再認証</button></section> : null}
     </> : null}
   </div></ProtectedAdminRoute></AdminShell>;
 }

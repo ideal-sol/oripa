@@ -21,6 +21,23 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_pre_registration_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/admin-pre-registration.spec.ts",
+            "apps/admin/src/app/settings/pre-registration/page.tsx",
+            "apps/admin/src/components/settings/pre-registration-settings.tsx",
+            "apps/admin/src/components/users/admin-user-pre-registration.tsx",
+            "apps/admin/test/pre-registration-settings.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.PREREG_V14_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/unreviewed-pre-registration.tsx"})
+
     def test_inventory_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
         expected = {
             "apps/admin/e2e/card-inventory.spec.ts",
@@ -1517,6 +1534,17 @@ class PolicyGateTest(unittest.TestCase):
     def test_existing_task_id_pattern_remains_accepted(self):
         self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("GOV-008"))
         self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("MIG-063B"))
+
+    def test_pre_registration_delivery_alias_is_exact_and_still_bound_to_title(self):
+        data = fixture("positive.json")
+        task_id = "PREREG-V14-20261016"
+        body = data["pr_body"].replace("GOV-008", task_id)
+        policy_gate.validate_pr_body(body, "[" + task_id + "] Platform", data["changed_paths"], data["base_sha"])
+        for invalid in ["PREREG-V14-20261017", "PREREG-V14", "PREREG-V15-20261016"]:
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(body.replace(task_id, invalid), invalid, data["changed_paths"], data["base_sha"])
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_pr_body(body, "unrelated title", data["changed_paths"], data["base_sha"])
 
     def test_malformed_store_site_task_ids_are_rejected(self):
         for task_id in (
@@ -3980,8 +4008,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 78",
-                    "operation_count: 77",
+                    "operation_count: 81",
+                    "operation_count: 80",
                 ),
                 encoding="utf-8",
             )

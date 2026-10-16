@@ -213,7 +213,7 @@ paths:
     post:
       operationId: activateAdminPreRegistration
       summary: OPEN後に最大100会員を本登録へ切り替える
-      description: Owner/Admin、Fresh MFA、Idempotency-Key、expected_revision必須。初回実行時に対象・金額・締切を固定。会員ごとに独立commit。未処理を優先し、一時失敗のみ新しい操作で再実行。成功者の日時・付与は不変。同じKeyは元の結果を返す。中断時は同じKeyで再開可。409 PRE_REGISTRATION_NOT_OPEN / PRE_REGISTRATION_REVISION_CONFLICT / IDEMPOTENCY_REQUEST_IN_PROGRESS / IDEMPOTENCY_KEY_REUSED。
+      description: 有効なAdmin SessionとOwner/Admin権限、Idempotency-Key、expected_revision必須。現行Admin方針どおり操作ごとの追加Fresh認証は不要。初回実行時に対象・金額・締切を固定。会員ごとに独立commit。未処理を優先し、一時失敗のみ新しい操作で再実行。成功者の日時・付与は不変。同じKeyは元の結果を返す。中断時は同じKeyで再開可。409 PRE_REGISTRATION_NOT_OPEN / PRE_REGISTRATION_REVISION_CONFLICT / IDEMPOTENCY_REQUEST_IN_PROGRESS / IDEMPOTENCY_KEY_REUSED。
       x-idempotency: required
       x-rate-limit: none
       x-cache-policy: no-store

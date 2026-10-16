@@ -68,16 +68,14 @@ describe("pre-registration settings", () => {
     expect(screen.getByLabelText("付与する無償ポイント")).toBeDisabled();
   });
 
-  it("offers MFA recovery without automatically executing the grant", async () => {
+  it("does not automatically retry an expired session or introduce action-level Fresh prompts", async () => {
     vi.spyOn(AdminApiClient.prototype, "getPreRegistration").mockResolvedValue({ data: setting });
-    const activate = vi.spyOn(AdminApiClient.prototype, "activatePreRegistration").mockRejectedValue(new AdminApiError(403, "FRESH_AUTHENTICATION_REQUIRED", null, null, false));
-    const reauthenticate = vi.spyOn(AdminApiClient.prototype, "reauthenticate").mockResolvedValue({ authenticated: true, fresh_mfa_expires_in: 300, admin: { id: "00000000-0000-4000-8000-000000000001", role: "admin", state: "active" } });
+    const activate = vi.spyOn(AdminApiClient.prototype, "activatePreRegistration").mockRejectedValue(new AdminApiError(401, "AUTHENTICATION_REQUIRED", null, null, false));
     render(<PreRegistrationSettings />);
     fireEvent.click(await screen.findByRole("button", { name: /一括切替を確認/ }));
     fireEvent.click(screen.getByRole("button", { name: "確定する" }));
-    fireEvent.change(await screen.findByLabelText("認証コード"), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "認証コードで再認証" }));
-    await waitFor(() => expect(reauthenticate).toHaveBeenCalledOnce());
+    await screen.findByRole("alert");
+    expect(screen.queryByLabelText("認証コード")).toBeNull();
     expect(activate).toHaveBeenCalledOnce();
   });
 });

@@ -187,9 +187,6 @@ final class V2PreRegistrationService
     public function activate(V2AdminAuthorizationContext $context, string $key, array $input): array
     {
         $admin = $this->authorization->authorizePermission($context, V2Permission::ManagePreRegistrationSettings);
-        if (! $this->authorization->isFresh($this->authorization->validSessionForReauthentication($context))) {
-            throw new V2AuthenticationException('FRESH_AUTHENTICATION_REQUIRED', 403);
-        }
         $this->validateKey($key);
         if (array_keys($input) !== ['expected_revision'] || ! is_int($input['expected_revision']) || $input['expected_revision'] < 1) {
             throw new V2AuthenticationException('PRE_REGISTRATION_INVALID', 422);

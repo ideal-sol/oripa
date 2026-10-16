@@ -39,7 +39,7 @@ or membership-rank implementation is included.
 | `V2DrawEligibilityService` | Signup-once publish-start comparison uses activated origin. Existing first-time-user `created_at` window, daily limits, prior usage and draw accounting remain unchanged. |
 | `V2AdminUserReadService` | Existing registration-date list filter, detail and referral-history `registered_at` intentionally show the new registration time after successful activation. Original application time is separately available in the added detail endpoint. Payment/draw/referral-event timestamps are not rewritten. |
 | Reporting/history | No historical payment, draw, point or referral event is rewritten. Any existing live-user registration-date classification follows the Human-authorized `created_at` change. |
-| Permissions/navigation | Read for owner/admin/operator; manage and execute for owner/admin; existing realm/MFA/CSRF/Origin boundaries preserved. Activation additionally requires fresh MFA. |
+| Permissions/navigation | Read for owner/admin/operator; manage and execute for owner/admin; existing realm/MFA/CSRF/Origin boundaries preserved. ADMINFRESH-20260918 Phase 2 removed action-level Fresh challenges; the legacy freshness predicate is not a business gate. |
 
 ## Contracts and Storefront handoff
 
@@ -60,7 +60,7 @@ or membership-rank implementation is included.
 - Admin: GET/PUT `/admin/api/v2/settings/pre-registration`, POST suffixes
   `/preview` and `/activate`; GET `/admin/api/v2/users/{userId}/pre-registration`.
   OpenAPI is the request/error authority. Settings require exact revision and
-  idempotency key; activation requires fresh MFA and exact revision.
+  idempotency key; activation requires the current valid Admin session, role and exact revision.
 
 This PR does not implement Storefront pages, Basic exceptions, S3 assets, LINE
 links, membership ranks, OPEN operations or an API-wide pre-OPEN block.
@@ -86,7 +86,7 @@ excluded with safe reasons. Successful users are never reprocessed.
 Activation batch membership is durable. Reusing a key resumes an interrupted
 unfinished batch, or replays its completed response. A new key processes the
 next pending/failed batch. The UI retains the key after uncertain transport
-failure and requires confirmation again; reauthentication never auto-executes.
+failure and requires confirmation again; session expiry never auto-executes.
 After a reload, refresh state before continuing. Unique user/phone/operation
 constraints and permanent business keys remain the final duplicate barriers.
 Phone values are encrypted in existing identity storage only; dedicated grant

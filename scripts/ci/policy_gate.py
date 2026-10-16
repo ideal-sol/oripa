@@ -288,6 +288,7 @@ ACCT_001_V2_IDENTITY_FILES = {
 V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_14_000085_create_v2_notion_inventory_sync.php",
     "apps/api/database/migrations-v2/2026_10_15_000086_add_v2_rank_video_sets.php",
+    "apps/api/database/migrations-v2/2026_10_16_000087_create_v2_pre_registration.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -938,6 +939,13 @@ MIG_084_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/payments/admin-payment-history.tsx",
     "apps/admin/test/admin-payment-history.test.tsx",
 }
+PREREG_V14_ADMIN_FILES = {
+    "apps/admin/e2e/admin-pre-registration.spec.ts",
+    "apps/admin/src/app/settings/pre-registration/page.tsx",
+    "apps/admin/src/components/settings/pre-registration-settings.tsx",
+    "apps/admin/src/components/users/admin-user-pre-registration.tsx",
+    "apps/admin/test/pre-registration-settings.test.tsx",
+}
 MIG_099_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-master-workspace.tsx",
 }
@@ -1125,6 +1133,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_062Q_ADMIN_SKELETON_FILES,
     *MIG_078_ADMIN_SKELETON_FILES,
     *MIG_084_ADMIN_SKELETON_FILES,
+    *PREREG_V14_ADMIN_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
     "apps/admin/test/rich-text-editor-compatibility.test.tsx",
@@ -1364,7 +1373,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -2712,7 +2721,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getMyPreRegistrationBonus","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getPreRegistrationCampaign","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","preRegisterUser","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3124,6 +3133,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_13_000084_create_v2_banner_asset_operations.php",
         "2026_10_14_000085_create_v2_notion_inventory_sync.php",
         "2026_10_15_000086_add_v2_rank_video_sets.php",
+        "2026_10_16_000087_create_v2_pre_registration.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
