@@ -208,6 +208,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
             if (
                 name not in {
                     "UserRegistrationRequest",
+                    "PreRegistrationRequest",
                     "PasswordLoginRequest",
                     "PasswordResetConfirmRequest",
                     "UserPasswordReauthenticationRequest",

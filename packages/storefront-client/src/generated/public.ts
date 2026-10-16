@@ -4,6 +4,63 @@
  */
 
 export interface paths {
+    "/auth/pre-register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 締切前の専用事前登録を申し込む
+         * @description 受付有効かつサーバー時刻が締切より前の場合のみ登録。メール認証後は /pre-register/sms へ遷移する。登録・SMS時にはポイントを付与しない。
+         */
+        post: operations["preRegisterUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/pre-registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 事前登録の受付状態を取得する */
+        get: operations["getPreRegistrationCampaign"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/pre-registration-bonus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 本人の事前登録・認証・手動切替の状態を取得する
+         * @description SMS未認証でも閲覧可。付与失敗時はawaiting_activation。管理用例外・電話番号・HMACは返さない。
+         */
+        get: operations["getMyPreRegistrationBonus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/login-gachas": {
         parameters: {
             query?: never;
@@ -2312,6 +2369,52 @@ export interface components {
             /** @default / */
             redirect_path: string;
         };
+        PreRegistrationRequest: {
+            full_name: string;
+            /**
+             * Format: date
+             * @description JST当日で18歳以上。
+             */
+            birth_date: string;
+            /** Format: email */
+            email: string;
+            password: string;
+            advertising_code?: components["schemas"]["AdvertisingCodeCandidate"];
+        };
+        PreRegistrationCampaignResponse: {
+            data: {
+                is_enabled: boolean;
+                /** Format: date-time */
+                cutoff_at: string | null;
+                point_amount: number;
+                /** @constant */
+                point_type: "free";
+                /** @enum {string} */
+                status: "not_started" | "accepting" | "closed";
+            };
+        };
+        PreRegistrationBonus: {
+            /** @enum {string} */
+            status: "not_applicant" | "email_pending" | "sms_pending" | "pre_registered" | "awaiting_activation" | "activated" | "not_eligible";
+            /** @enum {string|null} */
+            reason: null | "not_pre_registration_entry" | "registration_after_cutoff" | "email_after_cutoff" | "sms_after_cutoff" | "phone_already_rewarded" | "account_unavailable" | "phone_unavailable" | "qualification_unavailable";
+            /** Format: date-time */
+            pre_registered_at: string | null;
+            email_verified: boolean;
+            sms_verified: boolean;
+            /** @description 締切前の申込・メール・初回SMSが完了。ポイント付与済みの意味ではない。 */
+            registration_completed: boolean;
+            /** Format: date-time */
+            activated_at: string | null;
+            point_amount: number | null;
+            /** Format: date-time */
+            granted_at: string | null;
+            /** Format: date-time */
+            expires_at: string | null;
+        };
+        PreRegistrationBonusResponse: {
+            data: components["schemas"]["PreRegistrationBonus"];
+        };
         PasswordLoginRequest: {
             /** Format: email */
             email: string;
@@ -2647,6 +2750,84 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    preRegisterUser: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description メール認証待ち。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingRegistration"];
+                };
+            };
+            /** @description PRE_REGISTRATION_CLOSED。受付無効または締切到達。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    getPreRegistrationCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description サーバー判定の受付状態と予定無償ポイント。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreRegistrationCampaignResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getMyPreRegistrationBonus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Laravelが導出した本人の状態。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreRegistrationBonusResponse"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listLoginGachas: {
         parameters: {
             query?: never;

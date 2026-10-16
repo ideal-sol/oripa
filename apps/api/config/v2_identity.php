@@ -55,7 +55,7 @@ return [
 
     'email_verification' => [
         'ttl_minutes' => 60,
-        'redirect_allowlist' => ['/', '/mypage'],
+        'redirect_allowlist' => ['/', '/mypage', '/pre-register/sms'],
     ],
 
     'password_reset' => [

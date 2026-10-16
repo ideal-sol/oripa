@@ -406,6 +406,26 @@ export class AdminApiError extends Error {
 }
 
 export class AdminApiClient {
+  getPreRegistration(signal?: AbortSignal): Promise<import("./generated").AdminPreRegistrationResponse> {
+    return this.request("GET", "/settings/pre-registration", { signal });
+  }
+
+  updatePreRegistration(body: import("./generated").AdminPreRegistrationUpdate, idempotencyKey: string): Promise<import("./generated").AdminPreRegistrationResponse> {
+    return this.request("PUT", "/settings/pre-registration", { body, idempotencyKey });
+  }
+
+  previewPreRegistration(body: import("./generated").AdminPreRegistrationUpdate): Promise<{ affected_applicants: number }> {
+    return this.request("POST", "/settings/pre-registration/preview", { body });
+  }
+
+  activatePreRegistration(expectedRevision: number, idempotencyKey: string): Promise<import("./generated").AdminPreRegistrationResponse> {
+    return this.request("POST", "/settings/pre-registration/activate", { body: { expected_revision: expectedRevision }, idempotencyKey });
+  }
+
+  getUserPreRegistration(userId: string, signal?: AbortSignal): Promise<import("./generated").AdminUserPreRegistrationResponse> {
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/pre-registration`, { signal });
+  }
+
   constructor(
     private readonly fetchImplementation: FetchImplementation = fetch,
     private readonly csrfToken: () => string | null = readAdminCsrfCookie,
@@ -3207,6 +3227,9 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/referral-points"
+      | "/settings/pre-registration"
+      | "/settings/pre-registration/preview"
+      | "/settings/pre-registration/activate"
       | "/settings/gacha-notices"
       | `/shipping-requests${string}`
       | `/user-prizes${string}`
@@ -3235,6 +3258,9 @@ export class AdminApiClient {
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
         path !== "/settings/referral-points" &&
+        path !== "/settings/pre-registration" &&
+        path !== "/settings/pre-registration/preview" &&
+        path !== "/settings/pre-registration/activate" &&
         path !== "/settings/gacha-notices" &&
         !path.startsWith("/shipping-requests") &&
         path !== "/user-prizes" &&

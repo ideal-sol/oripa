@@ -29,6 +29,7 @@ export type AdminRouteId =
   | "rank-settings"
   | "presentation-assets"
   | "referral-settings"
+  | "pre-registration-settings"
   | "gacha-notice-settings"
   | "line-settings"
   | "mail-settings"
@@ -120,6 +121,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("rank-settings", "ランク設定", "/catalog/ranks", "catalog.read", "catalog"),
   route("presentation-assets", "ランク動画", "/catalog/presentation-assets", "catalog.read", "catalog"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", "referral.settings.read", "settings"),
+  route("pre-registration-settings", "事前登録特典設定", "/settings/pre-registration", "pre_registration.settings.read", "settings"),
   route("gacha-notice-settings", "ガチャ注意事項設定", "/settings/gacha-notices", "catalog.read", "settings"),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
   route("mail-settings", "メール設定", "/settings/mail", "content.read", "settings"),
@@ -166,6 +168,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "rank-settings",
     "presentation-assets",
     "referral-settings",
+    "pre-registration-settings",
     "gacha-notice-settings",
     "line-settings",
     "mail-settings",

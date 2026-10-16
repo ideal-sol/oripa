@@ -12,6 +12,11 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminPreRegistration: ["get", "/settings/pre-registration"],
+  updateAdminPreRegistration: ["put", "/settings/pre-registration"],
+  previewAdminPreRegistration: ["post", "/settings/pre-registration/preview"],
+  activateAdminPreRegistration: ["post", "/settings/pre-registration/activate"],
+  getAdminUserPreRegistration: ["get", "/users/{userId}/pre-registration"],
   listAdminNotionSyncRuns: ["get", "/integrations/notion/sync-runs"],
   createAdminNotionSyncRun: ["post", "/integrations/notion/sync-runs"],
   getAdminNotionSyncRun: ["get", "/integrations/notion/sync-runs/{id}"],
@@ -560,6 +565,9 @@ const requiredSchemas = [
   "AdminLineMessagingPreview",
   "AdminLineMessagingMutationResult",
   "AdminReferralPointSetting",
+  "AdminPreRegistrationResponse",
+  "AdminPreRegistrationUpdate",
+  "AdminUserPreRegistrationResponse",
   "AdminGachaNoticeDefault",
   "AdminGachaNoticeDefaults",
   "AdminGachaNoticeDefaultUpdate",
@@ -1524,6 +1532,40 @@ export interface AdminGachaNoticeDefaultsResponse {
 
 export interface AdminGachaNoticeDefaultsMutationResult extends AdminGachaNoticeDefaultsResponse {
   idempotent_replay: boolean;
+}
+
+export interface AdminPreRegistrationUpdate {
+  expected_revision: number;
+  is_enabled: boolean;
+  cutoff_at: string | null;
+  point_amount: number;
+}
+
+export interface AdminPreRegistrationResponse {
+  idempotent_replay?: boolean;
+  data: {
+    is_enabled: boolean;
+    cutoff_at: string | null;
+    point_amount: number;
+    revision: number;
+    snapshot_amount: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+    summary: {
+      applicants: number; email_pending: number; sms_pending: number;
+      eligible: number; pending: number; activated: number;
+      failed: number; excluded: number; granted_points: number;
+    };
+    results: { user_id: string; status: "pending" | "activated" | "failed" | "excluded"; reason: string | null }[];
+  };
+}
+
+export interface AdminUserPreRegistrationResponse {
+  data: {
+    pre_registered_at: string | null; created_at: string;
+    email_verified: boolean; sms_verified: boolean;
+    activated_at: string | null; point_amount: number | null; expires_at: string | null;
+  };
 }
 
 export interface AdminReferralPointSetting {

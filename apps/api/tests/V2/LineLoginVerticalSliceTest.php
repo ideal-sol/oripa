@@ -115,6 +115,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertSame(V2UserState::Active, $result['user']->state);
         self::assertFalse($result['user']->password_login_enabled);
         self::assertNotNull($result['user']->email_verified_at);
+        self::assertNull($result['user']->pre_registered_at);
         self::assertTrue($result['user']->first_registration_qualified_at->equalTo($result['user']->email_verified_at));
         $serialized = json_encode(
             [

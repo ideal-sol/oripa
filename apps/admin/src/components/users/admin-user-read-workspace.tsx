@@ -17,6 +17,7 @@ import { AdminPaymentHistory } from "@/components/payments/admin-payment-history
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
 import { AdminUserQaTestMode } from "@/components/users/admin-user-qa-test-mode";
+import { AdminUserPreRegistration } from "@/components/users/admin-user-pre-registration";
 import { AdminUserStateManagement } from "@/components/users/admin-user-state-management";
 import { AdminUserTagSection } from "@/components/users/admin-user-tag-management";
 import {
@@ -316,6 +317,7 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
         <AdminPaymentHistory userPublicId={user.id} />
       ) : null}
       <AdminUserReferralHistory userPublicId={user.id} />
+      {hasPermission("pre_registration.settings.read") ? <AdminUserPreRegistration key={user.id} userId={user.id} /> : null}
       <AdminUserStateManagement
         onRefresh={() => onRefresh("ユーザー状態を更新し、最新情報を再取得しました。")}
         user={user}

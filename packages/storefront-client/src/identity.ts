@@ -11,6 +11,9 @@ export interface IdentityMutationOptions {
 }
 
 export interface StorefrontIdentityClient {
+  preRegister(input: Schemas["PreRegistrationRequest"], options?: IdentityMutationOptions): Promise<StorefrontResponse<Schemas["PendingRegistration"]>>;
+  getPreRegistrationCampaign(): Promise<StorefrontResponse<Schemas["PreRegistrationCampaignResponse"]>>;
+  getPreRegistrationBonus(): Promise<StorefrontResponse<Schemas["PreRegistrationBonusResponse"]>>;
   validateAdvertisingCode(code: string): Promise<StorefrontResponse<Schemas["AdvertisingCodeValidity"]>>;
   initializeCsrf(): Promise<StorefrontResponse<Schemas["UserSession"]>>;
   register(
@@ -145,6 +148,9 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    preRegister: (input, options = {}) => mutation<Schemas["PendingRegistration"]>("/auth/pre-register", input, options),
+    getPreRegistrationCampaign: () => transport.request({ path: "/campaigns/pre-registration", retry: false }),
+    getPreRegistrationBonus: () => transport.request({ path: "/me/pre-registration-bonus", retry: false }),
     validateAdvertisingCode: (code) =>
       transport.request({
         path: `/advertising-code-validation?${new URLSearchParams({ advertising_code: code }).toString()}`,
