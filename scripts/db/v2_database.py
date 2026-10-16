@@ -916,7 +916,9 @@ def run_identity_diagnostics(base: list[str], repository: Path, metrics: SmokeMe
         ) for path in paths]
         try:
             report = summarize_phpunit_timing(*reports, source_test_names(repository), metrics.tests[-1]["counts"])
-        except (TimingFailure, UnicodeError, IndexError):
+        except TimingFailure as error:
+            raise GuardFailure(f"Full V2 timing aggregation failed (code {error.code})") from None
+        except (UnicodeError, IndexError):
             raise GuardFailure("Full V2 timing aggregation failed") from None
         write_json(evidence_dir / "full-v2-timing.json", {**metrics.metadata, **report})
     finally:

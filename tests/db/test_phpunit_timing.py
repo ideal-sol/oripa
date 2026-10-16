@@ -31,7 +31,7 @@ def events():
         + event(1.5, "Prepared", first)
         + event(3.5, "Finished", first)
         + event(4.0, "Preparation Started", second)
-        + event(4.0, "Finished", second)
+        + event(4.0, "Skipped", second)
     ).encode()
 
 
@@ -42,6 +42,9 @@ class PHPUnitTimingTest(unittest.TestCase):
         self.assertEqual(report["junit_test_seconds"], 2.5)
         self.assertEqual(report["preparation_seconds"], 0.5)
         self.assertEqual(report["prepared_tests"], 1)
+        self.assertEqual(report["event_finished_tests"], 1)
+        self.assertEqual(report["event_completed_tests"], 2)
+        self.assertEqual(report["unprepared_skipped_tests"], 1)
         self.assertEqual(report["top_tests"][0]["method"], "test_first")
         self.assertEqual(report["top_classes"][0]["duration_seconds"], 2.5)
         self.assertEqual(report["top_classes"][0]["preparation_seconds"], 0.5)
@@ -55,11 +58,51 @@ class PHPUnitTimingTest(unittest.TestCase):
             timing.summarize_phpunit_timing(JUNIT.replace(b"test_first", b"private_identifier"), events(), ALLOWED, EXPECTED)
 
     def test_prepared_test_that_later_skips_remains_in_preparation_count(self):
-        marker = event(4.0, "Finished", CLASS + "::test_second").encode()
-        raw = events().replace(marker, event(4.0, "Prepared", CLASS + "::test_second").encode() + marker)
+        identifier = CLASS + "::test_second"
+        marker = event(4.0, "Skipped", identifier).encode()
+        raw = events().replace(marker, (event(4.0, "Prepared", identifier)
+                                      + event(4.0, "Skipped", identifier)
+                                      + event(4.0, "Finished", identifier)).encode())
         report = timing.summarize_phpunit_timing(JUNIT, raw, ALLOWED, EXPECTED)
         self.assertEqual(report["prepared_tests"], 2)
         self.assertEqual(report["counts"]["skipped"], 1)
+        self.assertEqual(report["event_finished_tests"], 2)
+        self.assertEqual(report["unprepared_skipped_tests"], 0)
+
+    def test_skip_event_must_match_junit_and_only_prepared_tests_finish(self):
+        identifier = CLASS + "::test_second"
+        marker = event(4.0, "Skipped", identifier).encode()
+        for raw in (
+            events() + marker,
+            events().replace(marker, event(4.0, "Finished", identifier).encode()),
+            events().replace(marker, (event(4.0, "Prepared", identifier)
+                                    + event(4.0, "Finished", identifier)).encode()),
+        ):
+            with self.subTest(length=len(raw)), self.assertRaises(timing.TimingFailure):
+                timing.summarize_phpunit_timing(JUNIT, raw, ALLOWED, EXPECTED)
+
+    def test_failure_code_is_bounded_numeric_and_never_copies_input(self):
+        for value in ("private", -1, 31, True):
+            failure = timing.TimingFailure(value)
+            self.assertEqual(failure.code, 0)
+            self.assertNotIn("private", str(failure))
+
+    def test_completed_invocation_cannot_be_counted_twice(self):
+        first = events().splitlines(keepends=True)[:3]
+        raw = b"".join(first) + b"".join(first).replace(b"00:00:01.", b"00:00:05.").replace(b"00:00:03.", b"00:00:07.")
+        with self.assertRaises(timing.TimingFailure):
+            timing.event_preparation(raw, ALLOWED)
+
+    def test_per_class_event_counts_and_class_inventory_match_junit(self):
+        other = "Tests\\V2\\OtherTest"
+        allowed = {**ALLOWED, other: {"test_first", "test_second"}}
+        for raw in (
+            events().replace(CLASS.encode(), other.encode()),
+            events() + event(5.0, "Preparation Started", CLASS + "::test_second#extra").encode()
+            + event(5.0, "Skipped", CLASS + "::test_second#extra").encode(),
+        ):
+            with self.subTest(length=len(raw)), self.assertRaises(timing.TimingFailure):
+                timing.summarize_phpunit_timing(JUNIT, raw, allowed, EXPECTED)
 
     def test_malformed_nonfinite_negative_and_entity_xml_rejected(self):
         for junit in (
@@ -90,7 +133,7 @@ class PHPUnitTimingTest(unittest.TestCase):
             events().replace(b"Test Prepared", b"Test Preparation Started"),
             events().replace(b"Test Prepared", b"unrecognized event"),
             events().replace(b"test_second)", b"private_method)"),
-            events().replace(event(4.0, "Finished", CLASS + "::test_second").encode(), b""),
+            events().replace(event(4.0, "Skipped", CLASS + "::test_second").encode(), b""),
         ):
             with self.subTest(length=len(raw)), self.assertRaises(timing.TimingFailure):
                 timing.summarize_phpunit_timing(JUNIT, raw, ALLOWED, EXPECTED)

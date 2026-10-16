@@ -37,6 +37,12 @@ framework preparation, setUp and preconditions. It is **not** an isolated setUp
 method profiler. Tests skipped before Prepared are excluded from that preparation
 subtotal; prepared tests that later skip remain included. The remainder includes
 body, verification, teardown and framework work.
+The [pinned test runner](https://github.com/sebastianbergmann/phpunit/blob/9aa66a47db3ea70f1a468e66dd969f67e594945a/src/Framework/TestRunner/TestRunner.php)
+emits Finished only for prepared tests. An unprepared Skipped event is therefore
+a terminal event; a prepared skip must still be followed by Finished. Both the
+completed and skipped event counts must match JUnit per class. Finished and
+unprepared-skip counts are reported separately. Bounded numeric failure codes
+identify aggregation guards without exposing input values.
 The [pinned lifecycle](https://github.com/sebastianbergmann/phpunit/blob/9aa66a47db3ea70f1a468e66dd969f67e594945a/src/Framework/TestCase.php)
 emits hook-called events after hooks execute, so their preceding event delta
 cannot safely be called isolated teardown time. DB initialization and password

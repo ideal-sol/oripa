@@ -10,12 +10,13 @@ import xml.etree.ElementTree as ET
 MAX_REPORT_BYTES = 32 * 1024 * 1024
 EVENT = re.compile(
     r"^\[(\d+:\d+:\d+\.\d+) / \d+:\d+:\d+\.\d+\] \[\d+ bytes\] "
-    r"Test (Preparation Started|Prepared|Finished) \((.*)\)$"
+    r"Test (Preparation Started|Prepared|Skipped|Finished) \((.*)\)$"
 )
 
 
 class TimingFailure(ValueError):
-    def __init__(self):
+    def __init__(self, code: int = 0):
+        self.code = code if type(code) is int and 0 <= code <= 30 else 0
         super().__init__("Invalid or incomplete Full V2 timing evidence")
 
 
@@ -52,7 +53,7 @@ def count(value: str) -> int:
 
 def public_name(class_name: str, method_name: str, allowed: dict[str, set[str]]) -> tuple[str, str]:
     if class_name not in allowed or method_name not in allowed[class_name]:
-        raise TimingFailure()
+        raise TimingFailure(1)
     return class_name, method_name
 
 
@@ -62,6 +63,10 @@ def event_preparation(raw: bytes, allowed: dict[str, set[str]]) -> dict:
     active = None
     previous_time = 0.0
     finished = Counter()
+    completed = Counter()
+    skipped = Counter()
+    unprepared_skipped = Counter()
+    seen = set()
     prepared = Counter()
     duration = defaultdict(float)
     for line in raw.decode("utf-8", errors="strict").splitlines():
@@ -71,31 +76,43 @@ def event_preparation(raw: bytes, allowed: dict[str, set[str]]) -> dict:
         hours, minutes, remainder = match[1].split(":")
         timestamp = int(hours) * 3600 + int(minutes) * 60 + seconds(remainder)
         if timestamp < previous_time:
-            raise TimingFailure()
+            raise TimingFailure(2)
         previous_time = timestamp
         event, identifier = match[2], match[3]
         identity = re.match(r"^(Tests\\V2(?:\\\w+)*)::(\w+)(?:$|\W)", identifier)
         if not identity:
-            raise TimingFailure()
+            raise TimingFailure(3)
         class_name, method_name = public_name(identity[1], identity[2], allowed)
         if event == "Preparation Started":
-            if active is not None:
-                raise TimingFailure()
-            active = {"id": identifier, "start": timestamp, "prepared": False}
+            if active is not None or identifier in seen:
+                raise TimingFailure(4)
+            seen.add(identifier)
+            active = {"id": identifier, "start": timestamp, "prepared": False, "skipped": False}
         elif event == "Prepared":
             if active is None or active["id"] != identifier or active["prepared"]:
-                raise TimingFailure()
+                raise TimingFailure(5)
             active["prepared"] = True
             duration[class_name] += timestamp - active["start"]
             prepared[class_name] += 1
+        elif event == "Skipped":
+            if active is None or active["id"] != identifier or active["skipped"]:
+                raise TimingFailure(16)
+            active["skipped"] = True
+            skipped[class_name] += 1
+            if not active["prepared"]:
+                unprepared_skipped[class_name] += 1
+                completed[class_name] += 1
+                active = None
         elif event == "Finished":
-            if active is None or active["id"] != identifier:
-                raise TimingFailure()
+            if active is None or active["id"] != identifier or not active["prepared"]:
+                raise TimingFailure(6)
             finished[class_name] += 1
+            completed[class_name] += 1
             active = None
-    if active is not None or not finished:
-        raise TimingFailure()
-    return {"finished": finished, "prepared": prepared, "seconds": duration}
+    if active is not None or not completed:
+        raise TimingFailure(7)
+    return {"finished": finished, "completed": completed, "skipped": skipped,
+            "unprepared_skipped": unprepared_skipped, "prepared": prepared, "seconds": duration}
 
 
 def summarize_phpunit_timing(junit: bytes, events: bytes, allowed: dict[str, set[str]], expected: dict) -> dict:
@@ -106,13 +123,13 @@ def summarize_phpunit_timing(junit: bytes, events: bytes, allowed: dict[str, set
     except ET.ParseError:
         raise TimingFailure() from None
     if root.tag != "testsuites" or len(root.findall("testsuite")) != 1:
-        raise TimingFailure()
+        raise TimingFailure(8)
     suite = root.find("testsuite")
     totals = {key: count(suite.get(key)) for key in ("tests", "assertions", "skipped", "errors", "failures")}
     if totals["errors"] or totals["failures"] or totals["tests"] == 0:
-        raise TimingFailure()
+        raise TimingFailure(9)
     if any(totals[key] != expected.get(key, 0) for key in ("tests", "assertions", "skipped")):
-        raise TimingFailure()
+        raise TimingFailure(10)
     rows = []
     classes = {}
     for ordinal, case in enumerate(suite.iter("testcase"), 1):
@@ -131,20 +148,20 @@ def summarize_phpunit_timing(junit: bytes, events: bytes, allowed: dict[str, set
         aggregate["skipped"] += skipped
         aggregate["duration_seconds"] += duration
     if len(rows) != totals["tests"] or sum(row["assertions"] for row in rows) != totals["assertions"] or sum(row["skipped"] for row in rows) != totals["skipped"]:
-        raise TimingFailure()
+        raise TimingFailure(11)
     preparation = event_preparation(events, allowed)
-    if set(preparation["finished"]) != set(classes):
-        raise TimingFailure()
+    if set(preparation["completed"]) != set(classes):
+        raise TimingFailure(12)
     for class_name, aggregate in classes.items():
-        if preparation["finished"][class_name] != aggregate["tests"]:
-            raise TimingFailure()
+        if preparation["completed"][class_name] != aggregate["tests"] or preparation["skipped"][class_name] != aggregate["skipped"]:
+            raise TimingFailure(13)
         aggregate["prepared_tests"] = preparation["prepared"][class_name]
-        if not aggregate["tests"] - aggregate["skipped"] <= aggregate["prepared_tests"] <= aggregate["tests"]:
-            raise TimingFailure()
+        if aggregate["prepared_tests"] != aggregate["tests"] - preparation["unprepared_skipped"][class_name]:
+            raise TimingFailure(14)
         aggregate["preparation_seconds"] = round(preparation["seconds"][class_name], 6)
         aggregate["duration_seconds"] = round(aggregate["duration_seconds"], 6)
         if aggregate["preparation_seconds"] > aggregate["duration_seconds"] + 0.01:
-            raise TimingFailure()
+            raise TimingFailure(15)
     return {
         "schema_version": "oripa.full-v2-timing.v1",
         "outcome": "PASS",
@@ -153,6 +170,8 @@ def summarize_phpunit_timing(junit: bytes, events: bytes, allowed: dict[str, set
         "preparation_seconds": round(sum(preparation["seconds"].values()), 6),
         "prepared_tests": sum(preparation["prepared"].values()),
         "event_finished_tests": sum(preparation["finished"].values()),
+        "event_completed_tests": sum(preparation["completed"].values()),
+        "unprepared_skipped_tests": sum(preparation["unprepared_skipped"].values()),
         "top_tests": sorted(rows, key=lambda row: (-row["duration_seconds"], row["invocation_ordinal"]))[:20],
         "top_classes": sorted(classes.values(), key=lambda row: (-row["duration_seconds"], row["class"]))[:10],
         "preparation_definition": "PreparationStarted to Prepared; includes framework preparation, setUp and preconditions; excludes tests skipped before Prepared",
