@@ -29,6 +29,11 @@ oversized, unknown or inconsistent reports fail the diagnostic; they never
 downgrade a test failure. JUnit totals must match the unchanged PHPUnit summary,
 and per-class event completion counts must match JUnit. Output contains top 20
 test invocations and top 10 classes, not a raw per-test/event dump.
+The allowlist follows declared parent chains only when the parent is itself a
+source-registered V2 test class. Inherited test methods retain the runtime child
+class identity; unrelated classes never receive another class's methods, and
+inheritance cycles fail closed. Actual PHPUnit discovery verifies the full
+1336-invocation identity inventory without executing fixtures or connecting a DB.
 
 The [pinned JUnit logger](https://github.com/sebastianbergmann/phpunit/blob/9aa66a47db3ea70f1a468e66dd969f67e594945a/src/Logging/JUnit/JunitXmlLogger.php)
 measures the test lifecycle, including preparation and teardown for prepared

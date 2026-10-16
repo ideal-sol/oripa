@@ -172,6 +172,37 @@ class PHPUnitTimingTest(unittest.TestCase):
         self.assertIn("test_registration_is_dedicated_disabled_by_default_and_rejects_forgery", names["Tests\\V2\\PreRegistrationTest"])
         self.assertTrue(all(name.startswith("Tests\\V2\\") for name in names))
 
+    def test_source_allowlist_includes_only_verified_parent_methods(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tests = root / "apps/api/tests/V2"
+            tests.mkdir(parents=True)
+            for class_name, parent, method in (
+                ("ParentTest", "TestCase", "test_inherited"),
+                ("ChildTest", "ParentTest", "test_child"),
+                ("GrandchildTest", "ChildTest", "test_grandchild"),
+                ("UnrelatedTest", "TestCase", "test_unrelated"),
+            ):
+                (tests / (class_name + ".php")).write_text(
+                    f"<?php\nnamespace Tests\\V2;\nclass {class_name} extends {parent} {{\n"
+                    f"public function {method}(): void {{}}\n}}\n"
+                )
+            names = timing.source_test_names(root)
+            self.assertEqual(names["Tests\\V2\\GrandchildTest"], {"test_inherited", "test_child", "test_grandchild"})
+            self.assertEqual(names["Tests\\V2\\UnrelatedTest"], {"test_unrelated"})
+            with self.assertRaises(timing.TimingFailure):
+                timing.public_name("Tests\\V2\\ChildTest", "test_unrelated", names)
+            (tests / "ParentTest.php").write_text("<?php\nnamespace Tests\\V2;\nclass ParentTest extends ChildTest {}\n")
+            with self.assertRaises(timing.TimingFailure):
+                timing.source_test_names(root)
+
+    def test_current_banner_subclasses_inherit_source_confirmed_tests(self):
+        names = timing.source_test_names(Path(__file__).resolve().parents[2])
+        parent = names["Tests\\V2\\BannerImportTest"]
+        for child in ("BannerAssetLifecycleTest", "BannerImportCsvTest", "BannerImportWorkerTest"):
+            self.assertLessEqual(parent, names["Tests\\V2\\" + child])
+        self.assertNotIn("test_create_replay_draft_and_secret_deletion", names["Tests\\V2\\PasswordPolicyTest"])
+
     def test_logging_only_appends_stock_options_to_unchanged_full_suite(self):
         with mock.patch.object(database, "run") as command:
             database.run_identity_tests([], Path.cwd(), False, timing_directory="/tmp/private")

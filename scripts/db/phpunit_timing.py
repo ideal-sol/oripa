@@ -22,17 +22,34 @@ class TimingFailure(ValueError):
 
 def source_test_names(repository: Path) -> dict[str, set[str]]:
     names = {}
+    parents = {}
     for path in sorted((repository / "apps/api/tests/V2").rglob("*Test.php")):
         source = path.read_text()
         namespace = re.search(r"^namespace (Tests\\V2(?:\\\w+)*);", source, re.MULTILINE)
-        declaration = re.search(r"\bclass (\w+Test) extends\b", source)
+        declaration = re.search(r"\bclass (\w+Test) extends ([\\\w]+)\b", source)
         if namespace and declaration:
-            names[namespace[1] + "\\" + declaration[1]] = set(re.findall(
+            class_name = namespace[1] + "\\" + declaration[1]
+            names[class_name] = set(re.findall(
                 r"\bpublic function (\w+)\s*\(", source
             ))
+            parents[class_name] = (declaration[2].lstrip("\\") if declaration[2].startswith("\\")
+                                   else namespace[1] + "\\" + declaration[2])
     if not names:
         raise TimingFailure()
-    return names
+    resolved = {}
+
+    def inherited(class_name: str, visiting: set[str]) -> set[str]:
+        if class_name in visiting:
+            raise TimingFailure(17)
+        if class_name not in resolved:
+            methods = set(names[class_name])
+            parent = parents[class_name]
+            if parent in names:
+                methods.update(inherited(parent, visiting | {class_name}))
+            resolved[class_name] = methods
+        return resolved[class_name]
+
+    return {class_name: inherited(class_name, set()) for class_name in names}
 
 
 def seconds(value: str) -> float:
