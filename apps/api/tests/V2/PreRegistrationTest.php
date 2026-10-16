@@ -11,6 +11,7 @@ use App\Domain\Identity\Services\V2RegistrationQualification;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Identity\Services\V2UserAuthenticationService;
 use App\Domain\Payment\V2\Services\V2PointPurchaseEligibilityService;
+use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\Admin;
 use App\Models\V2\User;
 use App\Models\V2\UserPhoneNumber;
@@ -60,6 +61,9 @@ final class PreRegistrationTest extends TestCase
 
     public function test_registration_is_dedicated_disabled_by_default_and_rejects_forgery(): void
     {
+        $existingUser = $this->applicant();
+        app(V2PointService::class)->grantFree($existingUser->id, 123, (string) Str::uuid7());
+        $operationCount = DB::table('point_operations')->count();
         $this->getJson('/api/v2/campaigns/pre-registration')->assertOk()->assertJsonPath('data.status', 'not_started');
         $this->register()->assertConflict()->assertJsonPath('code', 'PRE_REGISTRATION_CLOSED');
         $this->enable();
@@ -68,7 +72,9 @@ final class PreRegistrationTest extends TestCase
         $user = User::query()->where('public_id', $response->json('user_id'))->firstOrFail();
         self::assertEquals($user->created_at, $user->pre_registered_at);
         self::assertSame(0, DB::table('pre_registration_grants')->count());
-        self::assertSame(0, DB::table('point_operations')->count());
+        self::assertSame($operationCount, DB::table('point_operations')->count());
+        self::assertSame(0, DB::table('point_operations')->where('user_id', $user->id)->count());
+        self::assertSame(123, (int) DB::table('wallets')->where('user_id', $existingUser->id)->value('free_balance'));
         $this->register(['is_pre_registered' => true])->assertUnprocessable();
         $this->register(['pre_registered_at' => '2000-01-01T00:00:00Z'])->assertUnprocessable();
         $this->register(['birth_date' => '2015-01-01'])->assertUnprocessable();
