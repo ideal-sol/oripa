@@ -31,6 +31,8 @@ class V2DatabaseGuardTest(unittest.TestCase):
         self.assertIn("pre_registration timestamp is immutable", source)
         self.assertIn("pre_registration grants are immutable", source)
         self.assertIn("pre_registration campaign snapshot is immutable", source)
+        self.assertIn("status::text = ANY (ARRAY['pending'::text, 'activated'::text, 'failed'::text, 'excluded'::text])", source)
+        self.assertIn("pre_registration_grant_values CHECK (point_amount >= 1 AND point_amount <= 1000000 AND setting_revision > 0", source)
         message = "Pre-registration history requires a forward-only migration."
         self.assertIn("throw new LogicException('" + message + "');", source)
         for guard in ["user", "grant", "snapshot"]:

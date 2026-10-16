@@ -58,8 +58,8 @@ return new class extends Migration
             $table->unique(['admin_id', 'key_hash']);
         });
         DB::statement("ALTER TABLE pre_registration_settings ADD CONSTRAINT pre_registration_setting_values CHECK (id = 1 AND revision > 0 AND point_amount BETWEEN 1 AND 1000000 AND (NOT is_enabled OR cutoff_at IS NOT NULL) AND ((started_at IS NULL AND snapshot_amount IS NULL AND snapshot_revision IS NULL AND completed_at IS NULL) OR (started_at IS NOT NULL AND cutoff_at IS NOT NULL AND started_at >= cutoff_at AND snapshot_amount BETWEEN 1 AND 1000000 AND snapshot_revision > 0)))");
-        DB::statement("ALTER TABLE pre_registration_targets ADD CONSTRAINT pre_registration_target_status CHECK (status IN ('pending', 'activated', 'failed', 'excluded') AND attempts >= 0)");
-        DB::statement("ALTER TABLE pre_registration_grants ADD CONSTRAINT pre_registration_grant_values CHECK (point_amount BETWEEN 1 AND 1000000 AND setting_revision > 0 AND phone_hmac ~ '^[0-9a-f]{64}$' AND expires_at = activated_at + INTERVAL '180 days')");
+        DB::statement("ALTER TABLE pre_registration_targets ADD CONSTRAINT pre_registration_target_status CHECK (status::text = ANY (ARRAY['pending'::text, 'activated'::text, 'failed'::text, 'excluded'::text]) AND attempts >= 0)");
+        DB::statement("ALTER TABLE pre_registration_grants ADD CONSTRAINT pre_registration_grant_values CHECK (point_amount >= 1 AND point_amount <= 1000000 AND setting_revision > 0 AND phone_hmac ~ '^[0-9a-f]{64}$' AND expires_at = activated_at + INTERVAL '180 days')");
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION v2_pre_registration_user_guard() RETURNS trigger AS $$
             BEGIN
