@@ -165,3 +165,12 @@ preserve572's safe_error_only guard, metrics observer, timing schema and privacy
 controls while retaining M4's bounded failure prioritization. Do not overwrite
 either independently owned implementation. Human GO does not authorize Source
 Merge, operational migrations, activation or artifact publication.
+
+Diagnostic run39032230710 exposed the real CI cause: SQLSTATE55006 while the
+existing CurrentUserPointReadContractTest restored its legacy-expiry fixture
+trigger with a new deferred M4 lot-origin event still pending. The exact case
+was reproduced in isolated PostgreSQL before correction. The fixture now executes
+SET CONSTRAINTS ALL IMMEDIATE before ALTER ENABLE, retaining all constraints,
+all wallet/API assertions and the finally-based guard restoration. Production
+behavior and migration000092 are unchanged by this correction. The Task Policy
+adds only that one existing test path; all final-head gates must be rerun.
