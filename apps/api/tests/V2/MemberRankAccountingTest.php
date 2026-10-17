@@ -154,10 +154,10 @@ final class MemberRankAccountingTest extends TestCase
         $this->rankClock('2026-11-30T15:00:00Z');
         $this->settleRankPayment($november, 12000);
         self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $november->id)->count());
-        DB::table('member_rank_entitlements')->where('user_id', $november->id)->update(['achievement_id' => null]);
+        $this->assertRankConstraint(fn () => DB::table('member_rank_entitlements')->where('user_id', $november->id)->update(['achievement_id' => null]));
         $this->settleRankPayment($november, 1);
-        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $november->id, 'generation' => 2, 'bonus_amount' => 700]);
-        self::assertSame(2, DB::table('member_rank_achievements')->where('user_id', $november->id)->count());
+        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $november->id, 'generation' => 1, 'bonus_amount' => 0]);
+        self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $november->id)->count());
     }
 
     public static function preRegistrationCases(): array
@@ -334,20 +334,26 @@ final class MemberRankAccountingTest extends TestCase
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'points' => 10000]);
     }
 
-    public function test_released_synthetic_entitlement_retains_old_paid_bonus_and_uses_new_key(): void
+    public function test_fully_recovered_entitlement_preserves_old_achievement_and_uses_new_key(): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
         $this->settleRankPayment($user, 10000);
         $first = DB::table('member_rank_achievements')->where('user_id', $user->id)->sole();
-        DB::table('member_rank_entitlements')->where('user_id', $user->id)->update(['achievement_id' => null]);
-        $this->settleRankPayment($user, 1);
+        $admin = $this->rankAdmin();
+        $service = app(\App\Domain\MemberRank\Services\V2MemberRankAdminService::class);
+        $input = ['delta' => -10000, 'reason' => 'Actual full recovery before regrant'];
+        $preview = $service->preview($admin, $user->public_id, 'points', $input);
+        $service->write($admin, $user->public_id, 'points', [...$input, 'expected_revision' => $preview['expected_revision'],
+            'preview_token' => $preview['preview_token']], (string) Str::uuid7());
+        $this->settleRankPayment($user, 10000);
         $keys = DB::table('point_operations')->where('user_id', $user->id)->where('source_type', 'member_rank_promotion')->pluck('business_key');
         self::assertCount(2, $keys);
         self::assertNotSame($keys[0], $keys[1]);
         self::assertSame((array) $first, (array) DB::table('member_rank_achievements')->where('id', $first->id)->sole());
         self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'level' => 2, 'generation' => 2]);
-        self::assertSame(1, DB::table('member_rank_changes')->where('user_id', $user->id)->count());
+        self::assertSame(3, DB::table('member_rank_changes')->where('user_id', $user->id)->count());
+        self::assertDatabaseHas('member_rank_bonus_recoveries', ['achievement_id' => $first->id, 'recovered_amount' => 500, 'shortfall_amount' => 0]);
     }
 
     public function test_settlement_latency_with_three_promotion_bonuses_is_measured(): void

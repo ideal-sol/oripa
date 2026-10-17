@@ -35,6 +35,9 @@ final class V2MemberRankAccountingService
         }
         $payment = DB::table('payments')->where('id', $paymentId)->lockForUpdate()->firstOrFail();
         $this->lockUserIfEnabled((int) $payment->user_id);
+        if (DB::table('users')->where('id', $payment->user_id)->whereIn('state', ['closed', 'anonymized'])->exists()) {
+            return;
+        }
         if (DB::table('member_rank_point_entries')->where('payment_id', $paymentId)->exists()) {
             return;
         }
@@ -98,7 +101,7 @@ final class V2MemberRankAccountingService
         );
     }
 
-    private function consumeReachedEntitlements(
+    public function consumeReachedEntitlements(
         int $userId,
         int $reachedLevel,
         string $month,
@@ -106,9 +109,14 @@ final class V2MemberRankAccountingService
         array $version,
         string $basis,
         string $originPublicId,
-        int $entryId,
+        ?int $entryId,
         CarbonImmutable $occurredAt
     ): void {
+        $this->requireTransaction();
+        if (! DB::table('member_rank_settings')->where('id', 1)->value('enabled')) {
+            return;
+        }
+        DB::table('users')->where('id', $userId)->lockForUpdate()->firstOrFail();
         for ($level = 2; $level <= $reachedLevel; $level++) {
             DB::table('member_rank_entitlements')->insertOrIgnore(['user_id' => $userId, 'level' => $level]);
             $slot = DB::table('member_rank_entitlements')->where('user_id', $userId)->where('level', $level)

@@ -139,6 +139,18 @@ time policy with idle 6 hours / absolute 12 hours. Migration `000074` can roll
 back only before Agency session, audit, or email-change delivery history exists.
 After use, retain schema and roll back the API/Portal images or apply a forward
 correction. Migration application and domain routing activation are independent.
+## Member rank Admin operations (000091)
+
+Migration `2026_10_17_000091_add_v2_member_rank_admin_operations.php` extends
+the payment-only rank ledger with signed, actor-attributed manual entries while
+preserving payment origin validation, uniqueness, immutable history and deferred
+monthly-total equality. It adds immutable manual-change and bonus-recovery
+records, generation-specific recovery origins and a frozen closure timestamp.
+Promotion/demotion shapes remain constrained; manual changes and promotion
+reversals have separate source references. Alpha.45 and old migrations remain
+unchanged. Rollback retains schema/history and requires a reviewed forward fix.
+This source does not authorize operational migration, worker or feature activation.
+
 # Rank video sets (000086)
 
 Migration `2026_10_15_000086_add_v2_rank_video_sets.php` backfills every historical

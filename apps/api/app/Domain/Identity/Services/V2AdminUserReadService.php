@@ -7,6 +7,9 @@ use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AdminUserReadException;
 use App\Domain\Reporting\Services\V2ReportingCursor;
+use App\Domain\MemberRank\Services\V2MemberRankAdminReadService;
+use App\Domain\MemberRank\Services\V2MemberRankResolver;
+use App\Domain\MemberRank\Services\V2MemberRankSettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +36,19 @@ final class V2AdminUserReadService
         ?string $userId = null,
         ?string $status = null,
         ?string $dateFrom = null,
-        ?string $dateTo = null
+        ?string $dateTo = null,
+        ?string $memberRank = null,
+        ?string $transferred = null
     ): array {
         $filters = $this->userFilters($userId, $status, $dateFrom, $dateTo);
         $operationAt = CarbonImmutable::now()->startOfSecond();
+        if (($memberRank !== null && ! in_array($memberRank, V2MemberRankSettingsService::CODES, true))
+            || ($transferred !== null && ! in_array($transferred, ['true', 'false'], true))) {
+            throw $this->invalidQuery();
+        }
+        $projections = app(V2MemberRankResolver::class)->projectMany(DB::table('users')->orderBy('id')->pluck('id')->all(), $operationAt);
         $query = DB::table('users')
+            ->where('users.id', '<=', $projections === [] ? 0 : max(array_keys($projections)))
             ->leftJoin('wallets', 'wallets.user_id', '=', 'users.id')
             ->leftJoinSub(
                 $this->availableBalances($operationAt),
@@ -88,7 +99,17 @@ final class V2AdminUserReadService
                 $filters['date_to']->addDay()->utc()->toIso8601String()
             );
         }
+        if ($memberRank !== null) {
+            $query->whereIn('users.id', array_keys(array_filter($projections,
+                fn (array $rank): bool => V2MemberRankSettingsService::CODES[$rank['level'] - 1] === $memberRank)));
+        }
+        if ($transferred === 'true') {
+            $query->whereIn('users.id', DB::table('member_rank_states')->select('user_id')->whereNotNull('transferred_at'));
+        }
         $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
+            'member_rank' => V2MemberRankSettingsService::CODES[$projections[(int) $row->id]['level'] - 1],
+            'member_rank_points' => $projections[(int) $row->id]['rank_points'],
+            'member_rank_transferred' => DB::table('member_rank_states')->where('user_id', $row->id)->whereNotNull('transferred_at')->exists(),
             'id' => (string) $row->public_id,
             'display_name' => $row->display_name === null
                 ? null
@@ -226,11 +247,16 @@ final class V2AdminUserReadService
         if ($row === null) {
             throw $this->notFound();
         }
+        $memberRank = app(V2MemberRankAdminReadService::class)->detail((int) $row->id);
         $this->auditView($context, 'admin.user.detail.viewed', $userPublicId);
 
         return [
             'data' => [
                 'id' => (string) $row->public_id,
+                'member_rank' => $memberRank['rank'],
+                'member_rank_points' => $memberRank['rank_points'],
+                'member_rank_transferred' => DB::table('member_rank_states')->where('user_id', $row->id)->whereNotNull('transferred_at')->exists(),
+                'member_rank_detail' => $memberRank,
                 'display_name' => $row->display_name === null
                     ? null
                     : (string) $row->display_name,

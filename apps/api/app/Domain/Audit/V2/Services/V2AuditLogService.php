@@ -176,7 +176,7 @@ final class V2AuditLogService
         if ($value === null) {
             return null;
         }
-        if (! is_string($value) || $value === '' || strlen($value) > $maximum) {
+        if (! is_string($value) || $value === '' || ! mb_check_encoding($value, 'UTF-8') || mb_strlen($value) > $maximum) {
             throw new RuntimeException('Audit text is invalid.');
         }
 

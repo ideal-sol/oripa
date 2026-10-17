@@ -98,6 +98,10 @@ final class V2AdminUserStateService
 
                 $after = V2UserState::from($request['status']);
                 $now = now()->startOfSecond();
+                if ($after === V2UserState::Closed) {
+                    app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)
+                        ->freeze((int) $user->getKey(), \Carbon\CarbonImmutable::instance($now));
+                }
                 $updated = User::query()
                     ->whereKey($user->getKey())
                     ->where('state_revision', $request['expected_revision'])

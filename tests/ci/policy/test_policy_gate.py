@@ -21,6 +21,26 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_member_rank_m7_admin_paths_are_exact_and_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/admin-member-rank-management.spec.ts",
+            "apps/admin/src/app/users/member-ranks/page.tsx",
+            "apps/admin/src/components/member-ranks/member-rank-detail.tsx",
+            "apps/admin/src/components/member-ranks/member-rank-history.tsx",
+            "apps/admin/src/components/member-ranks/member-rank-labels.ts",
+            "apps/admin/src/components/member-ranks/member-rank-summary.tsx",
+            "apps/admin/src/components/member-ranks/member-ranks.module.css",
+            "apps/admin/test/member-rank-management.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.MEMBER_RANK_M7_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/member-ranks/unreviewed.tsx"})
+
     def test_member_rank_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
         expected = {
             "apps/admin/e2e/admin-member-rank-settings.spec.ts",

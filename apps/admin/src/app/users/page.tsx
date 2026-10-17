@@ -24,6 +24,9 @@ export default async function UsersPage({
           date_to: initialValue(query.date_to),
           status: initialListFilter(query.status, ADMIN_USER_STATUS_FILTERS, "active"),
           user_id: initialValue(query.user_id),
+          member_rank: (Object.keys({ beginner: 1, bronze: 1, silver: 1, gold: 1, platinum: 1, diamond: 1, vip: 1 }).includes(initialValue(query.member_rank))
+            ? initialValue(query.member_rank) : undefined) as import("@/lib/admin-api/generated").AdminMemberRankCode | undefined,
+          transferred: initialValue(query.transferred) === "true",
         }}
         mode="list"
       />
