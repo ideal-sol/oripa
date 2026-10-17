@@ -11473,3 +11473,12 @@ PHP構文137 files／diff whitespace／Source scope review PASS。helper／新�
 - Pre-freeze execution: service/API40 tests/263 assertions and five-process concurrency1/39 PASS; expanded input/Wallet-boundary and final-head regressions are recorded on the PR. DB71 and contract43 PASS. Actual fresh twice91 migrations/145 tables, forward-only refusal, exact dump/restore schema+ledger and old migration bytes PASS. Schema `29f02d52fb62835d25b8dbafe6cd1408421b5ff2ee6e48ed2044f084ca02089b`, ledger `370b8e6f2235a9f1e6cbaa9e1547a1e28179e3937afb76fe97d1373c03c843e3`. Applications are disposable synthetic databases only; operational applications0.
 - [Defect history](../docs/implementation/MEMBER_RANK_M7_DEFECTS_2026-10-17.md) retains alias collision, Audit Unicode bound, unproven slot release, closure integration, protected-route prop, closed User schema/phone pattern, input accessible names and Wallet month-crossing correction. Initial harness failures and host-steal-related UI unit timeouts remain FAIL; no timeout/assertion/hash/skip/security relaxation. Final exact-head CI and actual desktop/mobile Laravel browser evidence are required before functional PASS. No deployed or Human browser verification is inferred.
 - M4 formal domain/contract handoff is in the linked M7 handoff: use materialized pre-increment rank and effective grant-month settings, preserve User/Wallet lock ordering, and supply real `member_rank_purchase` operations to the prepared summary. M8 reuses `applyDecrease` within its adjustment transaction and owns its later clipped/past-month ledger extension; M9 remains manual refund/CB, activation/backfill Final Gate. Retain Draft branch/worktree and logical000091 reservation; release the process allocation flock only after canonical handoff. Runtime/Worker/operational migration/Storefront/publication/Production changes0; Human Merge GO absent.
+### M7 bounded CI blocker — editor readiness
+
+Final Source E2E passed1440/390/360, including readable mobile tables and keyboard
+horizontal pan. Its CI quality check exposed an existing Contact reply unit test
+that clicked HTML before asynchronous editor readiness. The same Change awaits
+that exact button under the unchanged deadline, retaining every save/variable
+assertion. This directly necessary one-line CI blocker expands scope by one test
+path only; no mail product behavior or control changes. All head-dependent gates
+are rerun on the resulting final Source; the failed407/408 run is retained.
