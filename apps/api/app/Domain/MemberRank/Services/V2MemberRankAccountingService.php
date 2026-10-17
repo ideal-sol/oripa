@@ -56,7 +56,8 @@ final class V2MemberRankAccountingService
             'created_at' => V2DatabaseTimestamp::format($recordedAt),
             'updated_at' => V2DatabaseTimestamp::format($recordedAt),
         ]);
-        $state = DB::table('member_rank_states')->where('user_id', $payment->user_id)->lockForUpdate()->firstOrFail();
+        app(V2MemberRankResolver::class)->materialize((int) $payment->user_id, $grantedAt);
+        $state = DB::table('member_rank_states')->where('user_id', $payment->user_id)->firstOrFail();
         DB::table('member_rank_month_totals')->insertOrIgnore(['user_id' => $payment->user_id, 'month' => $month]);
         $total = DB::table('member_rank_month_totals')->where('user_id', $payment->user_id)->where('month', $month)
             ->lockForUpdate()->firstOrFail();

@@ -2,6 +2,14 @@
 
 ## RANKPOINTS-20261016 (M2)
 
+Migration `2026_10_16_000090_add_v2_member_rank_monthly_judgment.php` is allocated
+to `RANKMONTH-20261016` under the Migration Allocation Lock. It extends immutable
+rank changes with one-step monthly demotion and a unique month origin, enforces
+forward judgment cursors, and adds durable monthly jobs with lease and progress.
+Previous migration bytes remain unchanged. Forward-only; operational application
+and Worker activation require separate Human GO. See the
+[M3 handoff](../../../../docs/implementation/MEMBER_RANK_M3_HANDOFF_2026-10-16.md).
+
 Migration `2026_10_16_000089_create_v2_member_rank_accounting.php` is reserved
 under the exclusive Migration Allocation Lock after verifying all open PRs,
 worktrees and prior allocations. Six additive tables separate rank state,
