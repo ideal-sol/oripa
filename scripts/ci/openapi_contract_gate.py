@@ -225,6 +225,74 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
     return operation_ids
 
 
+def object_composition_shape(
+    schema: Any,
+    schemas: dict[str, Any],
+    references: tuple[str, ...] = (),
+) -> dict[str, Any] | None:
+    if not isinstance(schema, dict):
+        return None
+    annotations = {"title", "description"}
+    if "$ref" in schema:
+        reference = schema["$ref"]
+        prefix = "#/components/schemas/"
+        if (
+            set(schema) - annotations - {"$ref"}
+            or not isinstance(reference, str)
+            or not reference.startswith(prefix)
+            or reference in references
+        ):
+            return None
+        return object_composition_shape(
+            schemas.get(reference.removeprefix(prefix)), schemas, (*references, reference)
+        )
+    if "allOf" not in schema:
+        if schema.get("type") != "object" or set(schema) - annotations - {
+            "type", "properties", "required", "additionalProperties"
+        }:
+            return None
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        if (
+            not isinstance(properties, dict)
+            or not isinstance(required, list)
+            or any(not isinstance(field, str) for field in required)
+            or not isinstance(schema.get("additionalProperties", True), bool)
+        ):
+            return None
+        return copy.deepcopy(schema)
+    branches = schema["allOf"]
+    if (
+        set(schema) - annotations - {"allOf", "type"}
+        or schema.get("type", "object") != "object"
+        or not isinstance(branches, list)
+        or not branches
+    ):
+        return None
+    result: dict[str, Any] = {"type": "object", "properties": {}, "required": [], "additionalProperties": True}
+    required_fields: set[str] = set()
+    for branch in branches:
+        shape = object_composition_shape(branch, schemas, references)
+        if shape is None:
+            return None
+        for field, definition in shape.get("properties", {}).items():
+            if field in result["properties"] and result["properties"][field] != definition:
+                return None
+            result["properties"][field] = definition
+        required_fields.update(shape.get("required", []))
+        result["additionalProperties"] &= shape.get("additionalProperties", True)
+    result["required"] = sorted(required_fields)
+    return result
+
+
+def comparison_schema(schema: Any, schemas: dict[str, Any]) -> Any:
+    if isinstance(schema, dict) and "allOf" in schema:
+        shape = object_composition_shape(schema, schemas)
+        if shape is not None:
+            return shape
+    return schema
+
+
 def compare_schema(
     previous: Any,
     current: Any,
@@ -237,6 +305,12 @@ def compare_schema(
     allowed_required_additions = allowed_required_additions or set()
     if previous.get("type") != current.get("type"):
         findings.append(f"{location}: type changed")
+    if (
+        previous.get("type") == current.get("type") == "object"
+        and previous.get("additionalProperties", True) is not False
+        and current.get("additionalProperties") is False
+    ):
+        findings.append(f"{location}: additional properties restricted")
     previous_required = set(previous.get("required", []))
     current_required = set(current.get("required", []))
     for field in sorted(current_required - previous_required - allowed_required_additions):
@@ -387,8 +461,8 @@ def breaking_changes(previous: dict[str, Any], current: dict[str, Any]) -> list[
             )
             findings.extend(
                 compare_schema(
-                    old_schemas[name],
-                    new_schemas[name],
+                    comparison_schema(old_schemas[name], old_schemas),
+                    comparison_schema(new_schemas[name], new_schemas),
                     f"components.schemas.{name}",
                     allowed_required_additions,
                 )
