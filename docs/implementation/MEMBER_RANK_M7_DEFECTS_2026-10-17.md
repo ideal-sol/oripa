@@ -21,7 +21,9 @@ canonical M7 Draft PR. No performance disposition closes a functional defect.
 Initial test-harness failures are separate: JSONB reorders object keys on replay,
 so equality must compare key/value meaning while retaining indexed-list order.
 The original strict PHP key-order assertion failed despite identical JSON values;
-the replacement semantic equality retains complete payload comparison.
+recursive associative-key normalization plus strict identity retains the complete
+payload, scalar types and indexed-list order. Negative proofs reject numeric
+string coercion, boolean coercion and list-order changes; no loose equality remains.
 Initial contract lint rejected missing security declarations on six new
 operations; all now explicitly require the Admin session. Initial UI lint
 rejected direct effect invocation; the existing deferred-load pattern is used.

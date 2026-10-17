@@ -163,7 +163,11 @@ final class MemberRankAdminTest extends TestCase
         $first = app(V2MemberRankAdminService::class)->write($this->admin, $user->public_id, 'rank', $payload, $key);
         $counts = $this->counts();
         $second = app(V2MemberRankAdminService::class)->write($this->admin, $user->public_id, 'rank', $payload, $key);
-        self::assertEquals($first['data'], $second['data']);
+        self::assertSame($this->canonicalResponse($first['data']), $this->canonicalResponse($second['data']));
+        self::assertSame($this->canonicalResponse($first['data']), $this->canonicalResponse(array_reverse($first['data'], true)));
+        self::assertNotSame($this->canonicalResponse(['value' => 1]), $this->canonicalResponse(['value' => '1']));
+        self::assertNotSame($this->canonicalResponse(['value' => true]), $this->canonicalResponse(['value' => 1]));
+        self::assertNotSame($this->canonicalResponse(['value' => [1, 2]]), $this->canonicalResponse(['value' => [2, 1]]));
         self::assertTrue($second['idempotent_replay']);
         self::assertSame($counts, $this->counts());
         $this->reject(fn () => app(V2MemberRankAdminService::class)->write($this->admin, $user->public_id, 'rank', [...$payload, 'reason' => '変更'], $key), 409);
@@ -476,6 +480,18 @@ final class MemberRankAdminTest extends TestCase
         $this->write($user, 'points', $input);
         self::assertDatabaseHas('member_rank_point_entries', ['user_id' => $user->id, 'month' => '2026-11-01', 'applied_delta' => 1]);
         self::assertSame(0, DB::table('member_rank_point_entries')->where('user_id', $user->id)->where('month', '2026-10-01')->count());
+    }
+
+    private function canonicalResponse(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+        if (! array_is_list($value)) {
+            ksort($value, SORT_STRING);
+        }
+
+        return array_map(fn (mixed $item): mixed => $this->canonicalResponse($item), $value);
     }
 
     private function rankInput(): array
