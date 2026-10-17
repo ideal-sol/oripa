@@ -24,6 +24,11 @@ Initial contract lint rejected missing security declarations on six new
 operations; all now explicitly require the Admin session. Initial UI lint
 rejected direct effect invocation; the existing deferred-load pattern is used.
 These initial runs are FAIL, never final PASS evidence.
+Browser harness attempts also exposed missing synthetic WebAuthn configuration,
+per-request process transport failure and label-text matching that included
+select options. The isolated HTTP/Unix relay retains real session/MFA/CSRF/Origin
+checks; exact accessible combobox targeting retains the intended UI assertions.
+No product timeout or browser test deadline is relaxed.
 
 M2/M3 performance findings remain OPEN and unchanged. Final outcomes, exact head,
 executed counts and any further defects must be recorded before handoff.

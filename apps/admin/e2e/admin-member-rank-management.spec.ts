@@ -61,8 +61,8 @@ for (const width of [1440, 390, 360]) {
     await page.goto(`/users/${fixture.user_id}`);
     await page.getByRole("button", { name: "ランクを変更", exact: true }).click();
     const dialog = page.getByRole("dialog");
-    await dialog.getByLabel("変更後のランク").selectOption("gold");
-    await dialog.getByLabel("種別", { exact: true }).selectOption("transfer");
+    await dialog.getByRole("combobox", { name: "変更後のランク", exact: true }).selectOption("gold");
+    await dialog.getByRole("combobox", { name: "種別", exact: true }).selectOption("transfer");
     await dialog.getByLabel("理由", { exact: true }).fill("E2E 引き継ぎ");
     await dialog.getByRole("button", { name: "変更内容を確認" }).click();
     await expect(dialog.getByText("ビギナー → ゴールド", { exact: true })).toBeVisible();
@@ -85,7 +85,7 @@ for (const width of [1440, 390, 360]) {
     await dialog.getByRole("button", { name: "確認して保存" }).click();
     await expect(dialog).not.toBeVisible();
     await page.getByRole("button", { name: "ランクを変更", exact: true }).click();
-    await dialog.getByLabel("種別", { exact: true }).selectOption("transfer");
+    await dialog.getByRole("combobox", { name: "種別", exact: true }).selectOption("transfer");
     await dialog.getByLabel("理由", { exact: true }).fill("E2E 再引き継ぎ");
     await dialog.getByRole("button", { name: "変更内容を確認" }).click();
     await expect(dialog.getByRole("button", { name: "確認して保存" })).toBeDisabled();
@@ -124,8 +124,8 @@ for (const width of [1440, 390, 360]) {
     await page.screenshot({ path: testInfo.outputPath(`rank-summary-${width}.png`), fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.goto("/users");
-    await page.getByLabel("会員ランク", { exact: true }).selectOption("gold");
-    await page.getByLabel("引き継ぎ", { exact: true }).selectOption("true");
+    await page.getByRole("combobox", { name: "会員ランク", exact: true }).selectOption("gold");
+    await page.getByRole("combobox", { name: "引き継ぎ", exact: true }).selectOption("true");
     await page.getByRole("button", { name: "検索", exact: true }).click();
     await expect(page.getByRole("columnheader", { name: "当月ランクポイント" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
