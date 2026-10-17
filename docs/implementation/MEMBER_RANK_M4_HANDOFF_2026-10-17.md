@@ -147,3 +147,21 @@ separately authorized merge; Draft HOLD is not MERGE approval. Final gate requir
 all five Required Checks and applicable tests on the unchanged final HEAD, no
 SEV-0/1 and no unresolved functional defect. No Ready/Source merge/activation GO.
 See [defect record](MEMBER_RANK_M4_DEFECTS_2026-10-17.md).
+
+## Human-authorized diagnostic overlap with572
+
+After CI39030121649 failed with its actual cause truncated, Human explicitly
+authorized only CalledProcessError diagnostic extraction/priority/display and
+focused regression in M4. Protected main remained e18b2885;572 remained Draft at
+d74247babf2cabf4e334bfac8fe34451b5933b90. Its run() safe_error_only/metrics hunks
+were compared before editing. M4 prioritizes PHPUnit failure identifiers,
+assertions and exception lines over generic performance JSON, retains2400-character
+total output and existing exclusion filters, and additionally excludes common
+email/IP/phone shapes. Exit/exception behavior, test conditions and all gates
+remain unchanged. This is diagnostics, not processing-speed optimization.
+
+PR572 Source/branch/worktree/policy/CI are untouched. On future integration,
+preserve572's safe_error_only guard, metrics observer, timing schema and privacy
+controls while retaining M4's bounded failure prioritization. Do not overwrite
+either independently owned implementation. Human GO does not authorize Source
+Merge, operational migrations, activation or artifact publication.

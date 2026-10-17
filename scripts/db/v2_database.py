@@ -239,7 +239,17 @@ def run(
                 + error.stderr.decode("utf-8", errors="replace").splitlines()
             )
             selected_indexes = set()
+            priority_indexes = set()
             for index, line in enumerate(lines):
+                if re.search(
+                    r"(?i)^\s*(?:\d+\)\s+[\w\\]+::|failed asserting\b|"
+                    r"there (?:was|were) \d+ (?:errors?|failures?)\b|"
+                    r"(?:PHP )?(?:fatal error|parse error)\b|error:|"
+                    r"[\w\\]*(?:Exception|Error):|SQLSTATE\[|"
+                    r"Tests:.*(?:Errors|Failures):|(?:FAILURES|ERRORS)!)",
+                    line,
+                ):
+                    priority_indexes.add(index)
                 if re.search(
                     r"(?i)error|exception|sqlstate|failed|failure|migration|"
                     r"syntax|undefined|constraint|asserting",
@@ -249,11 +259,13 @@ def run(
                         range(max(0, index - 3), min(len(lines), index + 6))
                     )
             candidates = [
-                lines[index].strip()
-                for index in sorted(selected_indexes)
+                lines[index].strip()[:400]
+                for index in sorted(priority_indexes) + sorted(selected_indexes - priority_indexes)
                 if lines[index].strip()
                 and not re.search(
-                    r"(?i)password|secret|token|authorization|cookie|private.?key|email",
+                    r"(?i)password|secret|token|authorization|cookie|private.?key|email|"
+                    r"[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\d{1,3}\.){3}\d{1,3}|"
+                    r"\+\d[\d ()-]{8,}\d",
                     lines[index],
                 )
             ]
