@@ -1467,6 +1467,8 @@ export interface components {
             status: components["schemas"]["PaymentStatus"];
             amount: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PaymentGrant"];
+            /** @description 決済成立時の購入ボーナス。未確定または機能対象外はnull。確定0ポイントはオブジェクトで返す。既存grantの合計には含まれない。 */
+            member_rank_purchase_bonus?: null | components["schemas"]["MemberRankPurchaseBonus"];
             /** Format: date-time */
             expires_at: string | null;
             /** Format: date-time */
@@ -1477,6 +1479,39 @@ export interface components {
             next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"];
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
+        MemberRankPurchaseBonus: {
+            /** @enum {string} */
+            rank_code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+            rank_level: number;
+            /** @description 0.01%を1とする購入ボーナス率。今回のランクポイント加算前のランクに適用。 */
+            rate_basis_points: number;
+            bonus_points: number;
+            /** @constant */
+            point_type: "free";
+            /** @description 購入ボーナス専用の公開ポイントOperation ID。確定0ポイントの場合はnull。 */
+            operation_id: null | components["schemas"]["OpaqueId"];
+            /** Format: date-time */
+            granted_at: string;
+            /** @description 有償ポイント付与時刻の日本時間集計月。 */
+            month: string;
+        };
+        MemberRankPurchaseBonusEstimate: {
+            /** @enum {string} */
+            rank_code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+            rank_level: number;
+            rate_basis_points: number;
+            bonus_points: number;
+            /** @constant */
+            point_type: "free";
+            /** @constant */
+            is_estimate: true;
+            /** Format: date-time */
+            as_of: string;
+            /** @constant */
+            label: "購入ボーナス（無償）";
+            /** @constant */
+            notice: "お支払い完了時のランクで付与されます。表示は見積りであり、付与額を保証するものではありません。";
+        };
         PaymentGrant: {
             /** @description 対象Paymentで実際に確定した有償コイン数。現在のPointProductから再計算しない。 */
             paid_points: number;
@@ -1955,6 +1990,8 @@ export interface components {
             price: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PointProductGrant"];
             limited_bonus?: components["schemas"]["PointProductLimitedBonus"];
+            /** @description 現在支払いが成立した場合の購入ボーナス見積り。未ログイン、未確認、機能対象外はnull。既存grantの合計には含まれない。 */
+            member_rank_purchase_bonus?: null | components["schemas"]["MemberRankPurchaseBonusEstimate"];
             audience: components["schemas"]["PointProductAudience"];
             sale_state: components["schemas"]["PointProductSaleState"];
             is_available: boolean;
@@ -2198,6 +2235,11 @@ export interface components {
             /** @description 加算は正数、減算は負数で表すOperation単位のPoint増減量。 */
             amount_delta: number;
             reason: components["schemas"]["PointHistoryReason"];
+            /**
+             * @description 会員ランクの昇格ボーナス・購入ボーナスに付加する無償種別。
+             * @constant
+             */
+            point_type?: "free";
         };
         PointHistoryCollection: {
             items: components["schemas"]["PointHistoryEntry"][];

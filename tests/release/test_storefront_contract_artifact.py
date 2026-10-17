@@ -42,7 +42,23 @@ def package_archive(
 
 class StorefrontContractArtifactTest(unittest.TestCase):
     def governance(self):
-        return artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
+        value = artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
+        value['candidate'] = None
+        return value
+
+    def test_m4_candidate_is_unpublished_additive_and_preserves_released_alpha45(self):
+        value = artifact.governance(ROOT)
+        candidate = value['candidate']
+        self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.45')
+        self.assertEqual(candidate['release_state'], 'pending')
+        self.assertEqual(candidate['release_mode'], 'contract-additive')
+        self.assertFalse(candidate['breaking_change'])
+        self.assertEqual(candidate['contract_versions']['public'], '2.0.0-alpha.42')
+        self.assertNotIn('publication', candidate)
+        self.assertEqual(value['latest_immutable'], self.governance()['latest_immutable'])
+        self.assertEqual(value['immutable_history'], self.governance()['immutable_history'])
+        self.assertEqual(artifact.pending_candidate(ROOT), candidate)
 
     def next_candidate_governance(self):
         value = copy.deepcopy(self.governance())
@@ -345,12 +361,13 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['manifest_sha256'], released['manifest_sha256'])
         self.assertFalse(target['breaking_change'])
         source = artifact.validate_source(ROOT)
-        self.assertEqual(source['bundle_version'], '2.0.0-alpha.45')
-        self.assertEqual(source['release_state'], 'released')
+        self.assertEqual(source['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(source['release_state'], 'pending')
 
     def test_released_alpha_45_cannot_be_republished_or_duplicated(self):
-        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
-            artifact.pending_candidate(ROOT)
+        with mock.patch.object(artifact, 'governance', return_value=self.governance()):
+            with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                artifact.pending_candidate(ROOT)
         value = copy.deepcopy(self.governance())
         value['immutable_history'].append(copy.deepcopy(value['latest_immutable']))
         with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history version inventory invalid'):
@@ -512,7 +529,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.45",
+            "2.0.0-alpha.46",
         )
         with mock.patch.object(
             artifact,

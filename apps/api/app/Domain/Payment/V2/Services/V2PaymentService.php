@@ -476,6 +476,8 @@ final class V2PaymentService
                 'points_granted_at' => V2DatabaseTimestamp::format($grant->granted_at),
                 'updated_at' => V2DatabaseTimestamp::format(now()),
             ]);
+            app(\App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::class)
+                ->grantForPayment((int) $payment->id);
             $memberRanks->accountGrantedPayment((int) $payment->id);
             $this->providerAttempt($event->id, 'success');
             $this->audit->record('payment.succeeded', [

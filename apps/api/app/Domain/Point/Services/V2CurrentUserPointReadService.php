@@ -115,6 +115,8 @@ final class V2CurrentUserPointReadService
                 ->utc()->startOfSecond()->toIso8601ZuluString(),
             'amount_delta' => (int) $row->amount_delta,
             'reason' => $this->reason($row->source_type, $row->operation_type),
+            ...(in_array($row->source_type, ['member_rank_purchase', 'member_rank_promotion'], true)
+                ? ['point_type' => 'free'] : []),
         ])->values()->all();
 
         return [
@@ -189,6 +191,7 @@ final class V2CurrentUserPointReadService
             $sourceType === 'referral' => '紹介特典',
             $sourceType === 'pre_registration' => '事前登録特典',
             $sourceType === 'member_rank_promotion' => '昇格ボーナス',
+            $sourceType === 'member_rank_purchase' => '購入ボーナス',
             $operationType === 'free_grant', $operationType === 'paid_grant' => 'ポイント付与',
             default => 'その他',
         };

@@ -99,9 +99,12 @@ final class MemberRankAccountingTest extends TestCase
         $this->enableRankFixture();
         $user = $this->rankUser();
         $this->seedRankState($user, 4);
+        $purchaseTotal = 0;
         foreach ([[10000, 500], [20000, 2500], [70000, 7500]] as [$amount, $bonusTotal]) {
-            $this->settleRankPayment($user, $amount);
-            self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => $bonusTotal]);
+            $payment = $this->settleRankPayment($user, $amount);
+            $purchaseTotal += intdiv($amount * 150, 10000);
+            self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 4, 'bonus_amount' => intdiv($amount * 150, 10000)]);
+            self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => $bonusTotal + $purchaseTotal]);
         }
         self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->count());
         self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4]);
@@ -127,7 +130,8 @@ final class MemberRankAccountingTest extends TestCase
         DB::table('member_rank_states')->where('user_id', $user->id)->update(['level' => 2]);
         $this->rankClock('2026-10-31T15:00:00Z');
         $this->settleRankPayment($user, 100000);
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 7500]);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 9500]);
+        self::assertSame(2000, (int) DB::table('member_rank_purchase_bonuses')->where('user_id', $user->id)->sum('bonus_amount'));
     }
 
     public function test_effective_month_settings_zero_bonus_consumption_and_new_generation_keys(): void
@@ -237,8 +241,10 @@ final class MemberRankAccountingTest extends TestCase
         $accounting->accountGrantedPayment($live->id);
         self::assertSame(2, DB::table('member_rank_point_entries')->where('user_id', $user->id)->count());
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-10-01', 'points' => 100000]);
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 8000]);
-        self::assertSame(0, DB::table('point_operations')->where('source_type', 'member_rank_purchase')->count());
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 8700]);
+        self::assertSame(1, DB::table('point_operations')->where('source_type', 'member_rank_purchase')->count());
+        self::assertSame(0, DB::table('member_rank_purchase_bonuses')->whereIn('payment_id', [$old->id, $current->id])->count());
+        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $live->id, 'rank_level' => 3, 'bonus_amount' => 700]);
     }
 
     public function test_mid_bonus_database_failure_rolls_back_entire_payment_and_retry_succeeds(): void

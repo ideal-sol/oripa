@@ -166,3 +166,14 @@ Runtime activation is deferred. Apply schema before the new application. Retain
 the additive schema on application rollback; older applications cannot implement
 weighted selection or the revised login behavior, so restoring them requires
 pausing affected draws until a forward fix. Migration down is deliberately refused.
+
+## Member rank purchase bonuses (000092)
+
+Migration `2026_10_17_000092_create_v2_member_rank_purchase_bonuses.php` adds an
+immutable payment-to-purchase-bonus snapshot. Its effective setting, pre-increment
+rank, rate, paid amount, JST grant month and positive free-grant Operation origin
+are retained for M8 cancellation. Deferred constraints bind the Operation, lot
+and ledger to the same payment/user/amount/time. Zero bonuses have no Operation.
+Existing payment grant totals and migrations remain unchanged. No backfill;
+forward-only rollback. Test application is isolated; operational application is
+deferred and requires separate authority.

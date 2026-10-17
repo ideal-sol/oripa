@@ -1294,7 +1294,10 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.45')
+        value['candidate'] = None
         self.assertEqual(len(value['immutable_history']), 25)
         self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
         released = value['latest_immutable']
@@ -3655,7 +3658,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.45",
+                    "version": "2.0.0-alpha.46",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -3693,7 +3696,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.41",
+                        "minimumPublicApiContract": "2.0.0-alpha.42",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

@@ -11482,3 +11482,11 @@ that exact button under the unchanged deadline, retaining every save/variable
 assertion. This directly necessary one-line CI blocker expands scope by one test
 path only; no mail product behavior or control changes. All head-dependent gates
 are rerun on the resulting final Source; the failed407/408 run is retained.
+
+## RANKPURCHASE-20261017 — Member Rank M4 purchase bonus (Draft preparation)
+
+- Human Change MEMBERRANK-M4-20261017; Issue none; R3 / Strict Change / Activation deferred. Base protected main e18b2885fca7c49a3f85ac79c9fad45dbcad742d, M7 merged. Dedicated branch/worktree; Draft PR and self-review only, no Ready/merge/runtime/publication authority.
+- Specification v1.5 and phased plan REV2 hashes verified; M7 integration contract read. All registered worktrees and open PR inventories checked. PR572 owns diagnostics, M4 owns new migration inventory. Primary and historical dirty payment worktrees preserved.
+- Migration allocation flock acquired before all-ref/worktree/reservation scan;000092 reserved. Artifact lock acquired; alpha.45 remains released with25 immutable records, next canonical alpha.46 candidate reserved after no duplicate artifact/local candidate found. Source/isolated tests in progress; no PASS claimed. [Handoff](../docs/implementation/MEMBER_RANK_M4_HANDOFF_2026-10-17.md), [defects](../docs/implementation/MEMBER_RANK_M4_DEFECTS_2026-10-17.md).
+- Implemented saved-grant-time/pre-increment purchase calculation, separate free180-day Operation and immutable positive/zero payment origin; additive Public estimate/payment/history contract, generated Client/Testkit46. Original grant totals, providers, auth, draw and operational runtime remain unchanged.
+- Pre-freeze: initial focused28/217 PASS; expanded35/268 FAIL2 test assumptions retained/corrected. Real forced deadlock and seven-process contention PASS; corrected User/Plan/Wallet month-boundary3/39 PASS. DB72/contract48/policy291/release95/client38/testkit51 PASS; schema fresh2/forward-only/real dump-restore exact PASS. Fixed-head functional/Full V2/Required Checks and Draft HOLD review must complete before final acceptance; canonical PR records exact HEAD/Tree/results and later corrections.

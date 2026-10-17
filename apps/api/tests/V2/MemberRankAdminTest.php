@@ -74,7 +74,8 @@ final class MemberRankAdminTest extends TestCase
             self::assertSame(180, (int) CarbonImmutable::parse($lot->granted_at)->diffInDays(CarbonImmutable::parse($lot->expire_at)));
         }
         $this->settleRankPayment($user, 100000);
-        self::assertSame(7500, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame(9000, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame(1500, (int) DB::table('member_rank_purchase_bonuses')->where('user_id', $user->id)->sum('bonus_amount'));
         self::assertSame(3, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         $this->write($user, 'points', ['delta' => -100000, 'reason' => '手動付与は回収対象外']);
         self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());

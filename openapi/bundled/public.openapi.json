@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.41",
+    "version": "2.0.0-alpha.42",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -4101,6 +4101,17 @@
           "grant": {
             "$ref": "#/components/schemas/PaymentGrant"
           },
+          "member_rank_purchase_bonus": {
+            "description": "決済成立時の購入ボーナス。未確定または機能対象外はnull。確定0ポイントはオブジェクトで返す。既存grantの合計には含まれない。",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRankPurchaseBonus"
+              }
+            ]
+          },
           "expires_at": {
             "type": [
               "string",
@@ -4147,6 +4158,131 @@
             ]
           }
         ]
+      },
+      "MemberRankPurchaseBonus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank_code",
+          "rank_level",
+          "rate_basis_points",
+          "bonus_points",
+          "point_type",
+          "operation_id",
+          "granted_at",
+          "month"
+        ],
+        "properties": {
+          "rank_code": {
+            "type": "string",
+            "enum": [
+              "beginner",
+              "bronze",
+              "silver",
+              "gold",
+              "platinum",
+              "diamond",
+              "vip"
+            ]
+          },
+          "rank_level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "rate_basis_points": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "0.01%を1とする購入ボーナス率。今回のランクポイント加算前のランクに適用。"
+          },
+          "bonus_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "const": "free"
+          },
+          "operation_id": {
+            "description": "購入ボーナス専用の公開ポイントOperation ID。確定0ポイントの場合はnull。",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OpaqueId"
+              }
+            ]
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "description": "有償ポイント付与時刻の日本時間集計月。"
+          }
+        }
+      },
+      "MemberRankPurchaseBonusEstimate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank_code",
+          "rank_level",
+          "rate_basis_points",
+          "bonus_points",
+          "point_type",
+          "is_estimate",
+          "as_of",
+          "label",
+          "notice"
+        ],
+        "properties": {
+          "rank_code": {
+            "type": "string",
+            "enum": [
+              "beginner",
+              "bronze",
+              "silver",
+              "gold",
+              "platinum",
+              "diamond",
+              "vip"
+            ]
+          },
+          "rank_level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "rate_basis_points": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "bonus_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "const": "free"
+          },
+          "is_estimate": {
+            "const": true
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "label": {
+            "const": "購入ボーナス（無償）"
+          },
+          "notice": {
+            "const": "お支払い完了時のランクで付与されます。表示は見積りであり、付与額を保証するものではありません。"
+          }
+        }
       },
       "PaymentGrant": {
         "type": "object",
@@ -6093,6 +6229,17 @@
           "limited_bonus": {
             "$ref": "#/components/schemas/PointProductLimitedBonus"
           },
+          "member_rank_purchase_bonus": {
+            "description": "現在支払いが成立した場合の購入ボーナス見積り。未ログイン、未確認、機能対象外はnull。既存grantの合計には含まれない。",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRankPurchaseBonusEstimate"
+              }
+            ]
+          },
           "audience": {
             "$ref": "#/components/schemas/PointProductAudience"
           },
@@ -7136,6 +7283,10 @@
           },
           "reason": {
             "$ref": "#/components/schemas/PointHistoryReason"
+          },
+          "point_type": {
+            "const": "free",
+            "description": "会員ランクの昇格ボーナス・購入ボーナスに付加する無償種別。"
           }
         }
       },

@@ -53,12 +53,14 @@ final class V2PointProductReadService
             ->get()
             ->groupBy('point_purchase_plan_id');
 
+        $bonus = app(\App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::class)->estimateContext($user, $asOf);
         $products = $rows->map(
             fn (object $plan): array => $this->present(
                 $plan,
                 $user,
                 $asOf,
-                $campaigns->get($plan->id, collect())->all()
+                $campaigns->get($plan->id, collect())->all(),
+                $bonus
             )
         )->values()->all();
 
@@ -91,7 +93,8 @@ final class V2PointProductReadService
         object $plan,
         ?User $user,
         CarbonImmutable $now,
-        array $campaigns
+        array $campaigns,
+        ?array $bonus
     ): array
     {
         $saleState = $this->saleState($plan, $now);
@@ -111,6 +114,12 @@ final class V2PointProductReadService
                     + (int) $plan->free_point_amount,
             ],
             'limited_bonus' => $this->limitedBonus($campaigns, $now),
+            'member_rank_purchase_bonus' => $bonus === null ? null : [
+                ...$bonus,
+                'bonus_points' => \App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::calculate(
+                    (int) $plan->amount, $bonus['rate_basis_points']
+                ),
+            ],
             'audience' => [
                 'code' => $plan->audience_code,
                 'label' => $plan->audience_code
