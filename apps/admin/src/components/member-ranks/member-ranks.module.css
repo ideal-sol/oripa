@@ -5,7 +5,7 @@
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 1rem; }
 .grid dt { color: #586174; font-size: .85rem; }
 .grid dd { margin: .3rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
-.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .9rem; }
 .table td, .table th { padding: .65rem; text-align: left; border-bottom: 1px solid #e2e6ed; overflow-wrap: anywhere; }
 .scroll { overflow-x: auto; max-width: 100%; }
 .reason { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 24rem; }

@@ -124,6 +124,15 @@ for (const width of [1440, 390, 360]) {
     const review = page.locator("tr").filter({ has: page.locator(`a[href="/users/${fixture.review_user_id}"]`) });
     await expect(review.getByRole("cell").last()).toHaveText("300pt");
     await page.screenshot({ path: testInfo.outputPath(`rank-summary-${width}.png`), fullPage: true });
+    if (width < 720) {
+      const reviewTable = page.getByRole("heading", { name: "要確認 — 昇格ボーナスの回収不足" }).locator("..").locator('div[tabindex="0"]');
+      expect(await reviewTable.evaluate((element) => element.scrollWidth > element.clientWidth && getComputedStyle(element).overflowX === "auto")).toBe(true);
+      await reviewTable.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`rank-reviews-viewport-${width}.png`) });
+      await reviewTable.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect.poll(() => reviewTable.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.goto("/users");
     await page.getByRole("combobox", { name: "会員ランク", exact: true }).selectOption("gold");
