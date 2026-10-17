@@ -98,7 +98,10 @@ final class ZMemberRankAdminConcurrencyTest extends TestCase
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => 5000]);
         self::assertSame(1, DB::table('member_rank_point_entries')->where('user_id', $user->id)->where('applied_delta', -10000)->count());
         self::assertSame(1, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => 0]);
+        $purchase = DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->sole();
+        self::assertContains((int) $purchase->rank_level, [1, 2]);
+        self::assertSame((int) $purchase->rank_level === 1 ? 0 : 25, (int) $purchase->bonus_amount);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => (int) $purchase->bonus_amount]);
         self::assertSame(5000, (int) DB::table('member_rank_point_entries')->where('user_id', $user->id)->sum('applied_delta'));
         self::assertDatabaseHas('member_rank_states', ['user_id' => $other->id, 'level' => 6, 'baseline_month' => '2026-11-01']);
         Carbon::setTestNow();

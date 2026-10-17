@@ -92,6 +92,7 @@ final class CurrentUserPointReadContractTest extends TestCase
         DB::statement('ALTER TABLE point_lots DISABLE TRIGGER point_lots_new_expiry_guard');
         try {
             $this->lot($user, 'paid', 50, 0, null, true);
+            DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
         } finally {
             DB::statement('ALTER TABLE point_lots ENABLE TRIGGER point_lots_new_expiry_guard');
         }

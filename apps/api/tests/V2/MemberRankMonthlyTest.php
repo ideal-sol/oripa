@@ -169,7 +169,8 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-12-01', 'points' => 100000]);
         self::assertSame(3, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         self::assertSame(['promotion', 'demotion', 'promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 7500]);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 8500]);
+        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 3, 'bonus_amount' => 1000]);
         $before = $this->snapshot();
         self::assertSame(0, $worker->run('synthetic-worker'));
         self::assertSame($before, $this->snapshot());

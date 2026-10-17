@@ -487,6 +487,8 @@ final class V2FincodePaymentService
         return [
             'id' => $payment->public_id,
             'point_product_id' => $payment->point_product_public_id,
+            'member_rank_purchase_bonus' => app(\App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::class)
+                ->present((int) $payment->id),
             'method' => $payment->payment_method,
             'status' => $payment->status,
             'amount' => ['amount' => (int) $payment->amount, 'currency' => $payment->currency],
