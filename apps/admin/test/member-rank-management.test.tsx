@@ -106,6 +106,22 @@ describe("Member rank management", () => {
     expect(screen.queryByText("次の履歴を表示")).toBeNull();
   });
 
+  it("marks only a real shortfall as requiring review", async () => {
+    vi.mocked(AdminApiClient.prototype.previewMemberRank).mockResolvedValue({ request_id: "test", data: {
+      ...preview, recoveries: [
+        { rank: "bronze", amount: 500, recovered_amount: 500, shortfall_amount: 0, point_type: "free", expires_in_days: 180 },
+        { rank: "silver", amount: 2000, recovered_amount: 1000, shortfall_amount: 1000, point_type: "free", expires_in_days: 180 },
+      ],
+    } });
+    render(<MemberRankDetail user={user} onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "ランクポイントを調整" }));
+    fireEvent.change(screen.getByLabelText("ランクポイント増減"), { target: { value: "-10000" } });
+    fireEvent.change(screen.getByLabelText("理由", { exact: true }), { target: { value: "Recovery" } });
+    fireEvent.click(screen.getByRole("button", { name: "変更内容を確認" }));
+    expect(await screen.findByText("ブロンズ 昇格ボーナス回収 500pt / 不足 0pt（全額回収）")).toBeVisible();
+    expect(screen.getByText("シルバー 昇格ボーナス回収 1,000pt / 不足 1,000pt（要確認）")).toBeVisible();
+  });
+
   it("discards an old manual-history page after applying new filters", async () => {
     let finish!: (value: AdminMemberRankHistoryCollection) => void;
     const deferred = new Promise<AdminMemberRankHistoryCollection>((resolve) => { finish = resolve; });

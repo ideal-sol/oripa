@@ -81,7 +81,7 @@ for (const width of [1440, 390, 360]) {
     await dialog.getByLabel("ランクポイント増減").fill("-10000");
     await dialog.getByLabel("理由", { exact: true }).fill("E2E 回収");
     await dialog.getByRole("button", { name: "変更内容を確認" }).click();
-    await expect(dialog.getByText("ブロンズ 昇格ボーナス回収 500pt / 不足 0pt（要確認）")).toBeVisible();
+    await expect(dialog.getByText("ブロンズ 昇格ボーナス回収 500pt / 不足 0pt（全額回収）")).toBeVisible();
     await dialog.getByRole("button", { name: "確認して保存" }).click();
     await expect(dialog).not.toBeVisible();
     await page.getByRole("button", { name: "ランクを変更", exact: true }).click();

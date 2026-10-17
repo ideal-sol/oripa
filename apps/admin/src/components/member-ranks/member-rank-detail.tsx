@@ -157,7 +157,7 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
       {preview.grants.map((effect) => <p key={effect.rank}>{rankName(effect.rank)}：{effect.amount.toLocaleString()}pt（無償）</p>)}
       {preview.excluded_ranks.length > 0 ? <p>資格消化済み・今回対象外：{preview.excluded_ranks.map(rankName).join("、")}</p> : null}
       {preview.recoveries.map((effect) => <p key={effect.rank} className={effect.shortfall_amount > 0 ? styles.warning : undefined}>
-        {rankName(effect.rank)} 昇格ボーナス回収 {effect.recovered_amount.toLocaleString()}pt / 不足 {effect.shortfall_amount.toLocaleString()}pt（要確認）
+        {rankName(effect.rank)} 昇格ボーナス回収 {effect.recovered_amount.toLocaleString()}pt / 不足 {effect.shortfall_amount.toLocaleString()}pt{effect.shortfall_amount > 0 ? "（要確認）" : "（全額回収）"}
       </p>)}
       {operation === "rank" && kind === "transfer" && preview.last_transfer ? <div className={styles.warning}>
         <p>引き継ぎは適用済みです。前回 {rankDate(preview.last_transfer.occurred_at)}：{rankName(preview.last_transfer.from_rank)} → {rankName(preview.last_transfer.to_rank)}</p>

@@ -15,6 +15,7 @@ canonical M7 Draft PR. No performance disposition closes a functional defect.
 | M7-F07 | Helper text was included in the accessible name of the point/reason inputs | Explicit input names and associated descriptions | UI input/confirmation and real-browser form scenarios |
 | M7-F08 | A Wallet lock wait could cross JST month start after the initial clock sample | Resample after Wallet lock; reject the obsolete month and require a fresh preview in the same rollback boundary | Controlled lock-boundary clock change, zero old-month writes and successful new-month retry |
 | M7-F09 | A pending next-page response could overwrite newly selected User history or manual-history filters | Abort the old generation and discard its late success/error before updating displayed history | Deferred-response regressions for both history surfaces |
+| M7-F10 | A fully recovered bonus preview still displayed the shortfall review label | Distinguish full recovery from actual positive shortfall | UI assertions for full/partial amounts and the real-browser full-recovery confirmation |
 
 Initial test-harness failures are separate: JSONB reorders object keys on replay,
 so equality must compare key/value meaning while retaining indexed-list order.
