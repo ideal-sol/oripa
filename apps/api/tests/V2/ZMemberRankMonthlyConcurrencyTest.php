@@ -70,7 +70,8 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
         self::assertSame(['promotion', 'demotion', 'promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
         self::assertSame(3, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         self::assertSame(3, DB::table('member_rank_point_entries')->where('user_id', $user->id)->count());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 7500]);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 8500]);
+        self::assertSame(1000, (int) DB::table('member_rank_purchase_bonuses')->where('user_id', $user->id)->sum('bonus_amount'));
         self::assertSame(1, DB::table('member_rank_monthly_jobs')->where('month', '2026-12-01')->count());
     }
 
