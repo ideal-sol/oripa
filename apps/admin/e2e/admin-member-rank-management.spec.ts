@@ -117,7 +117,9 @@ for (const width of [1440, 390, 360]) {
     await dialog.getByRole("button", { name: "変更内容を確認" }).click();
     await dialog.getByRole("button", { name: "確認して保存" }).click();
     await expect(dialog).not.toBeVisible();
+    const summaryResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/admin/api/v2/member-ranks/summary");
     await page.goto("/users/member-ranks");
+    expect((await summaryResponse).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "有効会員のランク別人数" })).toBeVisible();
     const review = page.locator("tr").filter({ has: page.locator(`a[href="/users/${fixture.review_user_id}"]`) });
     await expect(review.getByRole("cell").last()).toHaveText("300pt");
@@ -126,8 +128,14 @@ for (const width of [1440, 390, 360]) {
     await page.goto("/users");
     await page.getByRole("combobox", { name: "会員ランク", exact: true }).selectOption("gold");
     await page.getByRole("combobox", { name: "引き継ぎ", exact: true }).selectOption("true");
+    const listResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/admin/api/v2/users" && url.searchParams.get("member_rank") === "gold" && url.searchParams.get("transferred") === "true";
+    });
     await page.getByRole("button", { name: "検索", exact: true }).click();
+    expect((await listResponse).status()).toBe(200);
     await expect(page.getByRole("columnheader", { name: "当月ランクポイント" })).toBeVisible();
+    await expect(page.locator(`a[href="/users/${fixture.user_id}"]`)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
     await page.unrouteAll({ behavior: "wait" });
