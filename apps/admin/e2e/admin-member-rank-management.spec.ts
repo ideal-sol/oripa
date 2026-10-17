@@ -140,7 +140,9 @@ for (const width of [1440, 390, 360]) {
     expect(errors).toEqual([]);
     await page.unrouteAll({ behavior: "wait" });
     await install(page, fixture.sessions.operator);
+    const operatorResponse = page.waitForResponse((response) => new URL(response.url()).pathname === `/admin/api/v2/users/${fixture.user_id}`);
     await page.goto(`/users/${fixture.user_id}`);
+    expect((await operatorResponse).status()).toBe(200);
     await expect(page.getByRole("heading", { name: "会員ランク", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "ランクを変更", exact: true })).toHaveCount(0);
   });
