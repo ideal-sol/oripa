@@ -13,6 +13,8 @@ import {
 } from "react";
 
 import { usePermissions } from "@/components/permissions/permission-provider";
+import { MemberRankDetail } from "@/components/member-ranks/member-rank-detail";
+import { rankName, rankNames } from "@/components/member-ranks/member-rank-labels";
 import { AdminPaymentHistory } from "@/components/payments/admin-payment-history";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminUserPointAdjustmentModal } from "@/components/users/admin-user-point-adjustment-modal";
@@ -206,6 +208,12 @@ function UserFilters({
           onChange={(event) => onChange({ ...draft, date_from: event.target.value })}
         />
       </label>
+      <label><span>会員ランク</span><select aria-label="会員ランク" value={draft.member_rank ?? ""} onChange={(event) => onChange({ ...draft, member_rank: event.target.value as AdminUserQuery["member_rank"] || undefined })}>
+        <option value="">すべて</option>{Object.entries(rankNames).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+      </select></label>
+      <label><span>引き継ぎ</span><select aria-label="引き継ぎ" value={draft.transferred ? "true" : ""} onChange={(event) => onChange({ ...draft, transferred: event.target.value === "true" })}>
+        <option value="">すべて</option><option value="true">引き継ぎ適用済みのみ</option>
+      </select></label>
       <label>
         <span>登録日（終了）</span>
         <input
@@ -232,6 +240,8 @@ function listFilters(filters?: AdminUserQuery): AdminUserQuery {
     date_to: filters?.date_to || undefined,
     status: filters?.status ?? "active",
     user_id: filters?.user_id || undefined,
+    member_rank: filters?.member_rank,
+    transferred: filters?.transferred,
   };
 }
 
@@ -244,7 +254,7 @@ function UserList({ items }: { items: AdminUserSummary[] }) {
     return <State message="表示できるユーザーはいません。" />;
   }
   const headings = [
-    "ID", "ユーザー名", "状態", "合計残高", "有償P", "無償P", "登録日", "詳細",
+    "ID", "ユーザー名", "状態", "会員ランク", "当月ランクポイント", "合計残高", "有償P", "無償P", "登録日", "詳細",
   ];
   return (
     <div className="admin-user-table-region" tabIndex={0}>
@@ -258,6 +268,8 @@ function UserList({ items }: { items: AdminUserSummary[] }) {
               <td><PublicId value={user.id} /></td>
               <td>{user.display_name ?? "未設定"}</td>
               <td><Status value={user.status} /></td>
+              <td>{rankName(user.member_rank)}{user.member_rank_transferred ? <p>引き継ぎ適用済み</p> : null}</td>
+              <td>{(user.member_rank_points ?? 0).toLocaleString()}</td>
               <td>{balance(user.point_balance?.total_balance)}</td>
               <td>{balance(user.point_balance?.paid_balance)}</td>
               <td>{balance(user.point_balance?.free_balance)}</td>
@@ -316,6 +328,7 @@ function UserDetail({ onRefresh, user }: { onRefresh: (message: string) => void;
       {hasPermission("reporting.financial.read") ? (
         <AdminPaymentHistory userPublicId={user.id} />
       ) : null}
+      <MemberRankDetail user={user} onRefresh={onRefresh} />
       <AdminUserReferralHistory userPublicId={user.id} />
       {hasPermission("pre_registration.settings.read") ? <AdminUserPreRegistration key={user.id} userId={user.id} /> : null}
       <AdminUserStateManagement

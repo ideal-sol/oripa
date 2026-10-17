@@ -60,7 +60,7 @@ describe("Admin User Read workspace", () => {
     render(<AdminUserReadWorkspace mode="list" />);
 
     expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "ID", "ユーザー名", "状態", "合計残高", "有償P", "無償P", "登録日", "詳細",
+      "ID", "ユーザー名", "状態", "会員ランク", "当月ランクポイント", "合計残高", "有償P", "無償P", "登録日", "詳細",
     ]);
     const row = screen.getAllByRole("row")[1];
     expect(within(row).getByText("未設定")).toBeVisible();
@@ -89,6 +89,8 @@ describe("Admin User Read workspace", () => {
     fireEvent.change(screen.getByLabelText("状態"), { target: { value: "verification_failed" } });
     fireEvent.change(screen.getByLabelText("登録日（開始）"), { target: { value: "2026-08-01" } });
     fireEvent.change(screen.getByLabelText("登録日（終了）"), { target: { value: "2026-08-31" } });
+    fireEvent.change(screen.getByLabelText("会員ランク"), { target: { value: "gold" } });
+    fireEvent.change(screen.getByLabelText("引き継ぎ"), { target: { value: "true" } });
     fireEvent.click(screen.getByRole("button", { name: "検索" }));
 
     expect(readModel.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
@@ -97,6 +99,8 @@ describe("Admin User Read workspace", () => {
         date_to: "2026-08-31",
         status: "verification_failed",
         user_id: uuid("1"),
+        member_rank: "gold",
+        transferred: true,
       },
     }));
     fireEvent.click(screen.getByRole("button", { name: "条件を解除" }));
@@ -108,6 +112,8 @@ describe("Admin User Read workspace", () => {
         date_to: undefined,
         status: "active",
         user_id: undefined,
+        member_rank: undefined,
+        transferred: undefined,
       },
     }));
   });

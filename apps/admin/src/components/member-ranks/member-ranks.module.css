@@ -1,0 +1,27 @@
+.stack { display: grid; gap: 1rem; min-width: 0; }
+.panel { padding: 1.25rem; border: 1px solid var(--border-color, #dfe3eb); border-radius: 12px; background: var(--surface, #fff); min-width: 0; }
+.header { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 1rem; }
+.grid dt { color: #586174; font-size: .85rem; }
+.grid dd { margin: .3rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .9rem; }
+.table td, .table th { padding: .65rem; text-align: left; border-bottom: 1px solid #e2e6ed; overflow-wrap: anywhere; }
+.scroll { overflow-x: auto; max-width: 100%; }
+.reason { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 24rem; }
+.warning { padding: .8rem; background: #fff5db; border-radius: 8px; color: #70480a; }
+.error { color: #b51f35; overflow-wrap: anywhere; }
+.form { display: grid; gap: 1rem; }
+.form label { display: grid; gap: .4rem; }
+.form select, .form input, .form textarea { width: 100%; min-width: 0; padding: .6rem; border: 1px solid #bac2d0; border-radius: 6px; background: #fff; color: #202638; }
+.form textarea { min-height: 6rem; resize: vertical; }
+.dialog { border: 0; border-radius: 12px; width: min(680px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.25rem; color: inherit; }
+.dialog::backdrop { background: #10182f80; }
+.checkbox { display: flex !important; align-items: flex-start; gap: .65rem !important; }
+.checkbox input { width: auto; margin-top: .25rem; }
+@media (max-width: 480px) {
+  .panel { padding: .85rem; }
+  .actions { width: 100%; }
+  .actions button { flex: 1; }
+  .table { font-size: .8rem; }
+}

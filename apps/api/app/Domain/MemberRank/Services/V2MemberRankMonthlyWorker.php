@@ -165,6 +165,7 @@ final class V2MemberRankMonthlyWorker
 
     private function pending(string $month): Builder
     {
-        return DB::table('member_rank_states')->where('level', '>', 1)->where('baseline_month', '<', $month);
+        return DB::table('member_rank_states')->where('level', '>', 1)->where('baseline_month', '<', $month)
+            ->whereNull('frozen_at')->whereIn('user_id', DB::table('users')->select('id')->whereNotIn('state', ['closed', 'anonymized']));
     }
 }

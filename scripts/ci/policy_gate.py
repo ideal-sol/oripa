@@ -292,6 +292,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_16_000088_create_v2_member_rank_settings.php",
     "apps/api/database/migrations-v2/2026_10_16_000089_create_v2_member_rank_accounting.php",
     "apps/api/database/migrations-v2/2026_10_16_000090_add_v2_member_rank_monthly_judgment.php",
+    "apps/api/database/migrations-v2/2026_10_17_000091_add_v2_member_rank_admin_operations.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -957,6 +958,16 @@ MEMBER_RANK_M1_ADMIN_FILES = {
     "apps/admin/test/member-rank-fixture.ts",
     "apps/admin/test/member-rank-settings.test.tsx",
 }
+MEMBER_RANK_M7_ADMIN_FILES = {
+    "apps/admin/e2e/admin-member-rank-management.spec.ts",
+    "apps/admin/src/app/users/member-ranks/page.tsx",
+    "apps/admin/src/components/member-ranks/member-rank-detail.tsx",
+    "apps/admin/src/components/member-ranks/member-rank-history.tsx",
+    "apps/admin/src/components/member-ranks/member-rank-labels.ts",
+    "apps/admin/src/components/member-ranks/member-rank-summary.tsx",
+    "apps/admin/src/components/member-ranks/member-ranks.module.css",
+    "apps/admin/test/member-rank-management.test.tsx",
+}
 MIG_099_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-master-workspace.tsx",
 }
@@ -1146,6 +1157,7 @@ ADMIN_SKELETON_FILES = {
     *MIG_084_ADMIN_SKELETON_FILES,
     *PREREG_V14_ADMIN_FILES,
     *MEMBER_RANK_M1_ADMIN_FILES,
+    *MEMBER_RANK_M7_ADMIN_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
     "apps/admin/test/rich-text-editor-compatibility.test.tsx",
@@ -3149,6 +3161,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_16_000088_create_v2_member_rank_settings.php",
         "2026_10_16_000089_create_v2_member_rank_accounting.php",
         "2026_10_16_000090_add_v2_member_rank_monthly_judgment.php",
+        "2026_10_17_000091_add_v2_member_rank_admin_operations.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

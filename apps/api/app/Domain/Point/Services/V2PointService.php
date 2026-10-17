@@ -311,6 +311,46 @@ final class V2PointService
         return $operation;
     }
 
+    public function lockMemberRankWallet(int $userId): void
+    {
+        if (DB::transactionLevel() < 1) {
+            throw new V2PointException('Member rank wallet locking requires the owning transaction.');
+        }
+        $this->lockWallet($userId);
+    }
+
+    public function recoverMemberRankPromotion(int $userId, string $achievementPublicId, int $amount, CarbonInterface $occurredAt): array
+    {
+        if (DB::transactionLevel() < 1 || $amount < 0 || ! Str::isUuid($achievementPublicId)) {
+            throw new V2PointException('Member rank recovery input is invalid.');
+        }
+        $wallet = $this->lockWallet($userId);
+        $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
+        $lots = $this->lockConsumableLots($userId, $occurred, 'free');
+        $available = (int) $lots->sum(fn (PointLot $lot): int => (int) $lot->remaining_amount - (int) $lot->reserved_amount);
+        $recovered = min($amount, $available, (int) $wallet->free_balance - (int) $wallet->free_reserved_balance);
+        if ($recovered === 0) {
+            return ['operation_id' => null, 'recovered_amount' => 0];
+        }
+        $operation = $this->operation($userId, 'adjustment_deduct', 'member_rank_recovery',
+            'member_rank.recovery:'.$achievementPublicId, $occurred, 'system', null);
+        $remaining = $recovered;
+        $runningBalance = (int) $wallet->free_balance;
+        $sequence = 1;
+        $this->deductAdjustmentLots($lots, $remaining, $operation, $wallet, 'free', $runningBalance, $sequence, $occurred);
+        if ($remaining !== 0 || $runningBalance < 0) {
+            throw new V2PointException('Member rank recovery does not match locked free lots.');
+        }
+        $wallet->forceFill(['free_balance' => $runningBalance, 'lock_version' => (int) $wallet->lock_version + 1])->save();
+        $this->audit->record('point.member_rank_bonus_recovered', [
+            'target_type' => 'member_rank_achievement', 'target_public_id' => $achievementPublicId,
+            'before' => ['free_balance' => $runningBalance + $recovered], 'after' => ['free_balance' => $runningBalance],
+            'metadata' => ['amount' => $recovered, 'operation_public_id' => $operation->public_id],
+        ]);
+
+        return ['operation_id' => (int) $operation->id, 'recovered_amount' => $recovered];
+    }
+
     public function grantReferralReward(
         int $userId,
         int $referralId,

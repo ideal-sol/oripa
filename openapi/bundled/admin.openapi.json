@@ -1400,6 +1400,350 @@
         }
       }
     },
+    "/member-ranks/summary": {
+      "get": {
+        "operationId": "getAdminMemberRankSummary",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "会員ランク集計・月次進捗・回収不足を閲覧する",
+        "x-required-permission": "member_rank.settings.read",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "responses": {
+          "200": {
+            "description": "active会員の実効ランク集計。未処理があれば暫定値。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankSummaryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/member-ranks/manual-changes": {
+      "get": {
+        "operationId": "listAdminMemberRankManualChanges",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "全会員の手動ランク変更履歴",
+        "x-required-permission": "member_rank.settings.read",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AdminMemberRankManualKind"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "新しい順の追記履歴",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankHistoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/member-rank": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/UserId"
+        }
+      ],
+      "put": {
+        "operationId": "updateAdminUserMemberRank",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "確認した差分で会員ランクを手動変更する",
+        "x-required-permission": "member_rank.user.manage",
+        "x-idempotency": "required",
+        "x-rate-limit": "admin-write",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMemberRankWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "変更結果。再送は記録済み結果。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankMutation"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/member-rank/preview": {
+      "get": {
+        "operationId": "previewAdminUserMemberRank",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "ランク変更または当月ポイント調整の差分を副作用なしで計算する",
+        "x-required-permission": "member_rank.user.manage",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "name": "operation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "rank",
+                "points"
+              ]
+            }
+          },
+          {
+            "name": "rank",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AdminMemberRankCode"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AdminMemberRankManualKind"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "skip_count",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 12
+            }
+          },
+          {
+            "name": "grant_bonus",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "delta",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "保存時に再照合する差分と確認token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankPreviewResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/member-rank-history": {
+      "get": {
+        "operationId": "listAdminUserMemberRankHistory",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "会員のランク変動・ポイント増減履歴",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "name": "history",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "rank",
+                "points"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "新しい順の不変履歴",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankHistoryCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/member-rank-point-adjustments": {
+      "post": {
+        "operationId": "adjustAdminUserMemberRankPoints",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "当月のランクポイント調整と昇格取消・無償ボーナス回収",
+        "x-required-permission": "member_rank.user.manage",
+        "x-idempotency": "required",
+        "x-rate-limit": "admin-write",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminMemberRankPointWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "調整・回収結果。残高と月合計を負数にしない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMemberRankMutation"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/settings/member-ranks": {
       "get": {
         "operationId": "getAdminMemberRankSettings",
@@ -10733,6 +11077,20 @@
         ],
         "parameters": [
           {
+            "name": "member_rank",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AdminMemberRankCode"
+            }
+          },
+          {
+            "name": "transferred",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "$ref": "#/components/parameters/PageLimit"
           },
           {
@@ -13804,6 +14162,845 @@
                 "format": "date-time"
               }
             }
+          }
+        }
+      },
+      "AdminMemberRankCode": {
+        "type": "string",
+        "enum": [
+          "beginner",
+          "bronze",
+          "silver",
+          "gold",
+          "platinum",
+          "diamond",
+          "vip"
+        ]
+      },
+      "AdminMemberRankManualKind": {
+        "type": "string",
+        "enum": [
+          "transfer",
+          "support",
+          "payment_incident",
+          "other"
+        ]
+      },
+      "AdminMemberRankDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "rank",
+          "month",
+          "rank_points",
+          "revision",
+          "default_skip_count",
+          "next_rank",
+          "maintain",
+          "skip_count",
+          "guaranteed_until",
+          "transferred_at",
+          "last_transfer",
+          "achievements",
+          "frozen_at"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "rank_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "default_skip_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "skip_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "guaranteed_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "transferred_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "frozen_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_transfer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminMemberRankHistoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_rank": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminMemberRankLine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maintain": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminMemberRankLine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achievements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMemberRankAchievement"
+            }
+          }
+        }
+      },
+      "AdminMemberRankLine": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "month",
+          "line",
+          "remaining"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminMemberRankAchievement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "rank",
+          "generation",
+          "month",
+          "setting_revision",
+          "bonus_amount",
+          "point_type",
+          "basis",
+          "origin_id",
+          "occurred_at",
+          "consumed",
+          "recovered_amount",
+          "shortfall_amount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "setting_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "bonus_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "type": "string",
+            "const": "free"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "rank_points",
+              "manual_rank",
+              "manual_rank_points"
+            ]
+          },
+          "origin_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumed": {
+            "type": "boolean"
+          },
+          "recovered_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "shortfall_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "AdminMemberRankHistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "actor_id",
+          "reason",
+          "reason_text",
+          "kind",
+          "from_rank",
+          "to_rank",
+          "month",
+          "rank_points",
+          "requested_delta",
+          "applied_delta",
+          "grant_bonus",
+          "bonus_amount",
+          "skip_count",
+          "setting_revision",
+          "origin_id",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "promotion",
+              "demotion",
+              "manual",
+              "promotion_reversal",
+              "payment",
+              "manual_rank_points"
+            ]
+          },
+          "reason_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "transfer",
+              "support",
+              "payment_incident",
+              "other",
+              null
+            ]
+          },
+          "from_rank": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_rank": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "rank_points": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "requested_delta": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "applied_delta": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "grant_bonus": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bonus_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "skip_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 12
+          },
+          "setting_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "origin_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminMemberRankHistoryCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "next_cursor",
+          "request_id"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMemberRankHistoryItem"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminMemberRankEffect": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "amount",
+          "recovered_amount",
+          "shortfall_amount",
+          "point_type",
+          "expires_in_days"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recovered_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shortfall_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "type": "string",
+            "const": "free"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "const": 180
+          }
+        }
+      },
+      "AdminMemberRankPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "month",
+          "expected_revision",
+          "setting_revision",
+          "before_rank",
+          "after_rank",
+          "before_points",
+          "after_points",
+          "before_skip",
+          "after_skip",
+          "grants",
+          "excluded_ranks",
+          "recoveries",
+          "total_bonus",
+          "last_transfer",
+          "preview_token"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "setting_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "before_rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "after_rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "before_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "after_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "before_skip": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "after_skip": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMemberRankEffect"
+            }
+          },
+          "excluded_ranks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMemberRankCode"
+            }
+          },
+          "recoveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMemberRankEffect"
+            }
+          },
+          "total_bonus": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_transfer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminMemberRankHistoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "AdminMemberRankPreviewResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminMemberRankPreview"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminMemberRankWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "kind",
+          "reason",
+          "skip_count",
+          "grant_bonus",
+          "expected_revision",
+          "preview_token"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AdminMemberRankManualKind"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "skip_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "grant_bonus": {
+            "type": "boolean",
+            "default": false
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preview_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "confirmed_transfer_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminMemberRankPointWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "delta",
+          "reason",
+          "expected_revision",
+          "preview_token"
+        ],
+        "properties": {
+          "delta": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "not": {
+              "const": 0
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preview_token": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "AdminMemberRankMutation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "idempotent_replay",
+          "request_id"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminMemberRankPreview"
+          },
+          "idempotent_replay": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdminMemberRankSummaryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "month",
+              "ranks",
+              "active_total",
+              "promotion_bonus",
+              "purchase_bonus",
+              "progress",
+              "reviews"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "month": {
+                "type": "string",
+                "format": "date"
+              },
+              "active_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ranks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "rank",
+                    "count"
+                  ],
+                  "properties": {
+                    "rank": {
+                      "$ref": "#/components/schemas/AdminMemberRankCode"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              },
+              "promotion_bonus": {
+                "$ref": "#/components/schemas/AdminMemberRankBonusTotal"
+              },
+              "purchase_bonus": {
+                "$ref": "#/components/schemas/AdminMemberRankBonusTotal"
+              },
+              "progress": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "provisional",
+                  "remaining",
+                  "last_completed_month",
+                  "status",
+                  "lease_expired"
+                ],
+                "properties": {
+                  "provisional": {
+                    "type": "boolean"
+                  },
+                  "remaining": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "last_completed_month": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date"
+                  },
+                  "status": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "pending",
+                      "processing",
+                      "completed",
+                      "failed",
+                      null
+                    ]
+                  },
+                  "lease_expired": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "reviews": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "user_id",
+                    "achievement_id",
+                    "rank",
+                    "recovered_amount",
+                    "shortfall_amount",
+                    "occurred_at"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "user_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "achievement_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "rank": {
+                      "$ref": "#/components/schemas/AdminMemberRankCode"
+                    },
+                    "recovered_amount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "shortfall_amount": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "occurred_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AdminMemberRankBonusTotal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "amount",
+          "point_type"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "point_type": {
+            "type": "string",
+            "const": "free"
           }
         }
       },
@@ -25756,6 +26953,16 @@
           "created_at"
         ],
         "properties": {
+          "member_rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "member_rank_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "member_rank_transferred": {
+            "type": "boolean"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -25813,72 +27020,110 @@
         }
       },
       "AdminUserDetail": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/AdminUserSummary"
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name",
+          "status",
+          "point_balance",
+          "created_at",
+          "email",
+          "email_verified_at",
+          "state_revision",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
           },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "email",
-              "email_verified_at",
-              "state_revision",
-              "updated_at"
+          "display_name": {
+            "type": [
+              "string",
+              "null"
             ],
-            "properties": {
-              "email": {
-                "type": "string",
-                "format": "email"
+            "maxLength": 255
+          },
+          "status": {
+            "$ref": "#/components/schemas/AdminUserState"
+          },
+          "point_balance": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdminUserPointBalance"
               },
-              "email_verified_at": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date-time"
-              },
-              "sms_verified": {
-                "type": "boolean",
-                "readOnly": true
-              },
-              "phone": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "pattern": "^\\\\+81(?:70|80|90)[0-9]{8}$",
-                "readOnly": true
-              },
-              "verified_at": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date-time",
-                "readOnly": true
-              },
-              "state_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "tag_assignment_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "tags": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/AdminUserTagAssignment"
-                }
-              },
-              "updated_at": {
-                "type": "string",
-                "format": "date-time"
+              {
+                "type": "null"
               }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "member_rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "member_rank_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "member_rank_transferred": {
+            "type": "boolean"
+          },
+          "member_rank_detail": {
+            "$ref": "#/components/schemas/AdminMemberRankDetail"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "email_verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "sms_verified": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\+81(?:70|80|90)[0-9]{8}$",
+            "readOnly": true
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "readOnly": true
+          },
+          "state_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tag_assignment_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTagAssignment"
             }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
-        ]
+        }
       },
       "AdminUserStateUpdate": {
         "type": "object",
@@ -28261,6 +29506,41 @@
     "scope": "inventory-notion-null-placeholders-to-cached-observations"
   },
   "x-oripa-error-codes": {
+    "MEMBER_RANK_QUERY_INVALID": {
+      "status": 422,
+      "retryable": false,
+      "description": "検索条件を確認してください。"
+    },
+    "MEMBER_RANK_INPUT_INVALID": {
+      "status": 422,
+      "retryable": false,
+      "description": "入力内容を確認してください。"
+    },
+    "MEMBER_RANK_REVISION_CONFLICT": {
+      "status": 409,
+      "retryable": false,
+      "description": "最新の差分を再確認してください。"
+    },
+    "MEMBER_RANK_TRANSFER_CONFIRMATION_REQUIRED": {
+      "status": 409,
+      "retryable": false,
+      "description": "前回の引き継ぎ内容を確認してください。"
+    },
+    "MEMBER_RANK_USER_UNAVAILABLE": {
+      "status": 409,
+      "retryable": false,
+      "description": "有効な会員のみ変更できます。"
+    },
+    "MEMBER_RANK_NOT_ENABLED": {
+      "status": 409,
+      "retryable": false,
+      "description": "会員ランク機能は運用開始前です。"
+    },
+    "MEMBER_RANK_POINTS_OUT_OF_RANGE": {
+      "status": 422,
+      "retryable": false,
+      "description": "調整後のランクポイントが範囲外です。"
+    },
     "MEMBER_RANK_SETTINGS_INVALID": {
       "status": 422,
       "retryable": false,

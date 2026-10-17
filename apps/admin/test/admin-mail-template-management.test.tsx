@@ -141,7 +141,7 @@ describe("Mail Template management", () => {
     }));
     render(<MailTemplateWorkspace templateKey="contact_reply" />);
     expect(await screen.findByLabelText("件名")).toHaveValue("お問い合わせへのご返信");
-    fireEvent.click(screen.getByRole("button", { name: "HTML" }));
+    fireEvent.click(await screen.findByRole("button", { name: "HTML" }));
     const body = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "メール本文のHTMLソース" });
     body.setSelectionRange(body.value.length, body.value.length);
     fireEvent.change(screen.getByLabelText("本文へ変数を挿入"), { target: { value: "{{reply_content}}" } });

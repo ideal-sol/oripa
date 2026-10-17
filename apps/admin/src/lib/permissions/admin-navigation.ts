@@ -7,6 +7,7 @@ export type AdminRouteId =
   | "agency-sales"
   | "dashboard"
   | "users-list"
+  | "member-ranks"
   | "users-history"
   | "users-tags"
   | "gachas"
@@ -100,6 +101,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("agency-sales", "売上集計", "/agencies/aggregates/sales", "agency.read", "reports", "available", "none"),
   route("dashboard", "ダッシュボード", "/", null, "dashboard", "available", "none"),
   route("users-list", "一覧", "/users", null, "users", "available", "none"),
+  route("member-ranks", "会員ランク", "/users/member-ranks", "member_rank.settings.read", "users", "available"),
   route("users-tags", "会員タグ", "/users/tags", "user.tag.read", "users", "available"),
   route("users-history", "履歴", "/users/history", null, "users", "scaffold", "none", true),
   route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
@@ -141,7 +143,7 @@ const ROUTES_BY_ID = new Map(ADMIN_ROUTE_ITEMS.map((item) => [item.id, item]));
 
 export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigation([
   navigationItem("dashboard"),
-  group("users", "ユーザー", "users", ["users-list", "users-tags", "users-history"]),
+  group("users", "ユーザー", "users", ["users-list", "member-ranks", "users-tags", "users-history"]),
   group("agencies", "代理店管理", "users", ["agencies", "agency-users", "agency-sales"]),
   group("gacha", "ガチャ", "gacha", [
     "gachas",

@@ -284,6 +284,8 @@ export const ADMIN_SHIPPING_STATUS_FILTERS = [
 export type AdminShippingStatusFilter = typeof ADMIN_SHIPPING_STATUS_FILTERS[number];
 
 export interface AdminUserQuery {
+  member_rank?: import("./generated").AdminMemberRankCode;
+  transferred?: boolean;
   cursor?: string;
   date_from?: string;
   date_to?: string;
@@ -466,6 +468,8 @@ export class AdminApiClient {
     if (query.date_to) parameters.set("date_to", query.date_to);
     if (query.status) parameters.set("status", query.status);
     if (query.user_id) parameters.set("user_id", query.user_id);
+    if (query.member_rank) parameters.set("member_rank", query.member_rank);
+    if (query.transferred) parameters.set("transferred", "true");
     return this.request("GET", `/users?${parameters.toString()}`, { signal });
   }
 
@@ -479,6 +483,32 @@ export class AdminApiClient {
       );
     }
     return this.request("GET", `/users/${encodeURIComponent(userId)}`, { signal });
+  }
+
+  getMemberRankSummary(signal?: AbortSignal): Promise<import("./generated").AdminMemberRankSummaryResponse> {
+    return this.request("GET", "/member-ranks/summary", { signal });
+  }
+
+  listMemberRankManualChanges(filters: { cursor?: string; kind?: string; date_from?: string; date_to?: string } = {}, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankHistoryCollection> {
+    const query = new URLSearchParams({ limit: "20" });
+    for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+    return this.request("GET", `/member-ranks/manual-changes?${query}`, { signal });
+  }
+
+  getMemberRankHistory(userId: string, history: "rank" | "points", cursor?: string, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankHistoryCollection> {
+    const query = new URLSearchParams({ history, limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/member-rank-history?${query}`, { signal });
+  }
+
+  previewMemberRank(userId: string, operation: "rank" | "points", input: Omit<import("./generated").AdminMemberRankWrite, "expected_revision" | "preview_token" | "confirmed_transfer_id"> | Pick<import("./generated").AdminMemberRankPointWrite, "delta" | "reason">, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankPreviewResponse> {
+    const query = new URLSearchParams({ operation });
+    for (const [key, value] of Object.entries(input)) query.set(key, String(value));
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/member-rank/preview?${query}`, { signal });
+  }
+
+  saveMemberRank(userId: string, operation: "rank" | "points", body: import("./generated").AdminMemberRankWrite | import("./generated").AdminMemberRankPointWrite, key: string): Promise<import("./generated").AdminMemberRankMutation> {
+    return this.request(operation === "rank" ? "PUT" : "POST", `/users/${encodeURIComponent(userId)}/${operation === "rank" ? "member-rank" : "member-rank-point-adjustments"}`, { body, idempotencyKey: key });
   }
 
   listAdminUserPrizes(
@@ -3239,6 +3269,7 @@ export class AdminApiClient {
       | `/content/${string}`
       | `/identity/${string}`
       | `/mail-templates${string}`
+      | `/member-ranks/${string}`
       | `/payments${string}`
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
@@ -3270,6 +3301,7 @@ export class AdminApiClient {
         !path.startsWith("/content/") &&
         !path.startsWith("/identity/") &&
         !path.startsWith("/mail-templates") &&
+        !path.startsWith("/member-ranks/") &&
         path !== "/payments" &&
         !path.startsWith("/payments?") &&
         !path.startsWith("/qa/") &&

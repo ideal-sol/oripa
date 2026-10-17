@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 093351898730bea10aab0152f69eff012e2a75a5d1e1c85f791cb35fc6176622
+// Contract SHA-256: 16c2196d0e7abb56c536603391897a7b0d29d45a230bec125fb40662b4887960
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -179,6 +179,9 @@ export interface AdminUserPointBalance {
 }
 
 export interface AdminUserSummary {
+  member_rank?: AdminMemberRankCode;
+  member_rank_points?: number;
+  member_rank_transferred?: boolean;
   id: string;
   display_name: string | null;
   status: AdminUserState;
@@ -193,6 +196,7 @@ export interface AdminUserCollection {
 }
 
 export interface AdminUserDetail extends AdminUserSummary {
+  member_rank_detail?: AdminMemberRankDetail;
   email: string;
   email_verified_at: string | null;
   sms_verified: boolean;
@@ -883,6 +887,36 @@ export interface AdminUserPreRegistrationResponse {
     activated_at: string | null; point_amount: number | null; expires_at: string | null;
   };
 }
+
+export type AdminMemberRankCode = "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+
+export type AdminMemberRankManualKind = "transfer" | "support" | "payment_incident" | "other";
+
+export type AdminMemberRankDetail = { enabled: boolean; rank: AdminMemberRankCode; month: string; rank_points: number; revision: number; default_skip_count: number; skip_count: number; guaranteed_until: string | null; transferred_at: string | null; frozen_at: string | null; last_transfer: AdminMemberRankHistoryItem | null; next_rank: AdminMemberRankLine | null; maintain: AdminMemberRankLine | null; achievements: (AdminMemberRankAchievement)[]; };
+
+export type AdminMemberRankLine = { rank: AdminMemberRankCode; month: string; line: number; remaining: number; };
+
+export type AdminMemberRankAchievement = { id: string; rank: AdminMemberRankCode; generation: number; setting_revision: number; month: string; bonus_amount: number; point_type: "free"; basis: "rank_points" | "manual_rank" | "manual_rank_points"; origin_id: string; occurred_at: string; consumed: boolean; recovered_amount: number | null; shortfall_amount: number | null; };
+
+export type AdminMemberRankHistoryItem = { id: string; user_id: string; actor_id: string | null; reason: "promotion" | "demotion" | "manual" | "promotion_reversal" | "payment" | "manual_rank_points"; reason_text: string | null; kind: "transfer" | "support" | "payment_incident" | "other" | null; from_rank: string | null; to_rank: string | null; month: string; rank_points: number | null; requested_delta: number | null; applied_delta: number | null; grant_bonus: boolean | null; bonus_amount: number | null; skip_count: number | null; setting_revision: number | null; origin_id: string | null; occurred_at: string; };
+
+export type AdminMemberRankHistoryCollection = { items: (AdminMemberRankHistoryItem)[]; next_cursor: string | null; request_id: string; };
+
+export type AdminMemberRankEffect = { rank: AdminMemberRankCode; amount: number; recovered_amount: number; shortfall_amount: number; point_type: "free"; expires_in_days: 180; };
+
+export type AdminMemberRankPreview = { month: string; expected_revision: number; setting_revision: number; before_rank: AdminMemberRankCode; after_rank: AdminMemberRankCode; before_points: number; after_points: number; before_skip: number; after_skip: number; grants: (AdminMemberRankEffect)[]; excluded_ranks: (AdminMemberRankCode)[]; recoveries: (AdminMemberRankEffect)[]; total_bonus: number; last_transfer: AdminMemberRankHistoryItem | null; preview_token: string; };
+
+export type AdminMemberRankPreviewResponse = { data: AdminMemberRankPreview; request_id: string; };
+
+export type AdminMemberRankWrite = { rank: AdminMemberRankCode; kind: AdminMemberRankManualKind; reason: string; skip_count: number; grant_bonus: boolean; expected_revision: number; preview_token: string; confirmed_transfer_id?: string | null; };
+
+export type AdminMemberRankPointWrite = { delta: number; reason: string; expected_revision: number; preview_token: string; };
+
+export type AdminMemberRankMutation = { data: AdminMemberRankPreview; idempotent_replay: boolean; request_id: string; };
+
+export type AdminMemberRankSummaryResponse = { request_id: string; data: { enabled: boolean; month: string; active_total: number; ranks: ({ rank: AdminMemberRankCode; count: number; })[]; promotion_bonus: AdminMemberRankBonusTotal; purchase_bonus: AdminMemberRankBonusTotal; progress: { provisional: boolean; remaining: number; last_completed_month: string | null; status: "pending" | "processing" | "completed" | "failed" | null; lease_expired: boolean; }; reviews: ({ id: string; user_id: string; achievement_id: string; rank: AdminMemberRankCode; recovered_amount: number; shortfall_amount: number; occurred_at: string; })[]; }; };
+
+export type AdminMemberRankBonusTotal = { count: number; amount: number; point_type: "free"; };
 
 export interface AdminMemberRankValue {
   code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";

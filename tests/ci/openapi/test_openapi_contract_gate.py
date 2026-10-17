@@ -23,6 +23,88 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def composed_object_documents(self):
+        previous = {
+            "paths": {},
+            "components": {"schemas": {
+                "Summary": {"type": "object", "additionalProperties": False, "required": ["id", "status"],
+                            "properties": {"id": {"type": "string"}, "status": {"type": "string", "enum": ["active", "closed"]}}},
+                "Detail": {"allOf": [
+                    {"$ref": "#/components/schemas/Summary"},
+                    {"type": "object", "additionalProperties": False, "required": ["email"],
+                     "properties": {"email": {"type": "string"}}},
+                ]},
+            }},
+        }
+        current = copy.deepcopy(previous)
+        current["components"]["schemas"]["Detail"] = {
+            "type": "object", "additionalProperties": False, "required": ["id", "status", "email"],
+            "properties": {"id": {"type": "string"}, "status": {"type": "string", "enum": ["active", "closed"]},
+                           "email": {"type": "string"}, "rank": {"type": "string"}},
+        }
+        return previous, current
+
+    def test_object_allof_flattening_preserves_inherited_required_fields_and_types(self):
+        previous, current = self.composed_object_documents()
+        self.assertEqual([], openapi_contract_gate.breaking_changes(previous, current))
+        equivalent = copy.deepcopy(current)
+        del equivalent["components"]["schemas"]["Detail"]["properties"]["rank"]
+        self.assertEqual([], openapi_contract_gate.breaking_changes(equivalent, previous))
+        self.assertIn("components.schemas.Detail: property removed: rank", openapi_contract_gate.breaking_changes(current, previous))
+        shape = openapi_contract_gate.object_composition_shape(previous["components"]["schemas"]["Detail"], previous["components"]["schemas"])
+        self.assertFalse(shape["additionalProperties"])
+        self.assertEqual(["email", "id", "status"], shape["required"])
+
+    def test_object_allof_flattening_still_rejects_real_breaks(self):
+        previous, current = self.composed_object_documents()
+        for mutation, finding in [
+            ("required", "components.schemas.Detail: required field added: rank"),
+            ("type", "components.schemas.Detail.id: type changed"),
+            ("removed", "components.schemas.Detail: property removed: email"),
+            ("enum", "components.schemas.Detail.status: enum value removed: closed"),
+        ]:
+            changed = copy.deepcopy(current)
+            detail = changed["components"]["schemas"]["Detail"]
+            if mutation == "required":
+                detail["required"].append("rank")
+            elif mutation == "type":
+                detail["properties"]["id"]["type"] = "integer"
+            elif mutation == "removed":
+                del detail["properties"]["email"]
+            else:
+                detail["properties"]["status"]["enum"].remove("closed")
+            with self.subTest(mutation=mutation):
+                self.assertIn(finding, openapi_contract_gate.breaking_changes(previous, changed))
+
+    def test_object_allof_projection_fails_closed_for_unresolved_or_conflicting_shapes(self):
+        previous, current = self.composed_object_documents()
+        for mutation in ["missing", "cycle", "external", "conflict", "constraint", "alternative"]:
+            changed = copy.deepcopy(previous)
+            schemas = changed["components"]["schemas"]
+            detail = schemas["Detail"]
+            if mutation == "missing":
+                detail["allOf"][0]["$ref"] = "#/components/schemas/Missing"
+            elif mutation == "cycle":
+                detail["allOf"][0]["$ref"] = "#/components/schemas/Detail"
+            elif mutation == "external":
+                detail["allOf"][0]["$ref"] = "external.yaml#/Summary"
+            elif mutation == "conflict":
+                detail["allOf"][1]["properties"]["id"] = {"type": "integer"}
+            elif mutation == "constraint":
+                detail["allOf"][1]["minProperties"] = 4
+            else:
+                detail["allOf"][1] = {"oneOf": [{"type": "object"}, {"type": "null"}]}
+            with self.subTest(mutation=mutation):
+                self.assertIsNone(openapi_contract_gate.object_composition_shape(detail, schemas))
+                self.assertIn("components.schemas.Detail: type changed", openapi_contract_gate.breaking_changes(changed, current))
+
+    def test_object_flattening_cannot_hide_a_new_additional_property_restriction(self):
+        previous, current = self.composed_object_documents()
+        previous["components"]["schemas"]["Summary"]["additionalProperties"] = True
+        previous["components"]["schemas"]["Detail"]["allOf"][1]["additionalProperties"] = True
+        current["components"]["schemas"]["Summary"]["additionalProperties"] = True
+        self.assertIn("components.schemas.Detail: additional properties restricted", openapi_contract_gate.breaking_changes(previous, current))
+
     def test_notion_cache_authority_allows_only_the_three_approved_placeholder_types(self):
         current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
         current["info"]["version"] = "2.0.0-alpha.40"

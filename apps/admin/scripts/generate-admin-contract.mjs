@@ -12,6 +12,12 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminMemberRankSummary: ["get", "/member-ranks/summary"],
+  listAdminMemberRankManualChanges: ["get", "/member-ranks/manual-changes"],
+  updateAdminUserMemberRank: ["put", "/users/{user_id}/member-rank"],
+  previewAdminUserMemberRank: ["get", "/users/{user_id}/member-rank/preview"],
+  listAdminUserMemberRankHistory: ["get", "/users/{user_id}/member-rank-history"],
+  adjustAdminUserMemberRankPoints: ["post", "/users/{user_id}/member-rank-point-adjustments"],
   getAdminMemberRankSettings: ["get", "/settings/member-ranks"],
   updateAdminMemberRankSettings: ["put", "/settings/member-ranks"],
   cancelAdminMemberRankSettings: ["delete", "/settings/member-ranks/scheduled"],
@@ -732,6 +738,22 @@ if (
 }
 
 const sha256 = createHash("sha256").update(source).digest("hex");
+function memberRankSchemaType(schema) {
+  if (schema.$ref) return schema.$ref.split("/").at(-1);
+  if (schema.oneOf) return schema.oneOf.map(memberRankSchemaType).join(" | ");
+  if (schema.const !== undefined) return JSON.stringify(schema.const);
+  if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
+  if (Array.isArray(schema.type)) return schema.type.map((type) => memberRankSchemaType({ ...schema, type })).join(" | ");
+  if (schema.type === "array") return `(${memberRankSchemaType(schema.items)})[]`;
+  if (schema.type === "object") return `{ ${Object.entries(schema.properties ?? {}).map(([name, property]) => `${name}${schema.required?.includes(name) ? "" : "?"}: ${memberRankSchemaType(property)};`).join(" ")} }`;
+  return { integer: "number", number: "number", boolean: "boolean", string: "string", null: "null" }[schema.type] ?? "unknown";
+}
+
+const memberRankTypes = Object.entries(contract.components.schemas)
+  .filter(([name]) => name.startsWith("AdminMemberRank") && !name.startsWith("AdminMemberRankSettings") && name !== "AdminMemberRankValue")
+  .map(([name, schema]) => `export type ${name} = ${memberRankSchemaType(schema)};`)
+  .join("\n\n");
+
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}
 // Do not edit manually.
@@ -875,6 +897,9 @@ export interface AdminUserPointBalance {
 }
 
 export interface AdminUserSummary {
+  member_rank?: AdminMemberRankCode;
+  member_rank_points?: number;
+  member_rank_transferred?: boolean;
   id: string;
   display_name: string | null;
   status: AdminUserState;
@@ -889,6 +914,7 @@ export interface AdminUserCollection {
 }
 
 export interface AdminUserDetail extends AdminUserSummary {
+  member_rank_detail?: AdminMemberRankDetail;
   email: string;
   email_verified_at: string | null;
   sms_verified: boolean;
@@ -1579,6 +1605,8 @@ export interface AdminUserPreRegistrationResponse {
     activated_at: string | null; point_amount: number | null; expires_at: string | null;
   };
 }
+
+${memberRankTypes}
 
 export interface AdminMemberRankValue {
   code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";

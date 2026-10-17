@@ -19,7 +19,8 @@ class MemberRankAccountingSchemaTest(unittest.TestCase):
         tables = sorted('public.' + table for table in re.findall(r'CREATE TABLE (member_rank_[a-z_]+)', source))
         inventory = DATABASE.EXPECTED_V2_SCHEMA_INVENTORY
         self.assertEqual(len(tables), 6)
-        self.assertEqual(tables, [table for table in inventory if table.startswith('public.member_rank_') and not table.startswith('public.member_rank_setting') and table != 'public.member_rank_monthly_jobs'])
+        later_tables = {'public.member_rank_monthly_jobs', 'public.member_rank_manual_changes', 'public.member_rank_bonus_recoveries'}
+        self.assertEqual(tables, [table for table in inventory if table.startswith('public.member_rank_') and not table.startswith('public.member_rank_setting') and table not in later_tables])
         self.assertEqual(sorted(set(inventory)), inventory)
         with self.assertRaises(DATABASE.GuardFailure):
             DATABASE.validate_schema_inventory([table for table in inventory if table not in tables])
