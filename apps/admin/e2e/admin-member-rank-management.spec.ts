@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
 
 const harness = process.env.ORIPA_M7_ISOLATED_HARNESS;
@@ -25,8 +26,25 @@ async function install(page: Page, token: string) {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const result = JSON.parse(await php("browser_request.php", { path: url.pathname + url.search, method: request.method(),
-      body: request.postData() ?? "", headers: request.headers(), token })) as { status: number; headers: Record<string, string>; body: string };
+    const result = await new Promise<{ status: number; headers: Record<string, string>; body: Buffer }>((resolve, reject) => {
+      const body = request.postData() ?? "";
+      const headers: Record<string, string> = { host: "admin.example.test", accept: "application/json",
+        "content-type": "application/json", "content-length": String(Buffer.byteLength(body)), connection: "close",
+        cookie: `__Host-oripa_admin_session=${token}; __Host-oripa_admin_xsrf=${"c".repeat(64)}` };
+      for (const name of ["origin", "idempotency-key", "x-request-id", "x-xsrf-token", "sec-fetch-site"]) {
+        const value = request.headers()[name];
+        if (value) headers[name] = name === "origin" && value === "http://127.0.0.1:3397" ? "https://admin.example.test" : value;
+      }
+      const relay = httpRequest({ socketPath: `${harness}/browser-http.sock`, path: url.pathname + url.search,
+        method: request.method(), headers }, (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => resolve({ status: response.statusCode ?? 500,
+          headers: { "content-type": String(response.headers["content-type"] ?? "application/json") }, body: Buffer.concat(chunks) }));
+        response.on("error", reject);
+      });
+      relay.on("error", reject); relay.end(body);
+    });
     await route.fulfill(result);
   });
 }
