@@ -295,6 +295,60 @@ def validate_required_checks(head_sha: str, get=None) -> None:
         fail("required_checks_not_successful")
 
 
+def authorize_old_test_recipe(source_sha: str, control_sha: str, get) -> dict:
+    if source_sha != "b5c28015ef94cb80f6702a61b1237cacd91d9863":
+        return {}
+    document = get(f"/repos/{REPOSITORY}/contents/manifests/old-test-build-recipe.json?ref={control_sha}")
+    if document.get("encoding") != "base64":
+        fail("old_test_recipe_manifest_invalid")
+    recipe = json.loads(base64.b64decode(document["content"]).decode())
+    if (
+        not isinstance(recipe, dict)
+        or set(recipe) != {"schema_version", "source_sha", "recipe_pr", "recipe_sha", "path", "source_sha256", "recipe_sha256"}
+        or recipe.get("schema_version") != "1.0"
+        or recipe.get("source_sha") != source_sha
+        or recipe.get("recipe_pr") != 583
+        or recipe.get("recipe_sha") != "6ae529ea9a357abd4498653c3438210e23f511b6"
+        or recipe.get("path") != "infra/docker/backend/Dockerfile"
+    ):
+        fail("old_test_recipe_identity_invalid")
+    recipe_sha = recipe["recipe_sha"]
+    comparison = api_compare(REPOSITORY, recipe_sha, control_sha, get=get)
+    if comparison.get("status") not in {"ahead", "identical"} or comparison.get("merge_base_commit", {}).get("sha") != recipe_sha or comparison.get("base_commit", {}).get("sha") != recipe_sha:
+        fail("old_test_recipe_not_main_ancestor")
+    pull = get(f"/repos/{REPOSITORY}/pulls/{recipe['recipe_pr']}")
+    reviewed_sha = pull.get("head", {}).get("sha", "")
+    if (
+        pull.get("state") != "closed" or pull.get("merged") is not True
+        or pull.get("merge_commit_sha") != recipe_sha
+        or pull.get("base", {}).get("ref") != "main"
+        or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+        or pull.get("head", {}).get("repo", {}).get("full_name") != REPOSITORY
+        or not FULL_SHA.fullmatch(reviewed_sha)
+    ):
+        fail("old_test_recipe_pr_invalid")
+    merged = get(f"/repos/{REPOSITORY}/git/commits/{recipe_sha}")
+    reviewed = get(f"/repos/{REPOSITORY}/git/commits/{reviewed_sha}")
+    tree = merged.get("tree", {}).get("sha", "")
+    if merged.get("sha") != recipe_sha or reviewed.get("sha") != reviewed_sha or not FULL_SHA.fullmatch(tree) or reviewed.get("tree", {}).get("sha") != tree:
+        fail("old_test_recipe_tree_invalid")
+    validate_required_checks(reviewed_sha, get)
+    bodies = []
+    for commit, checksum in ((source_sha, recipe["source_sha256"]), (recipe_sha, recipe["recipe_sha256"])):
+        entry = get(f"/repos/{REPOSITORY}/contents/{recipe['path']}?ref={commit}")
+        if entry.get("type") != "file" or entry.get("encoding") != "base64":
+            fail("old_test_recipe_blob_invalid")
+        body = base64.b64decode("".join(entry["content"].split()), validate=True)
+        if hashlib.sha256(body).hexdigest() != checksum:
+            fail("old_test_recipe_digest_invalid")
+        bodies.append(body)
+    old = b"linux-libc-dev=6.1.187-1"
+    new = b"linux-libc-dev=6.1.190-1"
+    if bodies[0].count(old) != 1 or bodies[0].replace(old, new) != bodies[1]:
+        fail("old_test_recipe_diff_invalid")
+    return {"build_recipe": {**recipe, "reviewed_sha": reviewed_sha, "tree": tree}}
+
+
 def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
                               control_sha: str, *, get=None) -> dict:
     compare_get = get
@@ -353,6 +407,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         fail("old_test_reviewed_tree_mismatch")
     validate_required_checks(reviewed_sha, get)
     validate_required_checks(control_sha, get)
+    recipe_authority = authorize_old_test_recipe(source_sha, control_sha, get)
     current = get(f"/repos/{REPOSITORY}/branches/main")
     if current.get("protected") is not True or current.get("commit", {}).get("sha") != control_sha:
         fail("old_test_control_moved")
@@ -361,6 +416,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         "source_tree": tree, "reviewed_sha": reviewed_sha, "control_sha": control_sha,
         "target": "old-test", "platform": "linux/amd64", "image_mode": approval["image_mode"],
         "authority_path": OLD_AUTHORITY_PATH,
+        **recipe_authority,
     }
 
 

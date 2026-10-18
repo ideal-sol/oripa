@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import runpy
 import subprocess
+import sys
 import urllib.request
 
 
@@ -30,7 +32,36 @@ def api_get(path: str) -> dict:
         return json.load(response)
 
 
+def prepare_recipe(authority: dict, payload: Path, control: Path, destination: Path) -> None:
+    source = subprocess.check_output(["git", "-C", str(payload), "rev-parse", "HEAD"], text=True).strip()
+    if source != authority["source_sha"]:
+        raise ValueError("payload mismatch")
+    original = (payload / "infra/docker/backend/Dockerfile").read_bytes()
+    recipe = authority.get("build_recipe")
+    if source == "b5c28015ef94cb80f6702a61b1237cacd91d9863" and not recipe:
+        raise ValueError("recipe authority required")
+    content = original
+    if recipe:
+        if recipe["source_sha"] != source or recipe["path"] != "infra/docker/backend/Dockerfile":
+            raise ValueError("recipe identity mismatch")
+        content = subprocess.check_output(["git", "-C", str(control), "show", f"{recipe['recipe_sha']}:{recipe['path']}"])
+        if hashlib.sha256(original).hexdigest() != recipe["source_sha256"] or hashlib.sha256(content).hexdigest() != recipe["recipe_sha256"]:
+            raise ValueError("recipe digest mismatch")
+        old = b"linux-libc-dev=6.1.187-1"
+        if original.count(old) != 1 or original.replace(old, b"linux-libc-dev=6.1.190-1") != content:
+            raise ValueError("recipe difference mismatch")
+    with destination.open("xb") as output:
+        output.write(content)
+
+
 def main() -> None:
+    if sys.argv[1:] == ["--prepare-recipe"]:
+        authority = json.loads((Path(os.environ["RUNNER_TEMP"]) / "source-authority.json").read_text())
+        prepare_recipe(authority, Path(os.environ["GITHUB_WORKSPACE"]) / "payload", ROOT,
+                       Path(os.environ["RUNNER_TEMP"]) / "approved-api.Dockerfile")
+        return
+    if sys.argv[1:]:
+        raise ValueError("unexpected arguments")
     if (
         os.environ.get("GITHUB_REPOSITORY") != "ideal-sol/oripa"
         or os.environ.get("GITHUB_REF") != "refs/heads/main"

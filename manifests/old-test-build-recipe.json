@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "source_sha": "b5c28015ef94cb80f6702a61b1237cacd91d9863",
+  "recipe_pr": 583,
+  "recipe_sha": "6ae529ea9a357abd4498653c3438210e23f511b6",
+  "path": "infra/docker/backend/Dockerfile",
+  "source_sha256": "25584f8a84283e761a1da390211b8fa718cc058b3e8fb7bb1958f1cc04016f39",
+  "recipe_sha256": "edbfa975911a3a7c6fb71e037fa43db66364cd63218dadd1ff8a457d75cd6d3b"
+}
