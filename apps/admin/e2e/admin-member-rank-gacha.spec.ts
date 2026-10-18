@@ -65,6 +65,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("combobox", { name: "会員ランク条件", exact: true })).toHaveValue("only");
     await page.getByRole("combobox", { name: "会員ランク条件", exact: true }).selectOption("at_most");
     await page.getByRole("combobox", { name: "条件の会員ランク", exact: true }).selectOption("2");
+    await page.getByLabel("公開開始日時（JST）", { exact: true }).fill("2026-07-01T09:00");
     await page.getByRole("button", { name: "構成を一括保存" }).click();
     await expect(page.getByRole("button", { name: "保存済み構成を公開・予約" })).toBeVisible();
     await page.reload();
