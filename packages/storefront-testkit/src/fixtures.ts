@@ -1213,6 +1213,14 @@ export const PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE = Object.freeze({
 
 export const PUBLIC_DRAW_PROBLEM_FIXTURES = Object.freeze([
   {
+    type: "https://oripa.example/problems/gacha_member_rank_not_eligible",
+    title: "The member rank does not satisfy this Gacha condition.",
+    status: 403,
+    code: "GACHA_MEMBER_RANK_NOT_ELIGIBLE",
+    request_id: "request-fixture-draw-problem-member-rank",
+    retryable: false,
+  },
+  {
     type: "https://oripa.example/problems/insufficient_points",
     title: "Available points are insufficient.",
     status: 409,

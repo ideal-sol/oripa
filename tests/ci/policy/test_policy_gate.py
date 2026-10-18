@@ -142,6 +142,30 @@ class PolicyGateTest(unittest.TestCase):
                         data["changed_paths"], data["base_sha"],
                     )
 
+    def test_member_rank_m5_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task_id = "MEMBERRANK-M5-20261018"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), f"[{task_id}] Member rank Gacha",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "MEMBERRANK-M5-20261019", "MEMBERRANK-M5-*"):
+            with self.subTest(task_id=invalid), self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                policy_gate.validate_pr_body(
+                    data["pr_body"].replace("GOV-008", invalid), f"[{invalid}] Member rank Gacha",
+                    data["changed_paths"], data["base_sha"],
+                )
+
+    def test_member_rank_m5_admin_paths_are_exact(self):
+        self.assertEqual(policy_gate.MEMBER_RANK_M5_ADMIN_FILES, {
+            "apps/admin/e2e/admin-member-rank-gacha.spec.ts",
+            "apps/admin/src/components/catalog/member-rank-condition.tsx",
+            "apps/admin/test/member-rank-gacha.test.tsx",
+        })
+        for path in ("apps/admin/src/components/catalog/member-rank-other.tsx", "apps/admin/src/components/catalog/*"):
+            with self.subTest(path=path), self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
+                policy_gate.validate_admin_skeleton(ROOT, set(policy_gate.tracked_paths(ROOT)) | {path})
+
     def test_login_gacha_admin_paths_are_registered_exactly(self):
         expected = {
             "apps/admin/e2e/admin-login-gacha.spec.ts",

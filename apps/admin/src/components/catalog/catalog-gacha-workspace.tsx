@@ -1,4 +1,5 @@
 "use client";
+import { memberRankConditionLabel } from "@/components/catalog/member-rank-condition";
 
 import {
   Archive,
@@ -177,6 +178,8 @@ export function CatalogGachaWorkspace({
       const body = {
         allowed_draw_counts: draft.allowedDrawCounts,
         audience_code: draft.audienceCode,
+        member_rank_mode: draft.memberRankMode,
+        member_rank_level: draft.memberRankLevel,
         category_id: draft.categoryId,
         daily_draw_limit: draft.dailyDrawLimit,
         first_time_eligible_days: draft.firstTimeEligibleDays,
@@ -688,6 +691,7 @@ function GachaList({
               <th>ID</th>
               <th>ガチャ名</th>
               <th>種別</th>
+              <th>会員ランク条件</th>
               <th>サムネイル画像</th>
               <th>消費ポイント</th>
               <th>公開ステータス</th>
@@ -704,6 +708,7 @@ function GachaList({
                 </td>
                 <td><strong>{gacha.current_version?.title ?? "未設定"}</strong></td>
                 <td>{gachaTypeLabels[gacha.gacha_type ?? "standard"]}</td>
+                <td>{memberRankConditionLabel(gacha.current_version)}</td>
                 <td><PublicAssetPreview asset={gacha.current_version?.presentation_asset ?? null} /></td>
                 <td>{gacha.current_version?.price_points.toLocaleString() ?? "-"}</td>
                 <td>{publicationStatusLabel(gacha.publication_status)}</td>
@@ -786,7 +791,8 @@ function GachaDetail({
           <Detail label="総口数" value={gacha.current_version?.total_count?.toLocaleString() ?? "設定なし"} />
           <Detail label="1日規定回数" value={dailyLimitLabel(gacha.current_version?.daily_draw_limit)} />
           <Detail label="状態" value={publicationStatusLabel(gacha.publication_status)} />
-          <Detail label="会員ランク" value={audienceLabel(gacha.current_version?.audience_code)} />
+          <Detail label="対象ユーザー" value={audienceLabel(gacha.current_version?.audience_code)} />
+          <Detail label="会員ランク条件" value={memberRankConditionLabel(gacha.current_version)} />
           {gacha.current_version?.audience_code === "first_time_users" ? <Detail label="初回ユーザー期間" value={`${gacha.current_version.first_time_eligible_days ?? 7}日（24時間単位）`} /> : null}
           <Detail label="許可抽選回数" value={(gacha.current_version?.allowed_draw_counts ?? [1, 5, 10]).join(" / ")} />
           <Detail label="開始日時" value={gacha.current_version?.publish_start_at ?? "未設定"} />

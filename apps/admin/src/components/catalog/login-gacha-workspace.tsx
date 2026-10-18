@@ -8,6 +8,7 @@ import { useAdminAuth } from "@/components/auth/admin-auth-provider";
 import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-boundary";
 import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
 import { RankVideoEditor, videoWeightTotal } from "@/components/catalog/rank-video-editor";
+import { MemberRankCondition, memberRankConditionLabel } from "@/components/catalog/member-rank-condition";
 import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -279,7 +280,9 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
           {draft.gacha_type !== "signup_once" ? <label>消費ポイント<input required type="number" min={login ? 0 : 1} step={1} value={draft.price_points} onChange={(event) => setDraft({ ...draft, price_points: Number(event.target.value) })} /></label> : <p>消費ポイント: 無料（0）</p>}
           {draft.gacha_type === "login_daily" ? <label>最低保証（交換ポイント）<input required type="number" min={0} step={1} value={draft.minimum_exchange_points ?? 0} onChange={(event) => setDraft({ ...draft, minimum_exchange_points: Number(event.target.value) })} /></label> : null}
           </div>
-          {login ? <p className="field-hint">抽選回数: 1回固定 / {draft.gacha_type === "login_daily" ? "1ユーザー1日1回（JST）" : "1ユーザー1回・利用期限なし・公開開始日時以降の新規登録完了ユーザー"}</p> : null}
+          {login ? <p className="field-hint">抽選回数: 1回固定 / {draft.gacha_type === "login_daily" ? "1ユーザー1日1回（JST）。会員ランク運用開始後はログインガチャ全体で1回" : "1ユーザー1回・利用期限なし・公開開始日時以降の新規登録完了ユーザー"}</p> : null}
+          {draft.gacha_type === "signup_once" ? <p>会員ランク条件: 指定なし（固定）</p> : <MemberRankCondition mode={draft.member_rank_mode} level={draft.member_rank_level} disabled={locked || busy} onChange={(member_rank_mode, member_rank_level) => setDraft({ ...draft, member_rank_mode, member_rank_level })} />}
+          {locked ? <p>会員ランク条件: {memberRankConditionLabel(draft)}</p> : null}
           {!login ? <><label>総口数<input required type="number" min={1} step={1} value={draft.total_count ?? 1} onChange={(event) => setDraft({ ...draft, total_count: Number(event.target.value) })} /></label>
             <label>カテゴリ<select required value={draft.category_id ?? ""} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}><option value="">選択してください</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label>タグ<select multiple value={draft.tag_ids} onChange={(event) => setDraft({ ...draft, tag_ids: Array.from(event.target.selectedOptions, (option) => option.value) })}>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>

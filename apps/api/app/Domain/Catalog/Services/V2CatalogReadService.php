@@ -5,6 +5,8 @@ namespace App\Domain\Catalog\Services;
 use App\Support\V2DatabaseTimestamp;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Draw\Services\V2DrawEligibilityService;
+use App\Domain\MemberRank\Services\V2MemberRankGachaCondition;
+use App\Domain\MemberRank\Services\V2MemberRankResolver;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -110,7 +112,8 @@ final class V2CatalogReadService
         ?string $cursor,
         ?string $categorySlug,
         ?string $tagSlug,
-        ?User $user = null
+        ?User $user = null,
+        bool $memberRankEligibleOnly = false
     ): array {
         $maximum = (int) config('v2_catalog.maximum_page_size', 100);
         if ($limit < 1 || $limit > $maximum) {
@@ -137,19 +140,30 @@ final class V2CatalogReadService
                         ->where('filter_t.is_visible', true);
                 });
             })
-            ->orderBy('g.public_id')
-            ->limit($limit + 1)
-            ->get($this->summaryColumns());
+            ->orderBy('g.public_id');
+        $now = CarbonImmutable::now('UTC')->startOfSecond();
+        $memberRank = $user === null ? null : app(V2MemberRankResolver::class)->project($user->id, $now);
+        if ($memberRankEligibleOnly) {
+            $query->where('gv.member_rank_mode', '<>', 'none');
+            if ($memberRank === null || ! $memberRank['enabled']) {
+                $query->whereRaw('false');
+            }
+            $query = $query->select($this->summaryColumns())
+                ->lazyById($limit + 1, 'g.public_id', 'public_id')
+                ->filter(fn (object $row): bool => $this->presentationForRow($row, $user, $now, $memberRank)['eligible'])
+                ->take($limit + 1)->collect();
+        } else {
+            $query = $query->limit($limit + 1)->get($this->summaryColumns());
+        }
 
         $hasMore = $query->count() > $limit;
         $rows = $query->take($limit);
         $tags = $this->tagsForGachas($rows->pluck('gacha_internal_id')->all());
-        $now = CarbonImmutable::now('UTC')->startOfSecond();
         $data = $rows->map(
             fn (object $row): array => [
                 ...$this->summary($row, $tags[$row->gacha_internal_id] ?? []),
                 'drawn_count' => (int) $row->sold_count,
-                'presentation' => $this->presentationForRow($row, $user, $now),
+                'presentation' => $this->presentationForRow($row, $user, $now, $memberRank),
             ]
         )->values()->all();
         $last = $rows->last();
@@ -241,7 +255,8 @@ final class V2CatalogReadService
     private function presentationForRow(
         object $row,
         ?User $user,
-        CarbonImmutable $now
+        CarbonImmutable $now,
+        ?array $memberRank = null
     ): array {
         $saleState = $this->saleState($row, $now);
         $evaluation = $this->eligibility->evaluate(
@@ -250,7 +265,9 @@ final class V2CatalogReadService
             (string) $row->audience_code,
             (int) $row->first_time_eligible_days,
             (int) $row->daily_draw_limit,
-            $now
+            $now,
+            $row,
+            $memberRank
         );
         $reason = $this->presentationReason($saleState, $evaluation);
         $remainingCount = (int) $row->remaining_count;
@@ -281,6 +298,7 @@ final class V2CatalogReadService
                 ? 'authenticated'
                 : 'unauthenticated',
             'audience' => $evaluation['audience_code'],
+            'member_rank_condition' => V2MemberRankGachaCondition::presentation($row),
             'eligible' => $reason === null,
             'ineligible_reason' => $reason,
             'allowed_draw_counts' => $allowedCounts,
@@ -384,6 +402,8 @@ final class V2CatalogReadService
             DB::raw('COALESCE(inventory_totals.remaining_count, 0) as remaining_count'),
             'gv.daily_draw_limit',
             'gv.audience_code',
+            'gv.member_rank_mode',
+            'gv.member_rank_level',
             'gv.first_time_eligible_days',
             'gv.allowed_draw_counts',
             DB::raw('COALESCE(g.current_publish_start_at, gv.publish_start_at) as publish_start_at'),
@@ -445,6 +465,7 @@ final class V2CatalogReadService
     private function summary(object $row, array $tags): array
     {
         return [
+            'member_rank_condition' => V2MemberRankGachaCondition::presentation($row),
             'id' => $row->public_id,
             'slug' => $row->slug,
             'title' => $row->title,
@@ -540,6 +561,9 @@ final class V2CatalogReadService
         }
         if (! $evaluation['audience_eligible']) {
             return 'audience_not_eligible';
+        }
+        if ($evaluation['ineligible_reason'] !== null) {
+            return $evaluation['ineligible_reason'];
         }
         if (
             ! $evaluation['daily']['unlimited']

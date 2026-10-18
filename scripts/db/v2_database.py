@@ -569,6 +569,7 @@ def rollback_and_reapply_latest(
         "2026_10_16_000090_add_v2_member_rank_monthly_judgment.php": "Member rank monthly judgment requires a forward-only migration.",
         "2026_10_17_000091_add_v2_member_rank_admin_operations.php": "Member rank admin operations require a forward-only migration.",
         "2026_10_17_000092_create_v2_member_rank_purchase_bonuses.php": "Member rank purchase history requires a forward-only migration.",
+        "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php": "Member rank Gacha conditions and Draw snapshots are forward-only.",
         "2026_10_14_000085_create_v2_notion_inventory_sync.php": "Notion sync history requires a forward correction migration.",
         "2026_10_15_000086_add_v2_rank_video_sets.php": "Rank video sets require a forward correction migration.",
         "2026_10_11_000082_create_v2_banner_imports.php": "Banner import history requires a forward correction migration.",

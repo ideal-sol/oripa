@@ -73,7 +73,7 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getByLabelText("消費ポイント")).toBeDisabled();
     expect(screen.getByLabelText("総口数")).toBeDisabled();
     expect(screen.getByLabelText(/1日規定回数/u)).toBeDisabled();
-    expect(screen.getByLabelText("会員ランク")).toBeDisabled();
+    expect(screen.getByLabelText("対象ユーザー")).toBeDisabled();
     expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeDisabled();
     expect(screen.getByLabelText("ガチャタイトル")).toBeEnabled();
     expect(screen.getByLabelText("終了日時（Asia/Tokyo）")).toBeEnabled();
@@ -126,7 +126,7 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getByLabelText("消費ポイント")).toBeEnabled();
     expect(screen.getByLabelText("総口数")).toBeEnabled();
     expect(screen.getByLabelText(/1日規定回数/u)).toBeEnabled();
-    expect(screen.getByLabelText("会員ランク")).toBeEnabled();
+    expect(screen.getByLabelText("対象ユーザー")).toBeEnabled();
     expect(screen.getByLabelText("開始日時（Asia/Tokyo）")).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "5回" })).toBeEnabled();
     expect(screen.getByRole("option", { name: "非公開" })).toBeVisible();

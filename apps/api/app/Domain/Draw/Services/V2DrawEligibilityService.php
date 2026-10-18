@@ -4,6 +4,8 @@ namespace App\Domain\Draw\Services;
 
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Line\Services\V2LineFriendStateService;
+use App\Domain\MemberRank\Services\V2MemberRankGachaCondition;
+use App\Domain\MemberRank\Services\V2MemberRankResolver;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +37,9 @@ final class V2DrawEligibilityService
         string $audienceCode,
         int $firstTimeEligibleDays,
         int $dailyLimit,
-        CarbonImmutable $occurredAt
+        CarbonImmutable $occurredAt,
+        ?object $version = null,
+        ?array $memberRank = null
     ): array {
         $authenticated = $user instanceof User;
         $audienceEligible = $authenticated
@@ -52,6 +56,8 @@ final class V2DrawEligibilityService
         $remaining = $used === null
             ? null
             : ($unlimited ? null : max(0, $dailyLimit - $used));
+        $memberRank ??= $authenticated ? app(V2MemberRankResolver::class)->project($user->id, $occurredAt) : null;
+        $rankEligible = $memberRank !== null && V2MemberRankGachaCondition::matches($version ?? (object) [], $memberRank);
 
         return [
             'authenticated' => $authenticated,
@@ -59,7 +65,7 @@ final class V2DrawEligibilityService
             'audience_eligible' => $audienceEligible,
             'ineligible_reason' => ! $authenticated
                 ? 'authentication_required'
-                : ($audienceEligible ? null : 'audience_not_eligible'),
+                : (! $audienceEligible ? 'audience_not_eligible' : ($rankEligible ? null : 'member_rank_not_eligible')),
             'daily' => [
                 'limit' => $dailyLimit,
                 'unlimited' => $unlimited,
@@ -77,11 +83,13 @@ final class V2DrawEligibilityService
         object $version,
         int $drawCount,
         CarbonImmutable $occurredAt
-    ): void {
+    ): ?int {
         $lockedUser = DB::table('users')
             ->where('id', $user->id)
             ->lockForUpdate()
             ->first();
+        $memberRank = app(V2MemberRankResolver::class)->materialize($user->id, $occurredAt);
+        $snapshotLevel = $memberRank['enabled'] ? (int) $memberRank['level'] : null;
         if (in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true)) {
             if ($lockedUser === null || $drawCount !== 1) {
                 throw new V2DrawException('INVALID_DRAW_REQUEST', 422, 'A login Gacha permits one Draw.');
@@ -89,16 +97,19 @@ final class V2DrawEligibilityService
             if ($lockedUser->state !== 'active') {
                 throw new V2DrawException('GACHA_AUDIENCE_NOT_ELIGIBLE', 403, 'An active User is required.');
             }
-            $eligibility = $this->evaluateLogin($lockedUser, $gacha, $version, $occurredAt);
+            $eligibility = $this->evaluateLogin($lockedUser, $gacha, $version, $occurredAt, $memberRank);
             if (! $eligibility['eligible']) {
+                if ($eligibility['reason'] === 'member_rank_not_eligible') {
+                    throw new V2DrawException('GACHA_MEMBER_RANK_NOT_ELIGIBLE', 403, 'The member rank does not satisfy this Gacha condition.');
+                }
                 throw new V2DrawException(
-                    $eligibility['used'] ? 'DAILY_DRAW_LIMIT_EXCEEDED' : 'GACHA_AUDIENCE_NOT_ELIGIBLE',
-                    $eligibility['used'] ? 409 : 403,
+                    $eligibility['reason'] === 'already_used' ? 'DAILY_DRAW_LIMIT_EXCEEDED' : 'GACHA_AUDIENCE_NOT_ELIGIBLE',
+                    $eligibility['reason'] === 'already_used' ? 409 : 403,
                     'The user is not eligible for this login Gacha.'
                 );
             }
 
-            return;
+            return $snapshotLevel;
         }
         if (
             $lockedUser === null
@@ -116,9 +127,12 @@ final class V2DrawEligibilityService
             );
         }
 
+        if (! V2MemberRankGachaCondition::matches($version, $memberRank)) {
+            throw new V2DrawException('GACHA_MEMBER_RANK_NOT_ELIGIBLE', 403, 'The member rank does not satisfy this Gacha condition.');
+        }
         $dailyLimit = (int) $version->daily_draw_limit;
         if ($dailyLimit === 0) {
-            return;
+            return $snapshotLevel;
         }
         if ($dailyLimit < 0) {
             throw new V2DrawException(
@@ -136,15 +150,28 @@ final class V2DrawEligibilityService
                 'The daily Draw limit would be exceeded.'
             );
         }
+
+        return $snapshotLevel;
     }
 
-    public function evaluateLogin(object $user, object $gacha, object $version, CarbonImmutable $occurredAt): array
+    public function evaluateLogin(?object $user, object $gacha, object $version, CarbonImmutable $occurredAt, ?array $memberRank = null): array
     {
         $bounds = $this->jstDayBounds($occurredAt);
+        if ($user === null) {
+            return ['eligible' => false, 'used' => false, 'reason' => 'authentication_required',
+                'resets_at' => $gacha->gacha_type === 'login_daily' ? $bounds['end']->toIso8601ZuluString() : null];
+        }
+        $memberRank ??= app(V2MemberRankResolver::class)->project($user->id, $occurredAt);
         $usage = DB::table('draw_requests as request')
             ->join('gacha_draw_states as state', 'state.id', '=', 'request.gacha_draw_state_id')
-            ->where('request.user_id', $user->id)->where('state.gacha_id', $gacha->id)
-            ->where('request.status', 'completed');
+            ->where('request.user_id', $user->id)
+            ->where('request.status', 'completed')->where('request.is_qa_draw', false);
+        if ($gacha->gacha_type === 'login_daily' && $memberRank['enabled']) {
+            $usage->join('catalog_gachas as used_gacha', 'used_gacha.id', '=', 'state.gacha_id')
+                ->where('used_gacha.gacha_type', 'login_daily');
+        } else {
+            $usage->where('state.gacha_id', $gacha->id);
+        }
         if ($gacha->gacha_type === 'login_daily') {
             $usage->where('request.completed_at', '>=', $bounds['start']->toIso8601String())
                 ->where('request.completed_at', '<', $bounds['end']->toIso8601String());
@@ -157,10 +184,13 @@ final class V2DrawEligibilityService
             || ($gacha->gacha_type === 'signup_once' && $qualifiedAt !== null
                 && $qualifiedAt->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
 
+        $rankEligible = V2MemberRankGachaCondition::matches($version, $memberRank);
+
         return [
-            'eligible' => $qualified && ! $used,
+            'eligible' => $qualified && $rankEligible && ! $used,
             'used' => $used,
-            'reason' => ! $qualified ? 'registration_not_qualified' : ($used ? 'already_used' : null),
+            'reason' => ! $qualified ? 'registration_not_qualified'
+                : (! $rankEligible ? 'member_rank_not_eligible' : ($used ? 'already_used' : null)),
             'resets_at' => $gacha->gacha_type === 'login_daily' ? $bounds['end']->toIso8601ZuluString() : null,
         ];
     }

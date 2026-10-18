@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 16c2196d0e7abb56c536603391897a7b0d29d45a230bec125fb40662b4887960
+// Contract SHA-256: 5763d5afa70f6c2f049d5d162d656b048b858df8acae6c21d83f1f4beda8f9f9
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -1849,6 +1849,8 @@ export interface AdminGachaComposition {
   total_count: number | null;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   first_time_eligible_days: number;
   allowed_draw_counts: AdminGachaAllowedDrawCount[];
   ranks: AdminCompositionRank[];
@@ -1883,6 +1885,8 @@ export interface AdminCatalogGachaCoreVersion {
   minimum_exchange_points?: number | null;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
@@ -2010,6 +2014,8 @@ export interface AdminCatalogGachaCoreCreate {
   total_count: number;
   daily_draw_limit: number;
   audience_code: "all_users" | "first_time_users" | "line_users";
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset_id: string;
@@ -2029,6 +2035,8 @@ export interface AdminCatalogGachaUpdate {
   total_count?: number;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   management_status?: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
@@ -2074,6 +2082,8 @@ export interface AdminCatalogGachaVersion {
   minimum_exchange_points?: number | null;
   daily_draw_limit?: number;
   audience_code?: "all_users" | "first_time_users" | "line_users";
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
@@ -2104,6 +2114,8 @@ export interface AdminLoginGachaVersion extends Omit<AdminCatalogGachaVersion, "
 export type AdminCatalogGachaVersionRepresentation = AdminCatalogGachaVersion | AdminLoginGachaVersion;
 
 export interface AdminCatalogGachaVersionCreate {
+  member_rank_mode?: "none" | "at_least" | "only" | "at_most";
+  member_rank_level?: number | null;
   title: string;
   description: string | null;
   notices: string | null;

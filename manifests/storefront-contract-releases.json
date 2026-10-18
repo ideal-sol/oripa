@@ -1383,7 +1383,7 @@
       "admin": "2.0.0-alpha.41",
       "webhook": "2.0.0-alpha.40"
     },
-    "public_openapi_sha256": "0249f195926c1bffea808ba4d5806afe8716af29b520b347be6d5c570bd82e35",
+    "public_openapi_sha256": "244463e32a42ec7130e64eed02265917f44596d824f4c4466ab7bc7a609d7a93",
     "public_api_operation_count": 81,
     "packages": {
       "@oripa/storefront-client": {

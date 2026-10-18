@@ -511,6 +511,16 @@
         "security": [],
         "parameters": [
           {
+            "name": "member_rank_eligible_only",
+            "in": "query",
+            "required": false,
+            "description": "会員ランク条件があり、現在の会員が引ける通常ガチャだけ。未ログイン・機能OFFは空。",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "$ref": "#/components/parameters/CatalogLimit"
           },
           {
@@ -3680,6 +3690,69 @@
       }
     },
     "schemas": {
+      "MemberRankSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "level"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "beginner",
+              "bronze",
+              "silver",
+              "gold",
+              "platinum",
+              "diamond",
+              "vip"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          }
+        }
+      },
+      "NullableMemberRankSnapshot": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MemberRankSnapshot"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "GachaMemberRankCondition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "rank"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ]
+          },
+          "rank": {
+            "$ref": "#/components/schemas/NullableMemberRankSnapshot"
+          }
+        }
+      },
       "LoginGachaSummary": {
         "type": "object",
         "required": [
@@ -3694,6 +3767,12 @@
           "availability"
         ],
         "properties": {
+          "member_rank_condition": {
+            "$ref": "#/components/schemas/GachaMemberRankCondition"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/LoginGachaEligibility"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -3779,7 +3858,9 @@
             ],
             "enum": [
               null,
+              "authentication_required",
               "registration_not_qualified",
+              "member_rank_not_eligible",
               "already_used",
               "inventory_unavailable"
             ]
@@ -5894,6 +5975,7 @@
           "DAILY_DRAW_LIMIT_EXCEEDED",
           "DRAW_COUNT_INSUFFICIENT",
           "GACHA_AUDIENCE_NOT_ELIGIBLE",
+          "GACHA_MEMBER_RANK_NOT_ELIGIBLE",
           "GACHA_NOT_DRAWABLE",
           "GACHA_SALES_PAUSED",
           "IDEMPOTENCY_KEY_REUSED",
@@ -6495,6 +6577,9 @@
           "presentation_asset"
         ],
         "properties": {
+          "member_rank_condition": {
+            "$ref": "#/components/schemas/GachaMemberRankCondition"
+          },
           "id": {
             "$ref": "#/components/schemas/GachaPublicId"
           },
@@ -6960,6 +7045,7 @@
           "sale_ended",
           "authentication_required",
           "audience_not_eligible",
+          "member_rank_not_eligible",
           "daily_limit_reached",
           null
         ]
@@ -7069,6 +7155,9 @@
           "cta"
         ],
         "properties": {
+          "member_rank_condition": {
+            "$ref": "#/components/schemas/GachaMemberRankCondition"
+          },
           "gacha_id": {
             "$ref": "#/components/schemas/GachaPublicId"
           },
@@ -7408,6 +7497,9 @@
           "status"
         ],
         "properties": {
+          "member_rank": {
+            "$ref": "#/components/schemas/NullableMemberRankSnapshot"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -7850,6 +7942,9 @@
           "created_at"
         ],
         "properties": {
+          "member_rank": {
+            "$ref": "#/components/schemas/NullableMemberRankSnapshot"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
