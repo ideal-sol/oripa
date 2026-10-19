@@ -110,6 +110,112 @@ class PlatformCIPlanTests(unittest.TestCase):
         plan = self.plan(('apps/api/app/Example.php',))
         self.assert_required(plan, 'backend', 'database', 'arm64_artifact')
 
+    def test_source_only_authority_deferred_preserves_activation_and_skips_jobs(self):
+        self.authority()
+        plan = self.plan(('tests/ops/test_production_source_authority.py',
+                          'worklogs/new_ver_main.md'), activation='deferred')
+        self.assertEqual(plan['activation'], 'deferred')
+        self.assertEqual(plan['fallback'], 'NONE')
+        self.assert_na(plan, *planner.SCOPES)
+        self.assertFalse(any(job['required'] for job in plan['jobs'].values()))
+        planner.verify_results(plan, self.results(plan), plan['record_digest'])
+        self.assert_arm64_alignment(plan, 'NOT_APPLICABLE')
+
+    def test_authority_does_not_hide_database_or_uncovered_tests(self):
+        for path in ('tests/db/test_smoke.py', 'apps/api/tests/V2/PaymentTest.php',
+                     'tests/ops/test_unknown.py', 'scripts/ci/platform_ci_plan.py'):
+            with self.subTest(path=path):
+                self.setUp()
+                self.authority()
+                plan = self.plan((path,), activation='deferred')
+                self.assert_required(plan, *planner.SCOPES)
+                self.assertFalse(planner.source_only_authority(
+                    change.classify(self.repository, self.base, self.git('rev-parse', 'HEAD'))))
+
+    def test_authority_immediate_non_pr_and_normal_path_are_not_exempt(self):
+        self.authority()
+        for context in ({'activation': 'immediate'}, {'event_name': 'push'},
+                        {'activation': 'deferred', 'validation_path': 'NORMAL_STRICT_CI'}):
+            with self.subTest(context=context):
+                plan = self.plan(**context)
+                self.assertTrue(all(job['required'] for job in plan['jobs'].values()))
+
+    def test_operation_wrapper_and_focused_test_skip_integration(self):
+        plan = self.plan((*sorted(planner.OPERATION_WRAPPER_PATHS), 'worklogs/new_ver_main.md'))
+        self.assertEqual(plan['validation_path'], 'NORMAL_STRICT_CI')
+        self.assertEqual(plan['component_deltas']['ci_governance_delta'], 'PRESENT')
+        self.assert_na(plan, *planner.SCOPES)
+        self.assertFalse(any(job['required'] for job in plan['jobs'].values()))
+        planner.verify_results(plan, self.results(plan), plan['record_digest'])
+        self.assert_arm64_alignment(plan, 'NOT_APPLICABLE')
+
+    def test_decision_wrappers_and_codex_settings_remain_full(self):
+        for path in ('infrastructure/github-app/provision_git_wrapper.py',
+                     'infrastructure/github-app/oripa-github-app-git',
+                     'infrastructure/github-app/oripa-github-app-api',
+                     'infrastructure/github-app/check_run_gate.py',
+                     'infrastructure/github-app/self_review_policy.py',
+                     '.codex/config.toml', '.codex/rules/governance.rules'):
+            with self.subTest(path=path):
+                self.setUp()
+                self.assert_required(self.plan((path,)), *planner.SCOPES)
+
+    def test_wrapper_mixed_unknown_and_db_changes_remain_required(self):
+        for path in ('apps/api/app/Example.php', 'scripts/db/v2_database.py',
+                     'tests/db/test_smoke.py', 'apps/api/database/migrations-v2/fixture.php',
+                     'apps/api/config/database.php', 'pnpm-lock.yaml', 'unknown-hook'):
+            with self.subTest(path=path):
+                self.setUp()
+                plan = self.plan(('infrastructure/github-app/task_branch_base_sync.py', path))
+                self.assert_required(plan, 'backend', 'database', 'arm64_artifact')
+
+    def test_wrapper_deferred_and_non_pr_remain_full(self):
+        for context in ({'activation': 'deferred'}, {'activation': 'immediate'},
+                        {'event_name': 'push'}, {'event_name': 'workflow_dispatch'}):
+            with self.subTest(context=context):
+                plan = self.plan(tuple(planner.OPERATION_WRAPPER_PATHS), **context)
+                self.assertTrue(all(job['required'] for job in plan['jobs'].values()))
+
+    def test_deleted_and_renamed_db_inputs_cannot_hide_in_wrapper(self):
+        for rename in (False, True):
+            with self.subTest(rename=rename):
+                self.setUp()
+                target = 'infrastructure/github-app/task_branch_base_sync.py'
+                self.write(target, 'fixture\n')
+                if rename:
+                    self.git('mv', '-f', 'apps/api/app/Example.php', target)
+                else:
+                    self.git('rm', 'apps/api/app/Example.php')
+                self.assert_required(self.plan(), 'backend', 'database', 'arm64_artifact')
+
+    def test_symlink_wrapper_fails_closed(self):
+        target = self.repository / 'infrastructure/github-app/task_branch_base_sync.py'
+        target.parent.mkdir(parents=True)
+        target.symlink_to('../../apps/api/app/Example.php')
+        self.assert_required(self.plan(), *planner.SCOPES)
+
+    def test_tampered_source_evidence_cannot_skip(self):
+        self.authority()
+        record = change.classify(self.repository, self.base, self.commit())
+        for key in ('base_sha', 'head_sha', 'tree_sha', 'record_digest'):
+            with self.subTest(key=key):
+                forged = copy.deepcopy(record)
+                forged[key] = 'f' * 40
+                plan = planner.build_plan(forged, lane_key='strict', activation='deferred',
+                                          event_name='pull_request', validation_path='AUTHORITY_FOCUSED')
+                self.assert_required(plan, *planner.SCOPES)
+
+    def test_na_jobs_reject_success_failure_and_missing_results(self):
+        self.authority()
+        plan = self.plan(activation='deferred')
+        for job in planner.JOBS:
+            for result in ('success', 'failure', 'cancelled', None):
+                with self.subTest(job=job, result=result):
+                    needs = self.results(plan)
+                    needs[job]['result'] = result
+                    with self.assertRaises(records.RecordError):
+                        planner.verify_results(plan, needs, plan['record_digest'])
+
     def test_unknown_source_forces_full_validation_even_for_lite(self):
         for lane in ('strict', 'lite'):
             plan = self.plan(('unknown-hook',), lane_key=lane)

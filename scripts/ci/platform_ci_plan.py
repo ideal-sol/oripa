@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from scripts.release.readiness.change import classify, path_components, validate_change
+from scripts.release.readiness.change import AUTHORITY_PATHS, classify, path_components, validate_change
 from scripts.release.readiness.records import canonical, digest, require, seal
 
 SCOPES = (
@@ -29,10 +29,26 @@ GLOBAL_PREFIXES = (
 GOVERNANCE_ONLY = {
     "scripts/ci/policy_gate.py", "tests/ci/policy/test_policy_gate.py",
 }
+OPERATION_WRAPPER_PATHS = {
+    "infrastructure/github-app/task_branch_base_sync.py",
+    "tests/ops/test_task_branch_base_sync.py",
+}
+AUTHORITY_TEST_PATHS = {
+    "tests/ops/test_old_test_source_authority.py",
+    "tests/ops/test_production_source_authority.py",
+}
+
+
+def source_only_authority(change):
+    return (change["validation_path"] == "AUTHORITY_FOCUSED"
+            and all(path in AUTHORITY_PATHS | AUTHORITY_TEST_PATHS
+                    or path_components(path) == {"docs"} for path in change["changed_paths"]))
 
 
 def affected_scopes(path):
     components = path_components(path)
+    if path in OPERATION_WRAPPER_PATHS:
+        return set()
     if "dependency" in components or path.startswith(GLOBAL_PREFIXES):
         return set(SCOPES)
     if path in GOVERNANCE_ONLY:
@@ -67,8 +83,8 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
         validate_change(change)
     except ValueError:
         valid = False
-    authority = (valid and change["validation_path"] == "AUTHORITY_FOCUSED"
-                 and validation_path == "AUTHORITY_FOCUSED" and activation == "none"
+    authority = (valid and source_only_authority(change)
+                 and validation_path == "AUTHORITY_FOCUSED" and activation in {"none", "deferred"}
                  and event_name == "pull_request")
     paths = change["changed_paths"]
     hits = {scope: [] for scope in SCOPES}
@@ -81,7 +97,7 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
             else:
                 for scope in affected:
                     hits[scope].append(path)
-    full = event_name != "pull_request" or activation != "none"
+    full = event_name != "pull_request" or (activation != "none" and not authority)
     scopes = {}
     for scope in SCOPES:
         if unknown:
