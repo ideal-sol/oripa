@@ -61,6 +61,9 @@ def identity(candidate: dict) -> str:
 
 
 def run(arguments: list[str], *, environment: dict | None = None, cwd: Path | None = None) -> bytes:
+    if arguments and arguments[0] == "git":
+        environment = dict(os.environ if environment is None else environment)
+        environment["GIT_OPTIONAL_LOCKS"] = "0"
     try:
         result = subprocess.run(arguments, env=environment, cwd=cwd, capture_output=True, timeout=300)
     except (OSError, subprocess.SubprocessError):

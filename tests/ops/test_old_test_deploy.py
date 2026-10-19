@@ -249,6 +249,10 @@ class DeploymentTest(unittest.TestCase):
             with self.assertRaises(deploy.Hold) as failure:
                 REAL_RUN(["synthetic"])
         self.assertNotIn("private-value", str(failure.exception))
+        with mock.patch.object(deploy.subprocess, "run", return_value=subprocess.CompletedProcess(
+                ["git"], 0, stdout=b"", stderr=b"")) as child:
+            REAL_RUN(["git", "diff", "HEAD", "--name-only"])
+            self.assertEqual(child.call_args.kwargs["env"]["GIT_OPTIONAL_LOCKS"], "0")
         with mock.patch.object(deploy, "destination", side_effect=RuntimeError("private-value")), mock.patch.object(
                 deploy.sys, "argv", ["deploy", "apply", "--candidate", "/private/candidate.json", "--go", "example"]):
             output = io.StringIO()
