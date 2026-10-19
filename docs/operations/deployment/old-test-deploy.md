@@ -40,8 +40,9 @@ Only two exact existing tracked Runtime differences are accepted: the single
 `.next/dev/types` references in `next-env.d.ts`. Their hashes are bound to the
 candidate. Prepare the same reviewed overlay in the new checkout beforehand;
 the deployment script never edits or cleans either source checkout. Other
-tracked differences, untracked source, missing dependencies, or an unverified
-vendored contract cause HOLD.
+tracked differences, untracked source or missing dependencies cause HOLD. The
+unchanged vendored-contract verifier runs from the selected checkout during
+apply before service stop; its temporary extraction is outside prepare.
 
 The candidate fixes Task, source PR/SHA, Source/Control/Recipe Authority, Artifact
 ID/digest/provenance/file fingerprints, selected services, ordered migrations,

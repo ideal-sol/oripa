@@ -1,9 +1,11 @@
 import contextlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -60,7 +62,8 @@ class DeploymentTest(unittest.TestCase):
         self.patches.enter_context(mock.patch.object(self.operation, "switch", side_effect=lambda role, image: self.events.append(("switch", role, image))))
         self.patches.enter_context(mock.patch.object(self.operation, "start_storefront", side_effect=lambda selected, name: self.events.append(("storefront", selected["directory"], name))))
         self.patches.enter_context(mock.patch.object(self.operation, "health", side_effect=lambda: self.events.append("health")))
-        self.patches.enter_context(mock.patch.object(deploy, "unit", return_value={"ActiveState": "inactive"}))
+        self.patches.enter_context(mock.patch.object(deploy, "unit", side_effect=lambda name: {
+            "ActiveState": self.candidate["previous"].get(name, "inactive")}))
 
     def runtime(self, role):
         return {"Id": "old-" + role, "Name": "/" + role, "Image": OLD_IMAGE,
@@ -92,7 +95,7 @@ class DeploymentTest(unittest.TestCase):
     def test_storefront_only_never_stops_api_database_or_timers(self):
         self.candidate["services"] = ["storefront"]
         self.apply()
-        self.assertEqual(self.events, [["systemctl", "stop", "old.service"],
+        self.assertEqual(self.events, [["node", "/new/scripts/verify-vendored-artifacts.mjs"], ["systemctl", "stop", "old.service"],
             ("storefront", "/new", "new.service"), "health"])
 
     def test_changed_candidate_and_missing_go_stop_before_mutation(self):
@@ -190,6 +193,8 @@ class DeploymentTest(unittest.TestCase):
         repository.mkdir()
         (repository / "node_modules/next/dist/bin").mkdir(parents=True)
         (repository / "node_modules/next/dist/bin/next").touch()
+        (repository / "scripts").mkdir()
+        (repository / "scripts/verify-vendored-artifacts.mjs").touch()
         original = b"const nextConfig: NextConfig = {\n};\n"
         allowed = original.replace(b"{\n", b'{\n  allowedDevOrigins: ["test.luxe-pack.biz"],\n')
         (repository / "next.config.ts").write_bytes(allowed)
@@ -222,9 +227,16 @@ class DeploymentTest(unittest.TestCase):
         def backup_run(arguments, **kwargs):
             if arguments[:2] == ["docker", "cp"]:
                 Path(arguments[-1]).write_bytes(b"synthetic-custom-archive")
+            if "sha256sum" in arguments:
+                return deploy.digest(b"synthetic-custom-archive").encode() + b"  archive.dump"
             return self.command_run(arguments, **kwargs)
         self.command.side_effect = backup_run
-        deploy.Deployment.backup(self.operation)
+        self.operation.runtime["api"]["Config"]["Env"] = ["DB_DATABASE=synthetic", "DB_USERNAME=synthetic_user"]
+        database = {"Config": {"Labels": {"com.docker.compose.project": "mig061a-v2-preview",
+                    "com.docker.compose.service": "postgres"},
+                    "Env": ["POSTGRES_DB=synthetic", "POSTGRES_USER=synthetic_user"]}}
+        with mock.patch.object(deploy, "inspect", return_value=database):
+            deploy.Deployment.backup(self.operation)
         self.assertIn('--file "$1"', self.events[0][-3])
         self.assertEqual(self.events[1][3], "pg_restore")
         self.assertIn("--file=/dev/null", self.events[1])
@@ -254,6 +266,62 @@ class DeploymentTest(unittest.TestCase):
             self.assertEqual(deploy.main(), 0)
         self.assertFalse((self.directory / "candidate.json").exists())
         self.command.assert_not_called()
+
+    def test_expired_artifact_is_rejected_without_download_or_mutation(self):
+        metadata = {"task_id": "ARTIFACT-201", "pull_request": 12, "source_commit": SOURCE_SHA,
+                    "workflow_run_id": 45}
+        self.candidate["artifact"].update(id=123, digest="sha256:" + "4" * 64)
+        (self.directory / "download-metadata.json").write_text(json.dumps(metadata))
+        with mock.patch.object(Path, "stat", return_value=SimpleNamespace(st_uid=0, st_mode=0o40700)), mock.patch.object(
+                deploy, "decoded", return_value=[]):
+            with self.assertRaisesRegex(deploy.Hold, "artifact_rejected_or_expired"):
+                self.operation.artifact()
+        self.assertEqual(self.events, [])
+
+    def test_existing_selected_image_uses_canonical_verifier_without_load(self):
+        verifier = mock.Mock()
+        metadata = mock.Mock(return_value={"image_id": NEW_IMAGE})
+        decompress = mock.Mock()
+        helper = {"verify_artifact": verifier, "require_target_host": mock.Mock(),
+                  "image_metadata": metadata, "decompress_archive": decompress}
+        self.candidate["artifact"]["authority"].update(task_id="ARTIFACT-201", source_pr=12)
+        image = {"Config": {"Env": []}}
+        config = {"services": {"api": {"environment": {}, "networks": {"private": {}}}},
+                  "networks": {"private": {"name": "old_v2_private"}}}
+        with mock.patch.object(deploy.runpy, "run_path", return_value=helper), mock.patch.object(
+                deploy, "decoded", side_effect=[[image], config]):
+            deploy.Deployment.load(self.operation)
+        verifier.assert_called_once()
+        decompress.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_switch_preserves_original_chain_and_private_health_before_egress(self):
+        private, egress = "old_v2_private", "old_v2_api_egress"
+        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {}, egress: {}}}
+        self.candidate["previous"]["api"].update(networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
+        ready = {"Image": NEW_IMAGE, "State": {"Health": {"Status": "healthy"}},
+                 "NetworkSettings": {"Networks": {private: {}, egress: {}}}}
+        config = {"services": {"api": {"environment": {}}}}
+        with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
+                deploy, "inspect", side_effect=lambda name: self.events.append("ready") or ready):
+            deploy.Deployment.switch(self.operation, "api", NEW_IMAGE)
+        disconnect = ["docker", "network", "disconnect", egress, "/api"]
+        connect = ["docker", "network", "connect", egress, "/api"]
+        self.assertLess(self.events.index(disconnect), self.events.index("ready"))
+        self.assertLess(self.events.index("ready"), self.events.index(connect))
+        switch = next(event for event in self.events if isinstance(event, list) and "up" in event)
+        self.assertEqual(switch[:4], ["docker", "compose", "-f", "/original.json"])
+        self.assertIn("--no-build", switch)
+
+    def test_post_migration_rollback_checks_current_guard_before_stop(self):
+        self.migration()
+        self.candidate["rollback_schema_compatible"] = True
+        self.candidate["state"].update(phase="complete", migration_attempted=True, schema_verified=True)
+        with mock.patch.object(deploy, "inspect", return_value=self.runtime("api")), mock.patch.object(
+                self.operation, "guard", side_effect=deploy.Hold("canonical_guard_failed")):
+            with self.assertRaises(deploy.Hold):
+                self.operation.rollback(deploy.identity(self.candidate))
+        self.assertEqual(self.events, [])
 
 
 if __name__ == "__main__":

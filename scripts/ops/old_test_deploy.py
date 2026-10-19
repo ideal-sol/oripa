@@ -60,9 +60,9 @@ def identity(candidate: dict) -> str:
                              sort_keys=True, separators=(",", ":")).encode())
 
 
-def run(arguments: list[str], *, environment: dict | None = None) -> bytes:
+def run(arguments: list[str], *, environment: dict | None = None, cwd: Path | None = None) -> bytes:
     try:
-        result = subprocess.run(arguments, env=environment, capture_output=True, timeout=300)
+        result = subprocess.run(arguments, env=environment, cwd=cwd, capture_output=True, timeout=300)
     except (OSError, subprocess.SubprocessError):
         raise Hold("command_failed") from None
     require(result.returncode == 0, "command_failed")
@@ -109,7 +109,8 @@ def source_bytes(repository: Path, revision: str, relative: str) -> bytes:
 
 
 def migration_files(repository: Path, revision: str) -> list[str]:
-    names = run(["git", "-C", str(repository), "ls-tree", "-r", "--name-only", revision, MIGRATIONS])
+    names = run(["git", "-c", "safe.directory=" + str(repository), "-C", str(repository),
+                 "ls-tree", "-r", "--name-only", revision, MIGRATIONS])
     result = names.decode().splitlines()
     require(result and all(name.endswith(".php") for name in result), "migration_inventory_invalid")
     for relative in result + ["scripts/db/v2_database.py"]:
@@ -163,7 +164,7 @@ def storefront(path: str, expected: str) -> dict:
             expected_bytes = original.replace(b'"./.next/types/', b'"./.next/dev/types/')
         require((repository / relative).read_bytes() == expected_bytes, "storefront_overlay_invalid")
     require((repository / "node_modules/next/dist/bin/next").is_file(), "storefront_dependencies_missing")
-    run(["node", str(repository / "scripts/verify-vendored-artifacts.mjs")])
+    require((repository / "scripts/verify-vendored-artifacts.mjs").is_file(), "storefront_verifier_missing")
     return {"directory": str(repository), "sha": revision,
             "overlays": {name: digest((repository / name).read_bytes()) for name in changed}}
 
@@ -229,7 +230,7 @@ class Deployment:
             self.runtime[role] = current
             command, environment = compose(current)
             config = run(command + ["config", "--format", "json"], environment=environment)
-            observed[role] = {"id": current["Id"], "image": current["Image"], "compose_sha256": digest(config),
+            observed[role] = {"id": current["Id"], "image": current["Image"], "compose": command, "compose_sha256": digest(config),
                               "networks": sorted(current["NetworkSettings"]["Networks"])}
         units = ((SMS,) if self.candidate["migrations"] else ()) + (TIMERS if "api" in self.candidate["services"] else ())
         for name in units:
@@ -312,9 +313,13 @@ class Deployment:
         if "storefront" in candidate["services"]:
             require(storefront(candidate["storefront"]["directory"], candidate["storefront"]["sha"])
                     == candidate["storefront"], "storefront_candidate_changed")
+            main = run(["git", "ls-remote", "git@github.com:ideal-sol/luxe-pack-storefront.git", "refs/heads/main"]).decode().split()[0]
+            require(FULL_SHA.fullmatch(main), "storefront_main_invalid")
+            repository = candidate["storefront"]["directory"]
+            run(["git", "-c", "safe.directory=" + repository, "-C", repository, "merge-base", "--is-ancestor",
+                 candidate["storefront"]["sha"], main])
         if approved:
-            require(self.candidate["services"][:2] == ["api", "admin"]
-                    or set(self.candidate["services"]) >= {"api", "admin"}, "migration_requires_api_admin")
+            require(set(self.candidate["services"]) >= {"api", "admin"}, "migration_requires_api_admin")
             self.guard(str(baseline), baseline_sha)
         for role in set(candidate["services"]) & {"api", "admin"}:
             current = self.runtime[role]
@@ -348,16 +353,26 @@ class Deployment:
 
     def backup(self) -> None:
         container = "mig061a-v2-preview-postgres-1"
+        database = inspect(container)
+        labels = database["Config"]["Labels"]
+        database_environment = dict(entry.split("=", 1) for entry in database["Config"]["Env"])
+        api_environment = dict(entry.split("=", 1) for entry in self.runtime["api"]["Config"]["Env"])
+        require(labels["com.docker.compose.project"] == "mig061a-v2-preview"
+                and labels["com.docker.compose.service"] == "postgres"
+                and database_environment["POSTGRES_DB"] == api_environment["DB_DATABASE"]
+                and database_environment["POSTGRES_USER"] == api_environment["DB_USERNAME"], "backup_target_mismatch")
         remote = "/tmp/oripa-old-test-" + identity(self.candidate) + ".dump"
         local = self.path.with_suffix(".dump")
         require(not local.exists(), "backup_already_exists")
         script = 'umask 077; test ! -e "$1"; pg_dump --format=custom --no-owner --no-privileges --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --file "$1"'
         run(["docker", "exec", container, "sh", "-ec", script, "sh", remote])
         run(["docker", "exec", container, "pg_restore", "--file=/dev/null", remote])
+        checksum = run(["docker", "exec", container, "sha256sum", remote]).decode().split()[0]
         run(["docker", "cp", container + ":" + remote, str(local)])
         os.chmod(local, 0o600)
         require(local.stat().st_size > 0, "backup_empty")
-        self.candidate["state"]["backup_sha256"] = file_digest(local)
+        require(file_digest(local) == checksum, "backup_copy_mismatch")
+        self.candidate["state"]["backup_sha256"] = checksum
 
     def load(self) -> None:
         directory = Path(self.candidate["artifact"]["directory"])
@@ -399,6 +414,7 @@ class Deployment:
         require(IMAGE_ID.fullmatch(image_id), "image_id_invalid")
         current = self.runtime[role]
         command, environment = compose(current)
+        command = self.candidate["previous"][role]["compose"]
         service = current["Config"]["Labels"]["com.docker.compose.service"]
         override = self.path.with_suffix("." + role + ".json")
         override.write_text(json.dumps({"services": {service: {"image": image_id}}}))
@@ -441,10 +457,12 @@ class Deployment:
     def resume(self) -> None:
         if self.candidate["migrations"] and self.candidate["previous"][SMS] == "active":
             run(["systemctl", "start", SMS])
+            require(unit(SMS)["ActiveState"] == "active", "sms_resume_failed")
         if "api" in self.candidate["services"]:
             for timer in TIMERS:
                 if self.candidate["previous"][timer] == "active":
                     run(["systemctl", "start", timer])
+                    require(unit(timer)["ActiveState"] == "active", "timer_resume_failed")
 
     def health(self) -> None:
         paths = []
@@ -468,6 +486,9 @@ class Deployment:
         authority = self.candidate["artifact"]["authority"]
         if set(self.candidate["services"]) & {"api", "admin"}:
             self.load()
+        if "storefront" in self.candidate["services"]:
+            repository = Path(self.candidate["storefront"]["directory"])
+            run(["node", str(repository / "scripts/verify-vendored-artifacts.mjs")], cwd=repository)
         lock = None
         try:
             if "api" in self.candidate["services"]:
@@ -494,6 +515,7 @@ class Deployment:
                     run(command + ["-f", str(override), "run", "--rm", "--no-deps", "--pull", "never", "-T", "test-api",
                         "php", "artisan", "migrate", "--path=database/migrations-v2/" + migration, "--no-interaction"], environment=environment)
                     self.candidate["state"]["applied"].append(migration)
+                    save(self.path, self.candidate)
                 self.guard(self.candidate["platform_source"], authority["source_sha"])
                 self.candidate["state"]["schema_verified"] = True
             self.phase_start("switch")
@@ -529,6 +551,12 @@ class Deployment:
             self.runtime[role] = inspect(API if role == "api" else ADMIN)
             require(self.runtime[role]["Image"] in {self.candidate["previous"][role]["image"],
                     self.candidate["images"].get(role, {}).get("image_id")}, "rollback_runtime_changed")
+        if state["migration_attempted"]:
+            self.guard(self.candidate["platform_source"], self.candidate["artifact"]["authority"]["source_sha"])
+        if "storefront" in self.candidate["services"]:
+            old = self.candidate["previous"]["storefront"]
+            require(storefront(old["directory"], old["sha"]) == {key: old[key] for key in ("directory", "sha", "overlays")},
+                    "rollback_storefront_changed")
         if dry_run:
             return
         if state["phase"] in {"load", "fence"}:
@@ -540,6 +568,9 @@ class Deployment:
             return
         if "api" in self.candidate["services"]:
             self.fence()
+        if "storefront" in self.candidate["services"]:
+            repository = Path(self.candidate["previous"]["storefront"]["directory"])
+            run(["node", str(repository / "scripts/verify-vendored-artifacts.mjs")], cwd=repository)
         with contextlib.ExitStack() as stack:
             if "api" in self.candidate["services"]:
                 lock = stack.enter_context(F2B_LOCK.open("r+"))
@@ -553,8 +584,6 @@ class Deployment:
             if "storefront" in self.candidate["services"]:
                 run(["systemctl", "stop", self.candidate["storefront_new_unit"]])
                 old = self.candidate["previous"]["storefront"]
-                require(storefront(old["directory"], old["sha"]) == {key: old[key] for key in ("directory", "sha", "overlays")},
-                        "rollback_storefront_changed")
                 self.start_storefront(old, self.candidate["storefront_new_unit"])
             if "api" in self.candidate["services"]:
                 current = self.candidate["images"]["api"]["image_id"]
