@@ -167,6 +167,15 @@ the additive schema on application rollback; older applications cannot implement
 weighted selection or the revised login behavior, so restoring them requires
 pausing affected draws until a forward fix. Migration down is deliberately refused.
 
+## Member rank Gacha conditions (000093)
+
+Migration `2026_10_18_000093_add_v2_member_rank_gacha_conditions.php` adds
+independent rank conditions to Gacha versions and immutable Draw rank snapshots.
+Existing versions default to no condition; existing Draw snapshots remain null.
+Signup conditions are forbidden and published conditions cannot change.
+The migration is forward-only. Retain schema and snapshots on rollback.
+Application to operational databases and initial feature activation are deferred.
+
 ## Member rank purchase bonuses (000092)
 
 Migration `2026_10_17_000092_create_v2_member_rank_purchase_bonuses.php` adds an

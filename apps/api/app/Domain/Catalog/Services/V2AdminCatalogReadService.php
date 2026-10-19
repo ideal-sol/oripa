@@ -2041,6 +2041,9 @@ final class V2AdminCatalogReadService
             : DB::table('catalog_presentation_assets')
                 ->where('id', $assetId)
                 ->first();
+        $publishEndAt = $presentation === null
+            ? $row->publish_end_at
+            : $presentation->current_publish_end_at;
 
         return [
             'id' => $row->public_id,
@@ -2060,6 +2063,8 @@ final class V2AdminCatalogReadService
             'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'member_rank_mode' => $row->member_rank_mode ?? 'none',
+            'member_rank_level' => $row->member_rank_level ?? null,
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->allowedDrawCounts(
                 $row->allowed_draw_counts ?? null
@@ -2072,11 +2077,9 @@ final class V2AdminCatalogReadService
                 'public_path' => $asset->is_public ? $asset->public_path : null,
                 'is_public' => (bool) $asset->is_public,
             ],
-            'publish_start_at' => $presentation?->current_publish_start_at
-                ?? $row->publish_start_at,
-            'publish_end_at' => $presentation === null
-                ? $row->publish_end_at
-                : $presentation->current_publish_end_at,
+            'publish_start_at' => $this->timestamp($presentation?->current_publish_start_at
+                ?? $row->publish_start_at),
+            'publish_end_at' => $publishEndAt === null ? null : $this->timestamp($publishEndAt),
             'revision' => (int) $row->revision,
         ];
     }
@@ -2163,6 +2166,8 @@ final class V2AdminCatalogReadService
             'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'member_rank_mode' => $row->member_rank_mode ?? 'none',
+            'member_rank_level' => $row->member_rank_level ?? null,
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->allowedDrawCounts(
                 $row->allowed_draw_counts ?? null

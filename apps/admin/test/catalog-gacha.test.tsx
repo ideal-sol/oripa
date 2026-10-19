@@ -123,7 +123,7 @@ describe("Admin Gacha Draft management", () => {
     expect(screen.getByRole("checkbox", { name: "1回" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "5回" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "100回" }));
-    fireEvent.change(screen.getByLabelText("会員ランク"), {
+    fireEvent.change(screen.getByLabelText("対象ユーザー"), {
       target: { value: "first_time_users" },
     });
     fireEvent.change(screen.getByLabelText("新規登録後の日数（1日＝24時間）"), {

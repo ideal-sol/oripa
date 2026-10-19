@@ -156,8 +156,8 @@ final class V2DrawService
                 if ($login && ($adminCommand !== null || $drawCount !== 1)) {
                     throw new V2DrawException('INVALID_DRAW_REQUEST', 422, 'Login Gacha does not allow QA or multi Draw.');
                 }
+                DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
                 if ($login) {
-                    DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
                     DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->first();
                 }
                 $occurredAt = CarbonImmutable::now()->startOfSecond();
@@ -235,8 +235,9 @@ final class V2DrawService
                 if ($adminCommand === null) {
                     $this->smsVerification->assertVerified($user, true);
                 }
+                $memberRankLevel = null;
                 if (! $qaSelection['active']) {
-                    $this->eligibility->assertForDraw(
+                    $memberRankLevel = $this->eligibility->assertForDraw(
                         $user,
                         $gacha,
                         $context['version'],
@@ -253,6 +254,7 @@ final class V2DrawService
                 }
                 $drawRequest = new DrawRequest();
                 $drawRequest->forceFill([
+                    'member_rank_level' => $memberRankLevel,
                     'user_id' => $user->id,
                     'gacha_draw_state_id' => $state->id,
                     'gacha_version_id' => $context['version']->id,
@@ -520,6 +522,9 @@ final class V2DrawService
 
     private function readPresentation(DrawRequest $request, array $response): array
     {
+        $response['member_rank'] = \App\Domain\MemberRank\Services\V2MemberRankGachaCondition::rank(
+            $request->member_rank_level === null ? null : (int) $request->member_rank_level
+        );
         $rows = DB::table('draw_results as result')
             ->leftJoin('catalog_rank_master_revisions as revision', 'revision.id', '=', 'result.rank_master_revision_id')
             ->leftJoin('catalog_presentation_assets as lineup', function (JoinClause $join): void {
@@ -602,6 +607,7 @@ final class V2DrawService
         $hasMore = $rows->count() > $limit;
         $visible = $rows->take($limit);
         $items = $visible->map(fn (object $row): array => [
+            'member_rank' => \App\Domain\MemberRank\Services\V2MemberRankGachaCondition::rank($row->member_rank_level === null ? null : (int) $row->member_rank_level),
             'id' => $row->public_id,
             'gacha' => [
                 'id' => $row->gacha_public_id,
@@ -647,6 +653,7 @@ final class V2DrawService
                 'request.requested_count',
                 'request.executed_count',
                 'request.status',
+                'request.member_rank_level',
                 'gacha.public_id as gacha_public_id',
                 'version.title as gacha_title',
                 'asset.public_id as asset_public_id',

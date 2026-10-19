@@ -20,7 +20,10 @@ final class V2CatalogController
 
     public function loginGachas(Request $request): JsonResponse
     {
-        return $this->success(app(V2LoginCatalogReadService::class)->listing(), $request, 'no-store');
+        $response = $this->success(app(V2LoginCatalogReadService::class)->listing($this->verifiedUser()), $request, 'private, no-store');
+        $response->headers->set('Vary', 'Cookie');
+
+        return $response;
     }
 
     public function loginGacha(Request $request, string $gachaId): JsonResponse
@@ -87,12 +90,17 @@ final class V2CatalogController
                     'The requested page size is invalid.'
                 );
             }
+            $rankFilter = $request->query('member_rank_eligible_only', 'false');
+            if (! in_array($rankFilter, ['true', 'false', '1', '0'], true)) {
+                throw new V2CatalogException('CATALOG_QUERY_INVALID', 422, 'The member rank filter is invalid.');
+            }
             $result = $this->catalog->list(
                 $limit,
                 $this->queryString($request, 'cursor'),
                 $this->queryString($request, 'category'),
                 $this->queryString($request, 'tag'),
-                $this->verifiedUser()
+                $this->verifiedUser(),
+                in_array($rankFilter, ['true', '1'], true)
             );
             $authenticated = Auth::guard('v2_user')->check();
             $response = $this->success(

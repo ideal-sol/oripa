@@ -12854,6 +12854,25 @@
               "line_users"
             ]
           },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1
@@ -12982,6 +13001,12 @@
                 },
                 "daily_draw_limit": {
                   "const": 0
+                },
+                "member_rank_mode": {
+                  "const": "none"
+                },
+                "member_rank_level": {
+                  "type": "null"
                 },
                 "minimum_exchange_points": {
                   "type": "null"
@@ -18545,6 +18570,25 @@
               "line_users"
             ]
           },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1,
@@ -18663,6 +18707,25 @@
               "first_time_users",
               "line_users"
             ]
+          },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
           },
           "first_time_eligible_days": {
             "type": "integer",
@@ -18974,6 +19037,25 @@
               "line_users"
             ]
           },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1,
@@ -19069,6 +19151,25 @@
               "first_time_users",
               "line_users"
             ]
+          },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
           },
           "first_time_eligible_days": {
             "type": "integer",
@@ -19697,6 +19798,25 @@
               "line_users"
             ]
           },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1
@@ -19870,6 +19990,25 @@
               "line_users"
             ]
           },
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "first_time_eligible_days": {
             "type": "integer",
             "minimum": 1
@@ -19982,6 +20121,25 @@
           "prizes"
         ],
         "properties": {
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "title": {
             "type": "string",
             "minLength": 1,
@@ -20056,6 +20214,25 @@
           "prizes"
         ],
         "properties": {
+          "member_rank_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "at_least",
+              "only",
+              "at_most"
+            ],
+            "default": "none"
+          },
+          "member_rank_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7,
+            "default": null
+          },
           "expected_revision": {
             "type": "integer",
             "minimum": 1

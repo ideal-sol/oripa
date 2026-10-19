@@ -18,7 +18,7 @@ test("published Gacha edit exposes only the lifecycle whitelist", async ({ page 
   await expect(page.getByLabel("消費ポイント")).toBeDisabled();
   await expect(page.getByLabel("総口数")).toBeDisabled();
   await expect(page.getByLabel(/1日規定回数/u)).toBeDisabled();
-  await expect(page.getByLabel("会員ランク")).toBeDisabled();
+  await expect(page.getByLabel("対象ユーザー")).toBeDisabled();
   await expect(page.getByLabel("開始日時（Asia/Tokyo）")).toBeDisabled();
   await expect(page.getByLabel("ガチャタイトル")).toBeEnabled();
   await expect(page.getByLabel("終了日時（Asia/Tokyo）")).toBeEnabled();

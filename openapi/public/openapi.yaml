@@ -333,6 +333,11 @@ paths:
       x-stability: alpha
       security: []
       parameters:
+        - name: member_rank_eligible_only
+          in: query
+          required: false
+          description: 会員ランク条件があり、現在の会員が引ける通常ガチャだけ。未ログイン・機能OFFは空。
+          schema: {type: boolean, default: false}
         - $ref: '#/components/parameters/CatalogLimit'
         - $ref: '#/components/parameters/CatalogCursor'
         - $ref: '#/components/parameters/CategorySlug'
@@ -2323,10 +2328,31 @@ components:
       name: __Host-oripa_user_session
       description: Secure、HttpOnly、SameSite=Lax、Host-only、Path=/ のUser Session Cookie。
   schemas:
+    MemberRankSnapshot:
+      type: object
+      additionalProperties: false
+      required: [code, name, level]
+      properties:
+        code: {type: string, enum: [beginner, bronze, silver, gold, platinum, diamond, vip]}
+        name: {type: string}
+        level: {type: integer, minimum: 1, maximum: 7}
+    NullableMemberRankSnapshot:
+      oneOf:
+        - {$ref: '#/components/schemas/MemberRankSnapshot'}
+        - {type: 'null'}
+    GachaMemberRankCondition:
+      type: object
+      additionalProperties: false
+      required: [mode, rank]
+      properties:
+        mode: {type: string, enum: [none, at_least, only, at_most]}
+        rank: {$ref: '#/components/schemas/NullableMemberRankSnapshot'}
     LoginGachaSummary:
       type: object
       required: [id, public_code, gacha_type, title, thumbnail, price_points, publish_start_at, publish_end_at, availability]
       properties:
+        member_rank_condition: {$ref: '#/components/schemas/GachaMemberRankCondition'}
+        eligibility: {$ref: '#/components/schemas/LoginGachaEligibility'}
         id: {$ref: '#/components/schemas/OpaqueId'}
         public_code: {type: string}
         gacha_type: {type: string, enum: [login_daily, signup_once]}
@@ -2352,7 +2378,7 @@ components:
       properties:
         eligible: {type: boolean}
         used: {type: boolean}
-        reason: {type: [string, 'null'], enum: [null, registration_not_qualified, already_used, inventory_unavailable]}
+        reason: {type: [string, 'null'], enum: [null, authentication_required, registration_not_qualified, member_rank_not_eligible, already_used, inventory_unavailable]}
         resets_at: {type: [string, 'null'], format: date-time}
     LoginGachaPrize:
       type: object
@@ -3467,6 +3493,7 @@ components:
         - DAILY_DRAW_LIMIT_EXCEEDED
         - DRAW_COUNT_INSUFFICIENT
         - GACHA_AUDIENCE_NOT_ELIGIBLE
+        - GACHA_MEMBER_RANK_NOT_ELIGIBLE
         - GACHA_NOT_DRAWABLE
         - GACHA_SALES_PAUSED
         - IDEMPOTENCY_KEY_REUSED
@@ -3805,6 +3832,7 @@ components:
         - tags
         - presentation_asset
       properties:
+        member_rank_condition: {$ref: '#/components/schemas/GachaMemberRankCondition'}
         id:
           $ref: '#/components/schemas/GachaPublicId'
         slug:
@@ -4084,6 +4112,7 @@ components:
         - sale_ended
         - authentication_required
         - audience_not_eligible
+        - member_rank_not_eligible
         - daily_limit_reached
         - null
     GachaDailyLimitState:
@@ -4142,6 +4171,7 @@ components:
         - daily_limit
         - cta
       properties:
+        member_rank_condition: {$ref: '#/components/schemas/GachaMemberRankCondition'}
         gacha_id:
           $ref: '#/components/schemas/GachaPublicId'
         sale_state:
@@ -4342,6 +4372,7 @@ components:
         - executed_count
         - status
       properties:
+        member_rank: {$ref: '#/components/schemas/NullableMemberRankSnapshot'}
         id:
           $ref: '#/components/schemas/OpaqueId'
         gacha:
@@ -4601,6 +4632,7 @@ components:
         - processing_duration_ms
         - created_at
       properties:
+        member_rank: {$ref: '#/components/schemas/NullableMemberRankSnapshot'}
         id:
           $ref: '#/components/schemas/OpaqueId'
         gacha_id:

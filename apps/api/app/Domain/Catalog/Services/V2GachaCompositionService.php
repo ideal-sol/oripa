@@ -20,6 +20,7 @@ final class V2GachaCompositionService
 
     public function validate(array $input): array
     {
+        $input = [...$input, ...\App\Domain\MemberRank\Services\V2MemberRankGachaCondition::validate($input)];
         $useDefault = array_key_exists('use_default_rank_video', $input) ? $input['use_default_rank_video'] : true;
         if (! is_bool($useDefault)) {
             throw $this->invalid();
@@ -32,7 +33,7 @@ final class V2GachaCompositionService
         }
         $fields = ['gacha_type', 'title', 'description', 'notices', 'presentation_asset_id', 'price_points',
             'minimum_exchange_points', 'publish_start_at', 'publish_end_at', 'category_id', 'tag_ids',
-            'total_count', 'daily_draw_limit', 'audience_code', 'first_time_eligible_days', 'allowed_draw_counts', 'ranks', 'prizes'];
+            'total_count', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', 'first_time_eligible_days', 'allowed_draw_counts', 'ranks', 'prizes'];
         if (array_diff(array_keys($input), $fields) !== [] || array_diff($fields, array_keys($input)) !== []) {
             throw $this->invalid();
         }
@@ -102,7 +103,7 @@ final class V2GachaCompositionService
                 || $input['allowed_draw_counts'] !== [1] || $input['audience_code'] !== 'all_users'
                 || $input['first_time_eligible_days'] !== 7
                 || ($input['gacha_type'] === 'login_daily' && ($input['daily_draw_limit'] !== 1 || $input['minimum_exchange_points'] === null))
-                || ($input['gacha_type'] === 'signup_once' && ($input['price_points'] !== 0 || $input['daily_draw_limit'] !== 0 || $input['minimum_exchange_points'] !== null))) {
+                || ($input['gacha_type'] === 'signup_once' && ($input['member_rank_mode'] !== 'none' || $input['price_points'] !== 0 || $input['daily_draw_limit'] !== 0 || $input['minimum_exchange_points'] !== null))) {
                 throw $this->invalid();
             }
         } elseif ($input['price_points'] < 1 || $input['total_count'] === null || $input['category_id'] === null || $input['minimum_exchange_points'] !== null) {
@@ -182,7 +183,7 @@ final class V2GachaCompositionService
             ]);
         }
         $attributes = array_intersect_key($payload, array_flip(['title', 'description', 'notices', 'price_points',
-            'total_count', 'minimum_exchange_points', 'daily_draw_limit', 'audience_code', 'first_time_eligible_days', 'publish_start_at', 'publish_end_at']));
+            'total_count', 'minimum_exchange_points', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', 'first_time_eligible_days', 'publish_start_at', 'publish_end_at']));
         $attributes += ['category_id' => $category?->id, 'presentation_asset_id' => $asset->id,
             'allowed_draw_counts' => json_encode($payload['allowed_draw_counts'], JSON_THROW_ON_ERROR), 'updated_at' => $now];
         if ($version === null) {
@@ -202,8 +203,8 @@ final class V2GachaCompositionService
         DB::table('catalog_gacha_version_tags')->where('gacha_version_id', $versionId)->delete();
         foreach ($payload['tag_ids'] as $tagId) {
             $tag = $this->reference('catalog_tags', $tagId);
-            DB::table('catalog_gacha_tags')->insert(['gacha_id' => $gacha->id, 'tag_id' => $tag->id, 'created_at' => $now, 'updated_at' => $now]);
-            DB::table('catalog_gacha_version_tags')->insert(['gacha_version_id' => $versionId, 'tag_id' => $tag->id, 'created_at' => $now, 'updated_at' => $now]);
+            DB::table('catalog_gacha_tags')->insert(['gacha_id' => $gacha->id, 'tag_id' => $tag->id]);
+            DB::table('catalog_gacha_version_tags')->insert(['gacha_version_id' => $versionId, 'tag_id' => $tag->id]);
         }
         $ranks = $this->saveRanks($gacha, $payload, $now);
         $rates = [];

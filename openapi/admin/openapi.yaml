@@ -5485,6 +5485,8 @@ components:
         total_count: {type: [integer, 'null'], minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         ranks: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminCompositionRank'}}
@@ -5519,6 +5521,8 @@ components:
             properties:
               price_points: {const: 0}
               daily_draw_limit: {const: 0}
+              member_rank_mode: {const: none}
+              member_rank_level: {type: 'null'}
               minimum_exchange_points: {type: 'null'}
         - if: {properties: {gacha_type: {const: login_daily}}}
           then:
@@ -7299,6 +7303,8 @@ components:
         minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1, default: 7}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts', default: [1, 5, 10]}
         presentation_asset:
@@ -7324,6 +7330,8 @@ components:
         minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         presentation_asset:
@@ -7419,6 +7427,8 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1, default: 7}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts', default: [1, 5, 10]}
         presentation_asset_id: {$ref: '#/components/schemas/OpaqueId'}
@@ -7444,6 +7454,8 @@ components:
         total_count: {type: integer, minimum: 1}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         management_status: {type: string, enum: [draft, scheduled, published, sales_paused, unpublished]}
@@ -7632,6 +7644,8 @@ components:
         minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         presentation_asset:
@@ -7675,6 +7689,8 @@ components:
         minimum_exchange_points: {type: [integer, 'null'], minimum: 0}
         daily_draw_limit: {type: integer, minimum: 0}
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         first_time_eligible_days: {type: integer, minimum: 1}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         presentation_asset:
@@ -7711,6 +7727,8 @@ components:
       additionalProperties: false
       required: [title, description, notices, price_points, total_count, presentation_asset_id, publish_start_at, publish_end_at, prizes]
       properties:
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         title: {type: string, minLength: 1, maxLength: 191}
         description: {type: [string, 'null'], maxLength: 10000}
         notices: {type: [string, 'null'], maxLength: 10000}
@@ -7732,6 +7750,8 @@ components:
       additionalProperties: false
       required: [expected_revision, title, description, notices, price_points, total_count, presentation_asset_id, publish_start_at, publish_end_at, prizes]
       properties:
+        member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
+        member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
         expected_revision: {type: integer, minimum: 1}
         title: {type: string, minLength: 1, maxLength: 191}
         description: {type: [string, 'null'], maxLength: 10000}
