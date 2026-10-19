@@ -56,6 +56,8 @@ final class AdminGachaPrizeOwnershipTest extends TestCase
         ]);
 
         $otherGachaId = $this->copyGacha($gacha);
+        self::assertNotNull($gacha->first_published_at);
+        self::assertNull(DB::table('catalog_gachas')->where('id', $otherGachaId)->value('first_published_at'));
         $otherVersionId = $this->copyVersion($version, $otherGachaId, 1);
         try {
             DB::transaction(function () use ($relation, $otherVersionId): void {
@@ -109,6 +111,7 @@ final class AdminGachaPrizeOwnershipTest extends TestCase
         $values['code'] = 'ownership-'.Str::lower(Str::random(12));
         $values['slug'] = $values['code'];
         $values['published_version_id'] = null;
+        $values['first_published_at'] = null;
         $values['active_draw_state_id'] = null;
         $values['management_status'] = 'draft';
         $values['state'] = 'draft';
