@@ -328,7 +328,6 @@ class Deployment:
                  candidate["storefront"]["sha"], main])
             require(candidate["storefront_new_unit"] != observed["storefront"]["unit"], "storefront_task_unit_reused")
         if approved:
-            require(set(self.candidate["services"]) >= {"api", "admin"}, "migration_requires_api_admin")
             self.guard(str(baseline), baseline_sha)
         for role in set(candidate["services"]) & {"api", "admin"}:
             current = self.runtime[role]

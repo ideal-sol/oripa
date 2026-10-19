@@ -137,6 +137,26 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(self.candidate["state"]["applied"], self.candidate["migrations"])
         self.assertTrue(self.candidate["state"]["schema_verified"])
 
+    def test_api_only_artifact_migration_fences_and_restarts_unchanged_admin(self):
+        self.migration()
+        self.candidate["services"] = ["api"]
+        self.candidate["images"].pop("admin")
+        before = [deploy.MIGRATIONS + "/old.php"]
+        after = before + [deploy.MIGRATIONS + "/" + name for name in self.candidate["migrations"]]
+        with mock.patch.object(self.operation, "artifact", return_value=self.candidate["images"]), mock.patch.object(
+                deploy, "source", side_effect=lambda path, expected=None: (Path(path), expected or BASE_SHA)), mock.patch.object(
+                deploy, "migration_files", side_effect=[before, after]), mock.patch.object(
+                deploy, "source_bytes", return_value=b"unchanged"), mock.patch.object(
+                self.operation, "snapshot", return_value=self.candidate["previous"]), mock.patch.object(
+                deploy, "decoded", side_effect=[{"services": {"api": {"environment": {}}}}, [{"Config": {"Env": []}}]]):
+            deploy.Deployment.preflight(self.operation)
+        self.events.clear()
+        self.apply()
+        self.assertIn(["docker", "stop", "/admin"], self.events)
+        self.assertIn(["docker", "start", "/admin"], self.events)
+        self.assertNotIn(("switch", "admin", NEW_IMAGE), self.events)
+        self.assertEqual(self.candidate["state"]["applied"], self.candidate["migrations"])
+
     def test_partial_migration_never_restores_or_resumes_and_blocks_rollback(self):
         self.migration()
         def fail_second(arguments, **kwargs):

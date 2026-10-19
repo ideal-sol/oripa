@@ -103,7 +103,9 @@ With no `--migration`, there is no backup, migration, DB writer-wide stop, or DB
 smoke. Source migration inventory must still match the declared baseline.
 
 For an approved migration candidate, repeat `--migration <EXACT_FILENAME>` in
-approved order and select API and Admin. The candidate source must contain exactly
+approved order and select API. Admin is fenced as a DB writer and restarted with
+its old image unless an Admin image update was explicitly selected. API-only
+Artifacts do not require rebuilding or replacing Admin. The candidate source must contain exactly
 baseline migrations plus those files, with unchanged historical bytes. Existence
 of 000088 or later is never approval. Incompatible or partially approved source
 inventories HOLD; this command does not synthesize a reduced Guard inventory.
