@@ -101,7 +101,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
         curl \
-        linux-libc-dev=6.1.187-1 \
+        linux-libc-dev=6.1.190-1 \
         libpq5 \
         libzip4 \
     && rm -rf /var/lib/apt/lists/*

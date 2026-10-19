@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+import runpy
 from unittest import mock
 import zipfile
 
@@ -21,6 +22,113 @@ CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
+
+
+class OldTestBuildRecipeTest(unittest.TestCase):
+    def setUp(self):
+        self.recipe = json.loads((ROOT / "manifests/old-test-build-recipe.json").read_text())
+        self.source = self.recipe["source_sha"]
+        self.original = b"FROM pinned\nRUN install linux-libc-dev=6.1.187-1\n"
+        self.updated = self.original.replace(b"6.1.187-1", b"6.1.190-1")
+        self.recipe["source_sha256"] = hashlib.sha256(self.original).hexdigest()
+        self.recipe["recipe_sha256"] = hashlib.sha256(self.updated).hexdigest()
+        self.pull = {
+            "state": "closed", "merged": True, "merge_commit_sha": self.recipe["recipe_sha"],
+            "base": {"ref": "main", "repo": {"full_name": wrapper.REPOSITORY}},
+            "head": {"sha": REVIEWED, "repo": {"full_name": wrapper.REPOSITORY}},
+        }
+        self.tree = TREE
+        self.ancestor = True
+
+    def get(self, path):
+        if "/contents/manifests/" in path:
+            return {"encoding": "base64", "content": base64.b64encode(json.dumps(self.recipe).encode()).decode()}
+        if "/contents/infra/" in path:
+            body = self.original if path.endswith(self.source) else self.updated
+            return {"type": "file", "encoding": "base64", "content": base64.encodebytes(body).decode()}
+        if "/compare/" in path:
+            return {"status": "ahead" if self.ancestor else "diverged", "merge_base_commit": {"sha": self.recipe["recipe_sha"]}, "base_commit": {"sha": self.recipe["recipe_sha"]}}
+        if path.endswith("/pulls/583"):
+            return self.pull
+        if "/git/commits/" in path:
+            commit = path.rsplit("/", 1)[1]
+            return {"sha": commit, "tree": {"sha": self.tree if commit == REVIEWED else TREE}}
+        raise AssertionError(path)
+
+    def authorize(self):
+        return wrapper.authorize_old_test_recipe(self.source, CONTROL, self.get)
+
+    def test_recipe_binding_and_checks(self):
+        with mock.patch.object(wrapper, "validate_required_checks") as checks:
+            result = self.authorize()["build_recipe"]
+        checks.assert_called_once_with(REVIEWED, self.get)
+        self.assertEqual(result["source_sha"], self.source)
+        self.assertEqual(result["recipe_sha256"], hashlib.sha256(self.updated).hexdigest())
+
+    def test_legacy_payload_does_not_enable_recipe(self):
+        transport = mock.Mock()
+        self.assertEqual(wrapper.authorize_old_test_recipe(PAYLOAD, CONTROL, transport), {})
+        transport.assert_not_called()
+
+    def test_invalid_manifest_fields_fail_closed(self):
+        original = copy.deepcopy(self.recipe)
+        for field, value in (("source_sha", PAYLOAD), ("recipe_sha", CONTROL), ("recipe_pr", 584), ("path", "apps/api/file.php"), ("schema_version", "2.0"), ("unexpected", True)):
+            with self.subTest(field=field), self.assertRaises(wrapper.WrapperError):
+                self.recipe = {**original, field: value}
+                self.authorize()
+
+    def test_unmerged_foreign_recipe_or_tree_rejected(self):
+        for failure in ("unmerged", "foreign", "tree", "ancestor"):
+            self.setUp()
+            if failure == "unmerged":
+                self.pull["merged"] = False
+            elif failure == "foreign":
+                self.pull["head"]["repo"]["full_name"] = "other/repo"
+            elif failure == "tree":
+                self.tree = "f" * 40
+            else:
+                self.ancestor = False
+            with self.subTest(failure=failure), self.assertRaises(wrapper.WrapperError):
+                self.authorize()
+
+    def test_recipe_failed_required_checks_rejected(self):
+        with mock.patch.object(wrapper, "validate_required_checks", side_effect=wrapper.WrapperError("checks failed")), self.assertRaises(wrapper.WrapperError):
+            self.authorize()
+
+    def test_digest_and_non_pin_changes_rejected(self):
+        for valid_digest in (False, True):
+            self.setUp()
+            self.updated += b"RUN unwanted-command\n"
+            if valid_digest:
+                self.recipe["recipe_sha256"] = hashlib.sha256(self.updated).hexdigest()
+            with mock.patch.object(wrapper, "validate_required_checks"), self.assertRaises(wrapper.WrapperError):
+                self.authorize()
+
+    def test_materialization_preserves_payload_and_is_exclusive(self):
+        prepare = runpy.run_path(str(ROOT / "scripts/ops/old_test_source_authority.py"))["prepare_recipe"]
+        with tempfile.TemporaryDirectory() as temporary:
+            payload = Path(temporary)
+            dockerfile = payload / "infra/docker/backend/Dockerfile"
+            dockerfile.parent.mkdir(parents=True)
+            dockerfile.write_bytes(self.original)
+            destination = payload / "external.Dockerfile"
+            authority = {"source_sha": self.source, "build_recipe": self.recipe}
+            with mock.patch("subprocess.check_output", side_effect=[self.source + "\n", self.updated]):
+                prepare(authority, payload, payload, destination)
+            self.assertEqual(destination.read_bytes(), self.updated)
+            self.assertEqual(dockerfile.read_bytes(), self.original)
+            with mock.patch("subprocess.check_output", side_effect=[self.source + "\n", self.updated]), self.assertRaises(FileExistsError):
+                prepare(authority, payload, payload, destination)
+            with mock.patch("subprocess.check_output", return_value=self.source + "\n"), self.assertRaisesRegex(ValueError, "authority required"):
+                prepare({"source_sha": self.source}, payload, payload, payload / "missing")
+
+    def test_workflow_builds_only_payload_context_with_authorized_recipe(self):
+        workflow = (ROOT / ".github/workflows/old-test-main-artifact.yml").read_text()
+        self.assertIn("working-directory: payload", workflow)
+        self.assertIn("--prepare-recipe", workflow)
+        self.assertIn('--file "$RUNNER_TEMP/approved-api.Dockerfile" --tag "$api_image" .', workflow)
+        self.assertIn('OCI_REVISION=${INPUT_SOURCE_SHA}', workflow)
+        self.assertIn('source-authority.json', workflow)
 
 
 class GithubReadTransportTest(unittest.TestCase):
@@ -188,6 +296,52 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             result = wrapper.authorize_old_test_source(TASK_ID, "549", PAYLOAD, CONTROL)
         self.assertEqual(result["source_sha"], PAYLOAD)
         self.assertEqual(requests.count(f"/repos/{wrapper.REPOSITORY}/compare/{PAYLOAD}...{CONTROL}?per_page=1"), 1)
+
+    def recipe_response(self, path):
+        if path.endswith("/branches/main") or "/check-runs?" in path:
+            return self.get(path)
+        if "/contents/" + wrapper.OLD_AUTHORITY_PATH in path:
+            approval = {**self.approval, "source_sha": self.build_recipe.source}
+            return {"encoding": "base64", "content": base64.b64encode(json.dumps(approval).encode()).decode()}
+        if path.endswith("/pulls/549"):
+            return {**self.pull, "merge_commit_sha": self.build_recipe.source}
+        if f"/compare/{self.build_recipe.source}..." in path:
+            return {"status": "ahead", "base_commit": {"sha": self.build_recipe.source},
+                    "merge_base_commit": {"sha": self.build_recipe.source}}
+        return self.build_recipe.get(path)
+
+    def test_recipe_dispatch_uses_real_default_transport_and_path_guards(self):
+        self.build_recipe = OldTestBuildRecipeTest()
+        self.build_recipe.setUp()
+        requests = []
+        def respond(request, **options):
+            path = request.full_url.removeprefix(wrapper.API_ROOT)
+            requests.append(path)
+            return io.BytesIO(json.dumps(self.recipe_response(path)).encode())
+        dispatch = mock.Mock(return_value=(204, None))
+        with mock.patch.object(wrapper, "installation_token", return_value="unit-test-credential"), \
+             mock.patch.object(wrapper.urllib.request, "urlopen", side_effect=respond), \
+             mock.patch.object(wrapper, "secure_policy", return_value={"lane": "Strict Change", "activation": "deferred"}), \
+             mock.patch.object(wrapper.runpy, "run_path", return_value={"request": dispatch}), \
+             mock.patch.object(wrapper, "api_get", wraps=wrapper.api_get) as generic:
+            result = wrapper.dispatch_old_test_artifact(TASK_ID, "549", self.build_recipe.source)
+        self.assertEqual(result["status"], "dispatched")
+        self.assertEqual(result["build_recipe"]["recipe_sha"], self.build_recipe.recipe["recipe_sha"])
+        for source in (self.build_recipe.source, self.build_recipe.recipe["recipe_sha"]):
+            self.assertEqual(requests.count(f"/repos/{wrapper.REPOSITORY}/compare/{source}...{CONTROL}?per_page=1"), 1)
+        self.assertFalse(any("/compare/" in call.args[0] for call in generic.call_args_list))
+        dispatch.assert_called_once_with("POST", "/repos/ideal-sol/oripa/actions/workflows/old-test-main-artifact.yml/dispatches",
+                                         {"ref": "main", "inputs": {"task_id": TASK_ID, "pr_number": "549", "source_sha": self.build_recipe.source}})
+
+    def test_recipe_authority_injected_transport_remains_offline(self):
+        self.build_recipe = OldTestBuildRecipeTest()
+        self.build_recipe.setUp()
+        with mock.patch.object(wrapper, "installation_token") as credential, \
+             mock.patch.object(wrapper.urllib.request, "urlopen") as opener:
+            result = wrapper.authorize_old_test_source(TASK_ID, "549", self.build_recipe.source, CONTROL, get=self.recipe_response)
+        self.assertEqual(result["build_recipe"]["recipe_sha"], self.build_recipe.recipe["recipe_sha"])
+        credential.assert_not_called()
+        opener.assert_not_called()
 
     def test_approved_payload_is_allowed_as_protected_main_ancestor(self):
         result = self.authorize()

@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+
+from tests.ci.policy import test_change_evidence as fixtures
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -175,3 +178,54 @@ class LanePolicyTest(unittest.TestCase):
                 "ci-gate",
             },
         )
+
+
+class AuthorityLaneExecutionTest(unittest.TestCase):
+    setUp = fixtures.ChangeEvidenceTests.setUp
+    git = fixtures.ChangeEvidenceTests.git
+    write = fixtures.ChangeEvidenceTests.write
+    commit = fixtures.ChangeEvidenceTests.commit
+    authority = fixtures.ChangeEvidenceTests.authority
+
+    def invoke(self, *, activation='deferred', failure=False):
+        self.authority()
+        head = self.commit()
+        event = self.repository / 'event.json'
+        event.write_text(json.dumps({'pull_request': {
+            'body': body('Strict Change', activation, 'NOT_APPLICABLE'),
+            'base': {'sha': self.base}, 'head': {'sha': head},
+        }}))
+        output = self.repository / 'change.json'
+        plan = self.repository / 'plan.json'
+        arguments = ['lane_policy', '--repository', str(self.repository),
+                     '--event-name', 'pull_request', '--event-path', str(event),
+                     '--change-output', str(output), '--plan-output', str(plan)]
+        with patch('sys.argv', arguments), patch(
+            'scripts.release.readiness.adapters.verify_change_authority',
+            return_value={'continuity': 'CONFIRMED_AT_VALIDATION'},
+            side_effect=ValueError('AUTHORITY_PROVENANCE_MISMATCH') if failure else None,
+        ) as verify:
+            status = lane_policy.main()
+            verify.assert_called_once()
+            self.assertEqual(verify.call_args.args[0]['head_sha'], head)
+        return status, plan
+
+    def test_verified_deferred_authority_uses_focused_path_without_rewriting_activation(self):
+        status, path = self.invoke()
+        self.assertEqual(status, 0)
+        plan = json.loads(path.read_text())
+        self.assertEqual(plan['activation'], 'deferred')
+        self.assertEqual(plan['validation_path'], 'AUTHORITY_FOCUSED')
+        self.assertFalse(plan['jobs']['integration-database']['required'])
+
+    def test_failed_authority_verification_cannot_emit_fastpath(self):
+        status, path = self.invoke(failure=True)
+        self.assertEqual(status, 1)
+        self.assertFalse(path.exists())
+
+    def test_immediate_authority_keeps_full_validation(self):
+        status, path = self.invoke(activation='immediate')
+        self.assertEqual(status, 0)
+        plan = json.loads(path.read_text())
+        self.assertEqual(plan['validation_path'], 'NORMAL_STRICT_CI')
+        self.assertTrue(plan['jobs']['integration-database']['required'])

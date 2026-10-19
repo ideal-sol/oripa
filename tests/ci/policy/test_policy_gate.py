@@ -1062,7 +1062,8 @@ class PolicyGateTest(unittest.TestCase):
         api_dockerfile = (ROOT / "infra/docker/backend/Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertIn("linux-libc-dev=6.1.187-1", api_dockerfile)
+        self.assertIn("linux-libc-dev=6.1.190-1", api_dockerfile)
+        self.assertNotIn("linux-libc-dev=6.1.187-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.180-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.177-1", api_dockerfile)
 
@@ -1463,6 +1464,29 @@ class PolicyGateTest(unittest.TestCase):
             with self.assertRaisesRegex(policy_gate.PolicyFailure, "digest"):
                 policy_gate.validate_release_artifact_foundation(root, paths)
 
+    def test_release_artifact_unapproved_preview_libc_pin_fails(self):
+        for package in (
+            "linux-libc-dev=6.1.187-1",
+            "linux-libc-dev=6.1.180-1",
+            "linux-libc-dev=6.1.177-1",
+            "linux-libc-dev",
+            "",
+        ):
+            with self.subTest(package=package), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.make_release_foundation(root)
+                dockerfile = root / "infra/docker/backend/Dockerfile"
+                dockerfile.write_text(
+                    dockerfile.read_text(encoding="utf-8").replace(
+                        "linux-libc-dev=6.1.190-1", package
+                    ),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    policy_gate.PolicyFailure, "patched multi-stage runtime"
+                ):
+                    policy_gate.validate_release_artifact_foundation(root, paths)
+
     def test_release_artifact_non_standalone_admin_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1488,6 +1512,26 @@ class PolicyGateTest(unittest.TestCase):
         )
         policy_gate.validate_workflow_text("fixture.yml", data["workflow"])
         policy_gate.validate_dangerous_paths(data["tracked_paths"])
+
+    def test_ci_preview_libc_task_id_is_exact(self):
+        data = fixture("positive.json")
+        for task_id, accepted in (
+            ("CI-PREVIEW-LIBC-20261018", True),
+            ("CI-PREVIEW-LIBC-20261019", False),
+            ("CI-PREVIEW-LIBC-20261018-EXTRA", False),
+        ):
+            with self.subTest(task_id=task_id):
+                arguments = (
+                    data["pr_body"].replace("GOV-008", task_id),
+                    data["title"].replace("GOV-008", task_id),
+                    data["changed_paths"],
+                    data["base_sha"],
+                )
+                if accepted:
+                    policy_gate.validate_pr_body(*arguments)
+                else:
+                    with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                        policy_gate.validate_pr_body(*arguments)
 
     def test_git_lite_pull_request_can_omit_exact_allowed_paths(self):
         data = fixture("positive.json")
