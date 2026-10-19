@@ -3,6 +3,8 @@
 namespace Tests\V2;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
+use App\Domain\Catalog\Services\V2AdminCatalogReadService;
+use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
 use App\Domain\Catalog\Services\V2CatalogReadService;
 use App\Domain\Catalog\Services\V2GachaCompositionService;
 use App\Domain\Catalog\Services\V2GachaCopyService;
@@ -156,6 +158,37 @@ final class MemberRankGachaTest extends TestCase
     public static function invalidConditions(): array
     {
         return [['none', 2], ['only', null], ['at_least', 0], ['at_most', 8], ['only', '2'], ['unknown', 2], [null, null]];
+    }
+
+    public static function publicationEndTimes(): array
+    {
+        return [[null], ['2026-10-27T12:00:00+00:00']];
+    }
+
+    #[DataProvider('publicationEndTimes')]
+    public function test_rank_condition_draft_read_dates_can_be_used_for_publication_schedule(?string $end): void
+    {
+        $this->rankClock('2026-10-25T12:00:00Z');
+        $context = $this->rankAdmin();
+        $service = app(V2GachaCompositionService::class);
+        $draft = $service->save($service->validate([
+            ...$this->rankGachaInput('login_daily', 'only', 4),
+            'publish_start_at' => '2026-10-26T21:00:00+09:00', 'publish_end_at' => $end,
+        ]), null, null, $context);
+        $read = app(V2AdminCatalogReadService::class)->gacha($context, $draft->public_id)['data'];
+        $version = $read['current_version'];
+        self::assertSame('2026-10-26T12:00:00+00:00', $version['publish_start_at']);
+        self::assertSame($end, $version['publish_end_at']);
+        self::assertSame('only', $version['member_rank_mode']);
+        self::assertSame(4, $version['member_rank_level']);
+        $scheduled = app(V2CatalogMasterMutationService::class)->scheduleGachaVersionPublish(
+            $context, $draft->public_id, $version['id'], 'm5-read-date-schedule', [
+                'scheduled_for' => $version['publish_start_at'], 'expected_revision' => $version['revision'],
+                'expected_gacha_revision' => $read['revision'],
+            ]
+        );
+        self::assertSame('scheduled', $scheduled['data']['status']);
+        self::assertSame('scheduled', DB::table('catalog_gachas')->where('id', $draft->id)->value('management_status'));
     }
 
     #[DataProvider('invalidConditions')]
