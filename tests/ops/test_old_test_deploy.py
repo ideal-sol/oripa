@@ -21,6 +21,21 @@ SOURCE_SHA = "a" * 40
 BASE_SHA = "b" * 40
 
 
+def startup(directory):
+    return {"User": "luxe-pack-storefront-preview", "WorkingDirectory": directory,
+            "Restart": "on-failure", "KillMode": "control-group", "TimeoutStopUSec": "1min 30s",
+            "environment": ["NODE_ENV=development"],
+            "command": ["/usr/bin/node", directory + "/node_modules/next/dist/bin/next",
+                        "dev", "--hostname", "127.0.0.1", "--port", "3241"]}
+
+
+def old_unit():
+    definition = startup("/old")
+    return {**{key: value for key, value in definition.items() if key not in {"environment", "command"}},
+            "Id": "old.service", "ActiveState": "inactive", "EnvironmentFiles": "",
+            "Environment": "NODE_ENV=development", "ExecStart": "{ argv[]=" + " ".join(definition["command"]) + " ; }"}
+
+
 class DeploymentTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -42,7 +57,7 @@ class DeploymentTest(unittest.TestCase):
                          "admin": {"id": "old-admin", "image": OLD_IMAGE}, "f2b_runner": deploy.file_digest(self.runner),
                          deploy.SMS: "active", **{timer: "active" for timer in deploy.TIMERS},
                          "storefront": {"unit": "old.service", "directory": "/old", "sha": BASE_SHA,
-                                        "environment": [], "overlays": {}}},
+                                        "startup": startup("/old"), "overlays": {}}},
             "storefront": {"directory": "/new", "sha": SOURCE_SHA, "overlays": {}},
             "storefront_new_unit": "new.service", "storefront_unit": "old.service",
             "state": {"phase": "prepared", "migration_attempted": False, "applied": []},
@@ -94,6 +109,9 @@ class DeploymentTest(unittest.TestCase):
 
     def test_storefront_only_never_stops_api_database_or_timers(self):
         self.candidate["services"] = ["storefront"]
+        for key in ("artifact", "platform_source", "current_platform_source", "current_platform_sha"):
+            self.candidate.pop(key)
+        self.candidate["images"] = {}
         self.apply()
         self.assertEqual(self.events, [["node", "/new/scripts/verify-vendored-artifacts.mjs"], ["systemctl", "stop", "old.service"],
             ("storefront", "/new", "new.service"), "health"])
@@ -198,9 +216,80 @@ class DeploymentTest(unittest.TestCase):
                 deploy, "storefront", return_value={"directory": "/old", "sha": BASE_SHA, "overlays": {}}):
             self.operation.rollback(deploy.identity(self.candidate))
         self.assertIn(("switch", "api", OLD_IMAGE), self.events)
-        self.assertIn(("storefront", "/old", "new.service"), self.events)
+        self.assertIn(("storefront", "/old", "old.service"), self.events)
         self.assertIn(OLD_IMAGE, self.runner.read_text())
         self.assertEqual(self.candidate["state"]["phase"], "rolled_back")
+
+    def test_storefront_only_prepare_needs_no_platform_inputs_or_artifact(self):
+        arguments = ["deploy", "prepare", "--candidate", str(self.directory / "candidate.json"),
+                     "--task-id", "OLD-DEPLOY-P2-01", "--services", "storefront",
+                     "--storefront-source", "/new", "--storefront-sha", SOURCE_SHA,
+                     "--storefront-unit", "old.service"]
+        observed = {"storefront": self.candidate["previous"]["storefront"]}
+        self.command.side_effect = lambda command, **kwargs: SOURCE_SHA.encode() if "ls-remote" in command else b""
+        with mock.patch.object(deploy.sys, "argv", arguments), mock.patch.object(deploy, "destination"), mock.patch.object(
+                deploy, "storefront", return_value=self.candidate["storefront"]), mock.patch.object(
+                deploy.Deployment, "snapshot", return_value=observed), mock.patch.object(
+                deploy.Deployment, "artifact", side_effect=AssertionError("artifact must not be used")), mock.patch.object(
+                deploy, "source", side_effect=AssertionError("platform source must not be used")), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(deploy.main(), 0)
+        prepared = deploy.save.call_args.args[1]
+        self.assertNotIn("artifact", prepared)
+        self.assertNotIn("platform_source", prepared)
+        self.assertEqual(prepared["images"], {})
+        self.assertEqual(prepared["previous"], observed)
+        self.command.assert_any_call(["git", "-c", "safe.directory=/new", "-C", "/new", "merge-base", "--is-ancestor",
+                                      SOURCE_SHA, SOURCE_SHA])
+
+    def test_platform_prepare_still_requires_artifact_inputs(self):
+        with mock.patch.object(deploy.sys, "argv", ["deploy", "prepare", "--candidate", "/private/candidate.json",
+                "--task-id", "OLD-DEPLOY-P2-01", "--services", "api"]), mock.patch.object(
+                deploy, "destination"), contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(deploy.main(), 1)
+        self.assertIn("platform_inputs_required", output.getvalue())
+        self.command.assert_not_called()
+
+    def test_storefront_rollback_reuses_old_unit_or_recreates_exact_old_definition(self):
+        self.candidate["services"] = ["storefront"]
+        for key in ("artifact", "platform_source", "current_platform_source", "current_platform_sha"):
+            self.candidate.pop(key)
+        self.candidate["images"] = {}
+        old = self.candidate["previous"]["storefront"]
+        for loaded in (True, False):
+            with self.subTest(old_unit_available=loaded):
+                self.events.clear()
+                self.candidate["state"].update(phase="complete", storefront_attempted=True)
+                self.command.side_effect = lambda command, **kwargs: (
+                    b"unit listed" if "list-units" in command and (command[-1] == "new.service" or loaded)
+                    else self.command_run(command, **kwargs))
+                with mock.patch.object(deploy, "unit", return_value=old_unit()), mock.patch.object(
+                        deploy, "storefront", return_value={key: old[key] for key in ("directory", "sha", "overlays")}), mock.patch.object(
+                        self.operation, "start_storefront", side_effect=lambda selected, name:
+                            deploy.Deployment.start_storefront(self.operation, selected, name)):
+                    self.operation.rollback(deploy.identity(self.candidate))
+                self.assertIn(["systemctl", "stop", "new.service"], self.events)
+                if loaded:
+                    self.assertIn(["systemctl", "start", "old.service"], self.events)
+                    self.assertFalse(any(isinstance(event, list) and event[0] == "systemd-run" for event in self.events))
+                else:
+                    self.assertIn(["systemd-run", "--unit", "old.service", "--uid=luxe-pack-storefront-preview",
+                        "--working-directory=/old", "--property=Restart=on-failure", "--property=KillMode=control-group",
+                        "--property=TimeoutStopSec=1min 30s", "--setenv=NODE_ENV=development"] + startup("/old")["command"], self.events)
+                self.assertNotIn("load", self.events)
+                self.assertFalse(any(isinstance(event, list) and event[0] == "docker" for event in self.events))
+
+    def test_storefront_rollback_rejects_changed_old_unit_before_stopping_new(self):
+        self.candidate["services"] = ["storefront"]
+        self.candidate["state"].update(phase="complete", storefront_attempted=True)
+        old = self.candidate["previous"]["storefront"]
+        self.command.return_value = b"unit listed"
+        self.command.side_effect = None
+        changed = old_unit() | {"Restart": "always"}
+        with mock.patch.object(deploy, "unit", return_value=changed), mock.patch.object(
+                deploy, "storefront", return_value={key: old[key] for key in ("directory", "sha", "overlays")}):
+            with self.assertRaisesRegex(deploy.Hold, "rollback_storefront_unit_changed"):
+                self.operation.rollback(deploy.identity(self.candidate))
+        self.assertFalse(any("stop" in call.args[0] for call in self.command.call_args_list))
 
     def test_candidate_identity_includes_scope_but_not_progress(self):
         approved = deploy.identity(self.candidate)
@@ -369,6 +458,46 @@ class DeploymentTest(unittest.TestCase):
             with self.assertRaisesRegex(deploy.Hold, "rollback_f2b_runner_changed"):
                 self.operation.rollback(deploy.identity(self.candidate))
         self.assertEqual(self.events, [])
+
+
+class GitMigrationRegressionTest(unittest.TestCase):
+    def test_real_git_migrations_ignore_readme_and_prepare_without_migration(self):
+        common = Path(REAL_RUN(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"]).decode().strip())
+        for revision, count in (("b5c28015ef94cb80f6702a61b1237cacd91d9863", 87),
+                                ("77723309fdd9f27039f7b5cbe804fa3e2a50fbc1", 92)):
+            with self.subTest(revision=revision), tempfile.TemporaryDirectory() as temporary:
+                checkout = Path(temporary)
+                git = checkout / ".git"
+                (git / "refs").mkdir(parents=True)
+                (git / "objects").symlink_to(common / "objects", target_is_directory=True)
+                (git / "HEAD").write_text(revision + "\n")
+                names = REAL_RUN(["git", "-C", str(ROOT), "ls-tree", "-r", "--name-only", revision,
+                                  deploy.MIGRATIONS, "scripts/db/v2_database.py"]).decode().splitlines()
+                self.assertIn(deploy.MIGRATIONS + "/README.md", names)
+                for relative in names:
+                    selected = checkout / relative
+                    selected.parent.mkdir(parents=True, exist_ok=True)
+                    selected.write_bytes(deploy.source_bytes(ROOT, revision, relative))
+                migrations = deploy.migration_files(checkout, revision)
+                self.assertEqual(len(migrations), count)
+                self.assertEqual(migrations, sorted(name for name in names if name.endswith(".php")))
+                candidate = {"version": 1, "target": "old-test", "task_id": "OLD-DEPLOY-P2-01", "services": ["api"],
+                    "migrations": [], "artifact": {"authority": {"source_sha": revision}},
+                    "platform_source": str(checkout), "current_platform_source": str(checkout), "current_platform_sha": revision}
+                operation = deploy.Deployment(candidate, checkout / "candidate.json")
+                operation.runtime = {"api": {"Image": OLD_IMAGE, "Config": {"Env": [], "Labels": {
+                    "com.docker.compose.service": "api"}}}}
+                with mock.patch.object(operation, "artifact", return_value={"api": {"image_id": NEW_IMAGE}}), mock.patch.object(
+                        operation, "snapshot", return_value={}), mock.patch.object(operation, "guard") as guard, mock.patch.object(
+                        deploy, "compose", return_value=(["docker", "compose"], {})), mock.patch.object(
+                        deploy, "decoded", side_effect=[{"services": {"api": {}}}, [{"Config": {"Env": []}}]]):
+                    operation.preflight(preparing=True)
+                    guard.assert_not_called()
+                self.assertEqual(candidate["images"]["api"]["image_id"], NEW_IMAGE)
+                changed = checkout / migrations[0]
+                changed.write_bytes(changed.read_bytes() + b"\n")
+                with self.assertRaisesRegex(deploy.Hold, "guard_source_modified"):
+                    deploy.migration_files(checkout, revision)
 
 
 if __name__ == "__main__":

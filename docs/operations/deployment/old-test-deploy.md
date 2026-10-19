@@ -33,7 +33,9 @@ python3 scripts/ops/old_test_deploy.py prepare \
 
 For Storefront add `storefront` to services and supply `--storefront-source`,
 `--storefront-sha`, and `--storefront-unit`. A Storefront-only candidate uses
-`--services storefront`. It does not stop API/Admin, SMS, or F2-B.
+`--services storefront` with only those three Storefront inputs, Task and candidate
+path: omit all Platform source and Artifact options. No Platform Artifact lookup,
+expiration check, download or image load occurs; API/Admin, SMS and F2-B are untouched.
 
 Only two exact existing tracked Runtime differences are accepted: the single
 `allowedDevOrigins: ["test.luxe-pack.biz"]` addition and the `next dev` generated
@@ -89,7 +91,12 @@ ports, mounts, private addressing and networks remain authoritative.
 Storefront stops its existing systemd unit and starts the prepared exact source
 on the same loopback port 3241 using `next dev`. There is no parallel process,
 new port, production build, Nginx edit or reload. The recorded old definition can
-be recreated even if systemd unloads its transient unit.
+be recreated under its recorded old unit name even if systemd unloads its transient
+unit. Rollback reuses an available old unit only after checking its recorded user,
+working directory, command, public environment, restart/kill policy and stop timeout;
+an inactive matching unit is started, not recreated. Conflicting unit definitions
+HOLD before stopping the new Storefront. New deployment unit-name collisions HOLD
+during preflight. Neither source overlay is deleted or rewritten.
 
 F2-B's existing runner keeps all logic, schedules and lock behavior; only the
 exact `IMAGE` constant follows the verified API image. Only previously active
@@ -100,7 +107,9 @@ smoke is performed. Human browser acceptance remains separate.
 ## Migration and recovery
 
 With no `--migration`, there is no backup, migration, DB writer-wide stop, or DB
-smoke. Source migration inventory must still match the declared baseline.
+smoke. For API/Admin, PHP migration inventory must still match the declared baseline;
+README.md and other non-PHP documentation are not migrations. Historical PHP bytes
+and the exact approved additions remain checked. Storefront-only needs no Platform baseline.
 
 For an approved migration candidate, repeat `--migration <EXACT_FILENAME>` in
 approved order and select API. Admin is fenced as a DB writer and restarted with
@@ -154,5 +163,10 @@ python3 -m unittest tests.ops.test_old_test_deploy
 python3 -m unittest tests.ops.test_old_test_source_authority tests.ops.test_preview_image_pipeline
 ```
 
-These tests do not connect to Runtime. Live systemd, network, Artifact import,
+These tests do not connect to Runtime. The Git regression reads real immutable
+payload `b5c28015ef94cb80f6702a61b1237cacd91d9863` (87 PHP migrations plus README)
+and base `77723309fdd9f27039f7b5cbe804fa3e2a50fbc1` (92 plus README); both Git
+objects must be available. It materializes only temporary test-owned files and
+references the existing object store read-only; no checkout or index is changed.
+Live systemd, network, Artifact import,
 backup/migration and browser acceptance require a future separate Runtime GO.

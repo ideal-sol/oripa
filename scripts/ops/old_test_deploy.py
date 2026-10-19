@@ -115,8 +115,8 @@ def source_bytes(repository: Path, revision: str, relative: str) -> bytes:
 def migration_files(repository: Path, revision: str) -> list[str]:
     names = run(["git", "-c", "safe.directory=" + str(repository), "-C", str(repository),
                  "ls-tree", "-r", "--name-only", revision, MIGRATIONS])
-    result = names.decode().splitlines()
-    require(result and all(name.endswith(".php") for name in result), "migration_inventory_invalid")
+    result = [name for name in names.decode().splitlines() if name.endswith(".php")]
+    require(result, "migration_inventory_invalid")
     for relative in result + ["scripts/db/v2_database.py"]:
         require((repository / relative).read_bytes() == source_bytes(repository, revision, relative),
                 "guard_source_modified")
@@ -144,9 +144,22 @@ def compose(current: dict) -> tuple[list[str], dict]:
 
 
 def unit(name: str) -> dict:
-    properties = "Id,ActiveState,SubState,User,WorkingDirectory,ExecStart,Environment,EnvironmentFiles"
+    properties = "Id,ActiveState,SubState,User,WorkingDirectory,ExecStart,Environment,EnvironmentFiles,Restart,KillMode,TimeoutStopUSec"
     output = run(["systemctl", "show", name, "--property=" + properties]).decode()
     return dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+
+
+def storefront_start(current: dict) -> dict:
+    require(not current["EnvironmentFiles"], "storefront_unit_invalid")
+    environment = shlex.split(current["Environment"])
+    require(all(entry.split("=", 1)[0] in {"NODE_ENV", "NEXT_TELEMETRY_DISABLED", "NEXT_PUBLIC_SITE_URL",
+            "NEXT_PUBLIC_PLATFORM_API_BASE_URL"} for entry in environment), "storefront_environment_unsupported")
+    command = (f'/usr/bin/node {current["WorkingDirectory"]}/node_modules/next/dist/bin/next '
+               'dev --hostname 127.0.0.1 --port 3241')
+    require("argv[]=" + command + " ;" in current["ExecStart"]
+            and current["User"] == "luxe-pack-storefront-preview", "storefront_start_unsupported")
+    return {key: current[key] for key in ("User", "WorkingDirectory", "Restart", "KillMode", "TimeoutStopUSec")} | {
+        "environment": environment, "command": shlex.split(command)}
 
 
 def storefront(path: str, expected: str) -> dict:
@@ -251,18 +264,11 @@ class Deployment:
             observed["f2b_runner"] = digest(content)
         if "storefront" in self.candidate["services"]:
             current_unit = unit(self.candidate["storefront_unit"])
-            require(current_unit["ActiveState"] == "active" and not current_unit["EnvironmentFiles"],
-                    "storefront_unit_invalid")
-            environment = shlex.split(current_unit["Environment"])
-            require(all(entry.split("=", 1)[0] in {"NODE_ENV", "NEXT_TELEMETRY_DISABLED", "NEXT_PUBLIC_SITE_URL",
-                    "NEXT_PUBLIC_PLATFORM_API_BASE_URL"} for entry in environment), "storefront_environment_unsupported")
-            expected_command = (f'/usr/bin/node {current_unit["WorkingDirectory"]}/node_modules/next/dist/bin/next '
-                                'dev --hostname 127.0.0.1 --port 3241')
-            require("argv[]=" + expected_command + " ;" in current_unit["ExecStart"]
-                    and current_unit["User"] == "luxe-pack-storefront-preview", "storefront_start_unsupported")
+            require(current_unit["ActiveState"] == "active", "storefront_unit_invalid")
+            startup = storefront_start(current_unit)
             old_repository, old_sha = source(current_unit["WorkingDirectory"])
             observed["storefront"] = storefront(str(old_repository), old_sha)
-            observed["storefront"].update(unit=current_unit["Id"], environment=environment)
+            observed["storefront"].update(unit=current_unit["Id"], startup=startup)
         return observed
 
     def guard(self, repository: str, revision: str) -> None:
@@ -297,19 +303,21 @@ class Deployment:
         require(re.fullmatch(r"[A-Z][A-Z0-9-]{2,31}", candidate["task_id"]), "task_id_invalid")
         require(candidate["services"] and set(candidate["services"]) <= {"api", "admin", "storefront"}
                 and len(set(candidate["services"])) == len(candidate["services"]), "services_invalid")
-        images = self.artifact()
-        candidate_sha = candidate["artifact"]["authority"]["source_sha"]
-        target, _ = source(candidate["platform_source"], candidate_sha)
-        baseline, baseline_sha = source(candidate["current_platform_source"], candidate["current_platform_sha"])
-        before, after = migration_files(baseline, baseline_sha), migration_files(target, candidate_sha)
         approved = candidate["migrations"]
         require(len(set(approved)) == len(approved) and all(Path(name).name == name for name in approved),
                 "migration_approval_invalid")
-        require(set(after) == set(before) | {MIGRATIONS + "/" + name for name in approved}
-                and not set(before) & {MIGRATIONS + "/" + name for name in approved}, "migration_scope_incompatible")
-        require(all(source_bytes(baseline, baseline_sha, name) == source_bytes(target, candidate_sha, name)
-                    for name in before), "historical_migration_changed")
         require(not approved or "api" in candidate["services"], "migration_requires_api")
+        images = {}
+        if set(candidate["services"]) & {"api", "admin"}:
+            images = self.artifact()
+            candidate_sha = candidate["artifact"]["authority"]["source_sha"]
+            target, _ = source(candidate["platform_source"], candidate_sha)
+            baseline, baseline_sha = source(candidate["current_platform_source"], candidate["current_platform_sha"])
+            before, after = migration_files(baseline, baseline_sha), migration_files(target, candidate_sha)
+            require(set(after) == set(before) | {MIGRATIONS + "/" + name for name in approved}
+                    and not set(before) & {MIGRATIONS + "/" + name for name in approved}, "migration_scope_incompatible")
+            require(all(source_bytes(baseline, baseline_sha, name) == source_bytes(target, candidate_sha, name)
+                        for name in before), "historical_migration_changed")
         for role in set(candidate["services"]) & {"api", "admin"}:
             require(role in images and IMAGE_ID.fullmatch(images[role]["image_id"]), "candidate_image_missing")
         observed = self.snapshot()
@@ -327,6 +335,8 @@ class Deployment:
             run(["git", "-c", "safe.directory=" + repository, "-C", repository, "merge-base", "--is-ancestor",
                  candidate["storefront"]["sha"], main])
             require(candidate["storefront_new_unit"] != observed["storefront"]["unit"], "storefront_task_unit_reused")
+            require(not run(["systemctl", "list-units", "--all", "--plain", "--no-legend",
+                             candidate["storefront_new_unit"]]).strip(), "storefront_new_unit_exists")
         if approved:
             self.guard(str(baseline), baseline_sha)
         for role in set(candidate["services"]) & {"api", "admin"}:
@@ -449,10 +459,18 @@ class Deployment:
         require(sorted(inspect(name)["NetworkSettings"]["Networks"]) == expected_networks, "restored_network_mismatch")
 
     def start_storefront(self, selected: dict, name: str) -> None:
+        startup = selected.get("startup")
+        if startup:
+            require(name == selected["unit"], "rollback_storefront_unit_changed")
+            run(["systemd-run", "--unit", name, "--uid=" + startup["User"],
+                 "--working-directory=" + startup["WorkingDirectory"], "--property=Restart=" + startup["Restart"],
+                 "--property=KillMode=" + startup["KillMode"], "--property=TimeoutStopSec=" + startup["TimeoutStopUSec"]]
+                + ["--setenv=" + entry for entry in startup["environment"]] + startup["command"])
+            return
         command = ["systemd-run", "--unit", name, "--uid=luxe-pack-storefront-preview",
                    "--working-directory=" + selected["directory"], "--property=Restart=on-failure",
                    "--property=KillMode=control-group", "--property=TimeoutStopSec=90"]
-        command += ["--setenv=" + entry for entry in self.candidate["previous"]["storefront"]["environment"]]
+        command += ["--setenv=" + entry for entry in self.candidate["previous"]["storefront"]["startup"]["environment"]]
         run(command + ["/usr/bin/node", selected["directory"] + "/node_modules/next/dist/bin/next",
                        "dev", "--hostname", "127.0.0.1", "--port", "3241"])
 
@@ -492,7 +510,6 @@ class Deployment:
         if dry_run:
             return
         self.phase_start("load")
-        authority = self.candidate["artifact"]["authority"]
         if set(self.candidate["services"]) & {"api", "admin"}:
             self.load()
         if "storefront" in self.candidate["services"]:
@@ -525,7 +542,7 @@ class Deployment:
                         "php", "artisan", "migrate", "--path=database/migrations-v2/" + migration, "--no-interaction"], environment=environment)
                     self.candidate["state"]["applied"].append(migration)
                     save(self.path, self.candidate)
-                self.guard(self.candidate["platform_source"], authority["source_sha"])
+                self.guard(self.candidate["platform_source"], self.candidate["artifact"]["authority"]["source_sha"])
                 self.candidate["state"]["schema_verified"] = True
             self.phase_start("switch")
             for role in ("admin", "api"):
@@ -574,6 +591,12 @@ class Deployment:
             old = self.candidate["previous"]["storefront"]
             require(storefront(old["directory"], old["sha"]) == {key: old[key] for key in ("directory", "sha", "overlays")},
                     "rollback_storefront_changed")
+            require(old["unit"] != self.candidate["storefront_new_unit"], "storefront_task_unit_reused")
+            loaded = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", old["unit"]]).strip()
+            old_unit = unit(old["unit"]) if loaded else None
+            if old_unit:
+                require(old_unit["Id"] == old["unit"] and storefront_start(old_unit) == old["startup"],
+                        "rollback_storefront_unit_changed")
         if dry_run:
             return
         if state["phase"] in {"load", "fence"}:
@@ -603,11 +626,11 @@ class Deployment:
                 if run(["systemctl", "list-units", "--all", "--plain", "--no-legend", new_unit]).strip():
                     run(["systemctl", "stop", new_unit])
                 old = self.candidate["previous"]["storefront"]
-                loaded = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", old["unit"]]).strip()
-                if loaded and unit(old["unit"])["ActiveState"] == "active":
-                    require(unit(old["unit"])["WorkingDirectory"] == old["directory"], "rollback_storefront_unit_changed")
+                if old_unit:
+                    if old_unit["ActiveState"] != "active":
+                        run(["systemctl", "start", old["unit"]])
                 else:
-                    self.start_storefront(old, new_unit)
+                    self.start_storefront(old, old["unit"])
             if "api" in self.candidate["services"]:
                 current = self.candidate["images"]["api"]["image_id"]
                 old = self.candidate["previous"]["api"]["image"]
@@ -629,11 +652,11 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--go", required=True, help="SHA256 of the exact Human-approved candidate identity")
     prepare = commands.choices["prepare"]
     prepare.add_argument("--task-id", required=True)
-    prepare.add_argument("--artifact-directory", required=True)
-    prepare.add_argument("--artifact-id", type=int, required=True)
-    prepare.add_argument("--artifact-digest", required=True)
-    prepare.add_argument("--platform-source", required=True)
-    prepare.add_argument("--current-platform-source", required=True)
+    prepare.add_argument("--artifact-directory")
+    prepare.add_argument("--artifact-id", type=int)
+    prepare.add_argument("--artifact-digest")
+    prepare.add_argument("--platform-source")
+    prepare.add_argument("--current-platform-source")
     prepare.add_argument("--services", nargs="+", choices=("api", "admin", "storefront"), required=True)
     prepare.add_argument("--migration", action="append", default=[])
     prepare.add_argument("--storefront-source")
@@ -649,15 +672,19 @@ def main() -> int:
         arguments = parser().parse_args()
         destination(arguments.candidate)
         if arguments.command == "prepare":
-            baseline, baseline_sha = source(arguments.current_platform_source)
             candidate = {"version": 1, "target": "old-test", "task_id": arguments.task_id,
-                "artifact": {"directory": str(Path(arguments.artifact_directory).resolve()),
-                             "id": arguments.artifact_id, "digest": arguments.artifact_digest},
-                "platform_source": str(Path(arguments.platform_source).resolve()),
-                "current_platform_source": str(baseline), "current_platform_sha": baseline_sha,
                 "services": arguments.services, "migrations": arguments.migration,
                 "rollback_schema_compatible": arguments.rollback_schema_compatible,
                 "state": {"phase": "prepared", "migration_attempted": False, "applied": []}}
+            require(not arguments.migration or "api" in arguments.services, "migration_requires_api")
+            if set(arguments.services) & {"api", "admin"}:
+                require(all((arguments.artifact_directory, arguments.artifact_id, arguments.artifact_digest,
+                             arguments.platform_source, arguments.current_platform_source)), "platform_inputs_required")
+                baseline, baseline_sha = source(arguments.current_platform_source)
+                candidate.update(artifact={"directory": str(Path(arguments.artifact_directory).resolve()),
+                                           "id": arguments.artifact_id, "digest": arguments.artifact_digest},
+                    platform_source=str(Path(arguments.platform_source).resolve()),
+                    current_platform_source=str(baseline), current_platform_sha=baseline_sha)
             if "storefront" in arguments.services:
                 require(arguments.storefront_source and arguments.storefront_sha and arguments.storefront_unit,
                         "storefront_inputs_required")
