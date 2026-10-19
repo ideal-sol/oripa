@@ -1,3 +1,22 @@
+## PREREGNEW-20261019 — successor OLD Test source authority / Draft
+
+- Human authorizes a new authority-only Draft from merged Build Recipe PR586/main3d7e692e4361f4d40280bfa71ae1abe895ec7df6. R3, Strict Change, Activation deferred, Issue none; dedicated worktree. Only manifest and this Worklog change. No application, Contract, migration, workflow or recipe change.
+- Manifest bytes exactly match PR585 head8dc1b961708ee1373d734556cf88ead9bc7c5f4f. Application remains b5c28015, source PR574, artifact task PREREGOT-20261018, activation_authorized=false. Separate merged recipe authority binds PR583/6ae529ea; no moving-main application code or migrations88+ are authorized for OLD Test.
+- PR585, its branch/worktree, failed sync candidate and evidence are retained; no close or forced push. Historical authority record below is inherited verbatim. Latest Human instruction supersedes Basic planning: no new Basic authentication, preserve existing public routing and canonical next dev.
+- Human GO remains required for successor Merge and old PR closure. Artifact dispatch, wrapper installation, migration86/87 and Runtime remain deferred; no ENV, S3 or Worker change. Existing features/rollback assets preserved. Required checks/fresh review follow at the final head; no duplicate application Build/acceptance.
+
+### Inherited PR585 record (historical)
+
+- Run39034075333 failed policy before DB execution because its synchronize event captured the prior35-path PR body; canonical metadata was corrected to36 paths. A task-bound Platform CI dispatch was permitted solely for this unchanged-head rerun, but its existing PR-only ARM64 exclusion cannot establish all-applicable-PR acceptance. This record commit triggers a complete pull-request CI run with already-correct metadata. Rebind and rerun every head-dependent local check and review; retain earlier failed/incomplete runs. No workflow, gate, Ready state, other PR or publication permission changes.
+
+## PREREGOT-20261018 — pre-registration v1.4 OLD Test authority
+
+- Human Task PREREG-V14-OLDTEST-20261018. Strict Change, R3, Application Runtime Activation deferred, Issue none. Dedicated worktree preserves unrelated local changes; base36d37ac57d84c127dfd3ed54f37803bbd671b802.
+- Authority metadata only: fixed application b5c28015ef94cb80f6702a61b1237cacd91d9863 / PR574, treef272a372adef6af42285364097eb0e3681e6ca7a; PR571 included. Reviewed/merged source trees and existing Required Checks verified. Contractalpha45 artifact12031381227 is immutable and reused. Later control-plane application changes and migrations88 onward must not enter the runtime image.
+- Authority Merge requires a separate exact-head Human GO. Build only through canonical OLD Test workflow after Authority acceptance. Migration86 then87 and API/Admin/Storefront activation require subsequent combined Human GO. No database migration, runtime restart, feature activation, reward grant, Basic configuration or Brand upload is performed by this authority change.
+- Preserve current feature states and existing workers rather than copying old OFF overrides. Pre-registration settings must start disabled, cutoff null, amount500, no automatic/manual grant. Forward-only migration and post-use rollback constraints remain. Secret handling remains Human-only through existing safe paths; no production/NEW changes.
+- Focused canonical authority tests and required PR checks are recorded on the final PR head. Existing source CI/security evidence is reused; no repeated application test suite, contract publication or build. Existing deployment rollback assets are retained. Remaining Runtime, Basic delivery, Brand and Human Browser gates are not claimed PASS by this source metadata PR.
+
 ## BUILDRECIPE-20261018 — fixed OLD Test payload, reviewed build recipe / Draft
 
 - Human approved A-plan preparation only. R4, Strict Change, Activation deferred, Issue none. Base6ae529ea9a357abd4498653c3438210e23f511b6; dedicated branch/worktree preserves all parallel changes. PR585 owns application authority and is not modified by this Change.

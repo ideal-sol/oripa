@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-20261015",
-  "source_pr": 566,
-  "source_sha": "aef1759d072dab48be4b052d53e2ef969feddd9f",
+  "task_id": "PREREGOT-20261018",
+  "source_pr": 574,
+  "source_sha": "b5c28015ef94cb80f6702a61b1237cacd91d9863",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: OLDTEST-F2B-F5-F6-20261015, PR #566 squash merge; reviewed head 3374db15c1ffa04d3c737c4eb6bf0f4c2a81690d and payload share tree 96c2ef6ed5bc34faf13125bd5662d142d93d3d6c. Includes F5 #563, F6 #564, F2-B host restriction removal #565 and SMS OTP test correction #566. Authority Sync merge requires separate exact-PR/head Human GO before canonical linux/amd64 API and Admin artifact generation. OLD Test activation and shared-database migration 000085 require separate Human GO. Shared Admin routing and existing SMS worker restart guards must be resolved before activation without changing normal OLD runtime. F2-B enabling and CSV workers, Notion enabling and workers, SMS worker changes, Storefront, S3 changes, normal OLD activation and NEW Production are outside this task. Secret handling restrictions remain unchanged.",
+  "authority": "Human-approved exact OLD Test payload: PREREG-V14-OLDTEST-20261018 pins PR #574 squash b5c28015ef94cb80f6702a61b1237cacd91d9863 and tree f272a372adef6af42285364097eb0e3681e6ca7a, including merged PR #571. Specification SHA256 36b838fd2cb73e41f8a8df72e03195f39096b3001f6688dfd81e3f354fb61414. Contract alpha.45 artifact 12031381227 is reused without republishing. Separate exact-head Human Authority Merge GO is required before canonical linux/amd64 API and Admin artifact generation. Fixed application source excludes later main and migrations 000088 onward. Runtime activation and migrations 000086 then 000087 require a separate combined Human GO after Guard and rollback checks. Preserve existing feature states and workers; pre-registration remains disabled with no cutoff and 500 points, no grant or batch execution. Basic delivery changes and two new Brand objects require explicit scoped approval. No Production/NEW operation or secret disclosure is authorized.",
   "activation_authorized": false
 }
