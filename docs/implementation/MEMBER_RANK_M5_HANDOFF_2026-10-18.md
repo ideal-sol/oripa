@@ -1,5 +1,12 @@
 # Member Rank M5 — Draft HOLD / M6 handoff
 
+## Latest Human acceptance decision — functional readiness, performance deferred
+
+- Human now authorizes bounded separation of initial API/data readiness from functional UI assertions. Specification v1.5 section15.5 concerns payment, rank-list resolution and monthly processing; neither that authority, the phased plan nor the original M5 instruction defines an Admin initial-display5-second product requirement. The former deadline is Playwright's default assertion timeout, not a product SLA. This latest decision supersedes only the earlier prohibition on changing initial-data waiting; it does not waive functional, Security, DB, Contract or CI gates.
+- M5 E2E waits at most60 seconds for actual Laravel requests to complete and a500ms request-quiet interval, based on observed12.7–22.5-second loading on the constrained host. HTTP failures still fail. DOM/value/disabled/operation assertions retain the default5000ms deadline, existing300-second per-test limit remains, and no application, authentication, MFA, Session, CSRF, Origin or idempotency control is changed. Missing isolated harness fails rather than skips. Readiness durations are attached as PERF OPEN, with no speed PASS claimed.
+- The real-Laravel PC1440/Mobile390 cases retain prior checks and add all modes/ranks, clearing persisted values, scheduled publication and mutation-header assertions. Only actual complete functional E2E PASS permits UI Verification PASS. Original failed E2E and all historical CI failures remain recorded. PR584 remains Draft, with no Ready/merge/auto-merge or operational/publication permission.
+- Latest Human also permits reuse of byte-equivalent Backend/DB/Contract evidence and requires avoiding unnecessary main tracking/repeated regressions. At80c0ba9b, M5/DB/local contracts and concurrency finish before E2E-only edits; queued duplicate full Backend/Admin probes are stopped at a safe test boundary, without killing the running test. New-head formal CI supplies full applicable regression. Exact inherited/tested heads and actual results remain separate in PR584.
+
 ## Authority and disposition
 
 - Change `MEMBERRANK-M5-20261018`; Issue none; R3 / Strict Change / Application Runtime Activation deferred.
