@@ -111,6 +111,22 @@ test("SMS requirement is a recognizable non-retryable error on every member faca
   assert.equal(calls, 1);
 });
 
+test("member rank filter stays optional, boolean and transport-only", async () => {
+  const requests = [];
+  const client = createStorefrontCatalogClient({ request: async (request) => {
+    requests.push(request);
+    return { data: { data: [], next_cursor: null }, metadata: {} };
+  } });
+  await client.listGachas();
+  await client.listGachas({ member_rank_eligible_only: true, cursor: "opaque", limit: 2 });
+  await client.listGachas({ member_rank_eligible_only: false });
+  assert.equal(requests[0].path, "/gachas");
+  assert.equal(requests[1].path, "/gachas?member_rank_eligible_only=true&limit=2&cursor=opaque");
+  assert.equal(requests[2].path, "/gachas?member_rank_eligible_only=false");
+  assert.throws(() => client.listGachas({ member_rank_eligible_only: "true" }), TypeError);
+  assert.equal(requests.length, 3);
+});
+
 test("Login Catalog stays thin, separate from standard, and forwards authenticated transport", async () => {
   const requests = [];
   const client = createStorefrontCatalogClient({ request: async (request) => {
@@ -461,6 +477,7 @@ test("Draw Problem Codeは実在Codeだけを型付きGuardで判定する", () 
   for (const code of [
     "INSUFFICIENT_POINTS",
     "GACHA_AUDIENCE_NOT_ELIGIBLE",
+    "GACHA_MEMBER_RANK_NOT_ELIGIBLE",
     "DAILY_DRAW_LIMIT_EXCEEDED",
     "GACHA_NOT_DRAWABLE",
     "GACHA_SALES_PAUSED",

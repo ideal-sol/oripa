@@ -4,6 +4,8 @@ namespace App\Domain\Catalog\Services;
 
 use App\Domain\Catalog\Exceptions\V2CatalogException;
 use App\Domain\Draw\Services\V2DrawEligibilityService;
+use App\Domain\MemberRank\Services\V2MemberRankGachaCondition;
+use App\Domain\MemberRank\Services\V2MemberRankResolver;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -11,10 +13,15 @@ use Illuminate\Support\Facades\DB;
 
 final class V2LoginCatalogReadService
 {
-    public function listing(): array
+    public function listing(?User $user = null): array
     {
-        return ['items' => $this->query(CarbonImmutable::now())->orderBy('gacha.public_id')
-            ->get()->map(fn (object $row): array => $this->summary($row))->all()];
+        $instant = CarbonImmutable::now()->startOfSecond();
+        $rank = $user === null ? null : app(V2MemberRankResolver::class)->project($user->id, $instant);
+
+        return ['items' => $this->query($instant)->orderBy('gacha.public_id')
+            ->get()->map(fn (object $row): array => $this->summary($row) + [
+                'eligibility' => app(V2DrawEligibilityService::class)->evaluateLogin($user, $row, $row, $instant, $rank),
+            ])->all()];
     }
 
     public function detail(string $publicId, User $user): array
@@ -24,7 +31,7 @@ final class V2LoginCatalogReadService
         if ($row === null) {
             throw new V2CatalogException('CATALOG_NOT_FOUND', 404, 'The login Gacha is unavailable.');
         }
-        $version = (object) ['publish_start_at' => $row->publish_start_at];
+        $version = $row;
         $eligibility = app(V2DrawEligibilityService::class)->evaluateLogin($user, $row, $version, $occurredAt);
         $prizes = [];
         $ranks = [];
@@ -83,12 +90,14 @@ final class V2LoginCatalogReadService
             })
             ->select(['gacha.id', 'gacha.public_id', 'gacha.public_code', 'gacha.gacha_type', 'version.id as version_id',
                 'version.title', 'version.description', 'version.notices', 'version.price_points',
+                'version.member_rank_mode', 'version.member_rank_level',
                 'version.presentation_asset_id', 'version.publish_start_at', 'version.publish_end_at']);
     }
 
     private function summary(object $row): array
     {
         return [
+            'member_rank_condition' => V2MemberRankGachaCondition::presentation($row),
             'id' => $row->public_id, 'public_code' => $row->public_code, 'gacha_type' => $row->gacha_type,
             'title' => $row->title, 'thumbnail' => $this->asset($row->presentation_asset_id), 'price_points' => (int) $row->price_points,
             'publish_start_at' => CarbonImmutable::parse($row->publish_start_at)->toIso8601ZuluString(),

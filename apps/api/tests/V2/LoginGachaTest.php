@@ -212,7 +212,7 @@ final class LoginGachaTest extends TestCase
         $this->flushHeaders();
         $this->withUnencryptedCookie('__Host-oripa_admin_session', '');
         $this->getJson('/api/v2/login-gachas')->assertOk()->assertJsonCount(1, 'items')
-            ->assertJsonMissingPath('items.0.eligibility')->assertJsonMissingPath('items.0.total_count');
+            ->assertJsonPath('items.0.eligibility.reason', 'authentication_required')->assertJsonMissingPath('items.0.total_count');
         $this->getJson('/api/v2/login-gachas/'.$gacha['id'])->assertUnauthorized()
             ->assertHeader('Content-Type', 'application/problem+json')->assertHeader('Vary', 'Cookie')
             ->assertJsonStructure(['type', 'title', 'status', 'code', 'request_id', 'retryable'])

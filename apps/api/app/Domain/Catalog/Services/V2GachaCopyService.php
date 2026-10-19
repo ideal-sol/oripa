@@ -77,6 +77,8 @@ final class V2GachaCopyService
                     : DB::table('catalog_gacha_version_tags as relation')->join('catalog_tags as tag', 'tag.id', '=', 'relation.tag_id')->where('relation.gacha_version_id', $version->id)->orderBy('tag.id')->pluck('tag.public_id')->all(),
                 'total_count' => $version->total_count === null ? null : (int) $version->total_count,
                 'daily_draw_limit' => (int) $version->daily_draw_limit, 'audience_code' => $version->audience_code,
+                'member_rank_mode' => $version->member_rank_mode,
+                'member_rank_level' => $version->member_rank_level === null ? null : (int) $version->member_rank_level,
                 'first_time_eligible_days' => (int) $version->first_time_eligible_days,
                 'allowed_draw_counts' => json_decode($version->allowed_draw_counts, true, 512, JSON_THROW_ON_ERROR),
                 'ranks' => array_values($ranks), 'prizes' => $prizes,

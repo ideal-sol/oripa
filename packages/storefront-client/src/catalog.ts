@@ -11,6 +11,7 @@ export interface GachaListQuery {
   cursor?: string;
   category?: string;
   tag?: string;
+  member_rank_eligible_only?: boolean;
 }
 
 export interface StorefrontCatalogClient {
@@ -44,6 +45,10 @@ function pathSegment(value: string, name: string): string {
 
 function queryString(query: GachaListQuery): string {
   const parameters = new URLSearchParams();
+  if (query.member_rank_eligible_only !== undefined) {
+    if (typeof query.member_rank_eligible_only !== "boolean") throw new TypeError("member_rank_eligible_only must be boolean");
+    parameters.set("member_rank_eligible_only", String(query.member_rank_eligible_only));
+  }
   if (query.limit !== undefined) {
     if (!Number.isSafeInteger(query.limit) || query.limit < 1 || query.limit > 100) {
       throw new TypeError("limit must be an integer from 1 through 100");

@@ -1373,7 +1373,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        MemberRankSnapshot: {
+            /** @enum {string} */
+            code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+            name: string;
+            level: number;
+        };
+        NullableMemberRankSnapshot: components["schemas"]["MemberRankSnapshot"] | null;
+        GachaMemberRankCondition: {
+            /** @enum {string} */
+            mode: "none" | "at_least" | "only" | "at_most";
+            rank: components["schemas"]["NullableMemberRankSnapshot"];
+        };
         LoginGachaSummary: {
+            member_rank_condition?: components["schemas"]["GachaMemberRankCondition"];
+            eligibility?: components["schemas"]["LoginGachaEligibility"];
             id: components["schemas"]["OpaqueId"];
             public_code: string;
             /** @enum {string} */
@@ -1395,7 +1409,7 @@ export interface components {
             eligible: boolean;
             used: boolean;
             /** @enum {string|null} */
-            reason: null | "registration_not_qualified" | "already_used" | "inventory_unavailable";
+            reason: null | "authentication_required" | "registration_not_qualified" | "member_rank_not_eligible" | "already_used" | "inventory_unavailable";
             /** Format: date-time */
             resets_at: string | null;
         };
@@ -1914,7 +1928,7 @@ export interface components {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
         /** @enum {string} */
-        DrawProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
+        DrawProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_MEMBER_RANK_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
         DrawProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["DrawProblemCode"];
         };
@@ -2054,6 +2068,7 @@ export interface components {
             data: components["schemas"]["GachaTag"][];
         };
         GachaSummary: {
+            member_rank_condition?: components["schemas"]["GachaMemberRankCondition"];
             id: components["schemas"]["GachaPublicId"];
             slug: string;
             title: string;
@@ -2154,7 +2169,7 @@ export interface components {
         /** @enum {string} */
         GachaAudience: "all_users" | "first_time_users" | "line_users";
         /** @enum {string|null} */
-        GachaPresentationReason: "sale_not_started" | "sales_paused" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "daily_limit_reached" | null;
+        GachaPresentationReason: "sale_not_started" | "sales_paused" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "member_rank_not_eligible" | "daily_limit_reached" | null;
         GachaDailyLimitState: {
             limit: number;
             unlimited: boolean;
@@ -2175,6 +2190,7 @@ export interface components {
             show_drawn_count: boolean;
         };
         GachaPresentationState: {
+            member_rank_condition?: components["schemas"]["GachaMemberRankCondition"];
             gacha_id: components["schemas"]["GachaPublicId"];
             sale_state: components["schemas"]["GachaSaleState"];
             /** @enum {string} */
@@ -2268,6 +2284,7 @@ export interface components {
             presentation_asset: components["schemas"]["NullablePresentationAsset"];
         };
         DrawHistoryEntry: {
+            member_rank?: components["schemas"]["NullableMemberRankSnapshot"];
             id: components["schemas"]["OpaqueId"];
             gacha: components["schemas"]["DrawHistoryGachaPresentation"];
             occurred_at: components["schemas"]["UtcDateTime"];
@@ -2366,6 +2383,7 @@ export interface components {
             video_snapshot: components["schemas"]["PresentationAsset"];
         };
         DrawResponse: {
+            member_rank?: components["schemas"]["NullableMemberRankSnapshot"];
             id: components["schemas"]["OpaqueId"];
             gacha_id: components["schemas"]["OpaqueId"];
             /** @constant */
@@ -3130,6 +3148,8 @@ export interface operations {
     listGachas: {
         parameters: {
             query?: {
+                /** @description 会員ランク条件があり、現在の会員が引ける通常ガチャだけ。未ログイン・機能OFFは空。 */
+                member_rank_eligible_only?: boolean;
                 limit?: components["parameters"]["CatalogLimit"];
                 cursor?: components["parameters"]["CatalogCursor"];
                 category?: components["parameters"]["CategorySlug"];

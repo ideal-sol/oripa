@@ -669,6 +669,8 @@ final class V2CatalogMasterMutationService
                     'total_count' => $payload['total_count'],
                     'daily_draw_limit' => $payload['daily_draw_limit'],
                     'audience_code' => $payload['audience_code'],
+                    'member_rank_mode' => $payload['member_rank_mode'] ?? 'none',
+                    'member_rank_level' => $payload['member_rank_level'] ?? null,
                     'first_time_eligible_days' => $payload['first_time_eligible_days'],
                     'allowed_draw_counts' => json_encode(
                         $payload['allowed_draw_counts'],
@@ -812,6 +814,8 @@ final class V2CatalogMasterMutationService
                         || $payload['total_count'] !== (int) $version->total_count
                         || $payload['daily_draw_limit'] !==
                             (int) $version->daily_draw_limit
+                        || $payload['member_rank_mode'] !== (string) $version->member_rank_mode
+                        || $payload['member_rank_level'] !== ($version->member_rank_level === null ? null : (int) $version->member_rank_level)
                         || $payload['audience_code'] !==
                             (string) $version->audience_code
                         || $payload['first_time_eligible_days'] !==
@@ -881,6 +885,8 @@ final class V2CatalogMasterMutationService
                     'total_count' => $payload['total_count'],
                     'daily_draw_limit' => $payload['daily_draw_limit'],
                     'audience_code' => $payload['audience_code'],
+                    'member_rank_mode' => $payload['member_rank_mode'] ?? 'none',
+                    'member_rank_level' => $payload['member_rank_level'] ?? null,
                     'first_time_eligible_days' => $payload['first_time_eligible_days'],
                     'allowed_draw_counts' => json_encode(
                         $payload['allowed_draw_counts'],
@@ -1476,6 +1482,8 @@ final class V2CatalogMasterMutationService
                         ...$this->validateGachaVersion($payload, false),
                         'daily_draw_limit' => (int) ($source->daily_draw_limit ?? 0),
                         'audience_code' => $source->audience_code ?? 'all_users',
+                        'member_rank_mode' => $source->member_rank_mode ?? 'none',
+                        'member_rank_level' => $source->member_rank_level ?? null,
                         'first_time_eligible_days' => (int) ($source->first_time_eligible_days ?? 7),
                         'allowed_draw_counts' => $this->storedAllowedDrawCounts(
                             $source->allowed_draw_counts ?? null
@@ -1539,7 +1547,9 @@ final class V2CatalogMasterMutationService
                     $payload['prizes'],
                     (int) $gacha->id
                 );
+                $this->assertMemberRankConditionUnchanged($gacha, $payload);
                 DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
+                    ...array_intersect_key($payload, array_flip(['member_rank_mode', 'member_rank_level'])),
                     'title' => $payload['title'],
                     'description' => $payload['description'],
                     'notices' => $payload['notices'],
@@ -4769,6 +4779,8 @@ final class V2CatalogMasterMutationService
             $payload['price_points'] !== (int) $version->price_points
             || $payload['total_count'] !== (int) $version->total_count
             || $payload['daily_draw_limit'] !== (int) $version->daily_draw_limit
+            || $payload['member_rank_mode'] !== (string) $version->member_rank_mode
+            || $payload['member_rank_level'] !== ($version->member_rank_level === null ? null : (int) $version->member_rank_level)
             || $payload['audience_code'] !== (string) $version->audience_code
             || $payload['first_time_eligible_days'] !==
                 (int) $version->first_time_eligible_days
@@ -4884,7 +4896,7 @@ final class V2CatalogMasterMutationService
             'price_points',
             'total_count',
             'daily_draw_limit',
-            'audience_code',
+            'audience_code', 'member_rank_mode', 'member_rank_level',
             'first_time_eligible_days',
             'allowed_draw_counts',
             'presentation_asset_id',
@@ -4898,7 +4910,7 @@ final class V2CatalogMasterMutationService
             $fields,
             array_values(array_diff(
                 $fields,
-                ['first_time_eligible_days', 'allowed_draw_counts']
+                ['first_time_eligible_days', 'allowed_draw_counts', 'member_rank_mode', 'member_rank_level']
             ))
         );
         $startsAt = $this->timestamp($input['publish_start_at']);
@@ -4941,6 +4953,7 @@ final class V2CatalogMasterMutationService
                 $input['daily_draw_limit']
             ),
             'audience_code' => $input['audience_code'],
+            ...\App\Domain\MemberRank\Services\V2MemberRankGachaCondition::validate($input),
             'first_time_eligible_days' => $firstTimeEligibleDays,
             'allowed_draw_counts' => $allowedDrawCounts,
             'presentation_asset_id' => $this->uuid(
@@ -4959,7 +4972,7 @@ final class V2CatalogMasterMutationService
         $baseFields = ['expected_revision', 'category_id', 'tag_ids'];
         $draftFields = [
             'expected_version_revision', 'title', 'price_points', 'total_count',
-            'daily_draw_limit', 'audience_code', 'first_time_eligible_days',
+            'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', 'first_time_eligible_days',
             'allowed_draw_counts', 'presentation_asset_id',
             'publish_start_at', 'publish_end_at', 'description', 'notices',
         ];
@@ -4982,7 +4995,7 @@ final class V2CatalogMasterMutationService
         }
         foreach (array_diff(
             $draftFields,
-            ['first_time_eligible_days', 'allowed_draw_counts']
+            ['first_time_eligible_days', 'allowed_draw_counts', 'member_rank_mode', 'member_rank_level']
         ) as $field) {
             if (! array_key_exists($field, $input)) {
                 throw $this->validationException();
@@ -5186,6 +5199,19 @@ final class V2CatalogMasterMutationService
     }
 
     /** @return array<string, mixed> */
+    private function assertMemberRankConditionUnchanged(object $gacha, array $payload): void
+    {
+        if ($gacha->first_published_at === null || ! array_key_exists('member_rank_mode', $payload)) {
+            return;
+        }
+        $published = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)
+            ->whereNotNull('published_at')->orderBy('version_number')->first();
+        if ($published === null || $payload['member_rank_mode'] !== $published->member_rank_mode
+            || $payload['member_rank_level'] !== ($published->member_rank_level === null ? null : (int) $published->member_rank_level)) {
+            throw new V2CatalogException('CATALOG_GACHA_VERSION_IMMUTABLE', 409, 'Published member rank conditions cannot be changed.');
+        }
+    }
+
     private function validateGachaVersion(array $input, bool $updating): array
     {
         $allowed = [
@@ -5202,7 +5228,9 @@ final class V2CatalogMasterMutationService
         if ($updating) {
             array_unshift($allowed, 'expected_revision');
         }
-        $this->assertFields($input, $allowed, $allowed);
+        $this->assertFields($input, [...$allowed, 'member_rank_mode', 'member_rank_level'], $allowed);
+        $memberRank = $updating && ! array_key_exists('member_rank_mode', $input) && ! array_key_exists('member_rank_level', $input)
+            ? [] : \App\Domain\MemberRank\Services\V2MemberRankGachaCondition::validate($input);
         if (! is_array($input['prizes']) || $input['prizes'] === []) {
             throw $this->validationException();
         }
@@ -5256,6 +5284,7 @@ final class V2CatalogMasterMutationService
         }
 
         return [
+            ...$memberRank,
             ...($updating
                 ? ['expected_revision' => $this->revision($input['expected_revision'])]
                 : []),
@@ -6530,6 +6559,7 @@ final class V2CatalogMasterMutationService
         array $payload,
         ?int $clonedFromVersionId
     ): object {
+        $this->assertMemberRankConditionUnchanged($gacha, $payload);
         $asset = $this->resolveNullableAsset($payload['presentation_asset_id']);
         $prizes = $this->resolveGachaPrizes(
             $payload['prizes'],
@@ -6566,6 +6596,8 @@ final class V2CatalogMasterMutationService
             'total_count' => $payload['total_count'],
             'daily_draw_limit' => $payload['daily_draw_limit'] ?? 0,
             'audience_code' => $payload['audience_code'] ?? 'all_users',
+            'member_rank_mode' => $payload['member_rank_mode'] ?? 'none',
+            'member_rank_level' => $payload['member_rank_level'] ?? null,
             'first_time_eligible_days' => $payload['first_time_eligible_days'] ?? 7,
             'allowed_draw_counts' => json_encode(
                 $payload['allowed_draw_counts'] ?? [1, 5, 10],
@@ -6643,6 +6675,8 @@ final class V2CatalogMasterMutationService
             'total_count' => (int) $source->total_count,
             'daily_draw_limit' => (int) ($source->daily_draw_limit ?? 0),
             'audience_code' => $source->audience_code ?? 'all_users',
+            'member_rank_mode' => $source->member_rank_mode ?? 'none',
+            'member_rank_level' => $source->member_rank_level ?? null,
             'first_time_eligible_days' => (int) ($source->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->storedAllowedDrawCounts(
                 $source->allowed_draw_counts ?? null
@@ -9211,6 +9245,8 @@ final class V2CatalogMasterMutationService
             'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'member_rank_mode' => $row->member_rank_mode ?? 'none',
+            'member_rank_level' => $row->member_rank_level ?? null,
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->storedAllowedDrawCounts(
                 $row->allowed_draw_counts ?? null
@@ -9314,6 +9350,8 @@ final class V2CatalogMasterMutationService
             'minimum_exchange_points' => $row->minimum_exchange_points === null ? null : (int) $row->minimum_exchange_points,
             'daily_draw_limit' => (int) ($row->daily_draw_limit ?? 0),
             'audience_code' => $row->audience_code ?? 'all_users',
+            'member_rank_mode' => $row->member_rank_mode ?? 'none',
+            'member_rank_level' => $row->member_rank_level ?? null,
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->storedAllowedDrawCounts(
                 $row->allowed_draw_counts ?? null
