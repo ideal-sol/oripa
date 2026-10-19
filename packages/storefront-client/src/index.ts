@@ -30,6 +30,8 @@ export {
 export {
   createStorefrontCurrentUserPointClient,
 } from "./points.js";
+export { createStorefrontMemberRankClient } from "./member-ranks.js";
+export type { StorefrontMemberRankClient } from "./member-ranks.js";
 export {
   createStorefrontDrawClient,
 } from "./draw.js";

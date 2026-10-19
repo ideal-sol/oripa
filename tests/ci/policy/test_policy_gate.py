@@ -156,6 +156,20 @@ class PolicyGateTest(unittest.TestCase):
                     data["changed_paths"], data["base_sha"],
                 )
 
+    def test_member_rank_m6_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task_id = "MEMBERRANK-M6-20261020"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), f"[{task_id}] Member rank Public API",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "MEMBERRANK-M6-20261021", "MEMBERRANK-M6-*"):
+            with self.subTest(task_id=invalid), self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                policy_gate.validate_pr_body(
+                    data["pr_body"].replace("GOV-008", invalid), f"[{invalid}] Member rank Public API",
+                    data["changed_paths"], data["base_sha"],
+                )
+
     def test_member_rank_m5_admin_paths_are_exact(self):
         self.assertEqual(policy_gate.MEMBER_RANK_M5_ADMIN_FILES, {
             "apps/admin/e2e/admin-member-rank-gacha.spec.ts",
@@ -4125,8 +4139,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 81",
-                    "operation_count: 80",
+                    "operation_count: 83",
+                    "operation_count: 82",
                 ),
                 encoding="utf-8",
             )
