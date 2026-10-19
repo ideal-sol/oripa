@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -477,6 +478,15 @@ class SystemdResponseRegressionTest(unittest.TestCase):
             "ExecStart": "{ path=/usr/bin/node ; argv[]=" + " ".join(startup(str(self.repository))["command"])
                          + " ; ignore_errors=no ; }"}
         self.definition.pop("EnvironmentFiles")
+        self.environment = [
+            "NODE_ENV=development", "NEXT_TELEMETRY_DISABLED=1",
+            "NEXT_PUBLIC_SITE_URL=https://store.example.test",
+            "NEXT_PUBLIC_PLATFORM_API_BASE_URL=https://store.example.test/api",
+            "NEXT_PUBLIC_ASSET_PUBLIC_BASE_URL=https://cdn.example.test/assets?kind=demo&path=a%2Fb#image",
+            "NEXT_PUBLIC_STATIC_ASSET_BASE_URL=https://cdn.example.test/static-assets",
+            "NEXT_PUBLIC_APP_NAME=Test App",
+        ]
+        self.definition["Environment"] = shlex.join(self.environment)
         self.old_unit_loaded = False
         self.commands = []
         patches = contextlib.ExitStack()
@@ -512,7 +522,7 @@ class SystemdResponseRegressionTest(unittest.TestCase):
         return status, json.loads(output.getvalue())
 
     def prepare(self, path):
-        return self.cli("prepare", "--task-id", "OLDDEPLOY-202", "--candidate", str(path),
+        return self.cli("prepare", "--task-id", "OLDDEPLOY-203", "--candidate", str(path),
             "--services", "storefront", "--storefront-source", str(self.repository),
             "--storefront-sha", SOURCE_SHA, "--storefront-unit", "old.service")
 
@@ -535,7 +545,7 @@ class SystemdResponseRegressionTest(unittest.TestCase):
                 candidate = json.loads(original)
                 self.assertEqual(candidate["previous"], {"storefront": {
                     "unit": "old.service", "directory": str(self.repository), "sha": SOURCE_SHA,
-                    "overlays": {}, "startup": startup(str(self.repository))}})
+                    "overlays": {}, "startup": startup(str(self.repository)) | {"environment": self.environment}}})
                 self.assertNotIn("artifact", candidate)
                 self.assertNotIn("platform_source", candidate)
                 self.assertEqual(candidate["images"], {})
@@ -549,12 +559,16 @@ class SystemdResponseRegressionTest(unittest.TestCase):
                 status, result = self.cli("apply", "--candidate", str(path), "--go", identity, "--dry-run")
                 self.assertEqual(status, 0, result)
                 self.assertEqual(result["status"], "DRY_RUN")
-                self.assertEqual(candidate["state"]["phase"], "prepared")
+                self.assertEqual(candidate["state"], {"phase": "prepared", "migration_attempted": False, "applied": []})
                 self.assertEqual(path.read_bytes(), original)
                 self.definition.pop("EnvironmentFiles", None)
                 self.old_unit_loaded = True
                 candidate["state"].update(phase="complete", storefront_attempted=True)
                 deploy.Deployment(candidate, path).rollback(identity, dry_run=True)
+                with mock.patch.dict(self.definition, {"Environment": self.definition["Environment"].replace(
+                        "Test App", "Changed App")}):
+                    with self.assertRaisesRegex(deploy.Hold, "rollback_storefront_unit_changed"):
+                        deploy.Deployment(candidate, path).rollback(identity, dry_run=True)
                 self.assertEqual(path.read_bytes(), original)
                 self.artifact.assert_not_called()
         self.assertTrue(all(command[0] == "git" or command[:2] in (
@@ -563,7 +577,11 @@ class SystemdResponseRegressionTest(unittest.TestCase):
     def test_prepare_rejects_environment_files_or_unexpected_startup(self):
         for changed, reason in (({"EnvironmentFiles": "/synthetic/environment (ignore_errors=no)"}, "storefront_unit_invalid"),
                                 ({"User": "unexpected-user"}, "storefront_start_unsupported"),
-                                ({"ExecStart": "{ argv[]=/usr/bin/node next start --port 9999 ; }"}, "storefront_start_unsupported")):
+                                ({"ExecStart": "{ argv[]=/usr/bin/node next start --port 9999 ; }"}, "storefront_start_unsupported"),
+                                ({"Environment": self.definition["Environment"] + " NEXT_PUBLIC_UNAPPROVED=synthetic"},
+                                 "storefront_environment_unsupported"),
+                                ({"Environment": self.definition["Environment"] + " DB_PASSWORD=synthetic-test-only"},
+                                 "storefront_environment_unsupported")):
             with self.subTest(changed_property=next(iter(changed))):
                 path = self.directory / "rejected.json"
                 with mock.patch.dict(self.definition, changed):
@@ -572,6 +590,56 @@ class SystemdResponseRegressionTest(unittest.TestCase):
                 self.assertEqual(result["status"], "HOLD")
                 self.assertEqual(result["reason"], reason)
                 self.assertFalse(path.exists())
+        self.artifact.assert_not_called()
+
+    def test_original_new_and_combined_environment_keys_preserve_values(self):
+        for entries in (self.environment[:4], self.environment[4:], self.environment):
+            with self.subTest(keys=[entry.split("=", 1)[0] for entry in entries]), mock.patch.dict(
+                    self.definition, {"Environment": shlex.join(entries)}):
+                selected = deploy.storefront_start(deploy.unit("old.service"))
+                self.assertEqual(selected["environment"], entries)
+                self.assertEqual(len({entry.split("=", 1)[0] for entry in selected["environment"]}), len(entries))
+
+    def test_new_unit_and_rollback_reuse_or_recreation_preserve_environment(self):
+        path = self.directory / "candidate.json"
+        status, result = self.prepare(path)
+        self.assertEqual(status, 0, result)
+        candidate = json.loads(path.read_bytes())
+        operation = deploy.Deployment(candidate, path)
+        expected_environment = ["--setenv=" + entry for entry in self.environment]
+        with mock.patch.object(deploy, "run", return_value=b"") as command:
+            operation.start_storefront(candidate["storefront"], candidate["storefront_new_unit"])
+        arguments = command.call_args.args[0]
+        self.assertEqual(arguments[:3], ["systemd-run", "--unit", candidate["storefront_new_unit"]])
+        self.assertEqual([entry for entry in arguments if entry.startswith("--setenv=")], expected_environment)
+        self.assertEqual(arguments[-7:], startup(str(self.repository))["command"])
+        for loaded in (True, False):
+            with self.subTest(old_unit_available=loaded):
+                candidate["state"].update(phase="complete", storefront_attempted=True)
+                self.old_unit_loaded = loaded
+                self.definition["ActiveState"] = "inactive"
+                def external_operation(arguments, **kwargs):
+                    if arguments[0] == "git" or arguments[:2] in (["systemctl", "show"], ["systemctl", "list-units"]):
+                        return self.external_read(arguments, **kwargs)
+                    return b""
+                with mock.patch.object(deploy, "run", side_effect=external_operation) as command, mock.patch.object(
+                        operation, "health"):
+                    operation.rollback(deploy.identity(candidate))
+                commands = [call.args[0] for call in command.call_args_list]
+                starts = [entry for entry in commands if entry[0] == "systemd-run"]
+                if loaded:
+                    self.assertIn(["systemctl", "start", "old.service"], commands)
+                    self.assertEqual(starts, [])
+                else:
+                    self.assertEqual(starts, [["systemd-run", "--unit", "old.service",
+                        "--uid=luxe-pack-storefront-preview", "--working-directory=" + str(self.repository),
+                        "--property=Restart=on-failure", "--property=KillMode=control-group",
+                        "--property=TimeoutStopSec=1min 30s"] + expected_environment + startup(str(self.repository))["command"]])
+                self.assertEqual(candidate["state"]["phase"], "rolled_back")
+                self.assertTrue(all(entry[0] == "git" or entry[:2] in (
+                    ["systemctl", "show"], ["systemctl", "list-units"], ["systemctl", "start"])
+                    or entry in starts or entry == ["node", str(self.repository / "scripts/verify-vendored-artifacts.mjs")]
+                    for entry in commands))
         self.artifact.assert_not_called()
 
 
