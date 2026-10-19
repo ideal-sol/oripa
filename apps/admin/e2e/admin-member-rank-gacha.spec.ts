@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test";
 
 const harness = process.env.ORIPA_M5_ISOLATED_HARNESS;
 
@@ -20,15 +20,23 @@ async function php(script: string, input?: unknown): Promise<string> {
 }
 
 async function install(page: Page, token: string) {
-  const loading = { pending: 0, completed: 0, lastCompleted: 0, failures: [] as string[] };
+  const loading = { pending: 0, completed: 0, lastCompleted: 0, reads: new Map<string, number>(), failures: [] as string[] };
+  const pending = new Set<Request>();
+  page.on("request", (request) => { pending.add(request); loading.pending = pending.size; });
+  const completed = (request: Request) => {
+    if (!pending.delete(request)) return;
+    loading.pending = pending.size;
+    loading.completed += 1;
+    loading.lastCompleted = Date.now();
+  };
+  page.on("requestfinished", completed);
+  page.on("requestfailed", completed);
   await page.addInitScript(() => {
     Object.defineProperty(Document.prototype, "cookie", { configurable: true, get: () => "__Host-oripa_admin_xsrf=" + "c".repeat(64), set: () => undefined });
   });
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    loading.pending += 1;
-    try {
     const result = await new Promise<{ status: number; headers: Record<string, string>; body: Buffer }>((resolve, reject) => {
       const body = request.postData() ?? "";
       const headers: Record<string, string> = { host: "admin.example.test", accept: "application/json",
@@ -50,11 +58,7 @@ async function install(page: Page, token: string) {
     });
       if (result.status >= 400) loading.failures.push(`${request.method()} ${url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gu, ":id")}: ${result.status}`);
       await route.fulfill(result);
-    } finally {
-      loading.pending -= 1;
-      loading.completed += 1;
-      loading.lastCompleted = Date.now();
-    }
+      if (request.method() === "GET" && result.status === 200) loading.reads.set(url.pathname, Date.now());
   });
   return loading;
 }
@@ -65,11 +69,15 @@ type Fixture = { login_id: string; standard_id: string; signup_id: string; sessi
 const condition = (page: Page) => page.getByRole("combobox", { name: "会員ランク条件", exact: true });
 const conditionRank = (page: Page) => page.getByRole("combobox", { name: "条件の会員ランク", exact: true });
 
-async function dataReady(page: Page, loading: Loading, action: () => Promise<unknown>, testInfo: TestInfo) {
+async function dataReady(page: Page, loading: Loading, action: () => Promise<unknown>, testInfo: TestInfo, requiredRead?: string) {
   const started = Date.now();
   const completed = loading.completed;
   await action();
-  await expect.poll(() => loading.completed > completed && loading.pending === 0 && Date.now() - loading.lastCompleted >= 500,
+  const route = new URL(page.url()).pathname;
+  const read = requiredRead ?? (route.endsWith("/new/standard") || route === "/catalog/gachas" ? "/catalog/gachas"
+    : route.endsWith("/new/login") ? "/catalog/rank-effects" : route.replace(/\/copy$/u, "") + "/composition");
+  await expect.poll(() => (loading.reads.get("/admin/api/v2" + read) ?? 0) >= started
+    && loading.completed > completed && loading.pending === 0 && Date.now() - loading.lastCompleted >= 500,
     { timeout: 60_000, message: "Real Laravel data loading completes within the bounded observation window" }).toBe(true);
   expect(loading.failures).toEqual([]);
   await testInfo.attach(`data-readiness-${testInfo.attachments.length}`, {
@@ -86,6 +94,7 @@ async function mutation(page: Page, suffix: string, action: () => Promise<unknow
   expect(headers["origin"]).toBeTruthy();
   expect(headers["x-xsrf-token"]).toBeTruthy();
   expect(headers["idempotency-key"]).toBeTruthy();
+  if (suffix === "/catalog/gacha-compositions") await page.waitForURL((url) => !url.pathname.endsWith("/copy"));
 }
 
 async function screenshot(page: Page, testInfo: TestInfo, name: string) {
@@ -178,7 +187,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("button", { name: "公開予約を取り消す" })).toBeVisible();
     await expect(condition(page)).toBeDisabled();
     await screenshot(page, testInfo, `rank-scheduled-${width}`);
-    await dataReady(page, loading, () => page.goto(`/catalog/gachas/${fixture.standard_id}`), testInfo);
+    await dataReady(page, loading, () => page.goto(`/catalog/gachas/${fixture.standard_id}`), testInfo, `/catalog/gachas/${fixture.standard_id}/versions`);
     await expect(page.getByText("ゴールドのみ", { exact: true }).first()).toBeVisible();
     await screenshot(page, testInfo, `rank-standard-${width}`);
     await dataReady(page, loading, () => page.goto(`/catalog/gachas/${fixture.signup_id}`), testInfo);
