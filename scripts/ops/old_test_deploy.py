@@ -153,7 +153,8 @@ def storefront_start(current: dict) -> dict:
     require(not current.get("EnvironmentFiles", ""), "storefront_unit_invalid")
     environment = shlex.split(current["Environment"])
     require(all(entry.split("=", 1)[0] in {"NODE_ENV", "NEXT_TELEMETRY_DISABLED", "NEXT_PUBLIC_SITE_URL",
-            "NEXT_PUBLIC_PLATFORM_API_BASE_URL"} for entry in environment), "storefront_environment_unsupported")
+            "NEXT_PUBLIC_PLATFORM_API_BASE_URL", "NEXT_PUBLIC_ASSET_PUBLIC_BASE_URL", "NEXT_PUBLIC_STATIC_ASSET_BASE_URL",
+            "NEXT_PUBLIC_APP_NAME"} for entry in environment), "storefront_environment_unsupported")
     command = (f'/usr/bin/node {current["WorkingDirectory"]}/node_modules/next/dist/bin/next '
                'dev --hostname 127.0.0.1 --port 3241')
     require("argv[]=" + command + " ;" in current["ExecStart"]
