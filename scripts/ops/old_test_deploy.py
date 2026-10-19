@@ -323,6 +323,7 @@ class Deployment:
             repository = candidate["storefront"]["directory"]
             run(["git", "-c", "safe.directory=" + repository, "-C", repository, "merge-base", "--is-ancestor",
                  candidate["storefront"]["sha"], main])
+            require(candidate["storefront_new_unit"] != observed["storefront"]["unit"], "storefront_task_unit_reused")
         if approved:
             require(set(self.candidate["services"]) >= {"api", "admin"}, "migration_requires_api_admin")
             self.guard(str(baseline), baseline_sha)
@@ -478,7 +479,8 @@ class Deployment:
         if "storefront" in self.candidate["services"]:
             paths.append("https://test.luxe-pack.biz/")
         for url in paths:
-            require(run(["curl", "--silent", "--output", "/dev/null", "--write-out", "%{http_code}",
+            require(run(["curl", "--silent", "--fail", "--retry", "5", "--retry-delay", "1", "--retry-connrefused",
+                         "--output", "/dev/null", "--write-out", "%{http_code}",
                          "--max-time", "120", url]) == b"200", "health_failed")
 
     def apply(self, go: str, *, dry_run: bool = False) -> None:
@@ -530,6 +532,8 @@ class Deployment:
                 elif self.candidate["migrations"]:
                     run(["docker", "start", self.runtime[role]["Name"]])
             if "storefront" in self.candidate["services"]:
+                self.candidate["state"]["storefront_attempted"] = True
+                save(self.path, self.candidate)
                 run(["systemctl", "stop", self.candidate["previous"]["storefront"]["unit"]])
                 self.start_storefront(self.candidate["storefront"], self.candidate["storefront_new_unit"])
             if "api" in self.candidate["services"]:
@@ -556,6 +560,12 @@ class Deployment:
             self.runtime[role] = inspect(API if role == "api" else ADMIN)
             require(self.runtime[role]["Image"] in {self.candidate["previous"][role]["image"],
                     self.candidate["images"].get(role, {}).get("image_id")}, "rollback_runtime_changed")
+        if "api" in self.candidate["services"]:
+            current = self.candidate["images"]["api"]["image_id"]
+            old = self.candidate["previous"]["api"]["image"]
+            original = F2B_RUNNER.read_bytes()
+            normalized = original.replace(('IMAGE = "' + current + '"').encode(), ('IMAGE = "' + old + '"').encode(), 1)
+            require(digest(normalized) == self.candidate["previous"]["f2b_runner"], "rollback_f2b_runner_changed")
         if state["migration_attempted"]:
             self.guard(self.candidate["platform_source"], self.candidate["artifact"]["authority"]["source_sha"])
         if "storefront" in self.candidate["services"]:
@@ -580,16 +590,22 @@ class Deployment:
             if "api" in self.candidate["services"]:
                 lock = stack.enter_context(F2B_LOCK.open("r+"))
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if self.candidate["migrations"]:
+            if self.candidate["migrations"] and self.candidate["previous"][SMS] == "active":
                 run(["systemctl", "stop", SMS])
             for role in ("admin", "api"):
                 if role in self.candidate["services"]:
                     run(["docker", "stop", self.runtime[role]["Name"]])
                     self.switch(role, self.candidate["previous"][role]["image"])
-            if "storefront" in self.candidate["services"]:
-                run(["systemctl", "stop", self.candidate["storefront_new_unit"]])
+            if "storefront" in self.candidate["services"] and state.get("storefront_attempted"):
+                new_unit = self.candidate["storefront_new_unit"]
+                if run(["systemctl", "list-units", "--all", "--plain", "--no-legend", new_unit]).strip():
+                    run(["systemctl", "stop", new_unit])
                 old = self.candidate["previous"]["storefront"]
-                self.start_storefront(old, self.candidate["storefront_new_unit"])
+                loaded = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", old["unit"]]).strip()
+                if loaded and unit(old["unit"])["ActiveState"] == "active":
+                    require(unit(old["unit"])["WorkingDirectory"] == old["directory"], "rollback_storefront_unit_changed")
+                else:
+                    self.start_storefront(old, new_unit)
             if "api" in self.candidate["services"]:
                 current = self.candidate["images"]["api"]["image_id"]
                 old = self.candidate["previous"]["api"]["image"]

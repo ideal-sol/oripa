@@ -39,7 +39,7 @@ class DeploymentTest(unittest.TestCase):
             "artifact": {"directory": str(self.directory), "authority": {"source_sha": SOURCE_SHA}},
             "images": {"api": {"image_id": NEW_IMAGE}},
             "previous": {"api": {"id": "old-api", "image": OLD_IMAGE},
-                         "admin": {"id": "old-admin", "image": OLD_IMAGE},
+                         "admin": {"id": "old-admin", "image": OLD_IMAGE}, "f2b_runner": deploy.file_digest(self.runner),
                          deploy.SMS: "active", **{timer: "active" for timer in deploy.TIMERS},
                          "storefront": {"unit": "old.service", "directory": "/old", "sha": BASE_SHA,
                                         "environment": [], "overlays": {}}},
@@ -172,6 +172,7 @@ class DeploymentTest(unittest.TestCase):
     def test_rollback_restores_images_storefront_and_f2b_pin(self):
         self.candidate["services"] = ["api", "storefront"]
         self.candidate["state"]["phase"] = "complete"
+        self.candidate["state"]["storefront_attempted"] = True
         self.runner.write_text('IMAGE = "' + NEW_IMAGE + '"\n')
         with mock.patch.object(deploy, "inspect", return_value=self.runtime("api")), mock.patch.object(
                 deploy, "storefront", return_value={"directory": "/old", "sha": BASE_SHA, "overlays": {}}):
@@ -327,6 +328,23 @@ class DeploymentTest(unittest.TestCase):
         (self.directory / ".git").touch()
         with self.assertRaisesRegex(deploy.Hold, "outside_repository_required"):
             deploy.destination(self.directory / "candidate.json")
+
+    def test_failure_before_storefront_stop_does_not_restart_untouched_storefront(self):
+        self.candidate["services"] = ["api", "storefront"]
+        self.candidate["state"]["phase"] = "switch"
+        with mock.patch.object(deploy, "inspect", return_value=self.runtime("api")), mock.patch.object(
+                deploy, "storefront", return_value={"directory": "/old", "sha": BASE_SHA, "overlays": {}}):
+            self.operation.rollback(deploy.identity(self.candidate))
+        self.assertFalse(any(isinstance(event, tuple) and event[0] == "storefront" for event in self.events))
+        self.assertNotIn(["systemctl", "stop", "new.service"], self.events)
+
+    def test_rollback_rejects_changed_runner_before_service_operations(self):
+        self.candidate["state"]["phase"] = "switch"
+        self.runner.write_text(self.runner.read_text() + "unreviewed_logic\n")
+        with mock.patch.object(deploy, "inspect", return_value=self.runtime("api")):
+            with self.assertRaisesRegex(deploy.Hold, "rollback_f2b_runner_changed"):
+                self.operation.rollback(deploy.identity(self.candidate))
+        self.assertEqual(self.events, [])
 
 
 if __name__ == "__main__":
