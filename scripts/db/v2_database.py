@@ -584,10 +584,15 @@ def rollback_and_reapply_latest(
     if latest in forward_only_messages:
         before = migration_rows(base, repository)
         schema_before = normalize_schema_dump(schema_dump(base, repository))
+        exception_class = (
+            "RuntimeException"
+            if latest == "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php"
+            else "LogicException"
+        )
         verification = (
             "$migration = require 'database/migrations-v2/" + latest + "'; "
             "try { $migration->down(); exit(1); } "
-            "catch (LogicException $error) { "
+            "catch (" + exception_class + " $error) { "
             "if ($error->getMessage() !== '" + forward_only_messages[latest] + "') { exit(2); } "
             "echo 'FORWARD_ONLY_REJECTION_PASS'; }"
         )
