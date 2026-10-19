@@ -262,7 +262,9 @@ class DeploymentTest(unittest.TestCase):
                 self.command.side_effect = lambda command, **kwargs: (
                     b"unit listed" if "list-units" in command and (command[-1] == "new.service" or loaded)
                     else self.command_run(command, **kwargs))
-                with mock.patch.object(deploy, "unit", return_value=old_unit()), mock.patch.object(
+                recorded_unit = old_unit()
+                recorded_unit.pop("EnvironmentFiles")
+                with mock.patch.object(deploy, "unit", return_value=recorded_unit), mock.patch.object(
                         deploy, "storefront", return_value={key: old[key] for key in ("directory", "sha", "overlays")}), mock.patch.object(
                         self.operation, "start_storefront", side_effect=lambda selected, name:
                             deploy.Deployment.start_storefront(self.operation, selected, name)):
@@ -458,6 +460,119 @@ class DeploymentTest(unittest.TestCase):
             with self.assertRaisesRegex(deploy.Hold, "rollback_f2b_runner_changed"):
                 self.operation.rollback(deploy.identity(self.candidate))
         self.assertEqual(self.events, [])
+
+
+class SystemdResponseRegressionTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        self.repository = self.directory / "storefront"
+        for relative in ("node_modules/next/dist/bin/next", "scripts/verify-vendored-artifacts.mjs"):
+            selected = self.repository / relative
+            selected.parent.mkdir(parents=True, exist_ok=True)
+            selected.touch()
+        self.definition = old_unit() | {
+            "ActiveState": "active", "SubState": "running", "WorkingDirectory": str(self.repository),
+            "ExecStart": "{ path=/usr/bin/node ; argv[]=" + " ".join(startup(str(self.repository))["command"])
+                         + " ; ignore_errors=no ; }"}
+        self.definition.pop("EnvironmentFiles")
+        self.old_unit_loaded = False
+        self.commands = []
+        patches = contextlib.ExitStack()
+        self.addCleanup(patches.close)
+        patches.enter_context(mock.patch.object(deploy, "run", side_effect=self.external_read))
+        patches.enter_context(mock.patch.object(deploy, "destination"))
+        patches.enter_context(mock.patch.object(deploy, "private_file"))
+        self.artifact = patches.enter_context(mock.patch.object(
+            deploy.Deployment, "artifact", side_effect=AssertionError("Platform Artifact must not be used")))
+
+    def external_read(self, arguments, **kwargs):
+        self.commands.append(arguments)
+        if arguments[:2] == ["systemctl", "show"]:
+            self.assertEqual(arguments[2], "old.service")
+            return "".join(key + "=" + value + "\n" for key, value in self.definition.items()).encode()
+        if arguments[:2] == ["systemctl", "list-units"]:
+            return b"old.service loaded active running\n" if self.old_unit_loaded and arguments[-1] == "old.service" else b""
+        if arguments[0] == "git":
+            if "rev-parse" in arguments:
+                return (SOURCE_SHA + "\n").encode()
+            if "get-url" in arguments:
+                return b"git@github.com:ideal-sol/luxe-pack-storefront.git\n"
+            if "ls-remote" in arguments:
+                return (SOURCE_SHA + "\trefs/heads/main\n").encode()
+            if any(operation in arguments for operation in ("diff", "ls-files", "merge-base")):
+                return b""
+        self.fail("Unexpected external operation in read-only regression")
+
+    def cli(self, *arguments):
+        output = io.StringIO()
+        with mock.patch.object(deploy.sys, "argv", ["deploy", *arguments]), contextlib.redirect_stdout(output):
+            status = deploy.main()
+        return status, json.loads(output.getvalue())
+
+    def prepare(self, path):
+        return self.cli("prepare", "--task-id", "OLDDEPLOY-202", "--candidate", str(path),
+            "--services", "storefront", "--storefront-source", str(self.repository),
+            "--storefront-sha", SOURCE_SHA, "--storefront-unit", "old.service")
+
+    def test_systemd_response_through_prepare_dry_apply_and_rollback_matching(self):
+        previous_identity = None
+        for environment_files in (None, ""):
+            with self.subTest(environment_files=environment_files):
+                if environment_files is None:
+                    self.definition.pop("EnvironmentFiles", None)
+                else:
+                    self.definition["EnvironmentFiles"] = environment_files
+                self.old_unit_loaded = False
+                parsed = deploy.unit("old.service")
+                self.assertEqual(parsed, self.definition)
+                path = self.directory / ("missing.json" if environment_files is None else "empty.json")
+                status, result = self.prepare(path)
+                self.assertEqual(status, 0, result)
+                self.assertEqual(result["status"], "PASS")
+                original = path.read_bytes()
+                candidate = json.loads(original)
+                self.assertEqual(candidate["previous"], {"storefront": {
+                    "unit": "old.service", "directory": str(self.repository), "sha": SOURCE_SHA,
+                    "overlays": {}, "startup": startup(str(self.repository))}})
+                self.assertNotIn("artifact", candidate)
+                self.assertNotIn("platform_source", candidate)
+                self.assertEqual(candidate["images"], {})
+                self.assertEqual(candidate["services"], ["storefront"])
+                self.assertEqual(candidate["migrations"], [])
+                identity = deploy.identity(candidate)
+                self.assertEqual(result["candidate_identity"], identity)
+                if previous_identity is not None:
+                    self.assertEqual(identity, previous_identity)
+                previous_identity = identity
+                status, result = self.cli("apply", "--candidate", str(path), "--go", identity, "--dry-run")
+                self.assertEqual(status, 0, result)
+                self.assertEqual(result["status"], "DRY_RUN")
+                self.assertEqual(candidate["state"]["phase"], "prepared")
+                self.assertEqual(path.read_bytes(), original)
+                self.definition.pop("EnvironmentFiles", None)
+                self.old_unit_loaded = True
+                candidate["state"].update(phase="complete", storefront_attempted=True)
+                deploy.Deployment(candidate, path).rollback(identity, dry_run=True)
+                self.assertEqual(path.read_bytes(), original)
+                self.artifact.assert_not_called()
+        self.assertTrue(all(command[0] == "git" or command[:2] in (
+            ["systemctl", "show"], ["systemctl", "list-units"]) for command in self.commands))
+
+    def test_prepare_rejects_environment_files_or_unexpected_startup(self):
+        for changed, reason in (({"EnvironmentFiles": "/synthetic/environment (ignore_errors=no)"}, "storefront_unit_invalid"),
+                                ({"User": "unexpected-user"}, "storefront_start_unsupported"),
+                                ({"ExecStart": "{ argv[]=/usr/bin/node next start --port 9999 ; }"}, "storefront_start_unsupported")):
+            with self.subTest(changed_property=next(iter(changed))):
+                path = self.directory / "rejected.json"
+                with mock.patch.dict(self.definition, changed):
+                    status, result = self.prepare(path)
+                self.assertEqual(status, 1)
+                self.assertEqual(result["status"], "HOLD")
+                self.assertEqual(result["reason"], reason)
+                self.assertFalse(path.exists())
+        self.artifact.assert_not_called()
 
 
 class GitMigrationRegressionTest(unittest.TestCase):
