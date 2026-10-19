@@ -323,6 +323,11 @@ class DeploymentTest(unittest.TestCase):
                 self.operation.rollback(deploy.identity(self.candidate))
         self.assertEqual(self.events, [])
 
+    def test_candidate_cannot_be_written_inside_another_repository(self):
+        (self.directory / ".git").touch()
+        with self.assertRaisesRegex(deploy.Hold, "outside_repository_required"):
+            deploy.destination(self.directory / "candidate.json")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -82,6 +82,7 @@ def private_file(path: Path) -> None:
 def destination(path: Path) -> None:
     require(path.is_absolute() and path.resolve() == path and path.suffix == ".json", "candidate_path_invalid")
     require(not path.is_relative_to(ROOT), "candidate_outside_repository_required")
+    require(not any((parent / ".git").exists() for parent in path.parents), "candidate_outside_repository_required")
     parent = path.parent.stat()
     require(parent.st_uid == 0 and not parent.st_mode & 0o077, "private_parent_required")
 
@@ -232,9 +233,13 @@ class Deployment:
             config = run(command + ["config", "--format", "json"], environment=environment)
             observed[role] = {"id": current["Id"], "image": current["Image"], "compose": command, "compose_sha256": digest(config),
                               "networks": sorted(current["NetworkSettings"]["Networks"])}
-        units = ((SMS,) if self.candidate["migrations"] else ()) + (TIMERS if "api" in self.candidate["services"] else ())
+        units = ((SMS,) + TIMERS) if "api" in self.candidate["services"] else ()
         for name in units:
             observed[name] = unit(name)["ActiveState"]
+        if self.candidate["migrations"]:
+            worker = inspect("mig061a-v2-preview-sms-delivery-worker-1")
+            require(worker["State"]["Running"] == (observed[SMS] == "active"), "sms_supervisor_state_mismatch")
+            observed["sms_container"] = {"id": worker["Id"], "image": worker["Image"]}
         if "api" in self.candidate["services"] or self.candidate["migrations"]:
             require(not F2B_RUNNER.is_symlink(), "f2b_runner_invalid")
             content = F2B_RUNNER.read_bytes()
