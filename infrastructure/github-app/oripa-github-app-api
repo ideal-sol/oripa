@@ -295,7 +295,9 @@ def validate_required_checks(head_sha: str, get=None) -> None:
         fail("required_checks_not_successful")
 
 
-def authorize_old_test_recipe(source_sha: str, control_sha: str, get) -> dict:
+def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> dict:
+    compare_get = get
+    get = get or api_get
     if source_sha != "b5c28015ef94cb80f6702a61b1237cacd91d9863":
         return {}
     document = get(f"/repos/{REPOSITORY}/contents/manifests/old-test-build-recipe.json?ref={control_sha}")
@@ -313,7 +315,7 @@ def authorize_old_test_recipe(source_sha: str, control_sha: str, get) -> dict:
     ):
         fail("old_test_recipe_identity_invalid")
     recipe_sha = recipe["recipe_sha"]
-    comparison = api_compare(REPOSITORY, recipe_sha, control_sha, get=get)
+    comparison = api_compare(REPOSITORY, recipe_sha, control_sha, get=compare_get)
     if comparison.get("status") not in {"ahead", "identical"} or comparison.get("merge_base_commit", {}).get("sha") != recipe_sha or comparison.get("base_commit", {}).get("sha") != recipe_sha:
         fail("old_test_recipe_not_main_ancestor")
     pull = get(f"/repos/{REPOSITORY}/pulls/{recipe['recipe_pr']}")
@@ -407,7 +409,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         fail("old_test_reviewed_tree_mismatch")
     validate_required_checks(reviewed_sha, get)
     validate_required_checks(control_sha, get)
-    recipe_authority = authorize_old_test_recipe(source_sha, control_sha, get)
+    recipe_authority = authorize_old_test_recipe(source_sha, control_sha, compare_get)
     current = get(f"/repos/{REPOSITORY}/branches/main")
     if current.get("protected") is not True or current.get("commit", {}).get("sha") != control_sha:
         fail("old_test_control_moved")

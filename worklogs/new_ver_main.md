@@ -1,3 +1,10 @@
+## RECIPECMP-20261019 — canonical recipe comparison transport / Draft
+
+- Human approves only wrapper Source fix, regression tests and dedicated Draft PR. Issue none; Risk R4; Strict Change; Application Runtime Activation deferred. Base 280e52263dc5f3ecee5293a78fe4f5d328c601bf; dedicated isolated worktree; three-path scope (API wrapper, authority tests, this record).
+- Root cause reproduced before fix: default recipe ancestry supplied api_get as an injected comparison transport, which correctly rejected the raw compare path. Preserve the optional injected getter separately, matching source ancestry; default execution uses the structured api_compare transport. Generic path validation is unchanged.
+- Regression executes real dispatch authorization, api_get/path guards, required-check validation and both ancestry comparisons; only token/network boundary and dispatch write are synthetic. It failed with github_path_invalid before the fix. Added explicit offline injected-transport coverage. Authority and artifact pipeline suites: 91 tests PASS, including invalid repository/SHA/digest/recipe and raw-compare negatives.
+- Application b5c28015ef94cb80f6702a61b1237cacd91d9863 and recipe 6ae529ea9a357abd4498653c3438210e23f511b6 remain unchanged. No application, Contract, workflow, manifest, migration or security policy changes. Installed wrapper remains restored to its previous checksum; no installation, artifact dispatch, runtime, ENV, S3 or Production operation. Required CI and fresh exact-head review are recorded on the final Draft; Human Merge GO remains required.
+
 ## PREREGNEW-20261019 — successor OLD Test source authority / Draft
 
 - Human authorizes a new authority-only Draft from merged Build Recipe PR586/main3d7e692e4361f4d40280bfa71ae1abe895ec7df6. R3, Strict Change, Activation deferred, Issue none; dedicated worktree. Only manifest and this Worklog change. No application, Contract, migration, workflow or recipe change.
