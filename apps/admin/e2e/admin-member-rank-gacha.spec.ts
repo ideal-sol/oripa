@@ -75,7 +75,7 @@ async function dataReady(page: Page, loading: Loading, action: () => Promise<unk
   await action();
   const route = new URL(page.url()).pathname;
   const read = requiredRead ?? (route.endsWith("/new/standard") || route === "/catalog/gachas" ? "/catalog/gachas"
-    : route.endsWith("/new/login") ? "/catalog/rank-effects" : route.replace(/\/copy$/u, "") + "/composition");
+    : route.endsWith("/new/login") ? "/catalog/rank-effects" : route.endsWith("/copy") ? route : route + "/composition");
   await expect.poll(() => (loading.reads.get("/admin/api/v2" + read) ?? 0) >= started
     && loading.completed > completed && loading.pending === 0 && Date.now() - loading.lastCompleted >= 500,
     { timeout: 60_000, message: "Real Laravel data loading completes within the bounded observation window" }).toBe(true);
@@ -137,7 +137,10 @@ for (const width of [1440, 390]) {
     await dataReady(page, loading, () => page.goto(`/catalog/gachas/${fixture.login_id}`), testInfo);
     await expect(condition(page)).toBeDisabled();
     await expect(conditionRank(page)).toHaveValue("4");
-    await dataReady(page, loading, () => page.getByRole("link", { name: "コピーして新規登録" }).click(), testInfo);
+    await dataReady(page, loading, async () => {
+      await page.getByRole("link", { name: "コピーして新規登録" }).click();
+      await page.waitForURL(/\/copy$/u);
+    }, testInfo);
     await expect(condition(page)).toHaveValue("only");
     await expect(conditionRank(page)).toHaveValue("4");
     await condition(page).selectOption("at_most");
@@ -176,7 +179,10 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     page.on("dialog", (dialog) => dialog.accept());
     await dataReady(page, loading, () => page.goto(`/catalog/gachas/${fixture.login_id}`), testInfo);
-    await dataReady(page, loading, () => page.getByRole("link", { name: "コピーして新規登録" }).click(), testInfo);
+    await dataReady(page, loading, async () => {
+      await page.getByRole("link", { name: "コピーして新規登録" }).click();
+      await page.waitForURL(/\/copy$/u);
+    }, testInfo);
     await expect(condition(page)).toHaveValue("only");
     await expect(conditionRank(page)).toHaveValue("4");
     await page.getByLabel("公開開始日時（JST）", { exact: true }).fill("2026-10-26T21:00");
