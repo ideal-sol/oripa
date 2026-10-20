@@ -416,14 +416,20 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
-    public function test_rank_change_invalidates_admin_preview_revision(): void
+    public static function staleDeltas(): array
+    {
+        return [[1], [-1]];
+    }
+
+    #[DataProvider('staleDeltas')]
+    public function test_rank_change_invalidates_admin_preview_revision(int $delta): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
         $payment = $this->settleRankPayment($user, 4000);
         $context = $this->rankAdmin();
         $rank = app(V2MemberRankAdminService::class);
-        $input = ['delta' => 1, 'reason' => 'stale'];
+        $input = ['delta' => $delta, 'reason' => 'stale'];
         $preview = $rank->preview($context, $user->public_id, 'points', $input);
         $this->chargeback($payment);
         try {
@@ -433,6 +439,55 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         } catch (\App\Domain\MemberRank\Exceptions\V2MemberRankException $exception) {
             self::assertSame(409, $exception->status);
         }
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public function test_refund_zero_rank_decrease_and_same_key_completion_replay(): void
+    {
+        $this->enableRankFixture();
+        $user = $this->rankUser();
+        $payment = $this->settleRankPayment($user, 4000);
+        $context = $this->rankAdmin();
+        $payments = app(V2AdminPaymentAdjustmentService::class);
+        $prepared = $payments->write($context, $payment->public_id, 'refund', ['reason' => '準備'], (string) Str::uuid7());
+        $ranks = app(V2MemberRankAdminService::class);
+        $input = ['delta' => -4000, 'reason' => '先行減算'];
+        $preview = $ranks->preview($context, $user->public_id, 'points', $input);
+        $ranks->write($context, $user->public_id, 'points', [...$input,
+            'expected_revision' => $preview['expected_revision'], 'preview_token' => $preview['preview_token']], (string) Str::uuid7());
+        $revision = DB::table('member_rank_states')->where('user_id', $user->id)->value('revision');
+        $key = (string) Str::uuid7();
+        $input = ['reason' => '確定', 'provider_refund_confirmed' => true];
+        $first = $payments->write($context, $payment->public_id, 'complete', $input, $key, $prepared['data']['id']);
+        self::assertSame('succeeded', $first['data']['status']);
+        self::assertSame(4000, $first['data']['amount']);
+        self::assertSame(4000, $first['data']['impact']['rank_adjustment']['requested_points']);
+        self::assertSame(0, $first['data']['impact']['rank_adjustment']['applied_points']);
+        self::assertSame([], $first['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertEquals($first['data'], $payments->write($context, $payment->public_id, 'complete', $input, $key, $prepared['data']['id'])['data']);
+        self::assertSame($revision, DB::table('member_rank_states')->where('user_id', $user->id)->value('revision'));
+        self::assertSame(1, DB::table('member_rank_point_entries')->where('origin_payment_id', $payment->id)->count());
+        self::assertDatabaseHas('member_rank_point_entries', ['origin_payment_id' => $payment->id, 'requested_delta' => -4000, 'applied_delta' => 0]);
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public function test_preregistration_free500_and_changed_created_at_remain_independent_of_cancellation(): void
+    {
+        $this->enableRankFixture();
+        $user = $this->rankUser(true);
+        $this->seedRankState($user, 2);
+        $payment = $this->settleRankPayment($user, 1500, 17);
+        $createdAt = $user->created_at->toIso8601String();
+        DB::table('pre_registration_settings')->where('id', 1)->update(['is_enabled' => true, 'cutoff_at' => '2026-10-31T14:00:00Z']);
+        app(\App\Domain\Identity\Services\V2PreRegistrationService::class)->activate($this->rankAdmin(), (string) Str::uuid7(), ['expected_revision' => 1]);
+        $activatedCreatedAt = $user->fresh()->created_at->toIso8601String();
+        self::assertNotSame($createdAt, $activatedCreatedAt);
+        $result = $this->chargeback($payment);
+        self::assertSame(1500, $result['data']['impact']['rank_adjustment']['applied_points']);
+        self::assertSame(24, $result['data']['impact']['required_free_amount']);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 0, 'free_balance' => 500]);
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'points' => 0]);
+        self::assertSame($activatedCreatedAt, $user->fresh()->created_at->toIso8601String());
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 

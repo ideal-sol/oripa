@@ -63,7 +63,10 @@ final class V2MemberRankAdminService
                     throw new V2MemberRankException('ADMIN_USER_NOT_FOUND', 404, '会員が見つかりません。');
                 }
                 $this->requireWritable($user);
-                DB::table('member_rank_states')->where('user_id', $user->id)->lockForUpdate()->first();
+                $lockedState = DB::table('member_rank_states')->where('user_id', $user->id)->lockForUpdate()->first();
+                if ((int) ($lockedState?->revision ?? 0) !== $input['expected_revision']) {
+                    throw new V2MemberRankException('MEMBER_RANK_REVISION_CONFLICT', 409, '状態が変わりました。差分を再確認してください。');
+                }
                 $instant = CarbonImmutable::now()->startOfSecond();
                 DB::table('member_rank_month_totals')->where('user_id', $user->id)
                     ->where('month', $instant->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString())->lockForUpdate()->first();

@@ -86,6 +86,10 @@ irreversible under the existing DB constraint; tests do not disable that guard.
 User serialization precedes payment/adjustment, rank state/month/entitlement,
 wallet and ordered lots. The existing outer transaction runner alone retries
 40001/40P01, at most three attempts. No inner savepoint retry is added.
+An actual CB/manual-decrease race exposed a stale-preview 422 before revision
+validation. The Admin writer now checks the locked revision before recalculating
+the delta; its later token/revision checks remain. Stale increments and decrements
+both return 409 without changing accounting.
 
 ## Admin and contract
 
