@@ -21,6 +21,38 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_member_rank_m8_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000094" if change == "duplicate_number" else "000095"
+                    shutil.copy2(migration, migration.with_name(f"2026_10_20_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
+    def test_member_rank_m8_test_inventory_is_exact_and_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/member-rank-payment-adjustment.spec.ts",
+            "apps/admin/test/member-rank-summary.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.MEMBER_RANK_M8_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        for relative in ["apps/admin/e2e/member-rank-unreviewed.spec.ts", "apps/admin/test/member-rank-*.tsx"]:
+            with self.subTest(unexpected=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+
     def test_member_rank_m9_admin_paths_are_exact_and_fail_closed(self):
         expected = {
             "apps/admin/e2e/admin-payment-adjustment-real.spec.ts",

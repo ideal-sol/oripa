@@ -100,8 +100,10 @@ Human explicitly approved integrating M8 into pending bundle alpha.46's existing
 Admin alpha.42 candidate under the artifact release lock. Published alpha.45 and
 immutable history are untouched. Public alpha.42 /
 83 operations, Public client/testkit, Storefront, dependencies, provider contracts,
-infrastructure and CI gate implementations are unchanged. Version/inventory test
-fixtures are updated without broadening the historical M9 exception.
+infrastructure and CI gate decision logic are unchanged. The Admin skeleton
+inventory registers only the two new M8 test files, with exact-path, missing-file
+and unknown-path rejection tests. Version/inventory fixtures are updated without
+broadening the historical M9 exception.
 
 ## Verification and remaining gates
 

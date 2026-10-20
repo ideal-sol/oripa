@@ -295,6 +295,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_17_000091_add_v2_member_rank_admin_operations.php",
     "apps/api/database/migrations-v2/2026_10_17_000092_create_v2_member_rank_purchase_bonuses.php",
     "apps/api/database/migrations-v2/2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
+    "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -975,6 +976,10 @@ MEMBER_RANK_M5_ADMIN_FILES = {
     "apps/admin/src/components/catalog/member-rank-condition.tsx",
     "apps/admin/test/member-rank-gacha.test.tsx",
 }
+MEMBER_RANK_M8_ADMIN_FILES = {
+    "apps/admin/e2e/member-rank-payment-adjustment.spec.ts",
+    "apps/admin/test/member-rank-summary.test.tsx",
+}
 MEMBER_RANK_M9_ADMIN_FILES = {
     "apps/admin/e2e/admin-payment-adjustment-real.spec.ts",
     "apps/admin/e2e/admin-payment-adjustment.spec.ts",
@@ -1176,6 +1181,7 @@ ADMIN_SKELETON_FILES = {
     *MEMBER_RANK_M1_ADMIN_FILES,
     *MEMBER_RANK_M7_ADMIN_FILES,
     *MEMBER_RANK_M5_ADMIN_FILES,
+    *MEMBER_RANK_M8_ADMIN_FILES,
     *MEMBER_RANK_M9_ADMIN_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
@@ -3183,6 +3189,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_17_000091_add_v2_member_rank_admin_operations.php",
         "2026_10_17_000092_create_v2_member_rank_purchase_bonuses.php",
         "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
+        "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
