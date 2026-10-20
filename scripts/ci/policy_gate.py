@@ -975,6 +975,15 @@ MEMBER_RANK_M5_ADMIN_FILES = {
     "apps/admin/src/components/catalog/member-rank-condition.tsx",
     "apps/admin/test/member-rank-gacha.test.tsx",
 }
+MEMBER_RANK_M9_ADMIN_FILES = {
+    "apps/admin/e2e/admin-payment-adjustment-real.spec.ts",
+    "apps/admin/e2e/admin-payment-adjustment.spec.ts",
+    "apps/admin/src/app/payments/[paymentId]/page.tsx",
+    "apps/admin/src/components/payments/admin-payment-detail.tsx",
+    "apps/admin/test/admin-payment-client.test.ts",
+    "apps/admin/test/admin-payment-detail.test.tsx",
+    "apps/admin/test/payment-adjustment-fixture.ts",
+}
 
 MIG_099_ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/catalog/rank-master-workspace.tsx",
@@ -1167,6 +1176,7 @@ ADMIN_SKELETON_FILES = {
     *MEMBER_RANK_M1_ADMIN_FILES,
     *MEMBER_RANK_M7_ADMIN_FILES,
     *MEMBER_RANK_M5_ADMIN_FILES,
+    *MEMBER_RANK_M9_ADMIN_FILES,
     *MIG_099_ADMIN_SKELETON_FILES,
     *SHIP_001_ADMIN_SKELETON_FILES,
     "apps/admin/test/rich-text-editor-compatibility.test.tsx",
@@ -1406,7 +1416,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "CI-PREVIEW-LIBC-20261018"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -4585,6 +4595,13 @@ def validate_v2_catalog_boundary(repository: Path, paths: Iterable[str]) -> None
         if isinstance(operation, dict)
     }
     required_admin_operations = {
+        "getAdminPayment",
+        "prepareAdminPaymentRefund",
+        "completeAdminPaymentRefund",
+        "cancelAdminPaymentRefund",
+        "previewAdminPaymentChargeback",
+        "recordAdminPaymentChargeback",
+        "reverseAdminPaymentChargeback",
         "getAdminMemberRankSettings",
         "updateAdminMemberRankSettings",
         "cancelAdminMemberRankSettings",

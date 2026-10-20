@@ -21,6 +21,25 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_member_rank_m9_admin_paths_are_exact_and_fail_closed(self):
+        expected = {
+            "apps/admin/e2e/admin-payment-adjustment-real.spec.ts",
+            "apps/admin/e2e/admin-payment-adjustment.spec.ts",
+            "apps/admin/src/app/payments/[paymentId]/page.tsx",
+            "apps/admin/src/components/payments/admin-payment-detail.tsx",
+            "apps/admin/test/admin-payment-client.test.ts",
+            "apps/admin/test/admin-payment-detail.test.tsx",
+            "apps/admin/test/payment-adjustment-fixture.ts",
+        }
+        self.assertEqual(expected, policy_gate.MEMBER_RANK_M9_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/payments/unreviewed.tsx"})
+
     def test_member_rank_m7_admin_paths_are_exact_and_fail_closed(self):
         expected = {
             "apps/admin/e2e/admin-member-rank-management.spec.ts",
@@ -167,6 +186,20 @@ class PolicyGateTest(unittest.TestCase):
             with self.subTest(task_id=invalid), self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
                 policy_gate.validate_pr_body(
                     data["pr_body"].replace("GOV-008", invalid), f"[{invalid}] Member rank Public API",
+                    data["changed_paths"], data["base_sha"],
+                )
+
+    def test_member_rank_m9_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task_id = "MEMBERRANK-M9-20261020"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), f"[{task_id}] Admin payment adjustments",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "MEMBERRANK-M9-20261021", "MEMBERRANK-M9-*"):
+            with self.subTest(task_id=invalid), self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                policy_gate.validate_pr_body(
+                    data["pr_body"].replace("GOV-008", invalid), f"[{invalid}] Admin payment adjustments",
                     data["changed_paths"], data["base_sha"],
                 )
 

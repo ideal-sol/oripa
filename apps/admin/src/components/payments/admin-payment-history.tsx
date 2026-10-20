@@ -275,7 +275,7 @@ function PaymentCollection({
           <tbody>
             {items.map((payment) => (
               <tr key={payment.id}>
-                <td><PublicId value={payment.id} /></td>
+                <td><Link href={`/payments/${payment.id}`} aria-label={`決済詳細 ${payment.id}`}><PublicId value={payment.id} /></Link></td>
                 {includeUser ? (
                   <td>
                     <strong>{payment.user.display_name ?? "未設定"}</strong>
@@ -286,7 +286,13 @@ function PaymentCollection({
                 ) : null}
                 <td>{paymentMethodLabel(payment.method)}</td>
                 <td>{formatAmount(payment)}</td>
-                <td><PaymentStatusBadge status={payment.status} /></td>
+                <td>
+                  <PaymentStatusBadge status={payment.status} />
+                  {payment.adjustments?.refund_pending && <span>返金準備中</span>}
+                  {payment.adjustments?.refunded && <span>返金済み</span>}
+                  {payment.adjustments?.chargeback && <span>チャージバック</span>}
+                  {payment.adjustments?.review_required && <strong>要確認：取消通知</strong>}
+                </td>
                 <td>{formatJst(payment.created_at)}</td>
                 <td>{formatJst(payment.succeeded_at ?? payment.expires_at ?? payment.updated_at)}</td>
               </tr>

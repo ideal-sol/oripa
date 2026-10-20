@@ -83,7 +83,6 @@ final class V2AdminPaymentReadService
         }
         $query = DB::table('payments')
             ->join('users', 'users.id', '=', 'payments.user_id')
-            ->where('payments.provider_code', 'fincode')
             ->orderByDesc('payments.id')
             ->select([
                 'payments.*',
@@ -131,7 +130,7 @@ final class V2AdminPaymentReadService
     }
 
     /** @return array<string, mixed> */
-    private function present(object $payment): array
+    public function present(object $payment): array
     {
         return [
             'id' => $payment->public_id,
@@ -139,7 +138,8 @@ final class V2AdminPaymentReadService
                 'id' => $payment->user_public_id,
                 'display_name' => $payment->user_display_name,
             ],
-            'provider' => 'fincode',
+            'provider' => $payment->provider_code,
+            'adjustments' => $this->adjustmentSummary($payment),
             'provider_payment_reference' => $payment->provider_payment_id,
             'method' => $payment->payment_method,
             'status' => $payment->status,
@@ -162,6 +162,31 @@ final class V2AdminPaymentReadService
         return $value === null
             ? null
             : CarbonImmutable::parse($value)->utc()->toIso8601ZuluString();
+    }
+
+    public function find(V2AdminAuthorizationContext $context, string $publicId): object
+    {
+        $this->authorize($context);
+        $payment = $this->query(null, null, null)->where('payments.public_id', $publicId)->first();
+        if ($payment === null) {
+            throw new V2AdminPaymentReadException('ADMIN_PAYMENT_NOT_FOUND', 404, '決済が見つかりません。');
+        }
+
+        return $payment;
+    }
+
+    private function adjustmentSummary(object $payment): array
+    {
+        $adjustments = DB::table('payment_adjustments')->where('payment_id', $payment->id)->get();
+
+        return [
+            'refund_pending' => $adjustments->contains(fn ($row) => $row->type === 'refund' && in_array($row->status, ['requested', 'points_reserved', 'submitted', 'processing'], true)),
+            'refunded' => $adjustments->contains(fn ($row) => $row->type === 'refund' && $row->status === 'succeeded'),
+            'chargeback' => $adjustments->contains(fn ($row) => $row->type === 'chargeback' && $row->status === 'succeeded'),
+            'review_required' => $payment->status === 'succeeded' && DB::table('payment_provider_events')
+                ->where('payment_id', $payment->id)->where('processing_status', 'ignored')
+                ->whereIn('event_type', ['payment.canceled', 'payment.cancelled'])->exists(),
+        ];
     }
 
     private function auditView(

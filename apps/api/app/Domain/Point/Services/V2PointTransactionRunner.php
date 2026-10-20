@@ -2,6 +2,7 @@
 
 namespace App\Domain\Point\Services;
 
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -17,11 +18,12 @@ final class V2PointTransactionRunner
      */
     public function run(callable $callback): mixed
     {
+        $outermost = DB::transactionLevel() === 0;
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             try {
                 return DB::transaction($callback, 1);
-            } catch (QueryException $exception) {
-                if (! $this->isRetryable($exception) || $attempt === self::MAX_ATTEMPTS) {
+            } catch (QueryException|DeadlockException $exception) {
+                if (! $outermost || ! $this->isRetryable($exception) || $attempt === self::MAX_ATTEMPTS) {
                     throw $exception;
                 }
                 usleep(random_int(1_000, 5_000));
@@ -31,13 +33,16 @@ final class V2PointTransactionRunner
         throw new \LogicException('V2 point transaction retry loop terminated unexpectedly.');
     }
 
-    private function isRetryable(QueryException $exception): bool
+    private function isRetryable(Throwable $exception): bool
     {
-        $previous = $exception->getPrevious();
-        $errorInfo = $previous instanceof \PDOException ? $previous->errorInfo : null;
-        $state = is_array($errorInfo) ? ($errorInfo[0] ?? null) : null;
-        $state ??= is_string($exception->getCode()) ? $exception->getCode() : null;
+        do {
+            $errorInfo = $exception instanceof \PDOException ? $exception->errorInfo : null;
+            $state = is_array($errorInfo) ? ($errorInfo[0] ?? null) : null;
+            $state ??= is_string($exception->getCode()) ? $exception->getCode() : null;
+            if (in_array($state, ['40001', '40P01'], true)) return true;
+            $exception = $exception->getPrevious();
+        } while ($exception !== null);
 
-        return in_array($state, ['40001', '40P01'], true);
+        return false;
     }
 }

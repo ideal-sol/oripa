@@ -151,6 +151,13 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.users.referral-history.index');
         Route::get('/payments', [V2AdminPaymentController::class, 'index'])
             ->name('v2.admin.payments.index');
+        Route::get('/payments/{paymentId}', [V2AdminPaymentController::class, 'show'])->whereUuid('paymentId');
+        Route::post('/payments/{paymentId}/chargebacks/preview', [V2AdminPaymentController::class, 'preview'])->whereUuid('paymentId');
+        Route::post('/payments/{paymentId}/refunds', [V2AdminPaymentController::class, 'write'])->whereUuid('paymentId')->defaults('operation', 'refund');
+        Route::post('/payments/{paymentId}/refunds/{adjustmentId}/complete', [V2AdminPaymentController::class, 'write'])->whereUuid('paymentId')->whereUuid('adjustmentId')->defaults('operation', 'complete');
+        Route::post('/payments/{paymentId}/refunds/{adjustmentId}/cancel', [V2AdminPaymentController::class, 'write'])->whereUuid('paymentId')->whereUuid('adjustmentId')->defaults('operation', 'cancel');
+        Route::post('/payments/{paymentId}/chargebacks', [V2AdminPaymentController::class, 'write'])->whereUuid('paymentId')->defaults('operation', 'chargeback');
+        Route::post('/payments/{paymentId}/chargebacks/{adjustmentId}/reversals', [V2AdminPaymentController::class, 'write'])->whereUuid('paymentId')->whereUuid('adjustmentId')->defaults('operation', 'reversal');
         Route::get('/users/{userId}/payments', [V2AdminPaymentController::class, 'userHistory'])
             ->whereUuid('userId')->name('v2.admin.users.payments.index');
         Route::post('/users/{userId}/point-adjustments', V2AdminUserPointAdjustmentController::class)

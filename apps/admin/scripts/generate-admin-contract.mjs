@@ -12,6 +12,13 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminPayment: ["get", "/payments/{paymentId}"],
+  prepareAdminPaymentRefund: ["post", "/payments/{paymentId}/refunds"],
+  completeAdminPaymentRefund: ["post", "/payments/{paymentId}/refunds/{adjustmentId}/complete"],
+  cancelAdminPaymentRefund: ["post", "/payments/{paymentId}/refunds/{adjustmentId}/cancel"],
+  previewAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks/preview"],
+  recordAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks"],
+  reverseAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks/{adjustmentId}/reversals"],
   getAdminMemberRankSummary: ["get", "/member-ranks/summary"],
   listAdminMemberRankManualChanges: ["get", "/member-ranks/manual-changes"],
   updateAdminUserMemberRank: ["put", "/users/{user_id}/member-rank"],
@@ -754,6 +761,31 @@ const memberRankTypes = Object.entries(contract.components.schemas)
   .map(([name, schema]) => `export type ${name} = ${memberRankSchemaType(schema)};`)
   .join("\n\n");
 
+const paymentSchemaNames = [
+  "AdminPaymentAdjustmentInput", "AdminPaymentRefundCompleteInput", "AdminPaymentAdjustmentStatus",
+  "AdminPaymentPointImpact", "AdminPaymentAdjustmentHistory", "AdminPaymentAdjustment", "AdminPaymentLot",
+  "AdminPaymentAdjustmentSummary", "AdminPaymentDetail", "AdminPaymentDetailResponse",
+  "AdminPaymentAdjustmentResponse", "AdminPaymentChargebackPreview", "AdminPaymentChargebackPreviewResponse",
+];
+function paymentSchemaType(schema) {
+  if (!schema) throw new Error("Payment adjustment schema is missing");
+  if (schema.$ref) {
+    const name = schema.$ref.split("/").at(-1);
+    return name === "OpaqueId" ? "string" : name;
+  }
+  if (schema.const !== undefined) return JSON.stringify(schema.const);
+  if (schema.enum) return schema.enum.map(value => JSON.stringify(value)).join(" | ");
+  if (schema.anyOf) return schema.anyOf.map(paymentSchemaType).join(" | ");
+  if (Array.isArray(schema.type)) return schema.type.map(type => paymentSchemaType({ ...schema, type })).join(" | ");
+  if (schema.type === "object") return "{ " + Object.entries(schema.properties).map(([key, value]) =>
+    key + (schema.required?.includes(key) ? "" : "?") + ": " + paymentSchemaType(value) + ";").join(" ") + " }";
+  if (schema.type === "array") return "Array<" + paymentSchemaType(schema.items) + ">";
+  if (schema.type === "integer" || schema.type === "number") return "number";
+  if (["string", "boolean", "null"].includes(schema.type)) return schema.type;
+  throw new Error("Unsupported Payment adjustment schema");
+}
+const paymentDeclarations = paymentSchemaNames.map(name => "export type " + name + " = " + paymentSchemaType(schemas[name]) + ";").join("\n");
+
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}
 // Do not edit manually.
@@ -1067,7 +1099,8 @@ export type AdminPaymentStatus =
 export interface AdminPayment {
   id: string;
   user: { id: string; display_name: string | null };
-  provider: "fincode";
+  provider: string;
+  adjustments?: AdminPaymentAdjustmentSummary;
   provider_payment_reference: string;
   method: AdminPaymentMethod;
   status: AdminPaymentStatus;
@@ -1083,6 +1116,8 @@ export interface AdminPayment {
   created_at: string;
   updated_at: string;
 }
+
+${paymentDeclarations}
 
 export interface AdminPaymentCollection {
   data: AdminPayment[];

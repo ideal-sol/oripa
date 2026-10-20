@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5763d5afa70f6c2f049d5d162d656b048b858df8acae6c21d83f1f4beda8f9f9
+// Contract SHA-256: 5bd37b455a71948f56770ab61d7ee619ad02e2c7182b86e7905edff446f00edf
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -349,7 +349,8 @@ export type AdminPaymentStatus =
 export interface AdminPayment {
   id: string;
   user: { id: string; display_name: string | null };
-  provider: "fincode";
+  provider: string;
+  adjustments?: AdminPaymentAdjustmentSummary;
   provider_payment_reference: string;
   method: AdminPaymentMethod;
   status: AdminPaymentStatus;
@@ -365,6 +366,20 @@ export interface AdminPayment {
   created_at: string;
   updated_at: string;
 }
+
+export type AdminPaymentAdjustmentInput = { reason: string; provider_case_id?: string | null; };
+export type AdminPaymentRefundCompleteInput = { reason: string; provider_refund_confirmed: true; provider_adjustment_id?: string | null; };
+export type AdminPaymentAdjustmentStatus = "requested" | "points_reserved" | "submitted" | "processing" | "succeeded" | "failed" | "canceled" | "manual_review";
+export type AdminPaymentPointImpact = { required_paid_amount: number; required_free_amount: number; reversed_paid_from_paid: number; reversed_free_from_free: number; reversed_paid_shortage_from_free: number; shortfall_paid_amount: number; shortfall_free_amount: number; };
+export type AdminPaymentAdjustmentHistory = { from_status: string | null; to_status: string; source: string; admin_id: string | null; reason_code: string | null; occurred_at: string | null; };
+export type AdminPaymentAdjustment = { id: string; type: "refund" | "chargeback" | "chargeback_reversal"; status: AdminPaymentAdjustmentStatus; parent_id: string | null; amount: number; reason: string | null; requested_by_admin_id: string | null; provider_adjustment_id: string | null; provider_case_id: string | null; source: "admin" | "provider" | "system"; requested_at: string | null; succeeded_at: string | null; canceled_at: string | null; impact: AdminPaymentPointImpact | null; history: Array<AdminPaymentAdjustmentHistory>; };
+export type AdminPaymentLot = { operation_id: string; point_type: "paid" | "free"; source: string; granted_amount: number; remaining_amount: number; reserved_amount: number; expire_at: string | null; member_rank_purchase_bonus: boolean; };
+export type AdminPaymentAdjustmentSummary = { refund_pending: boolean; refunded: boolean; chargeback: boolean; review_required: boolean; };
+export type AdminPaymentDetail = { payment: AdminPayment; lots: Array<AdminPaymentLot>; adjustments: Array<AdminPaymentAdjustment>; refund_eligibility: { allowed: boolean; code: string | null; reason: string | null; }; rank_adjustment_pending: boolean; };
+export type AdminPaymentDetailResponse = { data: AdminPaymentDetail; request_id: string; };
+export type AdminPaymentAdjustmentResponse = { data: AdminPaymentAdjustment; rank_adjustment_pending: boolean; idempotent_replay: boolean; request_id: string; };
+export type AdminPaymentChargebackPreview = { impact: AdminPaymentPointImpact; rank_adjustment_pending: boolean; };
+export type AdminPaymentChargebackPreviewResponse = { data: AdminPaymentChargebackPreview; request_id: string; };
 
 export interface AdminPaymentCollection {
   data: AdminPayment[];
