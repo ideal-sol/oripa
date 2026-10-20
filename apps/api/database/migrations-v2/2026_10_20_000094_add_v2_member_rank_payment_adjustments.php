@@ -8,8 +8,6 @@ return new class extends Migration
     public function up(): void
     {
         DB::unprepared(<<<'SQL'
-            CREATE UNIQUE INDEX payment_adjustments_one_success_per_payment ON payment_adjustments (payment_id)
-                WHERE type::text = ANY (ARRAY['refund', 'chargeback']::text[]) AND status = 'succeeded';
             ALTER TABLE member_rank_point_entries
                 ADD COLUMN adjustment_id bigint UNIQUE REFERENCES payment_adjustments(id) ON DELETE RESTRICT,
                 ADD COLUMN origin_payment_id bigint UNIQUE REFERENCES payments(id) ON DELETE RESTRICT,

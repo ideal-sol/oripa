@@ -500,7 +500,7 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         $adjustment = (array) DB::table('payment_adjustments')->where('public_id', $result['data']['id'])->sole();
         unset($adjustment['id']);
         $adjustment['public_id'] = (string) Str::uuid7();
-        $this->rejectDatabase(fn () => DB::table('payment_adjustments')->insert($adjustment), 'payment_adjustments_one_success_per_payment');
+        $this->rejectDatabase(fn () => DB::table('payment_adjustments')->insert($adjustment), 'success requires immutable rank and bonus accounting');
         $this->rejectDatabase(fn () => DB::table('member_rank_payment_adjustments')->where('payment_id', $payment->id)
             ->update(['applied_points' => 0]), 'immutable');
         $this->rejectDatabase(fn () => DB::table('member_rank_point_entries')->where('origin_payment_id', $payment->id)

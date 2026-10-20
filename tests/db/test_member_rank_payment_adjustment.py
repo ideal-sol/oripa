@@ -35,7 +35,7 @@ class MemberRankPaymentAdjustmentSchemaTest(unittest.TestCase):
     def test_adjustment_success_business_key_and_deferred_causality(self):
         source = (ROOT / DATABASE.MIGRATION_PATH / FILENAME).read_text()
         for fragment in [
-            "payment_adjustments_one_success_per_payment",
+            "payment_id bigint NOT NULL UNIQUE REFERENCES payments",
             "origin_payment_id bigint UNIQUE REFERENCES payments",
             "applied_delta BETWEEN requested_delta AND 0",
             "v2_member_rank_adjustment_success_consistent",
@@ -45,3 +45,4 @@ class MemberRankPaymentAdjustmentSchemaTest(unittest.TestCase):
             "canceled payment cannot be backfilled into rank points",
         ]:
             self.assertIn(fragment, source)
+        self.assertNotIn("CREATE UNIQUE INDEX payment_adjustments_one_success_per_payment", source)
