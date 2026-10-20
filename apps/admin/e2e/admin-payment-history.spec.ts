@@ -13,9 +13,7 @@ const statuses = [
 ] as const;
 const methods = ["credit_card", "paypay", "konbini", "virtual_account"] as const;
 
-test("Admin reviews every Payment state, filters, paginates, and opens User history", async ({
-  page,
-}) => {
+async function observeApi(page: Page, nextPageReady?: Promise<void>) {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   const gatewayErrors: number[] = [];
@@ -27,8 +25,20 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   page.on("response", (response) => {
     if ([500, 502, 504].includes(response.status())) gatewayErrors.push(response.status());
   });
-  await installApi(page, paymentRequests);
+  await installApi(page, paymentRequests, nextPageReady);
+  return {
+    paymentRequests,
+    assertClean: async () => {
+      expect(await page.locator("body").textContent()).not.toMatch(/PAN|CVC|Secret/u);
+      expect(consoleErrors).toEqual([]);
+      expect(pageErrors).toEqual([]);
+      expect(gatewayErrors).toEqual([]);
+    },
+  };
+}
 
+test("Payment defaults and responsive filters preserve the financial-read contract", async ({ page }) => {
+  const { paymentRequests, assertClean } = await observeApi(page);
   await page.goto("/payments");
   await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
   await expect(page.getByLabel("支払方法")).toHaveValue("all");
@@ -48,6 +58,11 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
       && url.searchParams.get("payment_method") === null;
   })).toBe(true);
 
+  await assertClean();
+});
+
+test("Admin filters and reviews every Payment state and method", async ({ page }) => {
+  const { paymentRequests, assertClean } = await observeApi(page);
   await page.goto("/payments?status=processing&payment_method=konbini");
   await expect(page.getByRole("heading", { name: "決済履歴", level: 1 })).toBeVisible();
   await expect(page.getByLabel("決済状態")).toHaveValue("processing");
@@ -90,9 +105,20 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   await expect(allTable.getByText("￥1,004")).toBeVisible();
   await expect(allTable.getByText("2026/08/25 0:00").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "条件を解除" }).click();
+  await assertClean();
+});
+
+test("Admin paginates with loading feedback and opens the same User payment history", async ({ page }) => {
+  let releaseNextPage!: () => void;
+  const nextPageReady = new Promise<void>(resolve => { releaseNextPage = resolve; });
+  const { paymentRequests, assertClean } = await observeApi(page, nextPageReady);
+  await page.goto("/payments");
   await page.getByRole("button", { name: "次へ" }).click();
-  await expect(page.getByRole("status")).toContainText("決済履歴を読み込んでいます");
+  try {
+    await expect(page.getByRole("status")).toContainText("決済履歴を読み込んでいます");
+  } finally {
+    releaseNextPage();
+  }
   await expect(page.getByText("別ユーザー")).toBeVisible();
   expect(paymentRequests.some((request) => {
     const url = new URL(request, "http://admin.test");
@@ -122,10 +148,7 @@ test("Admin reviews every Payment state, filters, paginates, and opens User hist
   await expect(page.getByLabel("決済状態")).toHaveValue("succeeded");
   await expect(page.getByLabel("支払方法")).toHaveValue("all");
 
-  expect(await page.locator("body").textContent()).not.toMatch(/PAN|CVC|Secret/u);
-  expect(consoleErrors).toEqual([]);
-  expect(pageErrors).toEqual([]);
-  expect(gatewayErrors).toEqual([]);
+  await assertClean();
 });
 
 test("Payment history table remains keyboard-scrollable on mobile", async ({ page }) => {
@@ -141,7 +164,7 @@ test("Payment history table remains keyboard-scrollable on mobile", async ({ pag
     .toBe(true);
 });
 
-async function installApi(page: Page, paymentRequests: string[]): Promise<void> {
+async function installApi(page: Page, paymentRequests: string[], nextPageReady?: Promise<void>): Promise<void> {
   await page.route(/\/admin\/api\/v2\/.*$/u, async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -171,7 +194,7 @@ async function installApi(page: Page, paymentRequests: string[]): Promise<void> 
     if (path.endsWith("/payments")) {
       paymentRequests.push(`${path}${url.search}`);
       if (url.searchParams.get("cursor") === "next-payment-page") {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await nextPageReady;
         return json(route, paymentCollection([
           payment(8, "succeeded", "credit_card", otherUserId, "別ユーザー"),
         ]));

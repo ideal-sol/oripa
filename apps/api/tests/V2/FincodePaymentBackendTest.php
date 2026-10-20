@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
+use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Payment\V2\Services\V2AdminPaymentReadService;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodeClient;
@@ -86,6 +87,54 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
         self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+    }
+
+    public function test_legacy_cancellation_replay_preserves_immutable_event_identity_and_validation(): void
+    {
+        $this->fakeFincode('CANCELED');
+        $payments = app(V2PaymentService::class);
+        $payment = $payments->createPayment($this->user('legacy-cancel')->id, $this->plan()->id,
+            'fincode', 'legacy-cancel-order', 'legacy-cancel-key', 'paypay');
+        $raw = json_encode(['event' => 'payments.paypay.cancel', 'order_id' => $payment->provider_payment_id,
+            'pay_type' => 'Paypay', 'status' => 'CANCELED'], JSON_THROW_ON_ERROR);
+        $occurredAt = \Carbon\CarbonImmutable::parse('2026-08-24T03:00:00Z');
+        $eventId = hash('sha256', implode('|', ['fincode', 'payments.paypay.cancel', $payment->provider_payment_id,
+            'CANCELED', '', $occurredAt->toIso8601String(), hash('sha256', $raw)]));
+        $legacy = $payments->recordVerifiedProviderEvent('fincode', $eventId, 'payment.status_changed',
+            $raw, [], $payment->id, null, $occurredAt);
+        $payments->applyVerifiedStatus($legacy->id, 'canceled', 'CANCELED');
+        $before = DB::table('payment_provider_events')->where('id', $legacy->id)->firstOrFail();
+        $webhooks = app(V2FincodeWebhookService::class);
+        foreach ([1, 2] as $attempt) {
+            self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
+        }
+        self::assertEquals($before, DB::table('payment_provider_events')->where('id', $legacy->id)->firstOrFail());
+        self::assertSame(1, DB::table('payment_provider_events')->where('payment_id', $payment->id)->count());
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        self::assertSame('canceled', DB::table('payments')->where('id', $payment->id)->value('status'));
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn (Request $request): bool => $request->method() !== 'GET');
+        try {
+            $webhooks->process($raw, 'invalid-signature');
+            self::fail('Legacy replay still requires authentic verification.');
+        } catch (V2FincodeException $exception) {
+            self::assertSame('FINCODE_WEBHOOK_AUTHENTICITY_INVALID', $exception->errorCode);
+        }
+        Http::assertSentCount(2);
+        foreach ([[$raw.' ', $payment->id, $occurredAt], [$raw, null, $occurredAt],
+            [$raw, $payment->id, $occurredAt->addSecond()]] as [$payload, $paymentId, $timestamp]) {
+            try {
+                $payments->recordVerifiedProviderEvent('fincode', $eventId, 'payment.status_changed',
+                    $payload, [], $paymentId, null, $timestamp);
+                self::fail('Legacy identity mismatch must remain rejected.');
+            } catch (V2PaymentException $exception) {
+                self::assertSame('PROVIDER_EVENT_ID_REUSED', $exception->getMessage());
+            }
+        }
+        self::assertEquals($before, DB::table('payment_provider_events')->where('id', $legacy->id)->firstOrFail());
+        self::assertSame('processed', $webhooks->process($raw."\n", 'test-webhook-signature')['status']);
+        self::assertSame(1, DB::table('payment_provider_events')->where('payment_id', $payment->id)
+            ->where('event_type', 'payment.canceled')->count());
     }
 
     public function test_card_status_suppresses_action_after_sms_revocation_but_can_reconcile(): void

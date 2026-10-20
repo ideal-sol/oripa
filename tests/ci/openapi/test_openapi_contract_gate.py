@@ -23,6 +23,32 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_m9_provider_widening_is_limited_to_the_exact_approved_admin_delta(self):
+        current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        previous = copy.deepcopy(current)
+        previous["info"]["version"] = "2.0.0-alpha.41"
+        previous["components"]["schemas"]["AdminPayment"]["properties"]["provider"] = {"const": "fincode"}
+        previous["components"]["schemas"]["AdminPayment"]["properties"].pop("adjustments")
+        authorize = openapi_contract_gate.is_authorized_m9_payment_provider_break
+        self.assertTrue(authorize("admin", previous, current))
+        self.assertFalse(authorize("public", previous, current))
+        for mutation in ("authority", "version", "provider", "security", "removed_path", "unrelated_constraint"):
+            changed = copy.deepcopy(current)
+            if mutation == "authority":
+                changed["x-oripa-breaking-change"]["authority"] = "unapproved"
+            elif mutation == "version":
+                changed["info"]["version"] = "2.0.0-alpha.41"
+            elif mutation == "provider":
+                changed["components"]["schemas"]["AdminPayment"]["properties"]["provider"] = {"type": "number"}
+            elif mutation == "security":
+                changed["paths"]["/payments"]["get"]["security"] = []
+            elif mutation == "unrelated_constraint":
+                changed["components"]["schemas"]["AdminPayment"]["properties"]["provider_status"]["maxLength"] = 1
+            else:
+                del changed["paths"]["/payments"]
+            with self.subTest(mutation=mutation):
+                self.assertFalse(authorize("admin", previous, changed))
+
     def composed_object_documents(self):
         previous = {
             "paths": {},
@@ -107,6 +133,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_notion_cache_authority_allows_only_the_three_approved_placeholder_types(self):
         current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        current["x-oripa-breaking-change"] = openapi_contract_gate.NOTION_CACHE_BREAK
         current["info"]["version"] = "2.0.0-alpha.40"
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.40"
@@ -265,7 +292,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.41", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.42", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

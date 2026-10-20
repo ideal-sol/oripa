@@ -53,7 +53,8 @@ describe("Admin Payment History", () => {
     expect(screen.getAllByText("運営確認ユーザー")).toHaveLength(7);
     expect(screen.getAllByText(/1,00[1-7]/u)).toHaveLength(7);
     expect(screen.getAllByText("2026/08/25 0:00").length).toBeGreaterThan(0);
-    const userLinks = screen.getAllByRole("link", { name: /01910191/u });
+    const userLinks = screen.getAllByRole("link", { name: /^01910191/u });
+    expect(screen.getAllByRole("link", { name: /^決済詳細 /u })).toHaveLength(7);
     expect(userLinks).toHaveLength(7);
     for (const userLink of userLinks) {
       expect(userLink).toHaveAttribute("href", `/users/${uuid("9")}`);

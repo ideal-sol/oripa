@@ -768,6 +768,21 @@ export class AdminApiClient {
     return this.paymentHistory("/payments", query, signal);
   }
 
+  getAdminPayment(paymentId: string, signal?: AbortSignal): Promise<import("./generated").AdminPaymentDetailResponse> {
+    return this.request("GET", `/payments/${encodeURIComponent(paymentId)}`, { signal });
+  }
+
+  previewAdminPaymentChargeback(paymentId: string, body: import("./generated").AdminPaymentAdjustmentInput): Promise<import("./generated").AdminPaymentChargebackPreviewResponse> {
+    return this.request("POST", `/payments/${encodeURIComponent(paymentId)}/chargebacks/preview`, { body });
+  }
+
+  writeAdminPaymentAdjustment(paymentId: string, operation: "refund" | "complete" | "cancel" | "chargeback" | "reversal", body: import("./generated").AdminPaymentAdjustmentInput | import("./generated").AdminPaymentRefundCompleteInput, idempotencyKey: string, adjustmentId?: string): Promise<import("./generated").AdminPaymentAdjustmentResponse> {
+    const suffix = operation === "refund" ? "refunds" : operation === "chargeback" ? "chargebacks"
+      : operation === "reversal" ? `chargebacks/${encodeURIComponent(adjustmentId ?? "")}/reversals`
+        : `refunds/${encodeURIComponent(adjustmentId ?? "")}/${operation}`;
+    return this.request("POST", `/payments/${encodeURIComponent(paymentId)}/${suffix}`, { body, idempotencyKey });
+  }
+
   listAdminUserPayments(
     userId: string,
     query: AdminPaymentQuery = {},
@@ -3304,6 +3319,7 @@ export class AdminApiClient {
         !path.startsWith("/member-ranks/") &&
         path !== "/payments" &&
         !path.startsWith("/payments?") &&
+        !path.startsWith("/payments/") &&
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
@@ -3560,6 +3576,12 @@ function statusCode(status: number): string {
 }
 
 function publicErrorMessage(status: number, code: string): string {
+  if (code === "PAYMENT_RANK_ADJUSTMENT_NOT_READY") return "M8連動未対応のため、購入ボーナス・ランクポイントの取消が必要な操作は記録できません。";
+  if (code === "REFUND_POINTS_NOT_FULLY_UNUSED") return "対象ポイントに使用済み・失効・予約中のものがあります。";
+  if (code === "REFUND_PAYMENT_NOT_SUCCEEDED") return "成立済みの決済のみ操作できます。";
+  if (code === "PAYMENT_ADJUSTMENT_INPUT_INVALID") return "理由・確認事項・決済会社の参照番号を確認してください。";
+  if (code === "CHARGEBACK_REVERSAL_ALREADY_RECORDED") return "このチャージバックの取消は記録済みです。";
+  if (code === "IDEMPOTENCY_KEY_REUSED") return "同じキーで異なる操作内容が送信されました。";
   if (status === 401) return "管理セッションの有効期限が切れました。";
   if (status === 403 && code === "FRESH_AUTHENTICATION_REQUIRED") {
     return "この操作は旧認証要件で拒否されました。画面を再読み込みしてください。";

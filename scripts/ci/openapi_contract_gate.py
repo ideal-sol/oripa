@@ -94,6 +94,12 @@ NOTION_CACHE_BREAK = {
     "scope": "inventory-notion-null-placeholders-to-cached-observations",
 }
 
+M9_PAYMENT_PROVIDER_BREAK = {
+    "authority": "human_MEMBERRANK-M9-20261020",
+    "change_id": "MEMBERRANK-M9-20261020",
+    "scope": "admin-payment-provider-fincode-literal-to-actual-provider",
+}
+
 
 class ContractFailure(RuntimeError):
     """A deterministic OpenAPI contract violation."""
@@ -158,7 +164,7 @@ def validate_document(surface: str, document: dict[str, Any]) -> set[str]:
     canonical_break = document.get("x-oripa-breaking-change")
     if canonical_break is not None and canonical_break != MIG_099_CANONICAL_BREAK and not (
         surface == "public" and canonical_break in (CONTACT_AUTHENTICATED_BREAK, CONTACT_PHONE_REQUIRED_BREAK, SIGNUP_SMS_GATE_BREAK)
-    ) and not (surface == "admin" and canonical_break == NOTION_CACHE_BREAK):
+    ) and not (surface == "admin" and canonical_break in (NOTION_CACHE_BREAK, M9_PAYMENT_PROVIDER_BREAK)):
         raise ContractFailure(f"{surface}: breaking-change authority is invalid")
     if document.get("servers") != [{"url": expected["server"]}]:
         raise ContractFailure(f"{surface}: server namespace is invalid")
@@ -558,6 +564,31 @@ def is_authorized_contact_phone_required_break(
     )
 
 
+def is_authorized_m9_payment_provider_break(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    if (surface != "admin" or previous.get("info", {}).get("version") != "2.0.0-alpha.41"
+            or current.get("info", {}).get("version") != "2.0.0-alpha.42"
+            or current.get("x-oripa-breaking-change") != M9_PAYMENT_PROVIDER_BREAK):
+        return False
+    before = previous.get("components", {}).get("schemas", {}).get("AdminPayment", {}).get("properties", {}).get("provider")
+    after = current.get("components", {}).get("schemas", {}).get("AdminPayment", {}).get("properties", {}).get("provider")
+    for path, operation in previous.get("paths", {}).items():
+        if current.get("paths", {}).get(path) != operation:
+            return False
+    for name, schema in previous.get("components", {}).get("schemas", {}).items():
+        normalized = copy.deepcopy(current.get("components", {}).get("schemas", {}).get(name))
+        if name == "AdminPayment" and isinstance(normalized, dict):
+            normalized["properties"]["provider"] = before
+            if normalized["properties"].pop("adjustments", None) != {"$ref": "#/components/schemas/AdminPaymentAdjustmentSummary"}:
+                return False
+        if normalized != schema:
+            return False
+    return (before == {"const": "fincode"}
+            and after == {"type": "string", "minLength": 1, "maxLength": 64}
+            and breaking_changes(previous, current) == ["components.schemas.AdminPayment.provider: type changed"])
+
+
 def is_authorized_notion_cache_break(
     surface: str, previous: dict[str, Any], current: dict[str, Any]
 ) -> bool:
@@ -714,7 +745,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

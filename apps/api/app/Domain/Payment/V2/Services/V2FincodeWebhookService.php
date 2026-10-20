@@ -192,10 +192,17 @@ final class V2FincodeWebhookService
             $occurredAt?->toIso8601String() ?? '',
             hash('sha256', $rawEvidence),
         ]));
+        $eventType = $platformStatus === 'succeeded' ? 'payment.succeeded'
+            : ($platformStatus === 'canceled' ? 'payment.canceled' : 'payment.status_changed');
+        if ($eventType === 'payment.canceled' && DB::table('payment_provider_events')
+            ->where('provider_code', 'fincode')->where('external_event_id', $eventId)
+            ->where('event_type', 'payment.status_changed')->exists()) {
+            $eventType = 'payment.status_changed';
+        }
         $event = $this->payments->recordVerifiedProviderEvent(
             'fincode',
             $eventId,
-            $platformStatus === 'succeeded' ? 'payment.succeeded' : 'payment.status_changed',
+            $eventType,
             $rawEvidence,
             [],
             $payment->id,
