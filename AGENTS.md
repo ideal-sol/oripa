@@ -178,6 +178,14 @@ judgments remain human decisions.
 
 ## Task Start Procedure
 
+For NEW Production release work, first read the
+[Canonical Release Runbook](docs/operations/deployment/new-production-canonical-release-runbook.md).
+Prefer proven operations, including prior prize CSV integrated releases, and
+reuse approved artifacts, helpers, and procedures to minimize downtime. Do not
+invent a new release method for each task unless Human explicitly directs a
+change. Current Governance, Release Gates, security policy, and Human GO
+requirements remain unchanged.
+
 1. Use one Change, one branch, and one PR. Add conditional controls only when
    their risk criteria require them.
 2. Read this file and every applicable nested `AGENTS.md`.

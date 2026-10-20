@@ -7,6 +7,7 @@ Platform／Site Deploymentで長期CredentialをRepositoryへ保存せず、GitH
 
 ## Documents
 
+- [NEW Production Canonical Release Runbook](new-production-canonical-release-runbook.md)
 - [Preview Image Build Pipeline](preview-image-build.md)
 - [Platform Production ARM64 Runtime Authority](platform-production-arm64-runtime.md)
 - [OIDC Baseline](oidc-baseline.md)
