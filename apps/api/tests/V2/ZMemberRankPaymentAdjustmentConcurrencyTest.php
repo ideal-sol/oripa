@@ -179,7 +179,7 @@ final class ZMemberRankPaymentAdjustmentConcurrencyTest extends TestCase
                 } catch (\App\Domain\Point\Exceptions\V2PointException $exception) {
                     $result = $exception->getMessage() === 'INSUFFICIENT_POINT_BALANCE' ? 'conflict' : $exception->getMessage();
                 } catch (\App\Domain\Draw\Exceptions\V2DrawException $exception) {
-                    $result = $exception->errorCode === 'INSUFFICIENT_POINT_BALANCE' ? 'conflict' : $exception->errorCode;
+                    $result = $exception->errorCode === 'INSUFFICIENT_POINTS' ? 'conflict' : $exception->errorCode;
                 } catch (\Throwable $exception) {
                     $result = get_class($exception).':'.$exception->getMessage();
                 }
