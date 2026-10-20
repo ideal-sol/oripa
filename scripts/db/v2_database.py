@@ -117,6 +117,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.member_rank_manual_changes",
     "public.member_rank_month_totals",
     "public.member_rank_monthly_jobs",
+    "public.member_rank_payment_adjustments",
     "public.member_rank_point_entries",
     "public.member_rank_purchase_bonuses",
     "public.member_rank_setting_values",
@@ -563,6 +564,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php": "Member rank payment adjustments require a forward-only migration.",
         "2026_10_16_000087_create_v2_pre_registration.php": "Pre-registration history requires a forward-only migration.",
         "2026_10_16_000088_create_v2_member_rank_settings.php": "Member rank settings history requires a forward-only migration.",
         "2026_10_16_000089_create_v2_member_rank_accounting.php": "Member rank accounting history requires a forward-only migration.",
@@ -586,7 +588,8 @@ def rollback_and_reapply_latest(
         schema_before = normalize_schema_dump(schema_dump(base, repository))
         exception_class = (
             "RuntimeException"
-            if latest == "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php"
+            if latest in {"2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
+                          "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"}
             else "LogicException"
         )
         verification = (

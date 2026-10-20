@@ -9,7 +9,7 @@ export const manualKinds: Record<AdminMemberRankManualKind, string> = {
 };
 export const historyReasons: Record<string, string> = {
   promotion: "昇格", demotion: "降格", manual: "手動変更", promotion_reversal: "昇格の取消",
-  payment: "決済", manual_rank_points: "ランクポイント手動調整",
+  payment: "決済", manual_rank_points: "ランクポイント手動調整", payment_adjustment: "返金・チャージバック",
 };
 export function rankName(value: string | null | undefined): string {
   return value && value in rankNames ? rankNames[value as AdminMemberRankCode] : "—";

@@ -35,7 +35,11 @@ final class V2MemberRankResolver
         $rows = DB::table('users')->whereIn('users.id', $userIds)
             ->leftJoin('member_rank_states as member_state', 'member_state.user_id', '=', 'users.id')
             ->selectRaw("users.id, users.state as user_state, users.updated_at, to_jsonb(member_state) as rank_state,
-                COALESCE((SELECT jsonb_object_agg(month::text, points) FROM member_rank_month_totals WHERE user_id = users.id), '{}'::jsonb) as totals")
+                COALESCE((SELECT jsonb_object_agg(total.month::text, total.points - COALESCE(
+                    (SELECT sum(entry.applied_delta) FROM member_rank_point_entries entry
+                     WHERE entry.user_id = total.user_id AND entry.month = total.month AND entry.reason = 'payment_adjustment'
+                     AND entry.recorded_at >= ((total.month + interval '1 month')::timestamp AT TIME ZONE 'Asia/Tokyo')), 0))
+                    FROM member_rank_month_totals total WHERE total.user_id = users.id), '{}'::jsonb) as totals")
             ->get();
         $result = [];
         foreach ($rows as $row) {
@@ -113,7 +117,11 @@ final class V2MemberRankResolver
                 COALESCE((SELECT frozen_at FROM member_rank_states WHERE user_id = ?),
                     (SELECT updated_at FROM users WHERE id = ? AND state IN ('closed', 'anonymized'))) AS frozen_at,
                 (SELECT to_jsonb(state) FROM member_rank_states state WHERE state.user_id = ?) AS state,
-                COALESCE((SELECT jsonb_object_agg(month::text, points) FROM member_rank_month_totals WHERE user_id = ?), '{}'::jsonb) AS totals,
+                COALESCE((SELECT jsonb_object_agg(total.month::text, total.points - COALESCE(
+                    (SELECT sum(entry.applied_delta) FROM member_rank_point_entries entry
+                     WHERE entry.user_id = total.user_id AND entry.month = total.month AND entry.reason = 'payment_adjustment'
+                     AND entry.recorded_at >= ((total.month + interval '1 month')::timestamp AT TIME ZONE 'Asia/Tokyo')), 0))
+                    FROM member_rank_month_totals total WHERE total.user_id = ?), '{}'::jsonb) AS totals,
                 COALESCE((SELECT jsonb_agg(jsonb_build_object(
                     'revision', version.revision, 'effective_at', version.effective_at,
                     'maintain_lines', (SELECT jsonb_object_agg(level::text, maintain_line)

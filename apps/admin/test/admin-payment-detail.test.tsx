@@ -72,6 +72,21 @@ describe("Admin manual payment adjustments", () => {
     expect(screen.getByText(/会員ランク購入ボーナス/u)).toBeVisible();
   });
 
+  it("separates purchase-bonus shortfall from total free shortfall and rank effects", async () => {
+    const value = detail();
+    const result = adjustment("succeeded", "chargeback");
+    result.impact = { ...impact, shortfall_free_amount: 20,
+      purchase_bonus: { required_amount: 20, reversed_amount: 0, shortfall_amount: 20 },
+      rank_adjustment: { month: "2026-10-01", effect: "past_month", requested_points: 1000, applied_points: 0,
+        before_rank: "silver", after_rank: "silver", recoveries: [] } };
+    value.adjustments = [result];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({ data: value, request_id: paymentId });
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByText(/うち購入ボーナス/u)).toHaveTextContent("不足 20pt（無償不足の内数）");
+    expect(screen.getByText(/元月 2026-10/u)).toHaveTextContent("実減算 0pt");
+    expect(screen.getByText(/過去月の取消/u)).toHaveTextContent("現在ランクは変更しません");
+  });
+
   it("hides mutation controls from financial-read-only operators", async () => {
     permissions.allowed = false;
     render(<AdminPaymentDetail paymentId={paymentId} />);
