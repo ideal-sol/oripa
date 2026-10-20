@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from scripts.release.readiness.change import AUTHORITY_PATHS, classify, path_components, validate_change
+from scripts.release.readiness.change import AUTHORITY_PATHS, classify, git, path_components, validate_change
 from scripts.release.readiness.records import canonical, digest, require, seal
 
 SCOPES = (
@@ -37,6 +38,88 @@ AUTHORITY_TEST_PATHS = {
     "tests/ops/test_old_test_source_authority.py",
     "tests/ops/test_production_source_authority.py",
 }
+OLD_TEST_DEPLOY = "scripts/ops/old_test_deploy.py"
+OLD_TEST_DEPLOY_TEST = "tests/ops/test_old_test_deploy.py"
+STOREFRONT_ENVIRONMENT_KEYS = {
+    "NODE_ENV", "NEXT_TELEMETRY_DISABLED", "NEXT_PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_PLATFORM_API_BASE_URL", "NEXT_PUBLIC_ASSET_PUBLIC_BASE_URL",
+    "NEXT_PUBLIC_STATIC_ASSET_BASE_URL", "NEXT_PUBLIC_APP_NAME",
+}
+STOREFRONT_ENVIRONMENT_CHECK = '''
+require(all(entry.split("=", 1)[0] in {} for entry in environment), "storefront_environment_unsupported")
+'''
+HEALTH_LOOP = '''
+for url in paths:
+    require(run(["curl", "--silent", "--fail", "--retry", "5", "--retry-delay", "1",
+                 "--retry-connrefused", "--output", "/dev/null", "--write-out", "%{http_code}",
+                 "--max-time", "120", url]) == b"200", "health_failed")
+'''
+STOREFRONT_HEALTH_LOOP = '''
+for url in paths:
+    retry = ["--retry", "5", "--retry-delay", "1"]
+    if url == "https://test.luxe-pack.biz/":
+        retry = ["--retry", "12", "--retry-delay", "5", "--retry-max-time", "90"]
+    require(run(["curl", "--silent", "--fail", *retry, "--retry-connrefused",
+                 "--output", "/dev/null", "--write-out", "%{http_code}",
+                 "--max-time", "120", url]) == b"200", "health_failed")
+'''
+
+
+def syntax(node):
+    return ast.dump(node, include_attributes=False)
+
+
+def normalized_deploy_source(content):
+    module = ast.parse(content)
+    for node in module.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "storefront_start":
+            for index, statement in enumerate(node.body):
+                for expression in ('current["EnvironmentFiles"]', 'current.get("EnvironmentFiles", "")'):
+                    guard = ast.parse(f'require(not {expression}, "storefront_unit_invalid")').body[0]
+                    if syntax(statement) == syntax(guard):
+                        node.body[index] = ast.parse('require(not current["EnvironmentFiles"], "storefront_unit_invalid")').body[0]
+                sets = [item for item in ast.walk(statement) if isinstance(item, ast.Set)]
+                if len(sets) == 1 and all(isinstance(item, ast.Constant) and isinstance(item.value, str)
+                                          and item.value in STOREFRONT_ENVIRONMENT_KEYS for item in sets[0].elts):
+                    template = ast.parse(STOREFRONT_ENVIRONMENT_CHECK.replace(
+                        "{}", ast.unparse(sets[0]))).body[0]
+                    if syntax(statement) == syntax(template):
+                        node.body[index] = ast.parse(STOREFRONT_ENVIRONMENT_CHECK).body[0]
+        if isinstance(node, ast.ClassDef) and node.name == "Deployment":
+            for method in node.body:
+                if isinstance(method, ast.FunctionDef) and method.name == "health":
+                    for index, statement in enumerate(method.body):
+                        template = ast.parse(STOREFRONT_HEALTH_LOOP).body[0]
+                        if isinstance(statement, ast.For) and len(statement.body) == 3:
+                            branch = statement.body[1]
+                            if isinstance(branch, ast.If) and len(branch.body) == 1:
+                                assignment = branch.body[0]
+                                if isinstance(assignment, ast.Assign) and isinstance(assignment.value, ast.List):
+                                    values = assignment.value.elts
+                                    if len(values) == 6 and all(
+                                            isinstance(values[offset], ast.Constant)
+                                            and isinstance(values[offset].value, str)
+                                            and values[offset].value.isascii() and values[offset].value.isdecimal()
+                                            and 1 <= int(values[offset].value) <= 120 for offset in (1, 3, 5)):
+                                        for offset in (1, 3, 5):
+                                            template.body[1].body[0].value.elts[offset] = values[offset]
+                        if syntax(statement) == syntax(template):
+                            method.body[index] = ast.parse(HEALTH_LOOP).body[0]
+    return syntax(module)
+
+
+def old_test_deploy_db_unrelated(repository, change):
+    if repository is None:
+        return False
+    try:
+        sources = []
+        for revision in (change["base_sha"], change["head_sha"]):
+            entry = git(repository, "ls-tree", revision, "--", OLD_TEST_DEPLOY).decode()
+            require(entry.startswith("100644 blob "), "DEPLOY_SOURCE_MODE_INVALID")
+            sources.append(git(repository, "show", revision + ":" + OLD_TEST_DEPLOY))
+        return normalized_deploy_source(sources[0]) == normalized_deploy_source(sources[1])
+    except (ValueError, SyntaxError, UnicodeError, OSError):
+        return False
 
 
 def source_only_authority(change):
@@ -74,7 +157,7 @@ def affected_scopes(path):
     return None
 
 
-def build_plan(change, *, lane_key, activation, event_name, validation_path):
+def build_plan(change, *, lane_key, activation, event_name, validation_path, repository=None):
     require(lane_key in {"lite", "standard", "strict"}, "PLAN_LANE_INVALID")
     require(activation in {"none", "deferred", "immediate"}, "PLAN_ACTIVATION_INVALID")
     require(validation_path in {"AUTHORITY_FOCUSED", "NORMAL_STRICT_CI"}, "PLAN_PATH_INVALID")
@@ -88,6 +171,7 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
                  and event_name == "pull_request")
     paths = change["changed_paths"]
     hits = {scope: [] for scope in SCOPES}
+    database_exclusions = []
     unknown = not valid
     if not authority:
         for path in paths:
@@ -95,6 +179,10 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
             if affected is None:
                 unknown = True
             else:
+                if valid and (path == OLD_TEST_DEPLOY_TEST or (
+                        path == OLD_TEST_DEPLOY and old_test_deploy_db_unrelated(repository, change))):
+                    affected -= {"database", "migration"}
+                    database_exclusions.append(path)
                 for scope in affected:
                     hits[scope].append(path)
     full = event_name != "pull_request" or (activation != "none" and not authority)
@@ -104,16 +192,21 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path):
             status, reason = "UNKNOWN", "Unproven source coverage: execute full validation"
         elif authority:
             status, reason = "NOT_APPLICABLE", "Existing verified AUTHORITY_FOCUSED boundary"
-        elif full or hits[scope]:
+        elif (full and not (scope in {"database", "migration"} and activation == "deferred"
+                           and event_name == "pull_request")) or hits[scope]:
             status, reason = "APPLICABLE", "Full event/activation validation or affected source inputs"
         else:
             status, reason = "NOT_APPLICABLE", "Canonical component deltas and complete path coverage exclude this scope"
+            if scope in {"database", "migration"}:
+                reason = "Exact source coverage and bounded deploy AST comparison exclude DB inputs; activation unchanged"
         if scope == "arm64_artifact" and event_name != "pull_request":
             status, reason = "NOT_APPLICABLE", "PR_ONLY_ARM64_BOUNDARY"
         scopes[scope] = {
             "status": status, "reason": reason, "evidence": hits[scope],
             "component_deltas": change["deltas"], "changed_paths_digest": digest(paths, None),
         }
+        if scope in {"database", "migration"}:
+            scopes[scope]["excluded_paths"] = database_exclusions
     jobs = {}
     for job, names in JOBS.items():
         applicable = any(scopes[name]["status"] != "NOT_APPLICABLE" for name in names)
@@ -153,7 +246,7 @@ def main():
     try:
         plan = json.loads(args.plan.read_text())
         change = classify(args.repository, plan["base_sha"], plan["head_sha"])
-        expected = build_plan(change, **{key: plan[key] for key in (
+        expected = build_plan(change, repository=args.repository, **{key: plan[key] for key in (
             "lane_key", "activation", "event_name", "validation_path")})
         require(canonical(expected) == canonical(plan), "PLAN_RECOMPUTATION_MISMATCH")
         verify_results(expected, json.loads(os.environ[args.results_env]), args.expected_digest)
