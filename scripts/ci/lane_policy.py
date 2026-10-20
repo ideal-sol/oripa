@@ -367,7 +367,8 @@ def main() -> int:
             if arguments.plan_output:
                 from scripts.ci.platform_ci_plan import build_plan
                 plan = build_plan(change, lane_key=result["lane_key"], activation=result["activation"],
-                                  event_name=arguments.event_name, validation_path=result["validation_path"])
+                                  event_name=arguments.event_name, validation_path=result["validation_path"],
+                                  repository=repository)
                 arguments.plan_output.write_bytes(canonical(plan))
                 result["plan_digest"] = plan["record_digest"]
                 result["plan_scopes"] = {name: scope["status"] for name, scope in plan["scopes"].items()}
