@@ -9,6 +9,56 @@ export {
   PUBLIC_CONTRACT_FIXTURE,
 } from "./generated/public-contract.js";
 
+const memberRankSilver = {
+  enabled: true,
+  rank: { code: "silver", name: "シルバー", level: 3 },
+  period: { month: "2026-11", resets_at: "2026-11-30T15:00:00Z" },
+  rank_points: 42000,
+  next_rank: { code: "gold", name: "ゴールド", reach_line: 100000, remaining: 58000 },
+  maintain: { line: 20000, remaining: 0, achieved: true },
+  demotion_protection: null,
+  benefits: { purchase_bonus: { rate_percent: "1.00", point_type: "free" } },
+  as_of: "2026-11-12T03:00:00Z",
+} as const satisfies PublicComponents["schemas"]["MyMemberRankEnabled"];
+
+export const PUBLIC_MEMBER_RANK_FIXTURES = Object.freeze({
+  disabled: { data: { enabled: false, rank: null, period: null, rank_points: null,
+    next_rank: null, maintain: null, demotion_protection: null, benefits: null, as_of: null } },
+  beginner: { data: { ...memberRankSilver, rank: { code: "beginner", name: "ビギナー", level: 1 },
+    rank_points: 0, next_rank: { code: "bronze", name: "ブロンズ", reach_line: 10000, remaining: 10000 },
+    maintain: null, benefits: { purchase_bonus: { rate_percent: "0.00", point_type: "free" } } } },
+  silver: { data: memberRankSilver },
+  vip: { data: { ...memberRankSilver, rank: { code: "vip", name: "VIP", level: 7 }, next_rank: null,
+    maintain: { line: 1000000, remaining: 958000, achieved: false },
+    benefits: { purchase_bonus: { rate_percent: "4.00", point_type: "free" } } } },
+  protected: { data: { ...memberRankSilver,
+    demotion_protection: { remaining_judgments: 1, guaranteed_until: "2026-12-31T14:59:59Z" } } },
+  month_boundary: { data: { ...memberRankSilver, rank_points: 0,
+    next_rank: { ...memberRankSilver.next_rank, remaining: 100000 },
+    maintain: { line: 20000, remaining: 20000, achieved: false }, as_of: "2026-10-31T15:00:00Z" } },
+  fractional_purchase_bonus: { data: { ...memberRankSilver,
+    benefits: { purchase_bonus: { rate_percent: "1.01", point_type: "free" } } } },
+} as const satisfies Record<string, PublicComponents["schemas"]["MyMemberRankResponse"]>);
+
+export const PUBLIC_MEMBER_RANK_LIST_FIXTURE = {
+  data: [
+    { code: "beginner", name: "ビギナー", level: 1, reach_line: null, maintain_line: null,
+      promotion_bonus: { points: 0, point_type: "free" }, purchase_bonus: { rate_percent: "0.00", point_type: "free" } },
+    { code: "bronze", name: "ブロンズ", level: 2, reach_line: 10000, maintain_line: 5000,
+      promotion_bonus: { points: 500, point_type: "free" }, purchase_bonus: { rate_percent: "0.50", point_type: "free" } },
+    { code: "silver", name: "シルバー", level: 3, reach_line: 30000, maintain_line: 20000,
+      promotion_bonus: { points: 2000, point_type: "free" }, purchase_bonus: { rate_percent: "1.00", point_type: "free" } },
+    { code: "gold", name: "ゴールド", level: 4, reach_line: 100000, maintain_line: 70000,
+      promotion_bonus: { points: 5000, point_type: "free" }, purchase_bonus: { rate_percent: "1.50", point_type: "free" } },
+    { code: "platinum", name: "プラチナ", level: 5, reach_line: 300000, maintain_line: 200000,
+      promotion_bonus: { points: 20000, point_type: "free" }, purchase_bonus: { rate_percent: "2.00", point_type: "free" } },
+    { code: "diamond", name: "ダイヤモンド", level: 6, reach_line: 700000, maintain_line: 500000,
+      promotion_bonus: { points: 50000, point_type: "free" }, purchase_bonus: { rate_percent: "3.00", point_type: "free" } },
+    { code: "vip", name: "VIP", level: 7, reach_line: 1500000, maintain_line: 1000000,
+      promotion_bonus: { points: 100000, point_type: "free" }, purchase_bonus: { rate_percent: "4.00", point_type: "free" } },
+  ],
+} as const satisfies PublicComponents["schemas"]["MemberRankCollection"];
+
 const preRegistrationPending = {
   status: "sms_pending", reason: null, pre_registered_at: "2026-10-20T00:00:00Z",
   email_verified: true, sms_verified: false, registration_completed: false,

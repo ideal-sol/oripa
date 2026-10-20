@@ -30,6 +30,7 @@ use App\Http\Controllers\V2\V2DrawController;
 use App\Http\Controllers\V2\V2PrizeShippingController;
 use App\Http\Controllers\V2\V2ContentContactController;
 use App\Http\Controllers\V2\V2CurrentUserPointController;
+use App\Http\Controllers\V2\V2MemberRankController;
 use App\Http\Controllers\V2\V2CurrentUserLineController;
 use App\Http\Controllers\V2\V2PointProductController;
 use App\Http\Controllers\V2\V2PaymentController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/member-ranks', [V2MemberRankController::class, 'index'])->name('v2.public.member-ranks.index');
     Route::get('/campaigns/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'campaign']);
     Route::get('/me/pre-registration-bonus', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'status'])
         ->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user']);
@@ -124,6 +126,8 @@ Route::prefix('v2')
             ->name('v2.public.draws.history');
         Route::get('/me/wallet', [V2CurrentUserPointController::class, 'wallet'])
             ->name('v2.public.wallet.show');
+        Route::get('/me/member-rank', [V2MemberRankController::class, 'current'])
+            ->name('v2.public.member-ranks.current');
         Route::get('/me/point-ledgers', [V2CurrentUserPointController::class, 'history'])
             ->name('v2.public.point-ledgers.index');
         Route::post('/payments', [V2PaymentController::class, 'store'])

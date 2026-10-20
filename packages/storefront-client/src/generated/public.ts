@@ -390,6 +390,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/member-ranks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 公開会員ランクと無償の特典一覧を取得する
+         * @description JST当月1日00時に有効な設定だけを固定7ランク順で返す。無効時は空一覧。月境界と初回有効化で古い応答を再利用しないよう保存しない。
+         */
+        get: operations["listMemberRanks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/member-rank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 本人の当月会員ランクと購入ボーナス（無償）を取得する
+         * @description JST月初の未処理判定を読み取り専用で投影する。維持進捗は当月実績と当月設定を用いる。無効時はenabled以外をnullにする。
+         */
+        get: operations["getMyMemberRank"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/wallet": {
         parameters: {
             query?: never;
@@ -1373,6 +1413,80 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        MemberRankPurchaseBenefit: {
+            /** @description 購入ボーナス（無償）。整数basis pointsを0.01%単位の文字列へ変換した値。 */
+            rate_percent: string;
+            /** @constant */
+            point_type: "free";
+        };
+        MemberRankPublicSetting: {
+            /** @enum {string} */
+            code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+            name: string;
+            level: number;
+            reach_line: number | null;
+            maintain_line: number | null;
+            promotion_bonus: {
+                points: number;
+                /** @constant */
+                point_type: "free";
+            };
+            purchase_bonus: components["schemas"]["MemberRankPurchaseBenefit"];
+        };
+        MemberRankCollection: {
+            data: components["schemas"]["MemberRankPublicSetting"][];
+        };
+        MyMemberRankResponse: {
+            data: components["schemas"]["MyMemberRankEnabled"] | components["schemas"]["MyMemberRankDisabled"];
+        };
+        MyMemberRankDisabled: {
+            /** @constant */
+            enabled: false;
+            rank: null;
+            period: null;
+            rank_points: null;
+            next_rank: null;
+            maintain: null;
+            demotion_protection: null;
+            benefits: null;
+            as_of: null;
+        };
+        MyMemberRankEnabled: {
+            /** @constant */
+            enabled: true;
+            rank: components["schemas"]["MemberRankSnapshot"];
+            period: {
+                month: string;
+                /** Format: date-time */
+                resets_at: string;
+            };
+            rank_points: number;
+            next_rank: {
+                /** @enum {string} */
+                code: "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
+                name: string;
+                reach_line: number;
+                remaining: number;
+            } | null;
+            maintain: {
+                line: number;
+                remaining: number;
+                achieved: boolean;
+            } | null;
+            demotion_protection: {
+                remaining_judgments: number;
+                /**
+                 * Format: date-time
+                 * @description 残り見送りを消費した後の最初の判定直前、JST月末23時59分59秒。
+                 */
+                guaranteed_until: string;
+            } | null;
+            benefits: {
+                purchase_bonus: components["schemas"]["MemberRankPurchaseBenefit"];
+            };
+            /** Format: date-time */
+            as_of: string;
+        };
         MemberRankSnapshot: {
             /** @enum {string} */
             code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";
@@ -3363,6 +3477,58 @@ export interface operations {
                     "application/json": components["schemas"]["UserPrizeCollection"];
                 };
             };
+            /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listMemberRanks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 公開設定。内部設定版や管理者情報は含まない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRankCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getMyMemberRank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本人だけの会員ランク。Cache-Control private, no-storeおよびVary Cookieを返す。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyMemberRankResponse"];
+                };
+            };
+            401: components["responses"]["PublicAuthProblem"];
             /** @description SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。 */
             403: {
                 headers: {

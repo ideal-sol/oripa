@@ -12,6 +12,7 @@ import {
 import {
   createServerStorefrontClient,
 } from "@oripa/storefront-client/server";
+import { createStorefrontMemberRankClient } from "@oripa/storefront-client";
 import {
   SiteManifestValidationError,
   validateSiteManifest,
@@ -34,6 +35,8 @@ import {
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_SMS_VERIFICATION_FIXTURES,
   PUBLIC_PRE_REGISTRATION_FIXTURES,
+  PUBLIC_MEMBER_RANK_FIXTURES,
+  PUBLIC_MEMBER_RANK_LIST_FIXTURE,
   PUBLIC_EXTERNAL_IDENTITY_FIXTURE,
   PUBLIC_LINE_FRIEND_STATE_FIXTURES,
   PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES,
@@ -107,6 +110,34 @@ test("Testkit VersionとClient bundle metadataを一致させる", async () => {
     packageManifest.dependencies["@oripa/storefront-client"],
     `workspace:${packageManifest.version}`,
   );
+});
+
+test("Member rank fixtures exercise private reads, public list and inherited Problem Details", async () => {
+  const mock = createMockFetch();
+  const ranks = createStorefrontMemberRankClient(createBrowserStorefrontClient({
+    base_url: "/api/v2", site_version: "1.0.0", default_timeout_ms: 1000, fetch: mock.fetch,
+  }));
+  for (const fixture of Object.values(PUBLIC_MEMBER_RANK_FIXTURES)) {
+    mock.enqueueJson({ method: "GET", url: "/api/v2/me/member-rank" }, {
+      body: fixture, headers: { "Cache-Control": "private, no-store", "Vary": "Cookie" },
+    });
+    assert.deepEqual((await ranks.getMyMemberRank()).data, fixture);
+    assert.doesNotMatch(JSON.stringify(fixture), /user_id|saved_by|revision|reason|email|password/);
+  }
+  mock.enqueueJson({ method: "GET", url: "/api/v2/member-ranks" }, { body: PUBLIC_MEMBER_RANK_LIST_FIXTURE });
+  assert.deepEqual((await ranks.listMemberRanks()).data, PUBLIC_MEMBER_RANK_LIST_FIXTURE);
+  assert.deepEqual(PUBLIC_MEMBER_RANK_LIST_FIXTURE.data.map(rank => rank.level), [1, 2, 3, 4, 5, 6, 7]);
+  for (const rank of PUBLIC_MEMBER_RANK_LIST_FIXTURE.data) {
+    assert.equal(rank.promotion_bonus.point_type, "free");
+    assert.equal(rank.purchase_bonus.point_type, "free");
+  }
+  for (const problem of Object.values(PUBLIC_POINT_READ_PROBLEM_FIXTURES)) {
+    mock.enqueueJson({ method: "GET", url: "/api/v2/me/member-rank" }, {
+      body: problem, status: problem.status, headers: { "Content-Type": "application/problem+json" },
+    });
+    await assert.rejects(ranks.getMyMemberRank(), error => error instanceof ApiProblemError && error.code === problem.code);
+  }
+  mock.assertExhausted();
 });
 
 test("Public Auth FixtureはCookie Session状態をCredentialなしで表現する", () => {
@@ -968,9 +999,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつ事前登録を含むOperation 81件である", () => {
+test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 83件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 81);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 83);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -998,6 +1029,7 @@ test("Public OpenAPIは3.1.1かつ事前登録を含むOperation 81件である"
     "getGachaPresentation",
     "getLineFriendState",
     "getLoginGacha",
+    "getMyMemberRank",
     "getMyPreRegistrationBonus",
     "getPayment",
     "getPaymentCardRegistration",
@@ -1018,6 +1050,7 @@ test("Public OpenAPIは3.1.1かつ事前登録を含むOperation 81件である"
     "listGachaTags",
     "listGachas",
     "listLoginGachas",
+    "listMemberRanks",
     "listMyPayments",
     "listPaymentCards",
     "listPointLedgerEntries",
@@ -1225,6 +1258,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
     "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
+    "PUBLIC_MEMBER_RANK_FIXTURES",
+    "PUBLIC_MEMBER_RANK_LIST_FIXTURE",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",
     "PUBLIC_PAYMENT_CARD_CAPACITY_FIXTURES",
     "PUBLIC_PAYMENT_CARD_REGISTRATION_FIXTURES",

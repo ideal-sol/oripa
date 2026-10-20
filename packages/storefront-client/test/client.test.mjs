@@ -27,6 +27,7 @@ import {
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
   createStorefrontCurrentUserPointClient,
+  createStorefrontMemberRankClient,
   createStorefrontPointProductClient,
   createStorefrontPaymentClient,
   createStorefrontPrizeShippingClient,
@@ -44,6 +45,32 @@ const jsonResponse = (body, init = {}) =>
     },
     ...init,
   });
+
+test("member rank facade uses thin browser and request-scoped server reads", async () => {
+  const calls = [];
+  const body = { data: { enabled: false, rank: null, period: null, rank_points: null,
+    next_rank: null, maintain: null, demotion_protection: null, benefits: null, as_of: null } };
+  const fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return jsonResponse(body, { headers: { "Cache-Control": "private, no-store", "Vary": "Cookie" } });
+  };
+  const browser = createStorefrontMemberRankClient(createBrowserStorefrontClient({
+    base_url: "/api/v2", site_version: "1.0.0", default_timeout_ms: 1000, fetch,
+  }));
+  assert.deepEqual((await browser.getMyMemberRank()).data, body);
+  await browser.listMemberRanks();
+  assert.equal(calls[0].url, "/api/v2/me/member-rank");
+  assert.equal(calls[1].url, "/api/v2/member-ranks");
+  assert.equal(calls[0].options.credentials, "include");
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[0].options.body, undefined);
+  const server = createStorefrontMemberRankClient(createServerStorefrontClient({
+    base_url: "https://api.example.test/api/v2", cookie_header: "synthetic=member-one",
+    site_version: "1.0.0", default_timeout_ms: 1000, fetch,
+  }));
+  await server.getMyMemberRank();
+  assert.equal(new Headers(calls[2].options.headers).get("Cookie"), "synthetic=member-one");
+});
 
 test("advertising validity and optional identity candidates preserve exact input", async () => {
   const calls = [];
