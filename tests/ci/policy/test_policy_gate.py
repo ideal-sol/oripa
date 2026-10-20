@@ -21,6 +21,20 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_member_rank_m8_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "MEMBERRANK-M8-20261020"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), task_id,
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "MEMBERRANK-M8-20261021", "MEMBERRANK-M8-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(
+                    data["pr_body"].replace("GOV-008", invalid), invalid,
+                    data["changed_paths"], data["base_sha"],
+                )
+
     def test_member_rank_m8_migration_inventory_remains_exact(self):
         relative = "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"
         self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)

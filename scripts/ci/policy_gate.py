@@ -1422,7 +1422,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
