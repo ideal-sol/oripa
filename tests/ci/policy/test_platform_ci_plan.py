@@ -28,7 +28,7 @@ class PlatformCIPlanTests(unittest.TestCase):
         record = change.classify(self.repository, self.base, self.commit())
         return planner.build_plan(record, **{
             'lane_key': 'strict', 'activation': 'none', 'event_name': 'pull_request',
-            'validation_path': record['validation_path'], **context,
+            'validation_path': record['validation_path'], 'repository': self.repository, **context,
         })
 
     def assert_required(self, plan, *scopes):
@@ -169,8 +169,8 @@ class PlatformCIPlanTests(unittest.TestCase):
                 plan = self.plan(('infrastructure/github-app/task_branch_base_sync.py', path))
                 self.assert_required(plan, 'backend', 'database', 'arm64_artifact')
 
-    def test_wrapper_deferred_and_non_pr_remain_full(self):
-        for context in ({'activation': 'deferred'}, {'activation': 'immediate'},
+    def test_wrapper_immediate_and_non_pr_remain_full(self):
+        for context in ({'activation': 'immediate'},
                         {'event_name': 'push'}, {'event_name': 'workflow_dispatch'}):
             with self.subTest(context=context):
                 plan = self.plan(tuple(planner.OPERATION_WRAPPER_PATHS), **context)
@@ -234,10 +234,155 @@ class PlatformCIPlanTests(unittest.TestCase):
         self.git('mv', 'apps/api/app/Example.php', 'docs/Example.php')
         self.assert_required(self.plan(), 'backend', 'database')
 
-    def test_activation_always_runs_full(self):
-        for context in ({'activation': 'immediate'}, {'activation': 'deferred'}):
-            with self.subTest(context=context):
-                self.assert_required(self.plan(('docs/fixture.md',), **context), *planner.SCOPES)
+    def test_immediate_always_runs_full(self):
+        self.assert_required(self.plan(('docs/fixture.md',), activation='immediate'), *planner.SCOPES)
+
+    def test_deferred_excludes_only_database_when_source_unrelated(self):
+        for paths in (('docs/fixture.md',), tuple(planner.OPERATION_WRAPPER_PATHS)):
+            with self.subTest(paths=paths):
+                self.setUp()
+                plan = self.plan(paths, activation='deferred')
+                self.assertEqual(plan['activation'], 'deferred')
+                self.assert_na(plan, 'database', 'migration')
+                self.assertFalse(plan['jobs']['integration-database']['required'])
+                self.assert_required(plan, *(scope for scope in planner.SCOPES
+                                             if scope not in {'database', 'migration'}))
+                planner.verify_results(plan, self.results(plan), plan['record_digest'])
+
+    def deploy_base(self):
+        source = (Path(__file__).resolve().parents[3] / planner.OLD_TEST_DEPLOY).read_text()
+        self.write(planner.OLD_TEST_DEPLOY, source)
+        self.write(planner.OLD_TEST_DEPLOY_TEST, 'import unittest\n')
+        self.base = self.commit()
+        return source
+
+    def test_deploy_environment_and_health_only_changes_skip_database(self):
+        mutations = (
+            ('"NEXT_PUBLIC_APP_NAME"', '"NEXT_PUBLIC_SITE_URL"'),
+            ('current.get("EnvironmentFiles", "")', 'current["EnvironmentFiles"]'),
+            ('"--retry", "12", "--retry-delay", "5"', '"--retry", "15", "--retry-delay", "6"'),
+        )
+        for before, after in mutations:
+            for activation in ('none', 'deferred'):
+                with self.subTest(before=before, activation=activation):
+                    self.setUp()
+                    source = self.deploy_base()
+                    self.assertIn(before, source)
+                    self.write(planner.OLD_TEST_DEPLOY, source.replace(before, after))
+                    plan = self.plan((planner.OLD_TEST_DEPLOY_TEST, 'worklogs/new_ver_main.md'),
+                                     activation=activation)
+                    self.assert_na(plan, 'database', 'migration')
+                    self.assertEqual(plan['activation'], activation)
+                    self.assertEqual(plan['scopes']['database']['excluded_paths'],
+                                     [planner.OLD_TEST_DEPLOY, planner.OLD_TEST_DEPLOY_TEST])
+                    self.assertFalse(plan['jobs']['integration-database']['required'])
+                    self.assertTrue(plan['jobs']['integration-suite']['required'])
+                    self.assertTrue(plan['jobs']['integration-support']['required'])
+                    self.assert_arm64_alignment(plan, 'APPLICABLE')
+                    planner.verify_results(plan, self.results(plan), plan['record_digest'])
+                    for result in ('success', 'failure', 'cancelled', None):
+                        needs = self.results(plan)
+                        needs['integration-database']['result'] = result
+                        with self.assertRaises(records.RecordError):
+                            planner.verify_results(plan, needs, plan['record_digest'])
+
+    def test_deploy_health_original_loop_and_storefront_retry_are_equivalent_for_db(self):
+        source = self.deploy_base()
+        start = source.index('        for url in paths:\n', source.index('    def health('))
+        end = source.index('\n    def apply(', start)
+        self.write(planner.OLD_TEST_DEPLOY, source[:start]
+                   + textwrap.indent(planner.HEALTH_LOOP.strip(), '        ') + '\n' + source[end:])
+        self.assert_na(self.plan(activation='deferred'), 'database', 'migration')
+
+    def test_deploy_non_db_test_only_runs_focused_tests_and_skips_db(self):
+        self.deploy_base()
+        self.assert_na(self.plan((planner.OLD_TEST_DEPLOY_TEST,), activation='deferred'),
+                       'database', 'migration')
+
+    def test_deploy_missing_repository_or_source_never_exempts(self):
+        source = self.deploy_base()
+        self.write(planner.OLD_TEST_DEPLOY, source.replace('"NEXT_PUBLIC_APP_NAME"', '"NEXT_PUBLIC_SITE_URL"'))
+        self.assert_required(self.plan(repository=None), 'database', 'migration')
+        self.git('rm', planner.OLD_TEST_DEPLOY)
+        self.assert_required(self.plan(), 'database', 'migration')
+        self.setUp()
+        self.write(planner.OLD_TEST_DEPLOY, source)
+        self.assert_required(self.plan(), 'database', 'migration')
+
+    def test_deploy_unsafe_ast_changes_fail_closed(self):
+        mutations = (
+            ('"--retry", "12"', '"--retry", run(["migration"])'),
+            ('"--retry", "12"', '"--retry", "0"'),
+            ('"--retry", "12"', '"--retry", "121"'),
+            ('"--retry", "5"', '"--retry", "7"'),
+            ('"--fail"', '"--retry-all-errors"'),
+            ('"NEXT_PUBLIC_APP_NAME"', 'run(["migration"])'),
+            ('"NEXT_PUBLIC_APP_NAME"', '"DB_PASSWORD"'),
+            ('if url == "https://test.luxe-pack.biz/":', 'if True:'),
+            ('def health(self) -> None:', 'def health(self) -> None:\n        self.migrate()'),
+            ('def storefront_start(current: dict) -> dict:',
+             'def storefront_start(current: dict) -> dict:\n    run(["migration"])'),
+            ('self.preflight()', 'self.health()'),
+            ('import argparse', 'import argparse\nimport unknown_db_helper'),
+            ('def rollback(', 'def changed_rollback('),
+            ('"migration_attempted": False', '"migration_attempted": True'),
+        )
+        for before, after in mutations:
+            with self.subTest(before=before):
+                self.setUp()
+                source = self.deploy_base()
+                self.assertIn(before, source)
+                self.write(planner.OLD_TEST_DEPLOY, source.replace(before, after))
+                self.assert_required(self.plan(activation='deferred'), 'database', 'migration')
+
+    def test_deploy_mixed_source_keeps_database_required(self):
+        for path in ('apps/api/app/Domain/Payment/Refund.php', 'apps/api/tests/V2/PaymentTest.php',
+                     'apps/api/database/migrations-v2/fixture.php', 'apps/api/config/database.php',
+                     'scripts/db/v2_database.py', 'tests/db/test_smoke.py', 'pnpm-lock.yaml',
+                     'infra/docker/backend/Dockerfile', 'docker-compose.yml',
+                     'scripts/ci/platform_ci_plan.py', 'tests/ops/test_unknown.py', 'unknown-hook'):
+            with self.subTest(path=path):
+                self.setUp()
+                source = self.deploy_base()
+                self.write(planner.OLD_TEST_DEPLOY, source.replace('"NEXT_PUBLIC_APP_NAME"', '"NEXT_PUBLIC_SITE_URL"'))
+                self.assert_required(self.plan((path,), activation='deferred'), 'database')
+
+    def test_deploy_immediate_and_main_push_keep_database(self):
+        source = self.deploy_base()
+        self.write(planner.OLD_TEST_DEPLOY, source.replace('"NEXT_PUBLIC_APP_NAME"', '"NEXT_PUBLIC_SITE_URL"'))
+        for context in ({'activation': 'immediate'}, {'event_name': 'push'},
+                        {'event_name': 'workflow_dispatch'}):
+            self.assert_required(self.plan(**context), 'database', 'migration')
+
+    def test_deploy_symlink_and_invalid_syntax_fail_closed(self):
+        self.deploy_base()
+        self.write(planner.OLD_TEST_DEPLOY, 'def invalid syntax')
+        self.assert_required(self.plan(), 'database')
+        target = self.repository / planner.OLD_TEST_DEPLOY
+        target.unlink()
+        target.symlink_to('../../apps/api/app/Example.php')
+        self.assert_required(self.plan(), *planner.SCOPES)
+
+    def test_focused_deploy_workflow_runs_only_for_affected_paths_and_propagates_failure(self):
+        block = self.workflow().split('      - name: Test changed OLD Test deploy helpers\n', 1)[1]
+        script = textwrap.dedent(block.split("          python3 - <<'PY'\n", 1)[1].split('          PY\n', 1)[0])
+        from unittest import mock
+        import json
+        for paths, expected in ((['docs/fixture.md'], False), ([planner.OLD_TEST_DEPLOY], True),
+                                ([planner.OLD_TEST_DEPLOY_TEST], True)):
+            with self.subTest(paths=paths):
+                self.write('canonical-change.json', json.dumps({'changed_paths': paths}))
+                with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(self.repository)}), mock.patch(
+                        'subprocess.run') as command:
+                    exec(compile(script, '<workflow-focused-test>', 'exec'), {})
+                    self.assertEqual(command.called, expected)
+                    if expected:
+                        self.assertEqual(command.call_args.args[0][1:],
+                                         ['-m', 'unittest', 'tests.ops.test_old_test_deploy'])
+                        self.assertTrue(command.call_args.kwargs['check'])
+                        command.side_effect = subprocess.CalledProcessError(1, 'focused-test')
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            exec(compile(script, '<workflow-focused-test>', 'exec'), {})
 
     def workflow(self):
         return (Path(__file__).resolve().parents[3] / '.github/workflows/platform-ci.yml').read_text()

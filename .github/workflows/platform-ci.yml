@@ -69,6 +69,16 @@ jobs:
       - name: Test the policy gate
         run: python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
 
+      - name: Test changed OLD Test deploy helpers
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          change = json.loads((Path(os.environ["RUNNER_TEMP"]) / "canonical-change.json").read_text())
+          if {"scripts/ops/old_test_deploy.py", "tests/ops/test_old_test_deploy.py"} & set(change["changed_paths"]):
+              subprocess.run([sys.executable, "-m", "unittest", "tests.ops.test_old_test_deploy"], check=True)
+          PY
+
       - name: Test GitHub delivery infrastructure
         run: >-
           python3 -m unittest
