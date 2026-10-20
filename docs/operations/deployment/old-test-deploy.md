@@ -104,6 +104,13 @@ SMS/timers are resumed. Minimal acceptance checks selected OLD Test HTTP
 surfaces and Docker API readiness. No authenticated action or business/provider
 smoke is performed. Human browser acceptance remains separate.
 
+Storefront HTTPS health allows up to 12 retries at five-second intervals within
+a 90-second retry window so `next dev` can become ready after a transient 502.
+Each transfer retains its 120-second limit and the command retains its 300-second
+outer timeout; the retry window does not interrupt an in-flight transfer.
+HTTP 200 remains mandatory. API/Admin retry settings are unchanged; no
+`--retry-all-errors`, authentication exception or health skip is used.
+
 ## Migration and recovery
 
 With no `--migration`, there is no backup, migration, DB writer-wide stop, or DB

@@ -500,7 +500,10 @@ class Deployment:
         if "storefront" in self.candidate["services"]:
             paths.append("https://test.luxe-pack.biz/")
         for url in paths:
-            require(run(["curl", "--silent", "--fail", "--retry", "5", "--retry-delay", "1", "--retry-connrefused",
+            retry = ["--retry", "5", "--retry-delay", "1"]
+            if url == "https://test.luxe-pack.biz/":
+                retry = ["--retry", "12", "--retry-delay", "5", "--retry-max-time", "90"]
+            require(run(["curl", "--silent", "--fail", *retry, "--retry-connrefused",
                          "--output", "/dev/null", "--write-out", "%{http_code}",
                          "--max-time", "120", url]) == b"200", "health_failed")
 

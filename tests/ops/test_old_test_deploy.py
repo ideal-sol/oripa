@@ -643,6 +643,99 @@ class SystemdResponseRegressionTest(unittest.TestCase):
         self.artifact.assert_not_called()
 
 
+    def test_recovered_storefront_rollback_closes_without_service_operations(self):
+        path = self.directory / "candidate.json"
+        status, result = self.prepare(path)
+        self.assertEqual(status, 0, result)
+        candidate = json.loads(path.read_bytes())
+        identity = deploy.identity(candidate)
+        candidate["state"].update(phase="health", storefront_attempted=True)
+        deploy.save(path, candidate)
+        self.old_unit_loaded = True
+
+        def external_operation(arguments, **kwargs):
+            if arguments == ["node", str(self.repository / "scripts/verify-vendored-artifacts.mjs")]:
+                return b""
+            if arguments[0] == "curl":
+                self.assertEqual(arguments[-1], "https://test.luxe-pack.biz/")
+                return b"200"
+            return self.external_read(arguments, **kwargs)
+
+        with mock.patch.object(deploy, "run", side_effect=external_operation) as command:
+            deploy.Deployment(candidate, path).rollback(identity)
+        saved = json.loads(path.read_bytes())
+        self.assertEqual(saved["state"], {"phase": "rolled_back", "storefront_attempted": True,
+            "migration_attempted": False, "applied": []})
+        self.assertEqual(deploy.identity(saved), identity)
+        self.assertEqual(saved["previous"], candidate["previous"])
+        self.assertTrue(all(call.args[0][0] in {"git", "node", "curl"}
+            or call.args[0][:2] in (["systemctl", "show"], ["systemctl", "list-units"])
+            for call in command.call_args_list))
+        self.artifact.assert_not_called()
+
+
+class HealthRegressionTest(unittest.TestCase):
+    def test_storefront_health_accepts_200_after_startup_delay(self):
+        candidate = {"services": ["storefront"], "state": {"phase": "health"}}
+        operation = deploy.Deployment(candidate, Path("/unused/candidate.json"))
+        before = json.dumps(candidate, sort_keys=True)
+        for ready_after in (14.8, 21.1):
+            with self.subTest(ready_after=ready_after):
+                attempts = []
+
+                def delayed_curl(arguments, **kwargs):
+                    self.assertEqual(arguments[0], "curl")
+                    self.assertEqual(arguments[-1], "https://test.luxe-pack.biz/")
+                    retries = int(arguments[arguments.index("--retry") + 1])
+                    delay = int(arguments[arguments.index("--retry-delay") + 1])
+                    for attempt in range(retries + 1):
+                        attempts.append(200 if attempt * delay >= ready_after else 502)
+                        if attempts[-1] == 200:
+                            break
+                    return SimpleNamespace(returncode=0 if attempts[-1] == 200 else 22,
+                        stdout=str(attempts[-1]).encode())
+
+                with mock.patch.object(deploy.subprocess, "run", side_effect=delayed_curl) as child:
+                    operation.health()
+                arguments = child.call_args.args[0]
+                for option, expected in (("--retry", "12"), ("--retry-delay", "5"),
+                                         ("--retry-max-time", "90"), ("--max-time", "120")):
+                    self.assertEqual(arguments[arguments.index(option) + 1], expected)
+                self.assertIn("--retry-connrefused", arguments)
+                self.assertIn("--fail", arguments)
+                self.assertNotIn("--retry-all-errors", arguments)
+                self.assertEqual(child.call_args.kwargs["timeout"], 300)
+                self.assertEqual(attempts[:-1], [502] * (len(attempts) - 1))
+                self.assertEqual(attempts[-1], 200)
+                self.assertEqual(json.dumps(candidate, sort_keys=True), before)
+
+    def test_storefront_health_exhaustion_timeout_and_non_200_hold(self):
+        candidate = {"services": ["storefront"], "state": {"phase": "health"}}
+        operation = deploy.Deployment(candidate, Path("/unused/candidate.json"))
+        for code, status in ((22, b"502"), (28, b"000"), (22, b"401"), (22, b"403"),
+                             (0, b"204"), (0, b"401"), (0, b"403")):
+            with self.subTest(code=code, status=status), mock.patch.object(deploy.subprocess, "run",
+                    return_value=SimpleNamespace(returncode=code, stdout=status)) as child:
+                with self.assertRaises(deploy.Hold):
+                    operation.health()
+                child.assert_called_once()
+                self.assertEqual(candidate["state"]["phase"], "health")
+        with mock.patch.object(deploy.subprocess, "run", side_effect=subprocess.TimeoutExpired("curl", 300)):
+            with self.assertRaisesRegex(deploy.Hold, "command_failed"):
+                operation.health()
+
+    def test_api_admin_health_arguments_remain_unchanged(self):
+        operation = deploy.Deployment({"services": ["api", "admin", "storefront"]}, Path("/unused"))
+        with mock.patch.object(deploy, "run", return_value=b"200") as command:
+            operation.health()
+        expected_urls = ["http://127.0.0.1:8621/api/health", "https://test.luxe-pack.biz/api/v2/auth/session",
+                         "https://admin-test.luxe-pack.biz/"]
+        self.assertEqual(len(command.call_args_list), 4)
+        for call, url in zip(command.call_args_list, expected_urls):
+            self.assertEqual(call.args[0], ["curl", "--silent", "--fail", "--retry", "5", "--retry-delay", "1",
+                "--retry-connrefused", "--output", "/dev/null", "--write-out", "%{http_code}", "--max-time", "120", url])
+
+
 class GitMigrationRegressionTest(unittest.TestCase):
     def test_real_git_migrations_ignore_readme_and_prepare_without_migration(self):
         common = Path(REAL_RUN(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"]).decode().strip())
