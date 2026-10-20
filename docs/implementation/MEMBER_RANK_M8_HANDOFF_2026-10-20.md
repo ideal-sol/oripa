@@ -52,8 +52,10 @@ replay, RBAC, fresh MFA, CSRF and no-store controls are preserved.
 Migration 000094 was reserved under the Migration Allocation Lock after checking
 the complete source inventory. The new immutable adjustment table and signed
 entry shape preserve the original positive `payment_id UNIQUE` entry. Separate
-`adjustment_id` and `origin_payment_id` uniqueness plus the succeeded-adjustment
-business-key index prevent repeat cancellation. Deferred constraints check
+`adjustment_id` and `origin_payment_id` uniqueness plus the new immutable
+adjustment table's unique payment key prevent repeat cancellation. Every new
+success requires this accounting; historical partial-refund rows are preserved
+without a global uniqueness index on their original table. Deferred constraints check
 origin, month, time, amount, impact and terminal success. Month total consistency
 continues to be enforced by the existing sum-of-applied-deltas constraint.
 

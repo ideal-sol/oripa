@@ -194,9 +194,10 @@ positive payment entries and adds a separately keyed negative adjustment origin.
 Requested cancellation remains nonzero even when the applied decrease is zero.
 Deferred checks bind immutable adjustment accounting to the final succeeded
 refund/chargeback, original user/payment/grant/JST month, signed point entry,
-prior month total and paid/free impact. A partial unique index permits at most
-one succeeded refund or chargeback per original payment. Canceled payments
-cannot subsequently be backfilled into positive rank points.
+prior month total and paid/free impact. Every new success requires an immutable
+M8 record with unique payment and adjustment keys, preventing repeat cancellation
+without adding a global uniqueness restriction to historical partial refunds.
+Canceled payments cannot subsequently be backfilled into positive rank points.
 
 Payment-origin free points are one combined normal/limited-bonus lot. M4 purchase
 bonus points remain a separate operation with exactly one lot and grant ledger
