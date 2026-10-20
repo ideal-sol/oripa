@@ -308,13 +308,22 @@ final class MemberRankAdminTest extends TestCase
 
     public function test_reserved_and_expired_free_lots_are_excluded_from_recovery(): void
     {
+        self::assertSame(1, DB::transactionLevel());
+        DB::rollBack();
+        DB::beginTransaction();
+        self::assertFalse((bool) DB::table('member_rank_settings')->where('id', 1)->value('enabled'));
+        $this->admin = $this->rankAdmin();
         $reserved = $this->rankUser();
         $payment = $this->settleRankPayment($reserved, 10000, 200);
         app(\App\Domain\Payment\V2\Services\V2PaymentService::class)->reserveFullRefund($payment->id, (string) Str::uuid7(), $this->admin->adminId);
+        $this->enableRankFixture();
+        $this->write($reserved, 'points', ['delta' => 10000, 'reason' => '有効化前の予約を保持して到達']);
         app(V2PointService::class)->consume($reserved->id, 500, (string) Str::uuid7());
         $this->write($reserved, 'points', ['delta' => -10000, 'reason' => '予約済みを回収しない']);
         self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $reserved->id, 'recovered_amount' => 0, 'shortfall_amount' => 500]);
         self::assertDatabaseHas('wallets', ['user_id' => $reserved->id, 'free_balance' => 200, 'free_reserved_balance' => 200]);
+        self::assertDatabaseHas('wallets', ['user_id' => $reserved->id, 'paid_balance' => 10000, 'paid_reserved_balance' => 10000]);
+        self::assertSame(2, DB::table('point_lot_reservations')->where('status', 'active')->count());
         $expired = $this->rankUser();
         $this->write($expired, 'points', ['delta' => 10000, 'reason' => '到達']);
         app(V2PointService::class)->consume($expired->id, 500, (string) Str::uuid7());
