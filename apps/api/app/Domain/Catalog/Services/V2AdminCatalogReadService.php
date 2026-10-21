@@ -2065,6 +2065,7 @@ final class V2AdminCatalogReadService
             'audience_code' => $row->audience_code ?? 'all_users',
             'member_rank_mode' => $row->member_rank_mode ?? 'none',
             'member_rank_level' => $row->member_rank_level ?? null,
+            ...V2GachaPurchaseCondition::values($row),
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->allowedDrawCounts(
                 $row->allowed_draw_counts ?? null
@@ -2168,6 +2169,7 @@ final class V2AdminCatalogReadService
             'audience_code' => $row->audience_code ?? 'all_users',
             'member_rank_mode' => $row->member_rank_mode ?? 'none',
             'member_rank_level' => $row->member_rank_level ?? null,
+            ...V2GachaPurchaseCondition::values($row),
             'first_time_eligible_days' => (int) ($row->first_time_eligible_days ?? 7),
             'allowed_draw_counts' => $this->allowedDrawCounts(
                 $row->allowed_draw_counts ?? null

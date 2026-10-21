@@ -726,13 +726,29 @@ final class QaDrawVerticalSliceTest extends TestCase
      * @param list<int> $randomValues
      * @return array{User, Admin}
      */
+    public function test_qa_bypasses_purchase_conditions_and_keeps_purchase_snapshots_null(): void
+    {
+        [$user, $owner] = $this->fixture(purchaseConditions: [
+            'purchase_count_mode' => 'gte', 'purchase_count_value' => 3,
+            'purchase_amount_mode' => 'gte', 'purchase_amount_value' => 10000,
+        ]);
+        $this->enableMode($owner, $user);
+        $this->qaPlan($owner, $user, [$this->item(self::PRIZE_A_ID, 1, 1)]);
+        $this->draw($user, 1, 'g1-qa-purchase-bypass');
+        self::assertDatabaseHas('draw_requests', [
+            'user_id' => $user->id, 'is_qa_draw' => true,
+            'purchase_count_snapshot' => null, 'purchase_amount_snapshot' => null,
+        ]);
+    }
+
     private function fixture(
         array $randomValues = [5_000],
         int $freePoints = 1_000_000,
         int $totalCount = 5_000,
         ?object $randomCounter = null,
         string $audienceCode = 'all_users',
-        int $dailyDrawLimit = 0
+        int $dailyDrawLimit = 0,
+        array $purchaseConditions = []
     ): array {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -743,6 +759,7 @@ final class QaDrawVerticalSliceTest extends TestCase
         $fixture['versions'][0]['total_count'] = $totalCount;
         $fixture['versions'][0]['audience_code'] = $audienceCode;
         $fixture['versions'][0]['daily_draw_limit'] = $dailyDrawLimit;
+        $fixture['versions'][0] = [...$fixture['versions'][0], ...$purchaseConditions];
         $inventoryQuantities = [intdiv($totalCount, 10), $totalCount - intdiv($totalCount, 10)];
         foreach ($fixture['gacha_prizes'] as $index => &$relation) {
             $relation['initial_inventory'] = $inventoryQuantities[$index] ?? 0;

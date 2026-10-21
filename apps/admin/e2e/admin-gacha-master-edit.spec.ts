@@ -15,6 +15,37 @@ const testUserId = uuid("0");
 const assignmentId = "01910191-0191-7191-8191-019101910190";
 const csrf = "a".repeat(64);
 
+for (const width of [1440, 390]) {
+  test(`G1 ${width}px purchase conditions save, summarize and lock after publication`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    let saved: Record<string, unknown> | undefined;
+    let published = false;
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaCode}`, async (route) => {
+      if (route.request().method() === "PUT") saved = route.request().postDataJSON();
+      await json(route, { data: { ...gacha(), first_published_at: published ? "2026-08-20T00:00:00Z" : null,
+        current_version: { ...gacha().current_version, ...saved } } });
+    });
+    await page.goto(`/gachas/${gachaCode}/edit`);
+    await expect(page.getByLabel("対象条件の要約")).toHaveText("条件なし（すべてのユーザー）");
+    await page.getByRole("combobox", { name: "購入回数", exact: true }).selectOption("gte");
+    await page.getByLabel("購入回数の値", { exact: true }).fill("3");
+    await page.getByRole("combobox", { name: "購入額", exact: true }).selectOption("lt");
+    await page.getByLabel("購入額の値", { exact: true }).fill("10000");
+    await expect(page.getByLabel("対象条件の要約")).toContainText("購入回数3回以上／購入額10,000円未満");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`g1-${width}-conditions.png`), fullPage: true });
+    await page.getByRole("button", { name: "編集内容を保存" }).click();
+    await expect(page).toHaveURL(`/catalog/gachas/${gachaCode}`);
+    expect(saved).toMatchObject({ purchase_count_mode: "gte", purchase_count_value: 3,
+      purchase_amount_mode: "lt", purchase_amount_value: 10000 });
+    await expect(page.getByText("購入回数3回以上／購入額10,000円未満", { exact: true })).toBeVisible();
+    published = true;
+    await page.goto(`/gachas/${gachaCode}/edit`);
+    await expect(page.getByRole("combobox", { name: "購入回数", exact: true })).toBeDisabled();
+    await expect(page.getByLabel("購入額の値", { exact: true })).toBeDisabled();
+  });
+}
+
 for (const width of [1440, 1366, 390]) {
   for (const mode of ["new", "edit"]) {
     test(`Form batch ${width}px gacha ${mode} category stays standard beside media`, async ({ page }) => {

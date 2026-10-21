@@ -21,6 +21,7 @@ final class V2GachaCompositionService
     public function validate(array $input): array
     {
         $input = [...$input, ...\App\Domain\MemberRank\Services\V2MemberRankGachaCondition::validate($input)];
+        $input = [...$input, ...V2GachaPurchaseCondition::validate($input)];
         $useDefault = array_key_exists('use_default_rank_video', $input) ? $input['use_default_rank_video'] : true;
         if (! is_bool($useDefault)) {
             throw $this->invalid();
@@ -33,7 +34,7 @@ final class V2GachaCompositionService
         }
         $fields = ['gacha_type', 'title', 'description', 'notices', 'presentation_asset_id', 'price_points',
             'minimum_exchange_points', 'publish_start_at', 'publish_end_at', 'category_id', 'tag_ids',
-            'total_count', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', 'first_time_eligible_days', 'allowed_draw_counts', 'ranks', 'prizes'];
+            'total_count', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', ...V2GachaPurchaseCondition::FIELDS, 'first_time_eligible_days', 'allowed_draw_counts', 'ranks', 'prizes'];
         if (array_diff(array_keys($input), $fields) !== [] || array_diff($fields, array_keys($input)) !== []) {
             throw $this->invalid();
         }
@@ -102,6 +103,7 @@ final class V2GachaCompositionService
             if ($input['category_id'] !== null || $input['tag_ids'] !== [] || $input['total_count'] !== null
                 || $input['allowed_draw_counts'] !== [1] || $input['audience_code'] !== 'all_users'
                 || $input['first_time_eligible_days'] !== 7
+                || $input['purchase_count_mode'] !== 'none' || $input['purchase_amount_mode'] !== 'none'
                 || ($input['gacha_type'] === 'login_daily' && ($input['daily_draw_limit'] !== 1 || $input['minimum_exchange_points'] === null))
                 || ($input['gacha_type'] === 'signup_once' && ($input['member_rank_mode'] !== 'none' || $input['price_points'] !== 0 || $input['daily_draw_limit'] !== 0 || $input['minimum_exchange_points'] !== null))) {
                 throw $this->invalid();
@@ -183,7 +185,7 @@ final class V2GachaCompositionService
             ]);
         }
         $attributes = array_intersect_key($payload, array_flip(['title', 'description', 'notices', 'price_points',
-            'total_count', 'minimum_exchange_points', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', 'first_time_eligible_days', 'publish_start_at', 'publish_end_at']));
+            'total_count', 'minimum_exchange_points', 'daily_draw_limit', 'audience_code', 'member_rank_mode', 'member_rank_level', ...V2GachaPurchaseCondition::FIELDS, 'first_time_eligible_days', 'publish_start_at', 'publish_end_at']));
         $attributes += ['category_id' => $category?->id, 'presentation_asset_id' => $asset->id,
             'allowed_draw_counts' => json_encode($payload['allowed_draw_counts'], JSON_THROW_ON_ERROR), 'updated_at' => $now];
         if ($version === null) {

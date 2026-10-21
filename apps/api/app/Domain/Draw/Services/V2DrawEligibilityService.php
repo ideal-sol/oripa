@@ -3,6 +3,7 @@
 namespace App\Domain\Draw\Services;
 
 use App\Domain\Draw\Exceptions\V2DrawException;
+use App\Domain\Catalog\Services\V2GachaPurchaseCondition;
 use App\Domain\Line\Services\V2LineFriendStateService;
 use App\Domain\MemberRank\Services\V2MemberRankGachaCondition;
 use App\Domain\MemberRank\Services\V2MemberRankResolver;
@@ -39,7 +40,8 @@ final class V2DrawEligibilityService
         int $dailyLimit,
         CarbonImmutable $occurredAt,
         ?object $version = null,
-        ?array $memberRank = null
+        ?array $memberRank = null,
+        ?array $purchases = null
     ): array {
         $authenticated = $user instanceof User;
         $audienceEligible = $authenticated
@@ -58,6 +60,8 @@ final class V2DrawEligibilityService
             : ($unlimited ? null : max(0, $dailyLimit - $used));
         $memberRank ??= $authenticated ? app(V2MemberRankResolver::class)->project($user->id, $occurredAt) : null;
         $rankEligible = $memberRank !== null && V2MemberRankGachaCondition::matches($version ?? (object) [], $memberRank);
+        $purchases ??= $authenticated ? V2GachaPurchaseCondition::aggregate($user->id) : null;
+        $purchaseReason = $purchases === null ? null : V2GachaPurchaseCondition::reason($version ?? (object) [], $purchases);
 
         return [
             'authenticated' => $authenticated,
@@ -65,7 +69,8 @@ final class V2DrawEligibilityService
             'audience_eligible' => $audienceEligible,
             'ineligible_reason' => ! $authenticated
                 ? 'authentication_required'
-                : (! $audienceEligible ? 'audience_not_eligible' : ($rankEligible ? null : 'member_rank_not_eligible')),
+                : (! $audienceEligible ? 'audience_not_eligible' : ($rankEligible ? $purchaseReason : 'member_rank_not_eligible')),
+            'purchase_progress' => V2GachaPurchaseCondition::progress($version ?? (object) [], $purchases),
             'daily' => [
                 'limit' => $dailyLimit,
                 'unlimited' => $unlimited,
@@ -83,13 +88,14 @@ final class V2DrawEligibilityService
         object $version,
         int $drawCount,
         CarbonImmutable $occurredAt
-    ): ?int {
+    ): array {
         $lockedUser = DB::table('users')
             ->where('id', $user->id)
             ->lockForUpdate()
             ->first();
         $memberRank = app(V2MemberRankResolver::class)->materialize($user->id, $occurredAt);
         $snapshotLevel = $memberRank['enabled'] ? (int) $memberRank['level'] : null;
+        $snapshot = ['member_rank_level' => $snapshotLevel, 'purchase_count_snapshot' => null, 'purchase_amount_snapshot' => null];
         if (in_array($gacha->gacha_type, ['login_daily', 'signup_once'], true)) {
             if ($lockedUser === null || $drawCount !== 1) {
                 throw new V2DrawException('INVALID_DRAW_REQUEST', 422, 'A login Gacha permits one Draw.');
@@ -109,7 +115,7 @@ final class V2DrawEligibilityService
                 );
             }
 
-            return $snapshotLevel;
+            return $snapshot;
         }
         if (
             $lockedUser === null
@@ -131,8 +137,15 @@ final class V2DrawEligibilityService
             throw new V2DrawException('GACHA_MEMBER_RANK_NOT_ELIGIBLE', 403, 'The member rank does not satisfy this Gacha condition.');
         }
         $dailyLimit = (int) $version->daily_draw_limit;
+        $purchases = V2GachaPurchaseCondition::aggregate($user->id);
+        $purchaseReason = V2GachaPurchaseCondition::reason($version, $purchases);
+        if ($purchaseReason !== null) {
+            throw new V2DrawException('GACHA_'.strtoupper($purchaseReason), 403, 'The purchase history does not satisfy this Gacha condition.');
+        }
+        $snapshot['purchase_count_snapshot'] = $purchases['purchase_count'];
+        $snapshot['purchase_amount_snapshot'] = $purchases['purchase_amount'];
         if ($dailyLimit === 0) {
-            return $snapshotLevel;
+            return $snapshot;
         }
         if ($dailyLimit < 0) {
             throw new V2DrawException(
@@ -151,7 +164,7 @@ final class V2DrawEligibilityService
             );
         }
 
-        return $snapshotLevel;
+        return $snapshot;
     }
 
     public function evaluateLogin(?object $user, object $gacha, object $version, CarbonImmutable $occurredAt, ?array $memberRank = null): array

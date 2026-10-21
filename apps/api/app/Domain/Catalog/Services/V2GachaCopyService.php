@@ -78,6 +78,7 @@ final class V2GachaCopyService
                 'total_count' => $version->total_count === null ? null : (int) $version->total_count,
                 'daily_draw_limit' => (int) $version->daily_draw_limit, 'audience_code' => $version->audience_code,
                 'member_rank_mode' => $version->member_rank_mode,
+                ...V2GachaPurchaseCondition::values($version),
                 'member_rank_level' => $version->member_rank_level === null ? null : (int) $version->member_rank_level,
                 'first_time_eligible_days' => (int) $version->first_time_eligible_days,
                 'allowed_draw_counts' => json_decode($version->allowed_draw_counts, true, 512, JSON_THROW_ON_ERROR),

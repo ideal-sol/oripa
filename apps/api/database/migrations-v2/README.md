@@ -210,3 +210,12 @@ the new success constraint. Do not roll back to a writer that omits cancellation
 accounting. Retain immutable evidence and use a reviewed forward fix; down is
 refused. No operational application, feature activation or contract publication
 is authorized by this source change.
+## Standard Gacha purchase conditions (000095)
+
+Migration `2026_10_22_000095_add_v2_gacha_purchase_conditions.php` adds optional
+purchase count/amount conditions with none/null defaults and immutable Draw
+snapshots. Existing published rows are not updated. Non-standard purchase
+conditions remain prohibited until G2. Existing published and rank guards remain.
+Forward-only: retain schema and snapshots on rollback; a writer without purchase
+eligibility enforcement must not serve conditioned Gachas. Operational migration
+and activation are deferred; verification uses a dedicated synthetic database.

@@ -396,6 +396,11 @@ test("端数Draw Fixtureは要求数と実行数を分離してReplayを固定�
 });
 
 test("Draw Problem FixtureはGenerated Codeと型付きAssertionを同期する", () => {
+  for (const code of ["GACHA_PURCHASE_COUNT_NOT_ELIGIBLE", "GACHA_PURCHASE_AMOUNT_NOT_ELIGIBLE"]) {
+    const problem = PUBLIC_DRAW_PROBLEM_FIXTURES.find((item) => item.code === code);
+    assert.equal(problem.status, 403);
+    assert.equal(problem.retryable, false);
+  }
   for (const problem of PUBLIC_DRAW_PROBLEM_FIXTURES) {
     const error = new ApiProblemError(problem);
     assertDrawProblemDetails(error, problem.code);
