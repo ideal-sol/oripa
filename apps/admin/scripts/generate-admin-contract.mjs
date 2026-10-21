@@ -2577,6 +2577,10 @@ export interface AdminGachaComposition {
   audience_code: "all_users" | "first_time_users" | "line_users";
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   first_time_eligible_days: number;
   allowed_draw_counts: AdminGachaAllowedDrawCount[];
   ranks: AdminCompositionRank[];
@@ -2613,6 +2617,10 @@ export interface AdminCatalogGachaCoreVersion {
   audience_code: "all_users" | "first_time_users" | "line_users";
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
@@ -2742,6 +2750,10 @@ export interface AdminCatalogGachaCoreCreate {
   audience_code: "all_users" | "first_time_users" | "line_users";
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset_id: string;
@@ -2763,6 +2775,10 @@ export interface AdminCatalogGachaUpdate {
   audience_code?: "all_users" | "first_time_users" | "line_users";
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   management_status?: "draft" | "scheduled" | "published" | "sales_paused" | "unpublished";
@@ -2810,6 +2826,10 @@ export interface AdminCatalogGachaVersion {
   audience_code?: "all_users" | "first_time_users" | "line_users";
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   first_time_eligible_days?: number;
   allowed_draw_counts?: AdminGachaAllowedDrawCount[];
   presentation_asset: AdminCatalogAssetReference | null;
@@ -2842,6 +2862,10 @@ export type AdminCatalogGachaVersionRepresentation = AdminCatalogGachaVersion | 
 export interface AdminCatalogGachaVersionCreate {
   member_rank_mode?: "none" | "at_least" | "only" | "at_most";
   member_rank_level?: number | null;
+  purchase_count_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_count_value?: number | null;
+  purchase_amount_mode?: "none" | "eq" | "gte" | "lt";
+  purchase_amount_value?: number | null;
   title: string;
   description: string | null;
   notices: string | null;

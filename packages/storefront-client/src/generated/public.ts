@@ -2042,7 +2042,7 @@ export interface components {
             code: components["schemas"]["PublicAuthProblemCode"];
         };
         /** @enum {string} */
-        DrawProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_MEMBER_RANK_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
+        DrawProblemCode: "SMS_VERIFICATION_REQUIRED" | "AUTHENTICATION_REQUIRED" | "CSRF_TOKEN_MISMATCH" | "DAILY_DRAW_LIMIT_EXCEEDED" | "DRAW_COUNT_INSUFFICIENT" | "GACHA_AUDIENCE_NOT_ELIGIBLE" | "GACHA_MEMBER_RANK_NOT_ELIGIBLE" | "GACHA_PURCHASE_COUNT_NOT_ELIGIBLE" | "GACHA_PURCHASE_AMOUNT_NOT_ELIGIBLE" | "GACHA_NOT_DRAWABLE" | "GACHA_SALES_PAUSED" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INSUFFICIENT_POINTS" | "INVALID_DRAW_REQUEST" | "RATE_LIMITED";
         DrawProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["DrawProblemCode"];
         };
@@ -2256,6 +2256,10 @@ export interface components {
             display_order: number;
         };
         GachaDetail: {
+            presentation?: {
+                conditions: components["schemas"]["GachaConditions"];
+                purchase_progress: null;
+            };
             id: components["schemas"]["GachaPublicId"];
             slug: string;
             title: string;
@@ -2283,7 +2287,7 @@ export interface components {
         /** @enum {string} */
         GachaAudience: "all_users" | "first_time_users" | "line_users";
         /** @enum {string|null} */
-        GachaPresentationReason: "sale_not_started" | "sales_paused" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "member_rank_not_eligible" | "daily_limit_reached" | null;
+        GachaPresentationReason: "sale_not_started" | "sales_paused" | "sold_out" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "member_rank_not_eligible" | "purchase_count_not_eligible" | "purchase_amount_not_eligible" | "daily_limit_reached" | null;
         GachaDailyLimitState: {
             limit: number;
             unlimited: boolean;
@@ -2303,7 +2307,27 @@ export interface components {
             show_total_count: boolean;
             show_drawn_count: boolean;
         };
+        GachaPurchaseCondition: {
+            /** @enum {string} */
+            operator: "eq" | "gte" | "lt";
+            value: number;
+        } | null;
+        GachaConditions: {
+            audience: components["schemas"]["GachaAudience"];
+            member_rank: components["schemas"]["GachaMemberRankCondition"] | null;
+            purchase_count: components["schemas"]["GachaPurchaseCondition"];
+            purchase_amount: components["schemas"]["GachaPurchaseCondition"];
+        };
+        /** @description Authenticated private no-store response only. Successful lifetime coin payments excluding successful refunds and chargebacks, including after reversal. Remaining values are present only for unmet gte conditions. */
+        GachaPurchaseProgress: {
+            purchase_count: number;
+            purchase_amount: number;
+            purchase_count_remaining: number | null;
+            purchase_amount_remaining: number | null;
+        } | null;
         GachaPresentationState: {
+            conditions?: components["schemas"]["GachaConditions"];
+            purchase_progress?: components["schemas"]["GachaPurchaseProgress"];
             member_rank_condition?: components["schemas"]["GachaMemberRankCondition"];
             gacha_id: components["schemas"]["GachaPublicId"];
             sale_state: components["schemas"]["GachaSaleState"];

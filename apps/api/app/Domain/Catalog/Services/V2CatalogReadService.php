@@ -143,6 +143,7 @@ final class V2CatalogReadService
             ->orderBy('g.public_id');
         $now = CarbonImmutable::now('UTC')->startOfSecond();
         $memberRank = $user === null ? null : app(V2MemberRankResolver::class)->project($user->id, $now);
+        $purchases = $user === null ? null : V2GachaPurchaseCondition::aggregate($user->id);
         if ($memberRankEligibleOnly) {
             $query->where('gv.member_rank_mode', '<>', 'none');
             if ($memberRank === null || ! $memberRank['enabled']) {
@@ -150,7 +151,7 @@ final class V2CatalogReadService
             }
             $query = $query->select($this->summaryColumns())
                 ->lazyById($limit + 1, 'g.public_id', 'public_id')
-                ->filter(fn (object $row): bool => $this->presentationForRow($row, $user, $now, $memberRank)['eligible'])
+                ->filter(fn (object $row): bool => $this->presentationForRow($row, $user, $now, $memberRank, $purchases)['eligible'])
                 ->take($limit + 1)->collect();
         } else {
             $query = $query->limit($limit + 1)->get($this->summaryColumns());
@@ -163,7 +164,7 @@ final class V2CatalogReadService
             fn (object $row): array => [
                 ...$this->summary($row, $tags[$row->gacha_internal_id] ?? []),
                 'drawn_count' => (int) $row->sold_count,
-                'presentation' => $this->presentationForRow($row, $user, $now, $memberRank),
+                'presentation' => $this->presentationForRow($row, $user, $now, $memberRank, $purchases),
             ]
         )->values()->all();
         $last = $rows->last();
@@ -256,7 +257,8 @@ final class V2CatalogReadService
         object $row,
         ?User $user,
         CarbonImmutable $now,
-        ?array $memberRank = null
+        ?array $memberRank = null,
+        ?array $purchases = null
     ): array {
         $saleState = $this->saleState($row, $now);
         $evaluation = $this->eligibility->evaluate(
@@ -267,7 +269,8 @@ final class V2CatalogReadService
             (int) $row->daily_draw_limit,
             $now,
             $row,
-            $memberRank
+            $memberRank,
+            $purchases
         );
         $reason = $this->presentationReason($saleState, $evaluation);
         $remainingCount = (int) $row->remaining_count;
@@ -299,6 +302,8 @@ final class V2CatalogReadService
                 : 'unauthenticated',
             'audience' => $evaluation['audience_code'],
             'member_rank_condition' => V2MemberRankGachaCondition::presentation($row),
+            'conditions' => V2GachaPurchaseCondition::conditions($row),
+            'purchase_progress' => $evaluation['purchase_progress'],
             'eligible' => $reason === null,
             'ineligible_reason' => $reason,
             'allowed_draw_counts' => $allowedCounts,
@@ -404,6 +409,8 @@ final class V2CatalogReadService
             'gv.audience_code',
             'gv.member_rank_mode',
             'gv.member_rank_level',
+            'gv.purchase_count_mode', 'gv.purchase_count_value',
+            'gv.purchase_amount_mode', 'gv.purchase_amount_value',
             'gv.first_time_eligible_days',
             'gv.allowed_draw_counts',
             DB::raw('COALESCE(g.current_publish_start_at, gv.publish_start_at) as publish_start_at'),
@@ -508,6 +515,7 @@ final class V2CatalogReadService
             CarbonImmutable::now('UTC')->startOfSecond()
         );
         $result['description'] = $row->description;
+        $result['presentation'] = ['conditions' => V2GachaPurchaseCondition::conditions($row), 'purchase_progress' => null];
         $result['notices'] = $row->notices;
         $result['ranks'] = $this->ranks((int) $row->version_internal_id);
         $result['prizes'] = $this->prizes((int) $row->version_internal_id);

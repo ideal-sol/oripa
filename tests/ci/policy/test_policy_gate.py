@@ -21,6 +21,28 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_gacha_g1_admin_inventory_is_exact(self):
+        expected = {"apps/admin/src/components/catalog/purchase-condition.tsx",
+                    "apps/admin/test/gacha-purchase-condition.test.tsx"}
+        self.assertEqual(expected, policy_gate.GACHA_G1_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/test/gacha-unreviewed.test.tsx"})
+
+    def test_gacha_g1_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "GACHA-ELIGIBILITY-G1-20261022"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "GACHA-ELIGIBILITY-G2-20261022", "GACHA-ELIGIBILITY-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_member_rank_m8_task_id_is_exact(self):
         data = fixture("positive.json")
         task_id = "MEMBERRANK-M8-20261020"

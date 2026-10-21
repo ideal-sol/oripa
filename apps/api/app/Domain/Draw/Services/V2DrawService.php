@@ -235,9 +235,9 @@ final class V2DrawService
                 if ($adminCommand === null) {
                     $this->smsVerification->assertVerified($user, true);
                 }
-                $memberRankLevel = null;
+                $eligibilitySnapshot = ['member_rank_level' => null, 'purchase_count_snapshot' => null, 'purchase_amount_snapshot' => null];
                 if (! $qaSelection['active']) {
-                    $memberRankLevel = $this->eligibility->assertForDraw(
+                    $eligibilitySnapshot = $this->eligibility->assertForDraw(
                         $user,
                         $gacha,
                         $context['version'],
@@ -254,7 +254,7 @@ final class V2DrawService
                 }
                 $drawRequest = new DrawRequest();
                 $drawRequest->forceFill([
-                    'member_rank_level' => $memberRankLevel,
+                    ...$eligibilitySnapshot,
                     'user_id' => $user->id,
                     'gacha_draw_state_id' => $state->id,
                     'gacha_version_id' => $context['version']->id,

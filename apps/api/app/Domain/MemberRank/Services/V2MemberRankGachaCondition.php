@@ -22,7 +22,7 @@ final class V2MemberRankGachaCondition
     public static function matches(object $version, array $projection): bool
     {
         if (! $projection['enabled']) {
-            return true;
+            return ($version->member_rank_mode ?? 'none') === 'none';
         }
         $level = $version->member_rank_level ?? null;
 

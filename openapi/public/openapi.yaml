@@ -3651,6 +3651,8 @@ components:
         - DRAW_COUNT_INSUFFICIENT
         - GACHA_AUDIENCE_NOT_ELIGIBLE
         - GACHA_MEMBER_RANK_NOT_ELIGIBLE
+        - GACHA_PURCHASE_COUNT_NOT_ELIGIBLE
+        - GACHA_PURCHASE_AMOUNT_NOT_ELIGIBLE
         - GACHA_NOT_DRAWABLE
         - GACHA_SALES_PAUSED
         - IDEMPOTENCY_KEY_REUSED
@@ -4196,6 +4198,13 @@ components:
         - ranks
         - probability_stages
       properties:
+        presentation:
+          type: object
+          additionalProperties: false
+          required: [conditions, purchase_progress]
+          properties:
+            conditions: {$ref: '#/components/schemas/GachaConditions'}
+            purchase_progress: {type: 'null'}
         id:
           $ref: '#/components/schemas/GachaPublicId'
         slug:
@@ -4270,6 +4279,8 @@ components:
         - authentication_required
         - audience_not_eligible
         - member_rank_not_eligible
+        - purchase_count_not_eligible
+        - purchase_amount_not_eligible
         - daily_limit_reached
         - null
     GachaDailyLimitState:
@@ -4314,6 +4325,35 @@ components:
           type: boolean
         show_drawn_count:
           type: boolean
+    GachaPurchaseCondition:
+      type: [object, 'null']
+      additionalProperties: false
+      required: [operator, value]
+      properties:
+        operator: {type: string, enum: [eq, gte, lt]}
+        value: {type: integer, minimum: 0, maximum: 9007199254740991}
+    GachaConditions:
+      type: object
+      additionalProperties: false
+      required: [audience, member_rank, purchase_count, purchase_amount]
+      properties:
+        audience: {$ref: '#/components/schemas/GachaAudience'}
+        member_rank:
+          oneOf:
+            - {$ref: '#/components/schemas/GachaMemberRankCondition'}
+            - {type: 'null'}
+        purchase_count: {$ref: '#/components/schemas/GachaPurchaseCondition'}
+        purchase_amount: {$ref: '#/components/schemas/GachaPurchaseCondition'}
+    GachaPurchaseProgress:
+      type: [object, 'null']
+      description: Authenticated private no-store response only. Successful lifetime coin payments excluding successful refunds and chargebacks, including after reversal. Remaining values are present only for unmet gte conditions.
+      additionalProperties: false
+      required: [purchase_count, purchase_amount, purchase_count_remaining, purchase_amount_remaining]
+      properties:
+        purchase_count: {type: integer, minimum: 0}
+        purchase_amount: {type: integer, minimum: 0}
+        purchase_count_remaining: {type: [integer, 'null'], minimum: 1}
+        purchase_amount_remaining: {type: [integer, 'null'], minimum: 1}
     GachaPresentationState:
       type: object
       additionalProperties: false
@@ -4328,6 +4368,8 @@ components:
         - daily_limit
         - cta
       properties:
+        conditions: {$ref: '#/components/schemas/GachaConditions'}
+        purchase_progress: {$ref: '#/components/schemas/GachaPurchaseProgress'}
         member_rank_condition: {$ref: '#/components/schemas/GachaMemberRankCondition'}
         gacha_id:
           $ref: '#/components/schemas/GachaPublicId'

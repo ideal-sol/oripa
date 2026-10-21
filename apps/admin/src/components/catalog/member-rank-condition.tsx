@@ -18,6 +18,7 @@ export function MemberRankCondition({ mode = "none", level = null, disabled = fa
   onChange: (mode: Mode, level: number | null) => void;
 }) {
   return <div className="catalog-form-grid">
+    {mode !== "none" ? <p role="note">会員ランク機能が無効の間は、この条件のガチャを抽選できません。条件は保存できます。</p> : null}
     <label>会員ランク条件<select disabled={disabled} value={mode} onChange={(event) => {
       const next = event.target.value as Mode;
       onChange(next, next === "none" ? null : level);

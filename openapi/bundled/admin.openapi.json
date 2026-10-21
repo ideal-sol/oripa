@@ -13705,8 +13705,218 @@
           }
         }
       },
+      "AdminGachaPurchaseConditions": {
+        "type": "object",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "purchase_count_mode": {
+                  "const": "none"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "purchase_count_value": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "purchase_count_value"
+              ],
+              "properties": {
+                "purchase_count_value": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "purchase_count_mode"
+              ],
+              "properties": {
+                "purchase_count_mode": {
+                  "enum": [
+                    "gte",
+                    "lt"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "purchase_count_value": {
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "purchase_amount_mode": {
+                  "const": "none"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "purchase_amount_value": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "purchase_amount_value"
+              ],
+              "properties": {
+                "purchase_amount_value": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "purchase_amount_mode"
+              ],
+              "properties": {
+                "purchase_amount_mode": {
+                  "enum": [
+                    "gte",
+                    "lt"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "purchase_amount_value": {
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          {
+            "not": {
+              "allOf": [
+                {
+                  "required": [
+                    "purchase_count_mode",
+                    "purchase_count_value"
+                  ],
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "purchase_count_mode": {
+                          "const": "eq"
+                        },
+                        "purchase_count_value": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "purchase_count_mode": {
+                          "const": "lt"
+                        },
+                        "purchase_count_value": {
+                          "const": 1
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "required": [
+                    "purchase_amount_mode",
+                    "purchase_amount_value"
+                  ],
+                  "properties": {
+                    "purchase_amount_mode": {
+                      "enum": [
+                        "eq",
+                        "gte"
+                      ]
+                    },
+                    "purchase_amount_value": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "not": {
+              "allOf": [
+                {
+                  "required": [
+                    "purchase_amount_mode",
+                    "purchase_amount_value"
+                  ],
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "purchase_amount_mode": {
+                          "const": "eq"
+                        },
+                        "purchase_amount_value": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "purchase_amount_mode": {
+                          "const": "lt"
+                        },
+                        "purchase_amount_value": {
+                          "const": 1
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "required": [
+                    "purchase_count_mode",
+                    "purchase_count_value"
+                  ],
+                  "properties": {
+                    "purchase_count_mode": {
+                      "enum": [
+                        "eq",
+                        "gte"
+                      ]
+                    },
+                    "purchase_count_value": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
       "AdminGachaComposition": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "gacha_type",
@@ -13729,6 +13939,44 @@
           "prizes"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "use_default_rank_video": {
             "type": "boolean",
             "default": true,
@@ -13918,6 +14166,18 @@
             },
             "else": {
               "properties": {
+                "purchase_count_mode": {
+                  "const": "none"
+                },
+                "purchase_count_value": {
+                  "type": "null"
+                },
+                "purchase_amount_mode": {
+                  "const": "none"
+                },
+                "purchase_amount_value": {
+                  "type": "null"
+                },
                 "total_count": {
                   "type": "null"
                 },
@@ -19551,6 +19811,11 @@
       },
       "AdminCatalogGachaCoreVersion": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "id",
@@ -19568,6 +19833,44 @@
           "publish_end_at"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -19689,6 +19992,11 @@
       },
       "AdminLoginGachaCoreVersion": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "id",
@@ -19706,6 +20014,44 @@
           "publish_end_at"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -20043,6 +20389,11 @@
       },
       "AdminCatalogGachaCoreCreate": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "title",
@@ -20059,6 +20410,44 @@
           "notices"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "title": {
             "type": "string",
             "minLength": 1,
@@ -20159,6 +20548,11 @@
       },
       "AdminCatalogGachaUpdate": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "expected_revision",
@@ -20166,6 +20560,44 @@
           "tag_ids"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "expected_revision": {
             "type": "integer",
             "minimum": 1
@@ -20772,6 +21204,11 @@
       },
       "AdminCatalogGachaVersion": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "id",
@@ -20796,6 +21233,44 @@
           "updated_at"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -20964,6 +21439,11 @@
       },
       "AdminLoginGachaVersion": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "id",
@@ -20988,6 +21468,44 @@
           "updated_at"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -21166,6 +21684,11 @@
       },
       "AdminCatalogGachaVersionCreate": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "title",
@@ -21179,6 +21702,44 @@
           "prizes"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "member_rank_mode": {
             "type": "string",
             "enum": [
@@ -21258,6 +21819,11 @@
       },
       "AdminCatalogGachaVersionUpdate": {
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminGachaPurchaseConditions"
+          }
+        ],
         "additionalProperties": false,
         "required": [
           "expected_revision",
@@ -21272,6 +21838,44 @@
           "prizes"
         ],
         "properties": {
+          "purchase_count_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_count_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          },
+          "purchase_amount_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eq",
+              "gte",
+              "lt"
+            ],
+            "default": "none"
+          },
+          "purchase_amount_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "default": null
+          },
           "member_rank_mode": {
             "type": "string",
             "enum": [

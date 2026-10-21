@@ -9,6 +9,7 @@ import { CatalogApiErrorBoundary } from "@/components/catalog/catalog-api-error-
 import { CatalogGachaFormCard, GachaThumbnailField, gachaThumbnailError, uploadGachaThumbnail } from "@/components/catalog/catalog-gacha-forms";
 import { RankVideoEditor, videoWeightTotal } from "@/components/catalog/rank-video-editor";
 import { MemberRankCondition, memberRankConditionLabel } from "@/components/catalog/member-rank-condition";
+import { PurchaseCondition } from "@/components/catalog/purchase-condition";
 import { ExternalIdField } from "@/components/catalog/external-id-field";
 import { CatalogBannerAssetPicker } from "@/components/catalog/catalog-prize-asset-mutation-form";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
@@ -282,6 +283,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
           </div>
           {login ? <p className="field-hint">抽選回数: 1回固定 / {draft.gacha_type === "login_daily" ? "1ユーザー1日1回（JST）。会員ランク運用開始後はログインガチャ全体で1回" : "1ユーザー1回・利用期限なし・公開開始日時以降の新規登録完了ユーザー"}</p> : null}
           {draft.gacha_type === "signup_once" ? <p>会員ランク条件: 指定なし（固定）</p> : <MemberRankCondition mode={draft.member_rank_mode} level={draft.member_rank_level} disabled={locked || busy} onChange={(member_rank_mode, member_rank_level) => setDraft({ ...draft, member_rank_mode, member_rank_level })} />}
+          {!login ? <PurchaseCondition value={draft} disabled={locked || busy} audience={draft.audience_code} rank={draft} onChange={(purchase) => setDraft({ ...draft, ...purchase })} /> : null}
           {locked ? <p>会員ランク条件: {memberRankConditionLabel(draft)}</p> : null}
           {!login ? <><label>総口数<input required type="number" min={1} step={1} value={draft.total_count ?? 1} onChange={(event) => setDraft({ ...draft, total_count: Number(event.target.value) })} /></label>
             <label>カテゴリ<select required value={draft.category_id ?? ""} onChange={(event) => setDraft({ ...draft, category_id: event.target.value })}><option value="">選択してください</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>

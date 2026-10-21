@@ -264,6 +264,7 @@ final class V2CatalogFixtureImporter
                 'total_count' => $version['total_count'],
                 'daily_draw_limit' => $version['daily_draw_limit'] ?? 0,
                 'audience_code' => $version['audience_code'] ?? 'all_users',
+                ...V2GachaPurchaseCondition::validate($version),
                 'first_time_eligible_days' => $version['first_time_eligible_days'] ?? 7,
                 'allowed_draw_counts' => json_encode(
                     $version['allowed_draw_counts'] ?? [1, 5, 10],
@@ -582,6 +583,7 @@ final class V2CatalogFixtureImporter
         }
         foreach ($manifest['versions'] as $version) {
             $startsAt = strtotime((string) ($version['publish_start_at'] ?? ''));
+            V2GachaPurchaseCondition::validate($version);
             $endsAt = isset($version['publish_end_at'])
                 ? strtotime((string) $version['publish_end_at'])
                 : null;

@@ -6,6 +6,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import { standardCoreVersion } from "@/lib/catalog/login-gacha";
 import { MemberRankCondition } from "@/components/catalog/member-rank-condition";
+import { PurchaseCondition, type PurchaseFields } from "@/components/catalog/purchase-condition";
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
 import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import type {
@@ -43,7 +44,7 @@ export interface GachaVersionDraft {
   totalCount: number;
 }
 
-export interface GachaCoreDraft {
+export interface GachaCoreDraft extends PurchaseFields {
   allowedDrawCounts: Array<1 | 5 | 10 | 100 | 1000>;
   audienceCode: "all_users" | "first_time_users" | "line_users";
   memberRankMode: "none" | "at_least" | "only" | "at_most";
@@ -84,6 +85,10 @@ export function CatalogGachaCoreForm({
     audienceCode: current?.current_version?.audience_code ?? "all_users",
     memberRankMode: current?.current_version?.member_rank_mode ?? "none",
     memberRankLevel: current?.current_version?.member_rank_level ?? null,
+    purchase_count_mode: current?.current_version?.purchase_count_mode ?? "none",
+    purchase_count_value: current?.current_version?.purchase_count_value ?? null,
+    purchase_amount_mode: current?.current_version?.purchase_amount_mode ?? "none",
+    purchase_amount_value: current?.current_version?.purchase_amount_value ?? null,
     categoryId: current?.category?.id ?? "",
     dailyDrawLimit: current?.current_version?.daily_draw_limit ?? 0,
     firstTimeEligibleDays: current?.current_version?.first_time_eligible_days ?? 7,
@@ -263,6 +268,7 @@ export function CatalogGachaCoreForm({
         <FieldError message={errors.drawCounts} />
         <label>対象ユーザー<select disabled={postPublished} value={draft.audienceCode} onChange={(event) => setDraft({ ...draft, audienceCode: event.target.value as GachaCoreDraft["audienceCode"] })}><option value="all_users">すべてのユーザー</option><option value="first_time_users">初回ユーザー</option><option value="line_users">LINEユーザー</option></select></label>
         <MemberRankCondition disabled={postPublished} mode={draft.memberRankMode} level={draft.memberRankLevel} onChange={(memberRankMode, memberRankLevel) => setDraft({ ...draft, memberRankMode, memberRankLevel })} />
+        <PurchaseCondition value={draft} disabled={postPublished} audience={draft.audienceCode} rank={{ member_rank_mode: draft.memberRankMode, member_rank_level: draft.memberRankLevel }} onChange={(purchase) => setDraft({ ...draft, ...purchase })} />
         {draft.audienceCode === "first_time_users" ? <><NumberField disabled={postPublished} label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
         <div className="catalog-form-grid">
           <DateTimeField disabled={postPublished && (!scheduled || scheduledStartReached)} label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />

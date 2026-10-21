@@ -113,11 +113,15 @@ final class MemberRankGachaTest extends TestCase
         $this->assertDrawDenied($user, $signup, 'DAILY_DRAW_LIMIT_EXCEEDED');
     }
 
-    public function test_off_ignores_rank_conditions_and_preserves_per_gacha_login_limit(): void
+    public function test_off_denies_rank_conditions_and_preserves_unrestricted_per_gacha_login_limit(): void
     {
         $user = $this->fundedRankUser(1);
         $first = $this->rankGacha('login_daily', 'only', 7);
         $second = $this->rankGacha('login_daily', 'only', 6);
+        $this->assertDrawDenied($user, $first, 'GACHA_MEMBER_RANK_NOT_ELIGIBLE');
+        $this->assertDrawDenied($user, $second, 'GACHA_MEMBER_RANK_NOT_ELIGIBLE');
+        $first = $this->rankGacha('login_daily');
+        $second = $this->rankGacha('login_daily');
         self::assertNull($this->rankDraw($user, $first)['member_rank']);
         self::assertNull($this->rankDraw($user, $second)['member_rank']);
         $this->assertDrawDenied($user, $first, 'DAILY_DRAW_LIMIT_EXCEEDED');

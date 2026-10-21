@@ -30,9 +30,16 @@ final class ZMemberRankGachaConcurrencyTest extends TestCase
         $first = $this->rankGacha('login_daily', 'at_least', 1);
         $second = $this->rankGacha('login_daily', 'at_most', 7);
         $offUser = $this->fundedRankUser(2);
-        $off = $this->race($offUser, $second, fn () => $this->rankDraw($offUser, $first));
-        self::assertNull($off['draw']['member_rank']);
-        self::assertSame(2, DB::table('draw_requests')->where('user_id', $offUser->id)->count());
+        $off = $this->race($offUser, $second, function () use ($offUser, $first): void {
+            try {
+                $this->rankDraw($offUser, $first);
+                self::fail('Rank conditions must reject draws while the feature is off.');
+            } catch (V2DrawException $error) {
+                self::assertSame('GACHA_MEMBER_RANK_NOT_ELIGIBLE', $error->errorCode);
+            }
+        });
+        self::assertSame('GACHA_MEMBER_RANK_NOT_ELIGIBLE', $off['code']);
+        self::assertSame(0, DB::table('draw_requests')->where('user_id', $offUser->id)->count());
         $this->enableRankFixture();
         $user = $this->fundedRankUser(2);
         $on = $this->race($user, $second, fn () => $this->rankDraw($user, $first));

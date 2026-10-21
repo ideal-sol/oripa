@@ -101,6 +101,42 @@ final class AdminGachaMasterEditTest extends TestCase
             ->assertOk()->assertJsonPath('data.public_code', $created['public_code']);
     }
 
+    public function test_purchase_conditions_round_trip_audit_and_reject_published_changes(): void
+    {
+        $token = $this->createAdminSession();
+        $conditions = ['purchase_count_mode' => 'gte', 'purchase_count_value' => 3,
+            'purchase_amount_mode' => 'lt', 'purchase_amount_value' => 10000];
+        $created = $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core',
+            [...$this->coreInput(self::ASSET_ID), ...$conditions], 'g1-core-create')->assertCreated()->json('data');
+        self::assertSame($conditions, array_intersect_key($created['current_version'], $conditions));
+        Auth::forgetGuards();
+        $conditions['purchase_count_value'] = 4;
+        $this->mutate($token, 'PUT', '/admin/api/v2/catalog/gachas/'.$created['public_code'],
+            [...$this->coreInput(self::ASSET_ID), ...$conditions, 'expected_revision' => $created['revision'],
+                'expected_version_revision' => $created['current_version']['revision']], 'g1-core-update')
+            ->assertOk()->assertJsonPath('data.current_version.purchase_count_value', 4);
+        $metadata = DB::table('audit_logs')->where('target_public_id', $created['id'])
+            ->where('action_code', 'catalog.master.updated')->orderByDesc('id')->value('metadata_redacted');
+        $metadata = json_decode($metadata, true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(3, $metadata['purchase_count_value_before']);
+        self::assertSame(4, $metadata['purchase_count_value_after']);
+        Auth::forgetGuards();
+        $this->asAdmin($token)->getJson('/admin/api/v2/catalog/gachas/'.$created['public_code'])
+            ->assertOk()->assertJsonPath('data.current_version.purchase_count_value', 4);
+        Auth::forgetGuards();
+        $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', [...$this->coreInput(self::ASSET_ID),
+            'purchase_count_mode' => 'eq', 'purchase_count_value' => 0,
+            'purchase_amount_mode' => 'gte', 'purchase_amount_value' => 1], 'g1-core-contradiction')
+            ->assertUnprocessable()->assertJsonPath('code', 'CATALOG_MUTATION_INVALID');
+        Auth::forgetGuards();
+        $version = DB::table('catalog_gacha_versions')->where('public_id', self::PUBLISHED_VERSION_ID)->sole();
+        $gacha = DB::table('catalog_gachas')->where('public_id', self::PUBLISHED_GACHA_ID)->sole();
+        $this->mutate($token, 'PUT', '/admin/api/v2/catalog/gachas/'.self::PUBLISHED_GACHA_CODE,
+            [...$this->publishedCoreInput($version), ...$conditions, 'expected_revision' => (int) $gacha->revision,
+                'expected_version_revision' => (int) $version->revision], 'g1-core-published')
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_GACHA_POST_PUBLISH_FIELD_IMMUTABLE');
+    }
+
     public function test_standard_core_initializes_real_rank_videos_only_when_a_default_exists(): void
     {
         $token = $this->createAdminSession();

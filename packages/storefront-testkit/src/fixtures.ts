@@ -936,6 +936,8 @@ export const PUBLIC_GACHA_PRESENTATION_FIXTURE = Object.freeze({
     sale_state: "on_sale",
     user_state: "authenticated",
     audience: "first_time_users",
+    conditions: { audience: "first_time_users", member_rank: null, purchase_count: null, purchase_amount: null },
+    purchase_progress: null,
     eligible: true,
     ineligible_reason: null,
     allowed_draw_counts: [1, 5, 10],
@@ -1262,6 +1264,22 @@ export const PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE = Object.freeze({
 } as const);
 
 export const PUBLIC_DRAW_PROBLEM_FIXTURES = Object.freeze([
+  {
+    type: "https://oripa.example/problems/gacha_purchase_count_not_eligible",
+    title: "The purchase count does not satisfy this Gacha condition.",
+    status: 403,
+    code: "GACHA_PURCHASE_COUNT_NOT_ELIGIBLE",
+    request_id: "request-fixture-draw-problem-purchase-count",
+    retryable: false,
+  },
+  {
+    type: "https://oripa.example/problems/gacha_purchase_amount_not_eligible",
+    title: "The purchase amount does not satisfy this Gacha condition.",
+    status: 403,
+    code: "GACHA_PURCHASE_AMOUNT_NOT_ELIGIBLE",
+    request_id: "request-fixture-draw-problem-purchase-amount",
+    retryable: false,
+  },
   {
     type: "https://oripa.example/problems/gacha_member_rank_not_eligible",
     title: "The member rank does not satisfy this Gacha condition.",
