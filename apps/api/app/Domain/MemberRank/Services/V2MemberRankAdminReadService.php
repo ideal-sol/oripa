@@ -119,6 +119,21 @@ final class V2MemberRankAdminReadService
                 'lease_expired' => $progress['job']?->status === 'processing'
                     && CarbonImmutable::parse($progress['job']->lease_expires_at)->lessThanOrEqualTo($now),
             ], 'reviews' => $reviews,
+            'payment_adjustment_reviews' => DB::table('member_rank_payment_adjustments as review')
+                ->join('users as user', 'user.id', '=', 'review.user_id')
+                ->join('payments as payment', 'payment.id', '=', 'review.payment_id')
+                ->join('payment_adjustments as adjustment', 'adjustment.id', '=', 'review.adjustment_id')
+                ->where(fn ($query) => $query->where('review.effect', 'past_month')->orWhere('review.purchase_bonus_shortfall', '>', 0))
+                ->orderByDesc('review.id')
+                ->get(['review.*', 'user.public_id as user_public_id', 'payment.public_id as payment_public_id',
+                    'adjustment.public_id as adjustment_public_id', 'adjustment.type'])
+                ->map(fn (object $row): array => [
+                    'id' => $row->public_id, 'user_id' => $row->user_public_id, 'payment_id' => $row->payment_public_id,
+                    'adjustment_id' => $row->adjustment_public_id, 'type' => $row->type, 'month' => $row->month,
+                    'past_month' => $row->effect === 'past_month', 'requested_points' => (int) $row->requested_points,
+                    'applied_points' => (int) $row->applied_points, 'purchase_bonus_shortfall' => (int) $row->purchase_bonus_shortfall,
+                    'occurred_at' => $this->timestamp($row->occurred_at),
+                ])->all(),
         ];
     }
 
@@ -207,8 +222,10 @@ final class V2MemberRankAdminReadService
     {
         return DB::table('member_rank_point_entries as change')->join('users as user', 'user.id', '=', 'change.user_id')
             ->leftJoin('admins as admin', 'admin.id', '=', 'change.admin_id')
-            ->leftJoin('payments as payment', 'payment.id', '=', 'change.payment_id')
-            ->select(['change.*', 'user.public_id as user_public_id', 'admin.public_id as actor_public_id', 'payment.public_id as payment_public_id']);
+            ->leftJoin('payments as payment', fn ($join) => $join->whereRaw('payment.id = COALESCE(change.payment_id, change.origin_payment_id)'))
+            ->leftJoin('payment_adjustments as adjustment', 'adjustment.id', '=', 'change.adjustment_id')
+            ->select(['change.*', 'user.public_id as user_public_id', 'admin.public_id as actor_public_id',
+                'payment.public_id as payment_public_id', 'adjustment.public_id as adjustment_public_id']);
     }
 
     private function historyRow(object $row, bool $points = false): array
@@ -226,6 +243,8 @@ final class V2MemberRankAdminReadService
             'skip_count' => isset($row->skip_count) ? (int) $row->skip_count : null,
             'setting_revision' => $points ? null : (int) $row->setting_revision,
             'origin_id' => $points ? ($row->payment_public_id ?? $row->public_id) : $row->origin_public_id,
+            ...($points && $row->reason === 'payment_adjustment'
+                ? ['payment_id' => $row->payment_public_id, 'adjustment_id' => $row->adjustment_public_id] : []),
             'occurred_at' => $this->timestamp($points ? $row->recorded_at : $row->occurred_at),
         ];
     }

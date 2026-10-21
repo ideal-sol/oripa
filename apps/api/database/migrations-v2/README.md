@@ -186,3 +186,27 @@ and ledger to the same payment/user/amount/time. Zero bonuses have no Operation.
 Existing payment grant totals and migrations remain unchanged. No backfill;
 forward-only rollback. Test application is isolated; operational application is
 deferred and requires separate authority.
+
+## Member rank payment adjustments (000094)
+
+Migration `2026_10_20_000094_add_v2_member_rank_payment_adjustments.php` retains
+positive payment entries and adds a separately keyed negative adjustment origin.
+Requested cancellation remains nonzero even when the applied decrease is zero.
+Deferred checks bind immutable adjustment accounting to the final succeeded
+refund/chargeback, original user/payment/grant/JST month, signed point entry,
+prior month total and paid/free impact. Every new success requires an immutable
+M8 record with unique payment and adjustment keys, preventing repeat cancellation
+without adding a global uniqueness restriction to historical partial refunds.
+Canceled payments cannot subsequently be backfilled into positive rank points.
+
+Payment-origin free points are one combined normal/limited-bonus lot. M4 purchase
+bonus points remain a separate operation with exactly one lot and grant ledger
+under unchanged migration 000092. New reversals append operations and negative
+ledger entries; grant origins are never rewritten. Purchase-bonus shortfall is a
+subset of free shortfall, allocated after the payment-origin free requirement.
+
+Schema and writer activation must be coordinated: an older writer cannot satisfy
+the new success constraint. Do not roll back to a writer that omits cancellation
+accounting. Retain immutable evidence and use a reviewed forward fix; down is
+refused. No operational application, feature activation or contract publication
+is authorized by this source change.

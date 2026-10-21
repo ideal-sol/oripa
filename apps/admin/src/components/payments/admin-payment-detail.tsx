@@ -43,7 +43,8 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
         <p>決済会社：{detail.payment.provider} ／ 支払方法：{detail.payment.method} ／ 状態：{detail.payment.status}</p>
         <p>成立日時：{date(detail.payment.succeeded_at)}（日本時間）</p>
         {detail.payment.adjustments?.review_required && <p role="alert">要確認：成立後の取消通知があります。決済会社側の状態を確認してください。</p>}
-        {detail.rank_adjustment_pending && <p role="alert">M8連動未対応：購入ボーナス・ランクポイントの取消が必要な返金・チャージバックは記録できません。</p>}
+        {detail.rank_adjustment_pending && <p role="alert">ランク会計の確認が必要です。機能停止・会員凍結・元付与記録の欠落や不整合がある場合は取消を記録できません。返金予約の取りやめは可能です。</p>}
+        <p>円返金額に購入ボーナスは含みません。ポイントとランクポイントの取消は別々に記録します。</p>
         {!detail.refund_eligibility.allowed && <p>返金準備不可：{detail.refund_eligibility.reason}</p>}
         <PermissionGate permission="payment.adjustment.manage">
           <button type="button" disabled={!detail.refund_eligibility.allowed} onClick={() => setAction({ operation: "refund" })}>{labels.refund}</button>
@@ -53,13 +54,13 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
       <section aria-label="付与ポイント"><h2>関連ポイント</h2>
         {detail.lots.length === 0 && <p>ポイント付与はありません。</p>}
         {detail.lots.map(lot => <p key={`${lot.operation_id}:${lot.point_type}`}>
-          {lot.member_rank_purchase_bonus ? "会員ランク購入ボーナス（M8連動未対応）" : lot.point_type === "paid" ? "有償" : "無償"}
+          {lot.member_rank_purchase_bonus ? "会員ランク購入ボーナス（別Lot）" : lot.point_type === "paid" ? "有償" : "通常・期間限定の合算無償"}
           ：付与 {lot.granted_amount}pt ／ 残り {lot.remaining_amount}pt ／ 予約 {lot.reserved_amount}pt ／ 期限 {date(lot.expire_at)}
         </p>)}
       </section>
       <section aria-label="調整履歴"><h2>調整履歴</h2>
         {detail.adjustments.length === 0 && <p>調整の記録はありません。</p>}
-        {detail.adjustments.map(adjustment => <article key={adjustment.id}>
+        {detail.adjustments.map(adjustment => <article key={adjustment.id} id={`adjustment-${adjustment.id}`}>
           <h3>{adjustment.type === "refund" ? "返金" : adjustment.type === "chargeback" ? "チャージバック" : "チャージバック取消"}：{statuses[adjustment.status]}</h3>
           <p style={{ overflowWrap: "anywhere" }}>{adjustment.reason} ／ {date(adjustment.requested_at)}</p>
           <p style={{ overflowWrap: "anywhere" }}>操作主体：{adjustment.requested_by_admin_id ?? adjustment.source}</p>
@@ -84,9 +85,16 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
 }
 
 function Impact({ impact }: { impact: AdminPaymentPointImpact }) {
-  return <p>取消：有償 {impact.reversed_paid_from_paid}pt ／ 無償 {impact.reversed_free_from_free + impact.reversed_paid_shortage_from_free}pt
+  return <div><p>取消：有償 {impact.reversed_paid_from_paid}pt ／ 無償 {impact.reversed_free_from_free + impact.reversed_paid_shortage_from_free}pt
     （有償不足への充当 {impact.reversed_paid_shortage_from_free}pt）<br />
-    不足：有償 {impact.shortfall_paid_amount}pt ／ 無償 {impact.shortfall_free_amount}pt</p>;
+    不足：有償 {impact.shortfall_paid_amount}pt ／ 無償 {impact.shortfall_free_amount}pt</p>
+    {impact.purchase_bonus && <p>うち購入ボーナス：必要 {impact.purchase_bonus.required_amount}pt ／ 取消 {impact.purchase_bonus.reversed_amount}pt ／ 不足 {impact.purchase_bonus.shortfall_amount}pt（無償不足の内数）</p>}
+    {impact.rank_adjustment && <section aria-label="ランク取消">
+      <p>元月 {impact.rank_adjustment.month.slice(0, 7)}：対象 {impact.rank_adjustment.requested_points}pt ／ 実減算 {impact.rank_adjustment.applied_points}pt</p>
+      <p>{impact.rank_adjustment.effect === "past_month" ? "過去月の取消：現在ランクは変更しません（要確認）。" : impact.rank_adjustment.effect === "none" ? "ランクポイント対象外です。" : `ランク ${impact.rank_adjustment.before_rank} → ${impact.rank_adjustment.after_rank}`}</p>
+      {impact.rank_adjustment.recoveries.map(recovery => <p key={recovery.rank}>{recovery.rank} 昇格ボーナス：回収 {recovery.recovered_amount}pt ／ 不足 {recovery.shortfall_amount}pt</p>)}
+    </section>}
+  </div>;
 }
 
 function AdjustmentDialog({ client, paymentId, action, close, complete }: {

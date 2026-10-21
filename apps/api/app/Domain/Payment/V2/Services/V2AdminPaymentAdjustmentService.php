@@ -6,6 +6,7 @@ use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use App\Domain\MemberRank\Services\V2MemberRankPaymentAdjustmentService;
 use App\Domain\Payment\V2\Exceptions\V2AdminPaymentReadException;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Point\Exceptions\V2PointException;
@@ -119,7 +120,8 @@ final class V2AdminPaymentAdjustmentService
                     ...$this->auditContext($context, $payment->public_id),
                     'reason_text' => $input['reason'],
                     'before' => ['status' => $before], 'after' => ['status' => $adjustment->status],
-                    'metadata' => ['adjustment_id' => $adjustment->public_id, 'amount' => (int) $adjustment->amount, ...($presented['impact'] ?? [])],
+                    'metadata' => ['adjustment_id' => $adjustment->public_id, 'amount' => (int) $adjustment->amount,
+                        ...array_filter($presented['impact'] ?? [], fn ($value): bool => is_int($value))],
                 ]);
                 $response = ['data' => $presented, 'rank_adjustment_pending' => $this->rankPending($payment), 'idempotent_replay' => false];
                 $this->idempotency->complete($claim->record, 'payment_adjustment', $adjustment->public_id, $response);
@@ -147,7 +149,8 @@ final class V2AdminPaymentAdjustmentService
             'source' => $adjustment->source_provider_event_id !== null ? 'provider' : ($adjustment->requested_by_admin_id !== null ? 'admin' : 'system'),
             'requested_at' => $this->timestamp($adjustment->requested_at), 'succeeded_at' => $this->timestamp($adjustment->succeeded_at),
             'canceled_at' => $this->timestamp($history->last(fn ($row) => $row->to_status === 'canceled')?->occurred_at),
-            'impact' => $impact === null ? null : array_combine($keys, array_map(fn ($key): int => (int) $impact->{$key}, $keys)),
+            'impact' => $impact === null ? null : [...array_combine($keys, array_map(fn ($key): int => (int) $impact->{$key}, $keys)),
+                ...app(V2MemberRankPaymentAdjustmentService::class)->present((int) $adjustment->id)],
             'history' => $history->map(fn ($row): array => [
                 'from_status' => $row->from_status, 'to_status' => $row->to_status, 'source' => $row->transition_source,
                 'admin_id' => $row->actor_type === 'admin' ? $row->admin_public_id : null,
@@ -190,7 +193,7 @@ final class V2AdminPaymentAdjustmentService
     private function message(string $code): string
     {
         return match ($code) {
-            'PAYMENT_RANK_ADJUSTMENT_NOT_READY' => 'M8連動未対応のため、購入ボーナス・ランクポイントの取消が必要な返金・チャージバックは記録できません。',
+            'PAYMENT_RANK_ADJUSTMENT_NOT_READY' => '付与元・ランク計上・会員状態の整合を確認できないため記録できません。凍結・機能停止・未計上の状態を確認してください。',
             'REFUND_POINTS_NOT_FULLY_UNUSED' => '対象ポイントに使用済み・失効・予約中のものがあるため、返金を準備できません。',
             'REFUND_PAYMENT_NOT_SUCCEEDED' => '成立済みの決済のみ操作できます。',
             'REFUND_POINT_GRANT_NOT_FOUND' => '対象決済のポイント付与が見つかりません。',

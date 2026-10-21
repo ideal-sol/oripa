@@ -6,6 +6,7 @@ use App\Support\V2DatabaseTimestamp;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Outbox\Services\V2OutboxService;
 use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
+use App\Domain\MemberRank\Services\V2MemberRankPaymentAdjustmentService;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Point\Services\V2CoinExpiryPolicy;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -33,7 +34,9 @@ final class V2PaymentService
         private readonly V2OutboxService $outbox,
         private readonly V2PointPurchaseEligibilityService $purchaseEligibility,
         private readonly V2CoinExpiryPolicy $expiryPolicy,
-        private readonly V2TemplateMailDeliveryService $templateMail
+        private readonly V2TemplateMailDeliveryService $templateMail,
+        private readonly V2PaymentAdjustmentLots $adjustmentLots,
+        private readonly V2MemberRankPaymentAdjustmentService $rankAdjustments
     ) {
     }
 
@@ -553,6 +556,8 @@ final class V2PaymentService
             DB::table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
             $payment = DB::table('payments')->where('id', $paymentId)
                 ->lockForUpdate()->firstOrFail();
+            $this->assertAdjustmentAvailable($payment);
+            $this->rankAdjustments->lock($payment);
             $wallet = $this->lockWallet($payment->user_id);
             $lots = $this->assertRefundEligible($payment, true);
             $reservedAt = now()->startOfSecond();
@@ -651,12 +656,14 @@ final class V2PaymentService
             if ($result === 'succeeded') {
                 $this->assertAdjustmentAvailable($payment, (int) $adjustment->id);
                 $this->assertRankAdjustmentReady($payment);
+                $this->rankAdjustments->lock($payment);
             }
             $wallet = $this->lockWallet($payment->user_id);
-            $this->paymentLots((int) $payment->id);
+            $related = $this->adjustmentLots->inspect($payment, true);
             $reservations = DB::table('point_lot_reservations')
                 ->where('payment_adjustment_id', $adjustment->id)
                 ->where('status', 'active')->orderBy('point_lot_id')->lockForUpdate()->get();
+            $instant = CarbonImmutable::now('UTC')->startOfSecond();
             if ($result === 'uncertain') {
                 return $this->transitionAdjustment($adjustment, 'processing', 'provider');
             }
@@ -670,6 +677,14 @@ final class V2PaymentService
 
             if ($reservations->isEmpty()) {
                 throw new V2PaymentException('REFUND_RESERVATION_NOT_FOUND');
+            }
+            if ($reservations->count() !== $related['lots']->count()
+                || $reservations->contains(function (object $reservation) use ($related): bool {
+                    $lot = $related['lots']->firstWhere('id', $reservation->point_lot_id);
+
+                    return $lot === null || (int) $reservation->amount !== (int) $lot->granted_amount;
+                })) {
+                throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
             }
             $operation = $this->newPointOperation(
                 $payment,
@@ -717,16 +732,17 @@ final class V2PaymentService
             DB::table('payment_adjustment_point_impacts')->insert([
                 'payment_adjustment_id' => $adjustment->id,
                 'required_paid_amount' => $payment->paid_point_amount,
-                'required_free_amount' => $this->paymentFreeGrantAmount($payment),
+                'required_free_amount' => $related['free'],
                 'reversed_paid_from_paid' => $paid,
                 'reversed_free_from_free' => $free,
                 'reversed_paid_shortage_from_free' => 0,
                 'shortfall_paid_amount' => 0,
                 'shortfall_free_amount' => 0,
-                'completed_at' => V2DatabaseTimestamp::format(now()),
+                'completed_at' => V2DatabaseTimestamp::format($instant),
                 'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
-            $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId);
+            $this->rankAdjustments->apply($payment, $adjustment, $this->adjustmentLots->bonusImpact($related, $free), $instant, $adminId);
+            $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId, $instant);
             $this->auditAdjustment($payment, $resolved, 'payment.refund_succeeded', $adminId, $reason);
             $this->outbox->enqueue(
                 'payment.lifecycle',
@@ -780,18 +796,20 @@ final class V2PaymentService
     {
         $this->assertAdjustmentAvailable($payment);
         $this->assertRankAdjustmentReady($payment);
+        $this->rankAdjustments->lock($payment);
         $source = $adminId === null ? 'provider_event' : 'admin';
         $adjustment = $this->createAdjustment($payment, 'chargeback', 'processing', $adminId, $eventId, null, $reason);
         $this->adjustmentHistory($adjustment->id, null, 'processing', $source, $eventId, $adminId);
         $wallet = $this->lockWallet($payment->user_id);
         DB::table('point_lots')->where('user_id', $payment->user_id)->orderBy('id')->lockForUpdate()->get();
+        $instant = CarbonImmutable::now('UTC')->startOfSecond();
         $operation = $this->newPointOperation(
             $payment,
             'chargeback_reversal',
             'payment_adjustment',
             'payment.chargeback:'.$adjustment->id
         );
-        $plan = $this->chargebackPlan($payment);
+        $plan = $this->chargebackPlan($payment, $instant);
         $sequence = 1;
         $runningPaidBalance = (int) $wallet->paid_balance;
         $runningFreeBalance = (int) $wallet->free_balance;
@@ -816,16 +834,17 @@ final class V2PaymentService
         DB::table('payment_adjustment_point_impacts')->insert([
             'payment_adjustment_id' => $adjustment->id,
             'required_paid_amount' => $payment->paid_point_amount,
-            'required_free_amount' => $this->paymentFreeGrantAmount($payment),
+            'required_free_amount' => $plan['impact']['required_free_amount'],
             'reversed_paid_from_paid' => $paidFromPaid,
             'reversed_free_from_free' => $freeFromFree,
             'reversed_paid_shortage_from_free' => $paidShortageFromFree,
             'shortfall_paid_amount' => $paidNeed,
             'shortfall_free_amount' => $freeNeed,
-            'completed_at' => V2DatabaseTimestamp::format(now()),
+            'completed_at' => V2DatabaseTimestamp::format($instant),
             'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
-        $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId);
+        $this->rankAdjustments->apply($payment, $adjustment, $plan['impact']['purchase_bonus'], $instant, $adminId);
+        $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId, $instant);
         $this->auditAdjustment($payment, $resolved, 'payment.chargeback_processed', $adminId, $reason);
         $this->outbox->enqueue(
             'payment.lifecycle',
@@ -1013,14 +1032,16 @@ final class V2PaymentService
         $this->assertAdjustmentAvailable($payment);
         $this->assertRankAdjustmentReady($payment);
 
-        return $this->chargebackPlan($payment)['impact'];
+        return $this->chargebackPlan($payment, CarbonImmutable::now('UTC')->startOfSecond())['impact'];
     }
 
-    private function chargebackPlan(object $payment): array
+    private function chargebackPlan(object $payment, CarbonImmutable $instant): array
     {
-        $originLots = $this->paymentLots((int) $payment->id, false)->keyBy('id');
+        $related = $this->adjustmentLots->inspect($payment);
+        $originLots = $related['lots']->keyBy('id');
         $allLots = DB::table('point_lots')->where('user_id', $payment->user_id)
             ->whereColumn('remaining_amount', '>', 'reserved_amount')
+            ->where(fn ($query) => $query->whereNull('expire_at')->orWhere('expire_at', '>', V2DatabaseTimestamp::format($instant)))
             ->orderByRaw('expire_at ASC NULLS LAST')->orderBy('granted_at')->orderBy('id')->get();
         $allPaid = $allLots->where('point_type', 'paid')->sortBy([['granted_at', 'asc'], ['id', 'asc']])->values();
         $allFree = $allLots->where('point_type', 'free')->values();
@@ -1028,7 +1049,7 @@ final class V2PaymentService
         $available = ['paid' => max(0, (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance),
             'free' => max(0, (int) $wallet->free_balance - (int) $wallet->free_reserved_balance)];
         $paidNeed = (int) $payment->paid_point_amount;
-        $freeNeed = $this->paymentFreeGrantAmount($payment);
+        $freeNeed = $related['free'];
         $debits = [];
         $consume = function (Collection $lots, int &$need) use (&$available, &$debits): int {
             $consumed = 0;
@@ -1050,10 +1071,12 @@ final class V2PaymentService
 
         return ['debits' => $debits, 'impact' => [
             'required_paid_amount' => (int) $payment->paid_point_amount,
-            'required_free_amount' => $this->paymentFreeGrantAmount($payment),
+            'required_free_amount' => $related['free'],
             'reversed_paid_from_paid' => $paidFromPaid, 'reversed_free_from_free' => $freeFromFree,
             'reversed_paid_shortage_from_free' => $paidFromFree,
             'shortfall_paid_amount' => $paidNeed, 'shortfall_free_amount' => $freeNeed,
+            'purchase_bonus' => $this->adjustmentLots->bonusImpact($related, $freeFromFree),
+            'rank_adjustment' => $this->rankAdjustments->preview($payment, $instant, $freeFromFree + $paidFromFree),
         ]];
     }
 
@@ -1072,15 +1095,11 @@ final class V2PaymentService
 
     public function assertRankAdjustmentReady(object $payment): void
     {
-        $query = DB::table('member_rank_settings')->where('id', 1);
-        $settings = (DB::transactionLevel() > 0 ? $query->sharedLock() : $query)->firstOrFail();
-        if (DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->where('bonus_amount', '>', 0)->exists()
-            || DB::table('member_rank_point_entries')->where('payment_id', $payment->id)->exists()
-            || ($settings->enabled && $settings->activated_at !== null && $payment->points_granted_at !== null
-                && CarbonImmutable::parse($payment->points_granted_at)->greaterThanOrEqualTo(
-                    CarbonImmutable::parse($settings->activated_at)->setTimezone('Asia/Tokyo')->startOfMonth()))) {
-            throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
+        if ($payment->status !== 'succeeded') {
+            return;
         }
+        $this->adjustmentLots->inspect($payment);
+        $this->rankAdjustments->context($payment);
     }
 
     private function orderedOriginFirst(Collection $lots, Collection $originLots): Collection
@@ -1191,17 +1210,7 @@ final class V2PaymentService
 
     private function paymentLots(int $paymentId, bool $lock = true): Collection
     {
-        $grant = DB::table('payment_point_grants')->where('payment_id', $paymentId)->first();
-        if ($grant === null) {
-            return collect();
-        }
-
-        $query = DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)
-            ->orderByRaw('expire_at ASC NULLS LAST')
-            ->orderBy('granted_at')
-            ->orderBy('id');
-
-        return ($lock ? $query->lockForUpdate() : $query)->get();
+        return $this->adjustmentLots->inspect(DB::table('payments')->where('id', $paymentId)->firstOrFail(), $lock)['lots'];
     }
 
     private function lockWallet(int $userId): object
@@ -1333,11 +1342,12 @@ final class V2PaymentService
         object $adjustment,
         string $to,
         string $source,
-        ?int $adminId = null
+        ?int $adminId = null,
+        ?CarbonImmutable $instant = null
     ): object {
         $updates = ['status' => $to, 'updated_at' => V2DatabaseTimestamp::format(now())];
         if ($to === 'succeeded') {
-            $updates['succeeded_at'] = V2DatabaseTimestamp::format(now()->startOfSecond());
+            $updates['succeeded_at'] = V2DatabaseTimestamp::format($instant ?? now()->startOfSecond());
         } elseif ($to === 'failed') {
             $updates['failed_at'] = V2DatabaseTimestamp::format(now()->startOfSecond());
         }
@@ -1403,8 +1413,8 @@ final class V2PaymentService
 
     private function paymentFreeGrantAmount(object $payment): int
     {
-        return (int) $payment->free_point_amount
-            + (int) ($payment->limited_bonus_point_amount ?? 0);
+        return V2PaymentAdjustmentLots::add((int) $payment->free_point_amount,
+            (int) ($payment->limited_bonus_point_amount ?? 0));
     }
 
     private function sameInstant(mixed $stored, ?\DateTimeInterface $provided): bool

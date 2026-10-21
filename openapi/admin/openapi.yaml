@@ -14,7 +14,7 @@ x-oripa-breaking-change:
   change_id: MEMBERRANK-M9-20261020
   scope: admin-payment-provider-fincode-literal-to-actual-provider
 x-oripa-error-codes:
-  PAYMENT_RANK_ADJUSTMENT_NOT_READY: {status: 409, retryable: false, description: M8連動未対応のため購入ボーナス・ランクポイントの取消が必要な返金・チャージバックは記録できません。}
+  PAYMENT_RANK_ADJUSTMENT_NOT_READY: {status: 409, retryable: false, description: 付与元・ランク計上・会員状態の不整合、機能停止または凍結により安全な取消を確定できません。}
   PAYMENT_ADJUSTMENT_CONFLICT: {status: 409, retryable: false, description: 競合する調整があります。最新の詳細を確認してください。}
   PAYMENT_ADJUSTMENT_INPUT_INVALID: {status: 422, retryable: false, description: 理由と確認事項を入力してください。}
   ADMIN_ADJUSTMENT_NOT_FOUND: {status: 404, retryable: false, description: 調整が見つかりません。}
@@ -5422,7 +5422,40 @@ components:
     AdminPaymentAdjustmentInput: {"type":"object","additionalProperties":false,"required":["reason"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_case_id":{"type":["string","null"],"maxLength":191}}}
     AdminPaymentRefundCompleteInput: {"type":"object","additionalProperties":false,"required":["reason","provider_refund_confirmed"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_refund_confirmed":{"const":true},"provider_adjustment_id":{"type":["string","null"],"maxLength":191}}}
     AdminPaymentAdjustmentStatus: {"enum":["requested","points_reserved","submitted","processing","succeeded","failed","canceled","manual_review"]}
-    AdminPaymentPointImpact: {"type":"object","additionalProperties":false,"required":["required_paid_amount","required_free_amount","reversed_paid_from_paid","reversed_free_from_free","reversed_paid_shortage_from_free","shortfall_paid_amount","shortfall_free_amount"],"properties":{"required_paid_amount":{"type":"integer","minimum":0},"required_free_amount":{"type":"integer","minimum":0},"reversed_paid_from_paid":{"type":"integer","minimum":0},"reversed_free_from_free":{"type":"integer","minimum":0},"reversed_paid_shortage_from_free":{"type":"integer","minimum":0},"shortfall_paid_amount":{"type":"integer","minimum":0},"shortfall_free_amount":{"type":"integer","minimum":0}}}
+    AdminPaymentPointImpact: {"type":"object","additionalProperties":false,"required":["required_paid_amount","required_free_amount","reversed_paid_from_paid","reversed_free_from_free","reversed_paid_shortage_from_free","shortfall_paid_amount","shortfall_free_amount"],"properties":{"required_paid_amount":{"type":"integer","minimum":0},"required_free_amount":{"type":"integer","minimum":0},"reversed_paid_from_paid":{"type":"integer","minimum":0},"reversed_free_from_free":{"type":"integer","minimum":0},"reversed_paid_shortage_from_free":{"type":"integer","minimum":0},"shortfall_paid_amount":{"type":"integer","minimum":0},"shortfall_free_amount":{"type":"integer","minimum":0},"purchase_bonus":{"$ref":"#/components/schemas/AdminPaymentPurchaseBonusImpact"},"rank_adjustment":{"$ref":"#/components/schemas/AdminPaymentRankAdjustment"}}}
+    AdminPaymentPurchaseBonusImpact:
+      type: object
+      additionalProperties: false
+      description: 合算無償必要額を先に充当し、残る取消額を購入ボーナスへ充当した内訳。全体不足の内数。
+      required: [required_amount, reversed_amount, shortfall_amount]
+      properties:
+        required_amount: {type: integer, minimum: 0}
+        reversed_amount: {type: integer, minimum: 0}
+        shortfall_amount: {type: integer, minimum: 0}
+    AdminPaymentRankRecovery:
+      type: object
+      additionalProperties: false
+      required: [rank, requested_amount, recovered_amount, shortfall_amount]
+      properties:
+        rank: {$ref: '#/components/schemas/AdminMemberRankCode'}
+        requested_amount: {type: integer, minimum: 0}
+        recovered_amount: {type: integer, minimum: 0}
+        shortfall_amount: {type: integer, minimum: 0}
+    AdminPaymentRankAdjustment:
+      type: object
+      additionalProperties: false
+      description: Previewは呼出時点の見込み。実行時に再計算する。減算額は円返金額とは独立。
+      required: [month, effect, requested_points, applied_points, before_rank, after_rank, recoveries]
+      properties:
+        month: {type: string, format: date}
+        effect: {type: string, enum: [none, current_month, past_month]}
+        requested_points: {type: integer, minimum: 0}
+        applied_points: {type: integer, minimum: 0}
+        before_rank: {type: [string, 'null']}
+        after_rank: {type: [string, 'null']}
+        recoveries:
+          type: array
+          items: {$ref: '#/components/schemas/AdminPaymentRankRecovery'}
     AdminPaymentAdjustmentHistory: {"type":"object","additionalProperties":false,"required":["from_status","to_status","source","admin_id","reason_code","occurred_at"],"properties":{"from_status":{"type":["string","null"]},"to_status":{"type":"string"},"source":{"type":"string"},"admin_id":{"type":["string","null"]},"reason_code":{"type":["string","null"]},"occurred_at":{"type":["string","null"],"format":"date-time"}}}
     AdminPaymentAdjustment: {"type":"object","additionalProperties":false,"required":["id","type","status","parent_id","amount","reason","requested_by_admin_id","provider_adjustment_id","provider_case_id","source","requested_at","succeeded_at","canceled_at","impact","history"],"properties":{"id":{"$ref":"#/components/schemas/OpaqueId"},"type":{"enum":["refund","chargeback","chargeback_reversal"]},"status":{"$ref":"#/components/schemas/AdminPaymentAdjustmentStatus"},"parent_id":{"type":["string","null"]},"amount":{"type":"integer","minimum":0},"reason":{"type":["string","null"]},"requested_by_admin_id":{"type":["string","null"]},"provider_adjustment_id":{"type":["string","null"]},"provider_case_id":{"type":["string","null"]},"source":{"enum":["admin","provider","system"]},"requested_at":{"type":["string","null"],"format":"date-time"},"succeeded_at":{"type":["string","null"],"format":"date-time"},"canceled_at":{"type":["string","null"],"format":"date-time"},"impact":{"anyOf":[{"$ref":"#/components/schemas/AdminPaymentPointImpact"},{"type":"null"}]},"history":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustmentHistory"}}}}
     AdminPaymentLot: {"type":"object","additionalProperties":false,"required":["operation_id","point_type","source","granted_amount","remaining_amount","reserved_amount","expire_at","member_rank_purchase_bonus"],"properties":{"operation_id":{"$ref":"#/components/schemas/OpaqueId"},"point_type":{"enum":["paid","free"]},"source":{"type":"string"},"granted_amount":{"type":"integer","minimum":0},"remaining_amount":{"type":"integer","minimum":0},"reserved_amount":{"type":"integer","minimum":0},"expire_at":{"type":["string","null"],"format":"date-time"},"member_rank_purchase_bonus":{"type":"boolean"}}}
@@ -6008,7 +6041,7 @@ components:
         id: {type: string, format: uuid}
         user_id: {type: string, format: uuid}
         actor_id: {type: [string, 'null'], format: uuid}
-        reason: {type: string, enum: [promotion, demotion, manual, promotion_reversal, payment, manual_rank_points]}
+        reason: {type: string, enum: [promotion, demotion, manual, promotion_reversal, payment, manual_rank_points, payment_adjustment]}
         reason_text: {type: [string, 'null']}
         kind: {type: [string, 'null'], enum: [transfer, support, payment_incident, other, null]}
         from_rank: {type: [string, 'null']}
@@ -6022,6 +6055,8 @@ components:
         skip_count: {type: [integer, 'null'], minimum: 0, maximum: 12}
         setting_revision: {type: [integer, 'null'], minimum: 1}
         origin_id: {type: [string, 'null'], format: uuid}
+        payment_id: {type: [string, 'null'], format: uuid}
+        adjustment_id: {type: [string, 'null'], format: uuid}
         occurred_at: {type: string, format: date-time}
     AdminMemberRankHistoryCollection:
       type: object
@@ -6137,6 +6172,9 @@ components:
                 last_completed_month: {type: [string, 'null'], format: date}
                 status: {type: [string, 'null'], enum: [pending, processing, completed, failed, null]}
                 lease_expired: {type: boolean}
+            payment_adjustment_reviews:
+              type: array
+              items: {$ref: '#/components/schemas/AdminMemberRankPaymentAdjustmentReview'}
             reviews:
               type: array
               items:
@@ -6151,6 +6189,22 @@ components:
                   recovered_amount: {type: integer, minimum: 0}
                   shortfall_amount: {type: integer, minimum: 1}
                   occurred_at: {type: string, format: date-time}
+    AdminMemberRankPaymentAdjustmentReview:
+      type: object
+      additionalProperties: false
+      required: [id, user_id, payment_id, adjustment_id, type, month, past_month, requested_points, applied_points, purchase_bonus_shortfall, occurred_at]
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        payment_id: {type: string, format: uuid}
+        adjustment_id: {type: string, format: uuid}
+        type: {type: string, enum: [refund, chargeback]}
+        month: {type: string, format: date}
+        past_month: {type: boolean}
+        requested_points: {type: integer, minimum: 0}
+        applied_points: {type: integer, minimum: 0}
+        purchase_bonus_shortfall: {type: integer, minimum: 0}
+        occurred_at: {type: string, format: date-time}
     AdminMemberRankBonusTotal:
       type: object
       additionalProperties: false

@@ -13061,6 +13061,117 @@
           "shortfall_free_amount": {
             "type": "integer",
             "minimum": 0
+          },
+          "purchase_bonus": {
+            "$ref": "#/components/schemas/AdminPaymentPurchaseBonusImpact"
+          },
+          "rank_adjustment": {
+            "$ref": "#/components/schemas/AdminPaymentRankAdjustment"
+          }
+        }
+      },
+      "AdminPaymentPurchaseBonusImpact": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "合算無償必要額を先に充当し、残る取消額を購入ボーナスへ充当した内訳。全体不足の内数。",
+        "required": [
+          "required_amount",
+          "reversed_amount",
+          "shortfall_amount"
+        ],
+        "properties": {
+          "required_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reversed_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shortfall_amount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminPaymentRankRecovery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "requested_amount",
+          "recovered_amount",
+          "shortfall_amount"
+        ],
+        "properties": {
+          "rank": {
+            "$ref": "#/components/schemas/AdminMemberRankCode"
+          },
+          "requested_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recovered_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shortfall_amount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminPaymentRankAdjustment": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Previewは呼出時点の見込み。実行時に再計算する。減算額は円返金額とは独立。",
+        "required": [
+          "month",
+          "effect",
+          "requested_points",
+          "applied_points",
+          "before_rank",
+          "after_rank",
+          "recoveries"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "current_month",
+              "past_month"
+            ]
+          },
+          "requested_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "applied_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "before_rank": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "after_rank": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recoveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPaymentRankRecovery"
+            }
           }
         }
       },
@@ -15334,7 +15445,8 @@
               "manual",
               "promotion_reversal",
               "payment",
-              "manual_rank_points"
+              "manual_rank_points",
+              "payment_adjustment"
             ]
           },
           "reason_text": {
@@ -15420,6 +15532,20 @@
             "minimum": 1
           },
           "origin_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "payment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "adjustment_id": {
             "type": [
               "string",
               "null"
@@ -15818,6 +15944,12 @@
                   }
                 }
               },
+              "payment_adjustment_reviews": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminMemberRankPaymentAdjustmentReview"
+                }
+              },
               "reviews": {
                 "type": "array",
                 "items": {
@@ -15864,6 +15996,71 @@
                 }
               }
             }
+          }
+        }
+      },
+      "AdminMemberRankPaymentAdjustmentReview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "user_id",
+          "payment_id",
+          "adjustment_id",
+          "type",
+          "month",
+          "past_month",
+          "requested_points",
+          "applied_points",
+          "purchase_bonus_shortfall",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adjustment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "refund",
+              "chargeback"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "past_month": {
+            "type": "boolean"
+          },
+          "requested_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "applied_points": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "purchase_bonus_shortfall": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -30547,7 +30744,7 @@
     "PAYMENT_RANK_ADJUSTMENT_NOT_READY": {
       "status": 409,
       "retryable": false,
-      "description": "M8連動未対応のため購入ボーナス・ランクポイントの取消が必要な返金・チャージバックは記録できません。"
+      "description": "付与元・ランク計上・会員状態の不整合、機能停止または凍結により安全な取消を確定できません。"
     },
     "PAYMENT_ADJUSTMENT_CONFLICT": {
       "status": 409,

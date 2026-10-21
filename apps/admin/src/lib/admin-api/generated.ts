@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 5bd37b455a71948f56770ab61d7ee619ad02e2c7182b86e7905edff446f00edf
+// Contract SHA-256: 9e8092efd9d7716020b49127ee48a033867d1c804d0273b3fc5b444e57a0cfe3
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -367,10 +367,13 @@ export interface AdminPayment {
   updated_at: string;
 }
 
+export type AdminPaymentPurchaseBonusImpact = { required_amount: number; reversed_amount: number; shortfall_amount: number; };
+export type AdminPaymentRankRecovery = { rank: AdminMemberRankCode; requested_amount: number; recovered_amount: number; shortfall_amount: number; };
+export type AdminPaymentRankAdjustment = { month: string; effect: "none" | "current_month" | "past_month"; requested_points: number; applied_points: number; before_rank: string | null; after_rank: string | null; recoveries: Array<AdminPaymentRankRecovery>; };
 export type AdminPaymentAdjustmentInput = { reason: string; provider_case_id?: string | null; };
 export type AdminPaymentRefundCompleteInput = { reason: string; provider_refund_confirmed: true; provider_adjustment_id?: string | null; };
 export type AdminPaymentAdjustmentStatus = "requested" | "points_reserved" | "submitted" | "processing" | "succeeded" | "failed" | "canceled" | "manual_review";
-export type AdminPaymentPointImpact = { required_paid_amount: number; required_free_amount: number; reversed_paid_from_paid: number; reversed_free_from_free: number; reversed_paid_shortage_from_free: number; shortfall_paid_amount: number; shortfall_free_amount: number; };
+export type AdminPaymentPointImpact = { required_paid_amount: number; required_free_amount: number; reversed_paid_from_paid: number; reversed_free_from_free: number; reversed_paid_shortage_from_free: number; shortfall_paid_amount: number; shortfall_free_amount: number; purchase_bonus?: AdminPaymentPurchaseBonusImpact; rank_adjustment?: AdminPaymentRankAdjustment; };
 export type AdminPaymentAdjustmentHistory = { from_status: string | null; to_status: string; source: string; admin_id: string | null; reason_code: string | null; occurred_at: string | null; };
 export type AdminPaymentAdjustment = { id: string; type: "refund" | "chargeback" | "chargeback_reversal"; status: AdminPaymentAdjustmentStatus; parent_id: string | null; amount: number; reason: string | null; requested_by_admin_id: string | null; provider_adjustment_id: string | null; provider_case_id: string | null; source: "admin" | "provider" | "system"; requested_at: string | null; succeeded_at: string | null; canceled_at: string | null; impact: AdminPaymentPointImpact | null; history: Array<AdminPaymentAdjustmentHistory>; };
 export type AdminPaymentLot = { operation_id: string; point_type: "paid" | "free"; source: string; granted_amount: number; remaining_amount: number; reserved_amount: number; expire_at: string | null; member_rank_purchase_bonus: boolean; };
@@ -913,7 +916,7 @@ export type AdminMemberRankLine = { rank: AdminMemberRankCode; month: string; li
 
 export type AdminMemberRankAchievement = { id: string; rank: AdminMemberRankCode; generation: number; setting_revision: number; month: string; bonus_amount: number; point_type: "free"; basis: "rank_points" | "manual_rank" | "manual_rank_points"; origin_id: string; occurred_at: string; consumed: boolean; recovered_amount: number | null; shortfall_amount: number | null; };
 
-export type AdminMemberRankHistoryItem = { id: string; user_id: string; actor_id: string | null; reason: "promotion" | "demotion" | "manual" | "promotion_reversal" | "payment" | "manual_rank_points"; reason_text: string | null; kind: "transfer" | "support" | "payment_incident" | "other" | null; from_rank: string | null; to_rank: string | null; month: string; rank_points: number | null; requested_delta: number | null; applied_delta: number | null; grant_bonus: boolean | null; bonus_amount: number | null; skip_count: number | null; setting_revision: number | null; origin_id: string | null; occurred_at: string; };
+export type AdminMemberRankHistoryItem = { id: string; user_id: string; actor_id: string | null; reason: "promotion" | "demotion" | "manual" | "promotion_reversal" | "payment" | "manual_rank_points" | "payment_adjustment"; reason_text: string | null; kind: "transfer" | "support" | "payment_incident" | "other" | null; from_rank: string | null; to_rank: string | null; month: string; rank_points: number | null; requested_delta: number | null; applied_delta: number | null; grant_bonus: boolean | null; bonus_amount: number | null; skip_count: number | null; setting_revision: number | null; origin_id: string | null; payment_id?: string | null; adjustment_id?: string | null; occurred_at: string; };
 
 export type AdminMemberRankHistoryCollection = { items: (AdminMemberRankHistoryItem)[]; next_cursor: string | null; request_id: string; };
 
@@ -929,7 +932,9 @@ export type AdminMemberRankPointWrite = { delta: number; reason: string; expecte
 
 export type AdminMemberRankMutation = { data: AdminMemberRankPreview; idempotent_replay: boolean; request_id: string; };
 
-export type AdminMemberRankSummaryResponse = { request_id: string; data: { enabled: boolean; month: string; active_total: number; ranks: ({ rank: AdminMemberRankCode; count: number; })[]; promotion_bonus: AdminMemberRankBonusTotal; purchase_bonus: AdminMemberRankBonusTotal; progress: { provisional: boolean; remaining: number; last_completed_month: string | null; status: "pending" | "processing" | "completed" | "failed" | null; lease_expired: boolean; }; reviews: ({ id: string; user_id: string; achievement_id: string; rank: AdminMemberRankCode; recovered_amount: number; shortfall_amount: number; occurred_at: string; })[]; }; };
+export type AdminMemberRankSummaryResponse = { request_id: string; data: { enabled: boolean; month: string; active_total: number; ranks: ({ rank: AdminMemberRankCode; count: number; })[]; promotion_bonus: AdminMemberRankBonusTotal; purchase_bonus: AdminMemberRankBonusTotal; progress: { provisional: boolean; remaining: number; last_completed_month: string | null; status: "pending" | "processing" | "completed" | "failed" | null; lease_expired: boolean; }; payment_adjustment_reviews?: (AdminMemberRankPaymentAdjustmentReview)[]; reviews: ({ id: string; user_id: string; achievement_id: string; rank: AdminMemberRankCode; recovered_amount: number; shortfall_amount: number; occurred_at: string; })[]; }; };
+
+export type AdminMemberRankPaymentAdjustmentReview = { id: string; user_id: string; payment_id: string; adjustment_id: string; type: "refund" | "chargeback"; month: string; past_month: boolean; requested_points: number; applied_points: number; purchase_bonus_shortfall: number; occurred_at: string; };
 
 export type AdminMemberRankBonusTotal = { count: number; amount: number; point_type: "free"; };
 

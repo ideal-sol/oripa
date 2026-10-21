@@ -159,7 +159,7 @@ final class AdminPaymentAdjustmentTest extends TestCase
         $this->expectConflict(fn () => $service->write($context, $payment->public_id, 'chargeback', ['reason' => 'CB'], (string) Str::uuid7()), 'PAYMENT_RANK_ADJUSTMENT_NOT_READY');
     }
 
-    public function test_purchase_bonus_lot_is_displayed_and_held_without_rank_recovery(): void
+    public function test_purchase_bonus_lot_is_displayed_and_supported_with_atomic_rank_recovery(): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -169,16 +169,17 @@ final class AdminPaymentAdjustmentTest extends TestCase
         $service = app(V2AdminPaymentAdjustmentService::class);
         self::assertGreaterThan(0, DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->value('bonus_amount'));
         $detail = $service->detail($context, $payment->public_id)['data'];
-        self::assertTrue($detail['rank_adjustment_pending']);
+        self::assertFalse($detail['rank_adjustment_pending']);
         self::assertCount(1, array_filter($detail['lots'], fn ($lot) => $lot['member_rank_purchase_bonus']));
-        self::assertStringContainsString('M8連動未対応', $detail['refund_eligibility']['reason']);
-        foreach (['refund', 'chargeback'] as $operation) {
-            $this->expectConflict(fn () => $service->write($context, $payment->public_id, $operation, ['reason' => '対象外'], (string) Str::uuid7()), 'PAYMENT_RANK_ADJUSTMENT_NOT_READY');
-        }
-        self::assertSame(0, DB::table('payment_adjustments')->where('payment_id', $payment->id)->count());
+        self::assertTrue($detail['refund_eligibility']['allowed']);
+        $result = $service->write($context, $payment->public_id, 'chargeback', ['reason' => 'M8対応済み'], (string) Str::uuid7());
+        self::assertSame(10000, $result['data']['impact']['rank_adjustment']['applied_points']);
+        self::assertSame(100, $result['data']['impact']['purchase_bonus']['reversed_amount']);
+        self::assertSame(1, DB::table('payment_adjustments')->where('payment_id', $payment->id)->count());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
-    public function test_zero_purchase_bonus_has_no_extra_lot_but_independent_rank_accounting_still_blocks(): void
+    public function test_zero_purchase_bonus_has_no_extra_lot_and_supported_rank_accounting(): void
     {
         $this->enableRankFixture();
         $payment = $this->settleRankPayment($this->rankUser(), 1000);
@@ -189,7 +190,10 @@ final class AdminPaymentAdjustmentTest extends TestCase
         self::assertCount(1, $detail['lots']);
         self::assertFalse($detail['lots'][0]['member_rank_purchase_bonus']);
         self::assertTrue(DB::table('member_rank_point_entries')->where('payment_id', $payment->id)->exists());
-        $this->expectConflict(fn () => $service->write($context, $payment->public_id, 'refund', ['reason' => 'ランク減算は別途必要'], (string) Str::uuid7()), 'PAYMENT_RANK_ADJUSTMENT_NOT_READY');
+        $result = $service->write($context, $payment->public_id, 'refund', ['reason' => 'ランク取消準備'], (string) Str::uuid7());
+        self::assertSame('points_reserved', $result['data']['status']);
+        self::assertSame(1, DB::table('point_lot_reservations')->where('payment_adjustment_id',
+            DB::table('payment_adjustments')->where('public_id', $result['data']['id'])->value('id'))->count());
     }
 
     public function test_reserved_points_cannot_be_spent(): void

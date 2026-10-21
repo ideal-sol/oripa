@@ -762,6 +762,7 @@ const memberRankTypes = Object.entries(contract.components.schemas)
   .join("\n\n");
 
 const paymentSchemaNames = [
+  "AdminPaymentPurchaseBonusImpact", "AdminPaymentRankRecovery", "AdminPaymentRankAdjustment",
   "AdminPaymentAdjustmentInput", "AdminPaymentRefundCompleteInput", "AdminPaymentAdjustmentStatus",
   "AdminPaymentPointImpact", "AdminPaymentAdjustmentHistory", "AdminPaymentAdjustment", "AdminPaymentLot",
   "AdminPaymentAdjustmentSummary", "AdminPaymentDetail", "AdminPaymentDetailResponse",

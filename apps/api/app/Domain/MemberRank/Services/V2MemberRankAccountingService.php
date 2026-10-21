@@ -41,6 +41,10 @@ final class V2MemberRankAccountingService
         if (DB::table('member_rank_point_entries')->where('payment_id', $paymentId)->exists()) {
             return;
         }
+        if (DB::table('payment_adjustments')->where('payment_id', $paymentId)
+            ->whereIn('type', ['refund', 'chargeback'])->where('status', 'succeeded')->exists()) {
+            return;
+        }
         $grant = DB::table('payment_point_grants')->where('payment_id', $paymentId)->firstOrFail();
         if ($payment->status !== 'succeeded' || (int) $payment->amount !== (int) $payment->paid_point_amount) {
             throw new \LogicException('Member rank accounting requires a succeeded paid payment.');

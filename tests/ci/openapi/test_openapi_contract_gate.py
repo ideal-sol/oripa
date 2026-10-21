@@ -25,6 +25,7 @@ def fixture(group, name):
 class OpenApiContractGateTest(unittest.TestCase):
     def test_m9_provider_widening_is_limited_to_the_exact_approved_admin_delta(self):
         current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
+        current["info"]["version"] = "2.0.0-alpha.42"
         previous = copy.deepcopy(current)
         previous["info"]["version"] = "2.0.0-alpha.41"
         previous["components"]["schemas"]["AdminPayment"]["properties"]["provider"] = {"const": "fincode"}
