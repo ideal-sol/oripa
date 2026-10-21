@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "PREREGOT-20261018",
-  "source_pr": 574,
-  "source_sha": "b5c28015ef94cb80f6702a61b1237cacd91d9863",
+  "task_id": "RANKOT-20261021",
+  "source_pr": 599,
+  "source_sha": "c812cb7060f4f1f3c61449b98fe918302f29b196",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PREREG-V14-OLDTEST-20261018 pins PR #574 squash b5c28015ef94cb80f6702a61b1237cacd91d9863 and tree f272a372adef6af42285364097eb0e3681e6ca7a, including merged PR #571. Specification SHA256 36b838fd2cb73e41f8a8df72e03195f39096b3001f6688dfd81e3f354fb61414. Contract alpha.45 artifact 12031381227 is reused without republishing. Separate exact-head Human Authority Merge GO is required before canonical linux/amd64 API and Admin artifact generation. Fixed application source excludes later main and migrations 000088 onward. Runtime activation and migrations 000086 then 000087 require a separate combined Human GO after Guard and rollback checks. Preserve existing feature states and workers; pre-registration remains disabled with no cutoff and 500 points, no grant or batch execution. Basic delivery changes and two new Brand objects require explicit scoped approval. No Production/NEW operation or secret disclosure is authorized.",
+  "authority": "Human-approved exact OLD Test payload: RANKOT-20261021 proposes PR #599 squash c812cb7060f4f1f3c61449b98fe918302f29b196 and tree 83af90ff1448347e740b02e9ca39aec3557de955, containing member-rank M1-M9 and P1B PR #598. Preparation is authorized; separate exact-head Human Source Authority Merge GO is required before this proposal becomes effective or a canonical artifact is built. Specification v1.5 SHA256 688c1b727483e22fef1c091a571f6490f30183d46e7d70121367b54d3f3805bc integrates v1.4 and the confirmed Human decisions. Build normal API and Admin linux/amd64 from this exact payload using the merged current-main Control Authority and the payload's own recipe. Pending contract bundle alpha.46 remains unpublished; immutable alpha.45 and Storefront remain unchanged. P2 prepare may propose only API8621 and Admin with ordered migrations 000088 through 000094 after live ledger, canonical Guard and artifact verification. Separate Human Runtime GO must name the exact candidate_identity before apply, backup, migration or Docker switch. Preserve payment OFF and existing SMS/F2-B operation; only the candidate-bound pause/resume and F2-B image pin update may accompany approved apply. Member-rank Feature ON, initial backfill, monthly worker start and actual bonus grants are excluded. Migration recovery is forward-only; do not assert old-writer compatibility or automatically restore the database. No NEW Production operation, provider request, Storefront rollback or secret disclosure is authorized.",
   "activation_authorized": false
 }
