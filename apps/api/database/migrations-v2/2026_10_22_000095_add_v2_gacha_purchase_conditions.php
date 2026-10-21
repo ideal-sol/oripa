@@ -17,18 +17,18 @@ return new class extends Migration
             ALTER TABLE catalog_gacha_versions ADD CONSTRAINT catalog_gacha_versions_purchase_count_check CHECK (
                 (purchase_count_mode = 'none' AND purchase_count_value IS NULL)
                 OR (purchase_count_mode = 'eq' AND purchase_count_value IS NOT NULL AND purchase_count_value BETWEEN 0 AND 1000000)
-                OR (purchase_count_mode IN ('gte', 'lt') AND purchase_count_value IS NOT NULL AND purchase_count_value BETWEEN 1 AND 1000000)
+                OR (purchase_count_mode::text IN ('gte', 'lt') AND purchase_count_value IS NOT NULL AND purchase_count_value BETWEEN 1 AND 1000000)
             );
             ALTER TABLE catalog_gacha_versions ADD CONSTRAINT catalog_gacha_versions_purchase_amount_check CHECK (
                 (purchase_amount_mode = 'none' AND purchase_amount_value IS NULL)
                 OR (purchase_amount_mode = 'eq' AND purchase_amount_value IS NOT NULL AND purchase_amount_value BETWEEN 0 AND 9007199254740991)
-                OR (purchase_amount_mode IN ('gte', 'lt') AND purchase_amount_value IS NOT NULL AND purchase_amount_value BETWEEN 1 AND 9007199254740991)
+                OR (purchase_amount_mode::text IN ('gte', 'lt') AND purchase_amount_value IS NOT NULL AND purchase_amount_value BETWEEN 1 AND 9007199254740991)
             );
             ALTER TABLE catalog_gacha_versions ADD CONSTRAINT catalog_gacha_versions_purchase_consistency_check CHECK (
                 NOT (((purchase_count_mode = 'eq' AND purchase_count_value = 0) OR (purchase_count_mode = 'lt' AND purchase_count_value = 1))
-                    AND purchase_amount_mode IN ('eq', 'gte') AND purchase_amount_value >= 1)
+                    AND purchase_amount_mode::text IN ('eq', 'gte') AND purchase_amount_value >= 1)
                 AND NOT (((purchase_amount_mode = 'eq' AND purchase_amount_value = 0) OR (purchase_amount_mode = 'lt' AND purchase_amount_value = 1))
-                    AND purchase_count_mode IN ('eq', 'gte') AND purchase_count_value >= 1)
+                    AND purchase_count_mode::text IN ('eq', 'gte') AND purchase_count_value >= 1)
             );
             ALTER TABLE draw_requests
                 ADD COLUMN purchase_count_snapshot bigint,
