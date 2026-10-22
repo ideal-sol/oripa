@@ -3,7 +3,8 @@
 Status: `MEMBERRANK_ACTIVATION_PRELAUNCH_SOURCE_HOLD`.
 R3 / Strict Change / Application Runtime Activation `deferred`.
 Issue603 / Draft PR604 / existing dedicated task branch retained.
-This checkpoint implements read-only inspection, not an executable Activation.
+This checkpoint implements read-only and lock-protected observations, not an
+executable Activation. Both inspection results explicitly deny authorization.
 
 ## Authority and protected users
 
@@ -55,6 +56,91 @@ No wrapper or protection was changed to bypass validation.
 No Source collision lock is required for the new independent files. No
 migration is created/reserved, so no Migration Allocation Lock is acquired.
 No Hotfix, deployment, artifact or network lock is acquired or altered.
+
+## Resume after model capacity interruption
+
+The formal2026-10-22 resume instruction was read without recreating the Change.
+Local/remote checkpoint`ed7bbfe548364f93dee80eeba0313dad8d49d9e9` and base
+`8a656d1a4fb44e15155cbec3ab0ad7b927553587` matched; the worktree was clean.
+G2 was not integrated again. The interrupted216-test/1950-assertion regression
+and local quality validation both completed PASS at that checkpoint. They are
+not automatically final-head validation for later inspection edits.
+
+CI39744901372 failed because the PR declared five changed paths while its diff
+contained eight. The body was corrected to the exact eight paths, with the
+same transport policy, without a gate relaxation or a metadata-only Source
+commit. Canonical same-head dispatch subsequently passed policy, quality and
+security checks; final-head integration/aggregate status belongs in the PR.
+The earlier failed run is retained as failure evidence.
+
+The continuation adds `inspectQuiescent()` to the existing inspection service.
+It uses an owning READ COMMITTED transaction, takes NOWAIT ACCESS EXCLUSIVE
+on settings and NOWAIT SHARE ROW EXCLUSIVE on25 listed financial tables, then
+observes the same aggregates. It never updates business rows or authorizes ON.
+Busy acquisition rolls back, reports `PRELAUNCH_INSPECTION_BUSY`, and does not
+retry indefinitely. Nested transactions are rejected. Ordinary `inspect()`
+retains its original REPEATABLE READ / READ ONLY behavior.
+
+The lock-protected method is **not** a PostgreSQL READ ONLY transaction: strong
+table locks require a writable transaction. Its Source performs SELECT/LOCK
+only. It does not lock users, identity tables or the audit chain. An independent
+user-row update can proceed while these financial locks are held; this proves
+only that row-lock boundary, not complete registration/authentication E2E.
+The method releases its fence before returning, explicitly reports that fact,
+has no HTTP/CLI entry, and cannot be used as a durable activation permit.
+No operational invocation or maintenance-duration approval is implied.
+
+### Lock graph and observed limits
+
+| Actor | Lock/snapshot order | Result / limitation |
+| --- | --- | --- |
+| Quiescent observer | Settings ACCESS EXCLUSIVE NOWAIT →25 financial relation locks NOWAIT → SELECT aggregates → commit/release | No User or audit lock acquisition; no ON; partial acquisitions released on failure. |
+| Already admitted payment/refund/Point/draw/rank table writer | Existing relation RowExclusive → observer attempts conflicting relation lock | Each of26 relations independently rejects observer with55P03; no wait/drain claim. |
+| Existing OFF reader | Settings AccessShare retained until transaction end → observer attempts ACCESS EXCLUSIVE | Observer fails busy rather than publishing across that reader. |
+| New payment while observer owns fence | Plan preparation → payment INSERT attempts RowExclusive | Actual common payment service receives55P03 under diagnostic100ms lock timeout; its transaction is rolled back. |
+| Existing user-row holder | User row lock/update; no financial/settings access | Does not block observer; observer never waits for that User, avoiding Settings→User inversion in this method. |
+| Older REPEATABLE READ transaction not yet touching settings | Acquire MVCC snapshot → observer acquires all26 locks → synthetic fixture publishes ON → old transaction reads old OFF and settles | Real committed paid grant without rank origin reproduced; table locks do not invalidate an earlier snapshot. M8 subsequently rejects the missing origin. |
+| Financial service audit tail | User/financial locks → audit-chain advisory lock | Existing order is unchanged; observer never acquires audit. A future audited ON cannot infer audit/User safety from this observer alone. |
+
+The last snapshot case deliberately establishes REPEATABLE READ on an independent
+connection and calls the real nested payment/Point transaction runner. Production
+business writers were not observed using that isolation level; this is a
+supported-connection counterexample, **not evidence of a live production loss**.
+No production incident or impossibility of all no-backfill designs is claimed.
+It refutes treating relation locks alone as a complete outer-transaction drain.
+The synthetic ON is injected by a test-only query listener in the owning
+observer transaction; there is no corresponding Source activation method.
+
+### Continuation measurements and remaining gate
+
+The extended isolated test passes with both500 and750 free-reward configurations:
+1 test/191 assertions each. In the initial extended runs, the26-table probe
+including injected failure took794.988ms and640.338ms; blocked payment call wall
+times were224.898ms and147.804ms; subsequent rollback calls took0.124ms and0.158ms.
+Those are diagnostic, small-fixture measurements on the constrained synthetic
+environment, not an approved outage budget or100000-origin acceptance. The
+payment wall times include service work and timeout-censored waits, not pure
+lock-wait duration. No business performance threshold was inferred.
+
+Every relation was independently occupied in another transaction; all busy
+inspections rolled back. An injected failure after lock acquisition released
+all26 locks, independently reacquired NOWAIT, with financial/user row hashes
+unchanged. Successful observation also left those hashes unchanged. The separate
+prior-snapshot negative control intentionally commits synthetic ON and a paid
+grant to demonstrate missing rank state; its disposable database is reset after
+the test, not rolled back by weakening irreversible settings constraints.
+
+**Dependent Source remains HOLD, not Draft-ready completion.** Still required:
+an admission boundary established before financial transactions take snapshots
+or business locks (or a proved, enforced isolation/entry alternative), complete
+entry inventory including direct/nested transactions and pending intents, an
+immutable site-bound authorization/run and exact grant cutoff, shared M2/M4/M8
+eligibility, and the audited Owner/Fresh-MFA/CSRF/idempotency endpoint with API
+and end-to-end acceptance. None is replaced by a zero-count snapshot or this
+short-lived fence. No migration number is reserved for an unproved protocol.
+These are remaining engineering obligations, not a request to reapprove the
+Human no-backfill exception or to approve B/C. Runtime authority must later bind
+the exact site/run/origin review; permitted business delay remains undecided.
 
 ## Implemented safe subset
 
@@ -136,7 +222,7 @@ payments/notifications and real free draws, and commits an independent settlemen
 inside the inspector's snapshot interval. Test-only ON is confined to a rolled
 back counterexample of existing M2/M8, not a new activation path.
 
-Isolated inspection runs with actual configured rewards500 and750 each PASS:
+Initial checkpoint inspection runs with actual configured rewards500 and750 each PASS:
 1 test /65 assertions. Initial development run failed after57 assertions because
 the test read a nonexistent exception.errorCode; the corrected exact assertion
 uses the real exception message. No production behavior/assertion is weakened.

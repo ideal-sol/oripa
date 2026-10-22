@@ -15,6 +15,7 @@ use App\Support\V2DatabaseTimestamp;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -146,7 +147,9 @@ final class ZMemberRankPrelaunchInspectionTest extends TestCase
             $this->assertNaiveCutoverCounterexamples($oldPayment);
             self::assertFalse((bool) DB::table('member_rank_settings')->value('enabled'));
             self::assertSame(0, DB::table('member_rank_point_entries')->count());
-            fwrite(STDOUT, "\nPRELAUNCH_INSPECTION: real commits, protected rewards, concurrent snapshot gap and cutover counterexamples verified; activation remains HOLD.\n");
+            $this->assertQuiescentInspection($oldTestUser);
+            $this->assertPriorSnapshotCounterexample($oldTestUser);
+            fwrite(STDOUT, "\nPRELAUNCH_INSPECTION: protected rewards, bounded lock probes and prior-snapshot counterexample verified; activation remains HOLD.\n");
         } finally {
             DB::setDefaultConnection($connectionName);
             while (DB::transactionLevel() > 0) {
@@ -155,6 +158,157 @@ final class ZMemberRankPrelaunchInspectionTest extends TestCase
             DB::purge('prelaunch_writer');
             Carbon::setTestNow();
             CarbonImmutable::setTestNow();
+        }
+    }
+
+    private function assertQuiescentInspection(User $user): void
+    {
+        $inspection = app(V2MemberRankPrelaunchInspection::class);
+        $writer = DB::connection('prelaunch_writer');
+        $connectionName = DB::getDefaultConnection();
+        $before = $this->preservedRows();
+        $tables = ['member_rank_settings', ...V2MemberRankPrelaunchInspection::FINANCIAL_TABLES];
+        $started = hrtime(true);
+        foreach ($tables as $table) {
+            $writer->beginTransaction();
+            try {
+                $writer->statement('LOCK TABLE '.$table.' IN ROW EXCLUSIVE MODE');
+                try {
+                    $inspection->inspectQuiescent();
+                    self::fail('An admitted writer must prevent the quiescent inspection: '.$table);
+                } catch (\RuntimeException $exception) {
+                    self::assertSame('PRELAUNCH_INSPECTION_BUSY', $exception->getMessage());
+                    self::assertInstanceOf(QueryException::class, $exception->getPrevious());
+                    self::assertSame('55P03', $exception->getPrevious()->errorInfo[0]);
+                }
+                self::assertSame(0, DB::transactionLevel());
+            } finally {
+                $writer->rollBack();
+            }
+        }
+        $writer->beginTransaction();
+        try {
+            $writer->table('member_rank_settings')->first();
+            try {
+                $inspection->inspectQuiescent();
+                self::fail('An existing OFF reader must prevent the settings fence.');
+            } catch (\RuntimeException $exception) {
+                self::assertSame('PRELAUNCH_INSPECTION_BUSY', $exception->getMessage());
+            }
+        } finally {
+            $writer->rollBack();
+        }
+
+        $armed = true;
+        $measurements = [];
+        DB::listen(function (QueryExecuted $query) use (&$armed, &$measurements, $writer, $user, $connectionName): void {
+            if (! $armed || $query->connectionName !== $connectionName
+                || ! str_contains($query->sql, 'from "member_rank_settings"')) {
+                return;
+            }
+            $armed = false;
+            $writer->beginTransaction();
+            try {
+                $writer->table('users')->where('id', $user->id)->lockForUpdate()->firstOrFail();
+                self::assertSame(1, $writer->table('users')->where('id', $user->id)->update(['updated_at' => now()]));
+            } finally {
+                $writer->rollBack();
+            }
+            $writer->beginTransaction();
+            $writer->statement("SET LOCAL lock_timeout = '100ms'");
+            DB::setDefaultConnection('prelaunch_writer');
+            $started = hrtime(true);
+            try {
+                $this->settleRankPayment($user, 10000);
+                self::fail('A new payment writer must not pass the financial fence.');
+            } catch (QueryException $exception) {
+                self::assertSame('55P03', $exception->errorInfo[0]);
+                $measurements['writer_call_elapsed_ms'] = (hrtime(true) - $started) / 1_000_000;
+            } finally {
+                $rollback = hrtime(true);
+                while ($writer->transactionLevel() > 0) {
+                    $writer->rollBack();
+                }
+                $measurements['writer_rollback_ms'] = (hrtime(true) - $rollback) / 1_000_000;
+                DB::setDefaultConnection($connectionName);
+            }
+        });
+        $report = $inspection->inspectQuiescent();
+        self::assertFalse($armed);
+        self::assertSame('QUIESCENT_OBSERVATION_ONLY', $report['status']);
+        self::assertSame('read committed', $report['isolation']);
+        self::assertFalse($report['read_only']);
+        self::assertFalse($report['activation_authorized']);
+        self::assertTrue($report['fence_released_before_return']);
+        self::assertSame($tables, $report['fenced_tables']);
+        self::assertSame($before, $this->preservedRows());
+
+        $injectFailure = true;
+        DB::listen(function (QueryExecuted $query) use (&$injectFailure, $connectionName): void {
+            if ($injectFailure && $query->connectionName === $connectionName
+                && str_contains($query->sql, 'from "member_rank_settings"')) {
+                $injectFailure = false;
+                throw new \RuntimeException('synthetic inspection failure');
+            }
+        });
+        try {
+            $inspection->inspectQuiescent();
+            self::fail('Injected failure must abort the inspection.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('synthetic inspection failure', $exception->getMessage());
+        }
+        self::assertSame(0, DB::transactionLevel());
+        $writer->beginTransaction();
+        try {
+            $writer->statement('LOCK TABLE '.implode(', ', $tables).' IN ACCESS EXCLUSIVE MODE NOWAIT');
+        } finally {
+            $writer->rollBack();
+        }
+        self::assertSame($before, $this->preservedRows());
+        self::assertFalse((bool) DB::table('member_rank_settings')->value('enabled'));
+        fwrite(STDOUT, "\nPRELAUNCH_FENCE_PROBE ".json_encode([
+            'tables' => count($tables), 'probe_total_ms' => (hrtime(true) - $started) / 1_000_000,
+            ...$measurements, 'diagnostic_lock_timeout_ms' => 100, 'acceptance_threshold' => null,
+        ], JSON_THROW_ON_ERROR)."\n");
+    }
+
+    private function assertPriorSnapshotCounterexample(User $user): void
+    {
+        $connectionName = DB::getDefaultConnection();
+        $writer = DB::connection('prelaunch_writer');
+        $writer->beginTransaction();
+        $writer->statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        $writer->selectOne('SELECT pg_current_snapshot() AS snapshot');
+        $publishFixture = true;
+        DB::listen(function (QueryExecuted $query) use (&$publishFixture, $connectionName): void {
+            if ($publishFixture && $query->connectionName === $connectionName
+                && str_contains($query->sql, 'from "member_rank_settings"')) {
+                $publishFixture = false;
+                $this->enableRankFixture('2026-10-22T00:15:00Z');
+            }
+        });
+        try {
+            $inspection = app(V2MemberRankPrelaunchInspection::class)->inspectQuiescent();
+            self::assertFalse($inspection['activation_authorized']);
+            self::assertTrue((bool) DB::table('member_rank_settings')->value('enabled'));
+            self::assertFalse((bool) $writer->table('member_rank_settings')->value('enabled'));
+            DB::setDefaultConnection('prelaunch_writer');
+            $payment = $this->settleRankPayment($user, 10000);
+            $writer->commit();
+            DB::setDefaultConnection($connectionName);
+            self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+            self::assertSame(0, DB::table('member_rank_point_entries')->where('payment_id', $payment->id)->count());
+            try {
+                app(V2MemberRankPaymentAdjustmentService::class)->context($payment);
+                self::fail('The post-publication origin missing under a stale OFF snapshot must fail closed.');
+            } catch (V2PaymentException $exception) {
+                self::assertSame('PAYMENT_RANK_ADJUSTMENT_NOT_READY', $exception->getMessage());
+            }
+        } finally {
+            DB::setDefaultConnection($connectionName);
+            while ($writer->transactionLevel() > 0) {
+                $writer->rollBack();
+            }
         }
     }
 
