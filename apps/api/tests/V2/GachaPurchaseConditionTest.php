@@ -220,7 +220,7 @@ final class GachaPurchaseConditionTest extends TestCase
         }
     }
 
-    public function test_contradictory_and_nonstandard_purchase_conditions_are_rejected(): void
+    public function test_contradictory_and_signup_purchase_conditions_are_rejected(): void
     {
         $service = app(V2GachaCompositionService::class);
         foreach ([
@@ -237,6 +237,6 @@ final class GachaPurchaseConditionTest extends TestCase
             }
         }
         $this->expectException(V2CatalogException::class);
-        $service->validate([...$this->rankGachaInput('login_daily'), 'purchase_count_mode' => 'eq', 'purchase_count_value' => 0]);
+        $service->validate([...$this->rankGachaInput('signup_once'), 'purchase_count_mode' => 'eq', 'purchase_count_value' => 0]);
     }
 }

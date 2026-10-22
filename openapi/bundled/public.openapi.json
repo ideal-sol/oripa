@@ -4151,6 +4151,9 @@
           "availability"
         ],
         "properties": {
+          "conditions": {
+            "$ref": "#/components/schemas/GachaConditions"
+          },
           "member_rank_condition": {
             "$ref": "#/components/schemas/GachaMemberRankCondition"
           },
@@ -4229,6 +4232,9 @@
           "resets_at"
         ],
         "properties": {
+          "purchase_progress": {
+            "$ref": "#/components/schemas/GachaPurchaseProgress"
+          },
           "eligible": {
             "type": "boolean"
           },
@@ -4244,7 +4250,10 @@
               null,
               "authentication_required",
               "registration_not_qualified",
+              "audience_not_eligible",
               "member_rank_not_eligible",
+              "purchase_count_not_eligible",
+              "purchase_amount_not_eligible",
               "already_used",
               "inventory_unavailable"
             ]

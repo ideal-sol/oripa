@@ -17,10 +17,11 @@ final class V2LoginCatalogReadService
     {
         $instant = CarbonImmutable::now()->startOfSecond();
         $rank = $user === null ? null : app(V2MemberRankResolver::class)->project($user->id, $instant);
+        $purchases = $user === null ? null : V2GachaPurchaseCondition::aggregate($user->id);
 
         return ['items' => $this->query($instant)->orderBy('gacha.public_id')
             ->get()->map(fn (object $row): array => $this->summary($row) + [
-                'eligibility' => app(V2DrawEligibilityService::class)->evaluateLogin($user, $row, $row, $instant, $rank),
+                'eligibility' => app(V2DrawEligibilityService::class)->evaluateLogin($user, $row, $row, $instant, $rank, $purchases),
             ])->all()];
     }
 
@@ -91,6 +92,9 @@ final class V2LoginCatalogReadService
             ->select(['gacha.id', 'gacha.public_id', 'gacha.public_code', 'gacha.gacha_type', 'version.id as version_id',
                 'version.title', 'version.description', 'version.notices', 'version.price_points',
                 'version.member_rank_mode', 'version.member_rank_level',
+                'version.audience_code', 'version.first_time_eligible_days',
+                'version.purchase_count_mode', 'version.purchase_count_value',
+                'version.purchase_amount_mode', 'version.purchase_amount_value',
                 'version.presentation_asset_id', 'version.publish_start_at', 'version.publish_end_at']);
     }
 
@@ -98,6 +102,7 @@ final class V2LoginCatalogReadService
     {
         return [
             'member_rank_condition' => V2MemberRankGachaCondition::presentation($row),
+            'conditions' => V2GachaPurchaseCondition::conditions($row),
             'id' => $row->public_id, 'public_code' => $row->public_code, 'gacha_type' => $row->gacha_type,
             'title' => $row->title, 'thumbnail' => $this->asset($row->presentation_asset_id), 'price_points' => (int) $row->price_points,
             'publish_start_at' => CarbonImmutable::parse($row->publish_start_at)->toIso8601ZuluString(),

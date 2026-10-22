@@ -170,11 +170,17 @@ test("Login Catalog stays thin, separate from standard, and forwards authenticat
   let request;
   const browser = createStorefrontCatalogClient(createBrowserStorefrontClient(browserConfig(async (url, init) => {
     request = { url, init };
-    return jsonResponse({ data: { price_points: 0, eligibility: { eligible: true, used: false } } });
+    return jsonResponse({ data: { price_points: 0,
+      conditions: { audience: "line_users", member_rank: null, purchase_count: { operator: "gte", value: 5 }, purchase_amount: null },
+      eligibility: { eligible: false, used: false, reason: "purchase_count_not_eligible",
+        purchase_progress: { purchase_count: 3, purchase_amount: 3000, purchase_count_remaining: 2, purchase_amount_remaining: null } } } });
   })));
   const result = await browser.getLoginGacha("0198a001-0000-7000-8000-000000000011");
   assert.equal(request.init.credentials, "include");
   assert.equal(result.data.data.price_points, 0);
+  assert.equal(result.data.data.conditions.purchase_count.value, 5);
+  assert.equal(result.data.data.eligibility.reason, "purchase_count_not_eligible");
+  assert.equal(result.data.data.eligibility.purchase_progress.purchase_count_remaining, 2);
 });
 
 test("Package VersionとRuntime Versionを一致させる", async () => {

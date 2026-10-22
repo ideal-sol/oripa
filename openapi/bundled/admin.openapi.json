@@ -14090,7 +14090,8 @@
           },
           "first_time_eligible_days": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 365
           },
           "allowed_draw_counts": {
             "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
@@ -14166,18 +14167,6 @@
             },
             "else": {
               "properties": {
-                "purchase_count_mode": {
-                  "const": "none"
-                },
-                "purchase_count_value": {
-                  "type": "null"
-                },
-                "purchase_amount_mode": {
-                  "const": "none"
-                },
-                "purchase_amount_value": {
-                  "type": "null"
-                },
                 "total_count": {
                   "type": "null"
                 },
@@ -14186,12 +14175,6 @@
                 },
                 "tag_ids": {
                   "maxItems": 0
-                },
-                "audience_code": {
-                  "const": "all_users"
-                },
-                "first_time_eligible_days": {
-                  "const": 7
                 },
                 "allowed_draw_counts": {
                   "const": [
@@ -14223,6 +14206,24 @@
             },
             "then": {
               "properties": {
+                "audience_code": {
+                  "const": "all_users"
+                },
+                "first_time_eligible_days": {
+                  "const": 7
+                },
+                "purchase_count_mode": {
+                  "const": "none"
+                },
+                "purchase_count_value": {
+                  "type": "null"
+                },
+                "purchase_amount_mode": {
+                  "const": "none"
+                },
+                "purchase_amount_value": {
+                  "type": "null"
+                },
                 "price_points": {
                   "const": 0
                 },
@@ -20133,7 +20134,8 @@
           },
           "first_time_eligible_days": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 365
           },
           "allowed_draw_counts": {
             "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"
@@ -21587,7 +21589,8 @@
           },
           "first_time_eligible_days": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 365
           },
           "allowed_draw_counts": {
             "$ref": "#/components/schemas/AdminGachaAllowedDrawCounts"

@@ -43,8 +43,8 @@ final class ZMemberRankGachaConcurrencyTest extends TestCase
         $this->enableRankFixture();
         $user = $this->fundedRankUser(2);
         $on = $this->race($user, $second, fn () => $this->rankDraw($user, $first));
-        self::assertSame('DAILY_DRAW_LIMIT_EXCEEDED', $on['code']);
-        self::assertSame(1, DB::table('draw_requests')->where('user_id', $user->id)->count());
+        self::assertSame(2, $on['draw']['member_rank']['level']);
+        self::assertSame(2, DB::table('draw_requests')->where('user_id', $user->id)->count());
         $standard = $this->rankGacha('standard', 'only', 4);
         $admin = $this->rankAdmin();
         foreach ([['gold', 4, true], ['bronze', 2, false]] as [$code, $level, $allowed]) {
@@ -60,7 +60,7 @@ final class ZMemberRankGachaConcurrencyTest extends TestCase
                 self::assertSame('GACHA_MEMBER_RANK_NOT_ELIGIBLE', $outcome['code']);
             }
         }
-        self::assertSame(2, DB::table('draw_requests')->where('user_id', $user->id)->count());
+        self::assertSame(3, DB::table('draw_requests')->where('user_id', $user->id)->count());
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
     }

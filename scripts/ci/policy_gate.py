@@ -297,6 +297,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
     "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
     "apps/api/database/migrations-v2/2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
+    "apps/api/database/migrations-v2/2026_10_22_000096_enable_v2_login_gacha_conditions.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -1429,7 +1430,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022", "GACHA-ELIGIBILITY-G2-20261022"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -3198,6 +3199,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
         "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
         "2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
+        "2026_10_22_000096_enable_v2_login_gacha_conditions.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
