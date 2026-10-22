@@ -2,15 +2,12 @@ import json
 from pathlib import Path
 import unittest
 
-import yaml
-
-
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class MemberRankPrelaunchContractTest(unittest.TestCase):
     def test_activation_is_admin_only_and_cannot_provision_site_authority(self):
-        admin = yaml.safe_load((ROOT / "openapi/admin/openapi.yaml").read_text())
+        admin = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
         path = "/settings/member-ranks/prelaunch-activation"
         operation = admin["paths"][path]["post"]
         self.assertEqual(operation["security"], [{"adminSession": []}])
