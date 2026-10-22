@@ -101,9 +101,10 @@ final class V2GachaCompositionService
         $login = $input['gacha_type'] !== 'standard';
         if ($login) {
             if ($input['category_id'] !== null || $input['tag_ids'] !== [] || $input['total_count'] !== null
-                || $input['allowed_draw_counts'] !== [1] || $input['audience_code'] !== 'all_users'
-                || $input['first_time_eligible_days'] !== 7
-                || $input['purchase_count_mode'] !== 'none' || $input['purchase_amount_mode'] !== 'none'
+                || $input['allowed_draw_counts'] !== [1]
+                || ($input['gacha_type'] === 'signup_once' && ($input['audience_code'] !== 'all_users'
+                    || $input['first_time_eligible_days'] !== 7
+                    || $input['purchase_count_mode'] !== 'none' || $input['purchase_amount_mode'] !== 'none'))
                 || ($input['gacha_type'] === 'login_daily' && ($input['daily_draw_limit'] !== 1 || $input['minimum_exchange_points'] === null))
                 || ($input['gacha_type'] === 'signup_once' && ($input['member_rank_mode'] !== 'none' || $input['price_points'] !== 0 || $input['daily_draw_limit'] !== 0 || $input['minimum_exchange_points'] !== null))) {
                 throw $this->invalid();

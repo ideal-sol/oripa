@@ -2508,6 +2508,7 @@ components:
       type: object
       required: [id, public_code, gacha_type, title, thumbnail, price_points, publish_start_at, publish_end_at, availability]
       properties:
+        conditions: {$ref: '#/components/schemas/GachaConditions'}
         member_rank_condition: {$ref: '#/components/schemas/GachaMemberRankCondition'}
         eligibility: {$ref: '#/components/schemas/LoginGachaEligibility'}
         id: {$ref: '#/components/schemas/OpaqueId'}
@@ -2533,9 +2534,10 @@ components:
       additionalProperties: false
       required: [eligible, used, reason, resets_at]
       properties:
+        purchase_progress: {$ref: '#/components/schemas/GachaPurchaseProgress'}
         eligible: {type: boolean}
         used: {type: boolean}
-        reason: {type: [string, 'null'], enum: [null, authentication_required, registration_not_qualified, member_rank_not_eligible, already_used, inventory_unavailable]}
+        reason: {type: [string, 'null'], enum: [null, authentication_required, registration_not_qualified, audience_not_eligible, member_rank_not_eligible, purchase_count_not_eligible, purchase_amount_not_eligible, already_used, inventory_unavailable]}
         resets_at: {type: [string, 'null'], format: date-time}
     LoginGachaPrize:
       type: object

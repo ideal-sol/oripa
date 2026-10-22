@@ -9,6 +9,15 @@ export {
   PUBLIC_CONTRACT_FIXTURE,
 } from "./generated/public-contract.js";
 
+export const PUBLIC_LOGIN_GACHA_ELIGIBILITY_FIXTURES = Object.freeze({
+  anonymous: { eligible: false, used: false, reason: "authentication_required", resets_at: "2026-11-01T15:00:00Z", purchase_progress: null },
+  purchase_required: { eligible: false, used: false, reason: "purchase_count_not_eligible", resets_at: "2026-11-01T15:00:00Z",
+    purchase_progress: { purchase_count: 3, purchase_amount: 3000, purchase_count_remaining: 2, purchase_amount_remaining: null } },
+  eligible: { eligible: true, used: false, reason: null, resets_at: "2026-11-01T15:00:00Z",
+    purchase_progress: { purchase_count: 5, purchase_amount: 5000, purchase_count_remaining: null, purchase_amount_remaining: null } },
+  used: { eligible: false, used: true, reason: "already_used", resets_at: "2026-11-01T15:00:00Z", purchase_progress: null },
+} as const satisfies Record<string, PublicComponents["schemas"]["LoginGachaEligibility"]>);
+
 const memberRankSilver = {
   enabled: true,
   rank: { code: "silver", name: "シルバー", level: 3 },

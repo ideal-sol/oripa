@@ -5584,7 +5584,7 @@ components:
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
         member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
-        first_time_eligible_days: {type: integer, minimum: 1}
+        first_time_eligible_days: {type: integer, minimum: 1, maximum: 365}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         ranks: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AdminCompositionRank'}}
         prizes: {type: array, maxItems: 1000, items: {$ref: '#/components/schemas/AdminCompositionPrize'}}
@@ -5606,20 +5606,20 @@ components:
               prizes: {items: {properties: {percentage: {type: 'null'}}}}
           else:
             properties:
-              purchase_count_mode: {const: none}
-              purchase_count_value: {type: 'null'}
-              purchase_amount_mode: {const: none}
-              purchase_amount_value: {type: 'null'}
               total_count: {type: 'null'}
               category_id: {type: 'null'}
               tag_ids: {maxItems: 0}
-              audience_code: {const: all_users}
-              first_time_eligible_days: {const: 7}
               allowed_draw_counts: {const: [1]}
               prizes: {items: {properties: {shipping_only: {const: false}, percentage: {type: string}}}}
         - if: {properties: {gacha_type: {const: signup_once}}}
           then:
             properties:
+              audience_code: {const: all_users}
+              first_time_eligible_days: {const: 7}
+              purchase_count_mode: {const: none}
+              purchase_count_value: {type: 'null'}
+              purchase_amount_mode: {const: none}
+              purchase_amount_value: {type: 'null'}
               price_points: {const: 0}
               daily_draw_limit: {const: 0}
               member_rank_mode: {const: none}
@@ -7470,7 +7470,7 @@ components:
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
         member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
-        first_time_eligible_days: {type: integer, minimum: 1}
+        first_time_eligible_days: {type: integer, minimum: 1, maximum: 365}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         presentation_asset:
           oneOf:
@@ -7853,7 +7853,7 @@ components:
         audience_code: {type: string, enum: [all_users, first_time_users, line_users]}
         member_rank_mode: {type: string, enum: [none, at_least, only, at_most], default: none}
         member_rank_level: {type: [integer, 'null'], minimum: 1, maximum: 7, default: null}
-        first_time_eligible_days: {type: integer, minimum: 1}
+        first_time_eligible_days: {type: integer, minimum: 1, maximum: 365}
         allowed_draw_counts: {$ref: '#/components/schemas/AdminGachaAllowedDrawCounts'}
         presentation_asset:
           oneOf:

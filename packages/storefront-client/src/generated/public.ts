@@ -1500,6 +1500,7 @@ export interface components {
             rank: components["schemas"]["NullableMemberRankSnapshot"];
         };
         LoginGachaSummary: {
+            conditions?: components["schemas"]["GachaConditions"];
             member_rank_condition?: components["schemas"]["GachaMemberRankCondition"];
             eligibility?: components["schemas"]["LoginGachaEligibility"];
             id: components["schemas"]["OpaqueId"];
@@ -1520,10 +1521,11 @@ export interface components {
             items: components["schemas"]["LoginGachaSummary"][];
         };
         LoginGachaEligibility: {
+            purchase_progress?: components["schemas"]["GachaPurchaseProgress"];
             eligible: boolean;
             used: boolean;
             /** @enum {string|null} */
-            reason: null | "authentication_required" | "registration_not_qualified" | "member_rank_not_eligible" | "already_used" | "inventory_unavailable";
+            reason: null | "authentication_required" | "registration_not_qualified" | "audience_not_eligible" | "member_rank_not_eligible" | "purchase_count_not_eligible" | "purchase_amount_not_eligible" | "already_used" | "inventory_unavailable";
             /** Format: date-time */
             resets_at: string | null;
         };

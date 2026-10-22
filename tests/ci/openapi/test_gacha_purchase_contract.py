@@ -35,7 +35,7 @@ class GachaPurchaseContractTest(unittest.TestCase):
                     }, False))
         validate_cases(schema, cases)
 
-    def test_public_additions_are_optional_and_login_behavior_is_unchanged(self):
+    def test_public_additions_are_optional_for_standard_and_login(self):
         schemas = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())["components"]["schemas"]
         presentation = schemas["GachaPresentationState"]
         for field in ["conditions", "purchase_progress"]:
@@ -46,7 +46,33 @@ class GachaPurchaseContractTest(unittest.TestCase):
         })
         for reason in ["purchase_count_not_eligible", "purchase_amount_not_eligible"]:
             self.assertIn(reason, schemas["GachaPresentationReason"]["enum"])
-            self.assertNotIn(reason, schemas["LoginGachaEligibility"]["properties"]["reason"]["enum"])
+            self.assertIn(reason, schemas["LoginGachaEligibility"]["properties"]["reason"]["enum"])
+        self.assertIn("conditions", schemas["LoginGachaSummary"]["properties"])
+        self.assertNotIn("conditions", schemas["LoginGachaSummary"]["required"])
+        self.assertIn("purchase_progress", schemas["LoginGachaEligibility"]["properties"])
+
+    def test_login_allows_conditions_but_signup_preserves_every_fixed_field(self):
+        schemas = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())["components"]["schemas"]
+        schemas["AdminGachaComposition"]["required"] = []
+        schema = copy.deepcopy(schemas["AdminGachaCompositionSave"])
+        schema["components"] = {"schemas": schemas}
+        cases = []
+        for kind in ["standard", "login_daily", "signup_once"]:
+            for fields in [
+                {"audience_code": "line_users"},
+                {"audience_code": "first_time_users", "first_time_eligible_days": 365},
+                {"first_time_eligible_days": 1},
+                {"member_rank_mode": "only", "member_rank_level": 2},
+                {"purchase_count_mode": "eq", "purchase_count_value": 0},
+                {"purchase_amount_mode": "gte", "purchase_amount_value": 1},
+            ]:
+                cases.append(({"gacha_type": kind, **fields}, kind != "signup_once"))
+        for field in ["price_points", "daily_draw_limit", "minimum_exchange_points"]:
+            cases.append(({"gacha_type": "signup_once", field: 1}, False))
+        for value in [0, 366]:
+            cases.append(({"gacha_type": "login_daily", "first_time_eligible_days": value}, False))
+        cases.append(({"gacha_type": "signup_once"}, True))
+        validate_cases(schema, cases)
 
 
 def validate_cases(schema, cases):

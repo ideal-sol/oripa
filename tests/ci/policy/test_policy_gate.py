@@ -38,7 +38,9 @@ class PolicyGateTest(unittest.TestCase):
         task_id = "GACHA-ELIGIBILITY-G1-20261022"
         policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
                                     data["changed_paths"], data["base_sha"])
-        for invalid in (task_id + "A", "GACHA-ELIGIBILITY-G2-20261022", "GACHA-ELIGIBILITY-*"):
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", "GACHA-ELIGIBILITY-G2-20261022"),
+                                    "GACHA-ELIGIBILITY-G2-20261022", data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "GACHA-ELIGIBILITY-G3-20261022", "GACHA-ELIGIBILITY-G2-20261022A", "GACHA-ELIGIBILITY-*"):
             with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
                 policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
                                             data["changed_paths"], data["base_sha"])

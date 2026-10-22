@@ -158,6 +158,36 @@ final class LoginGachaTest extends TestCase
         self::assertSame(1, DB::table('catalog_gachas')->count());
     }
 
+    public function test_login_conditions_http_round_trip_and_signup_fixed_fields(): void
+    {
+        $conditions = ['audience_code' => 'first_time_users', 'first_time_eligible_days' => 365,
+            'member_rank_mode' => 'only', 'member_rank_level' => 2,
+            'purchase_count_mode' => 'gte', 'purchase_count_value' => 3,
+            'purchase_amount_mode' => 'gte', 'purchase_amount_value' => 1000];
+        $input = [...$this->input(), ...$conditions];
+        $gacha = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $input)->assertCreated()->json('data');
+        foreach ($conditions as $field => $value) {
+            self::assertSame($value, app(V2GachaCopyService::class)->projection($gacha['id'], true)[$field]);
+        }
+        $input['audience_code'] = 'line_users';
+        $input['first_time_eligible_days'] = 1;
+        $this->mutate('PUT', '/admin/api/v2/catalog/gachas/'.$gacha['id'].'/composition', [
+            'expected_revision' => $gacha['revision'], 'expected_version_revision' => $gacha['current_version']['revision'],
+            'composition' => $input,
+        ])->assertOk();
+        self::assertSame('line_users', app(V2GachaCopyService::class)->projection($gacha['id'], false)['audience_code']);
+        foreach ([['audience_code' => 'line_users'], ['first_time_eligible_days' => 1],
+            ['member_rank_mode' => 'only', 'member_rank_level' => 2],
+            ['purchase_count_mode' => 'eq', 'purchase_count_value' => 0],
+            ['purchase_amount_mode' => 'gte', 'purchase_amount_value' => 1]] as $invalid) {
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', [...$this->input('signup_once'), ...$invalid])->assertUnprocessable();
+        }
+        foreach ([0, 366] as $days) {
+            $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', [...$input, 'first_time_eligible_days' => $days])->assertUnprocessable();
+        }
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
     public function test_bulk_update_is_atomic_and_requires_the_current_revisions(): void
     {
         $input = $this->input();
