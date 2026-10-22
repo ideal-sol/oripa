@@ -9,6 +9,36 @@ const bannerCategoryId = "0198a001-0000-7000-8000-000000000011";
 const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
 const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
 
+for (const width of [1440, 390]) {
+  test(`G2 login conditions copy save and published lock at ${width}px`, async ({ page }, testInfo) => {
+    const mutations = await installApi(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/catalog/gachas/${gachaId}/copy`);
+    await expect(page.getByText(/各ログインガチャごとに/u)).toBeVisible();
+    await page.getByLabel("対象ユーザー", { exact: true }).selectOption("first_time_users");
+    await page.getByLabel("初回ユーザー期間（日）").fill("30");
+    await page.getByLabel("購入回数", { exact: true }).selectOption("gte");
+    await page.getByLabel("購入回数の値", { exact: true }).fill("3");
+    await page.getByLabel("購入額", { exact: true }).selectOption("gte");
+    await page.getByLabel("購入額の値", { exact: true }).fill("1000");
+    await page.getByLabel("公開開始日時（JST）").fill("2026-11-01T00:00");
+    await expect(page.getByLabel("対象条件の要約")).toContainText("購入回数3回以上／購入額1,000円以上");
+    await page.getByRole("button", { name: "構成を一括保存" }).click();
+    await expect.poll(() => mutations.length).toBe(1);
+    expect(mutations[0].body).toMatchObject({ audience_code: "first_time_users", first_time_eligible_days: 30,
+      purchase_count_mode: "gte", purchase_count_value: 3, purchase_amount_mode: "gte", purchase_amount_value: 1000 });
+    const conditions = { ...projection(), audience_code: "first_time_users", first_time_eligible_days: 30,
+      purchase_count_mode: "gte", purchase_count_value: 3, purchase_amount_mode: "gte", purchase_amount_value: 1000 };
+    await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: conditions }));
+    await page.goto(`/catalog/gachas/${gachaId}`);
+    await expect(page.getByLabel("対象ユーザー", { exact: true })).toBeDisabled();
+    await expect(page.getByLabel("購入回数", { exact: true })).toBeDisabled();
+    await expect(page.getByLabel("購入額の値", { exact: true })).toHaveValue("1000");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("g2-conditions.png"), fullPage: true });
+  });
+}
+
 for (const type of ["login_daily", "signup_once"] as const) {
   for (const width of [1440, 390]) {
     test(`weighted published videos for ${type} at ${width}px preserve composition locks and reload conflicts`, async ({ page }, testInfo) => {
@@ -147,7 +177,8 @@ test("registration offers three separate routes and daily has no standard-only f
   await page.getByRole("link", { name: "ログインガチャを登録" }).click();
   await expect(page.getByLabel("消費ポイント", { exact: true })).toHaveValue("0");
   await expect(page.getByLabel("最低保証（交換ポイント）")).toHaveValue("0");
-  for (const label of ["総口数", "カテゴリ", "タグ", "発送専用", "対象ユーザー", "ガチャ種別"]) {
+  await expect(page.getByLabel("対象ユーザー", { exact: true })).toHaveValue("all_users");
+  for (const label of ["総口数", "カテゴリ", "タグ", "発送専用", "ガチャ種別"]) {
     await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
   }
   await page.setViewportSize({ width: 390, height: 844 });

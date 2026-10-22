@@ -103,16 +103,25 @@ final class V2DrawEligibilityService
             if ($lockedUser->state !== 'active') {
                 throw new V2DrawException('GACHA_AUDIENCE_NOT_ELIGIBLE', 403, 'An active User is required.');
             }
-            $eligibility = $this->evaluateLogin($lockedUser, $gacha, $version, $occurredAt, $memberRank);
+            $purchases = $gacha->gacha_type === 'login_daily' ? V2GachaPurchaseCondition::aggregate($user->id) : null;
+            $eligibility = $this->evaluateLogin($lockedUser, $gacha, $version, $occurredAt, $memberRank, $purchases);
             if (! $eligibility['eligible']) {
                 if ($eligibility['reason'] === 'member_rank_not_eligible') {
                     throw new V2DrawException('GACHA_MEMBER_RANK_NOT_ELIGIBLE', 403, 'The member rank does not satisfy this Gacha condition.');
+                }
+                if (in_array($eligibility['reason'], ['purchase_count_not_eligible', 'purchase_amount_not_eligible'], true)) {
+                    throw new V2DrawException('GACHA_'.strtoupper($eligibility['reason']), 403, 'The purchase history does not satisfy this Gacha condition.');
                 }
                 throw new V2DrawException(
                     $eligibility['reason'] === 'already_used' ? 'DAILY_DRAW_LIMIT_EXCEEDED' : 'GACHA_AUDIENCE_NOT_ELIGIBLE',
                     $eligibility['reason'] === 'already_used' ? 409 : 403,
                     'The user is not eligible for this login Gacha.'
                 );
+            }
+
+            if ($purchases !== null) {
+                $snapshot['purchase_count_snapshot'] = $purchases['purchase_count'];
+                $snapshot['purchase_amount_snapshot'] = $purchases['purchase_amount'];
             }
 
             return $snapshot;
@@ -167,24 +176,19 @@ final class V2DrawEligibilityService
         return $snapshot;
     }
 
-    public function evaluateLogin(?object $user, object $gacha, object $version, CarbonImmutable $occurredAt, ?array $memberRank = null): array
+    public function evaluateLogin(?object $user, object $gacha, object $version, CarbonImmutable $occurredAt, ?array $memberRank = null, ?array $purchases = null): array
     {
         $bounds = $this->jstDayBounds($occurredAt);
         if ($user === null) {
-            return ['eligible' => false, 'used' => false, 'reason' => 'authentication_required',
+            return ['eligible' => false, 'used' => false, 'reason' => 'authentication_required', 'purchase_progress' => null,
                 'resets_at' => $gacha->gacha_type === 'login_daily' ? $bounds['end']->toIso8601ZuluString() : null];
         }
         $memberRank ??= app(V2MemberRankResolver::class)->project($user->id, $occurredAt);
         $usage = DB::table('draw_requests as request')
             ->join('gacha_draw_states as state', 'state.id', '=', 'request.gacha_draw_state_id')
             ->where('request.user_id', $user->id)
-            ->where('request.status', 'completed')->where('request.is_qa_draw', false);
-        if ($gacha->gacha_type === 'login_daily' && $memberRank['enabled']) {
-            $usage->join('catalog_gachas as used_gacha', 'used_gacha.id', '=', 'state.gacha_id')
-                ->where('used_gacha.gacha_type', 'login_daily');
-        } else {
-            $usage->where('state.gacha_id', $gacha->id);
-        }
+            ->where('request.status', 'completed')->where('request.is_qa_draw', false)
+            ->where('state.gacha_id', $gacha->id);
         if ($gacha->gacha_type === 'login_daily') {
             $usage->where('request.completed_at', '>=', $bounds['start']->toIso8601String())
                 ->where('request.completed_at', '<', $bounds['end']->toIso8601String());
@@ -198,12 +202,19 @@ final class V2DrawEligibilityService
                 && $qualifiedAt->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
 
         $rankEligible = V2MemberRankGachaCondition::matches($version, $memberRank);
+        $audienceEligible = $gacha->gacha_type !== 'login_daily'
+            || $this->isAudienceEligible($user, $version->audience_code, (int) $version->first_time_eligible_days, $occurredAt);
+        $purchases = $gacha->gacha_type === 'login_daily' ? ($purchases ?? V2GachaPurchaseCondition::aggregate($user->id)) : null;
+        $purchaseReason = $purchases === null ? null : V2GachaPurchaseCondition::reason($version, $purchases);
+        $reason = ! $qualified ? 'registration_not_qualified'
+            : (! $audienceEligible ? 'audience_not_eligible'
+                : (! $rankEligible ? 'member_rank_not_eligible' : ($purchaseReason ?? ($used ? 'already_used' : null))));
 
         return [
-            'eligible' => $qualified && $rankEligible && ! $used,
+            'eligible' => $reason === null,
             'used' => $used,
-            'reason' => ! $qualified ? 'registration_not_qualified'
-                : (! $rankEligible ? 'member_rank_not_eligible' : ($used ? 'already_used' : null)),
+            'reason' => $reason,
+            'purchase_progress' => V2GachaPurchaseCondition::progress($version, $purchases),
             'resets_at' => $gacha->gacha_type === 'login_daily' ? $bounds['end']->toIso8601ZuluString() : null,
         ];
     }

@@ -31,6 +31,7 @@ import {
   PUBLIC_CATALOG_FIXTURE,
   PUBLIC_GACHA_CATALOG_DISPLAY_FIXTURES,
   PUBLIC_GACHA_PRESENTATION_FIXTURE,
+  PUBLIC_LOGIN_GACHA_ELIGIBILITY_FIXTURES,
   PUBLIC_CONTENT_FIXTURE,
   PUBLIC_IDENTITY_RECOVERY_FIXTURE,
   PUBLIC_SMS_VERIFICATION_FIXTURES,
@@ -74,6 +75,16 @@ import {
   assertServerSafeRequest,
   createMockFetch,
 } from "../dist/index.js";
+
+test("Login eligibility preserves anonymous null progress and per-Gacha usage", () => {
+  const fixtures = PUBLIC_LOGIN_GACHA_ELIGIBILITY_FIXTURES;
+  assert.equal(fixtures.anonymous.purchase_progress, null);
+  assert.equal(fixtures.purchase_required.reason, "purchase_count_not_eligible");
+  assert.equal(fixtures.purchase_required.purchase_progress.purchase_count_remaining, 2);
+  assert.equal(fixtures.eligible.purchase_progress.purchase_count_remaining, null);
+  assert.equal(fixtures.used.reason, "already_used");
+  assert.equal(fixtures.eligible.used, false);
+});
 
 test("景品Lineupは同Rankの全景品画像と個別総在庫を公開する", () => {
   const { ranks } = PUBLIC_CATALOG_FIXTURE.data;
@@ -1263,6 +1274,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_IDENTITY_RECOVERY_FIXTURE",
     "PUBLIC_LINE_FRIEND_STATE_FIXTURES",
     "PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES",
+    "PUBLIC_LOGIN_GACHA_ELIGIBILITY_FIXTURES",
     "PUBLIC_MEMBER_RANK_FIXTURES",
     "PUBLIC_MEMBER_RANK_LIST_FIXTURE",
     "PUBLIC_PARTIAL_REMAINING_DRAW_FIXTURE",

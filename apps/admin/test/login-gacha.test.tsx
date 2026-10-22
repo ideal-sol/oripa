@@ -128,21 +128,33 @@ describe("Login Gacha composition", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("shows daily price and minimum, but no total, category, shipping or audience fields", async () => {
+  it("shows daily eligibility fields but no standard-only economics", async () => {
     selections();
     render(<LoginGachaWorkspace type="login_daily" />);
     expect(await screen.findByLabelText("消費ポイント")).toHaveValue(0);
     expect(screen.getByLabelText("最低保証（交換ポイント）")).toHaveValue(0);
-    for (const label of ["総口数", "カテゴリ", "タグ", "発送専用", "対象ユーザー", "ガチャ種別"]) {
+    for (const label of ["総口数", "カテゴリ", "タグ", "発送専用", "ガチャ種別"]) {
       expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: "構成を一括保存" })).toBeDisabled();
+    expect(screen.getByLabelText("対象ユーザー")).toHaveValue("all_users");
+    expect(screen.getByText(/各ログインガチャごとに/u)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("対象ユーザー"), { target: { value: "first_time_users" } });
+    expect(screen.getByLabelText("初回ユーザー期間（日）")).toHaveAttribute("max", "365");
+    fireEvent.change(screen.getByLabelText("購入回数"), { target: { value: "gte" } });
+    fireEvent.change(screen.getByLabelText("購入回数の値"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("購入額"), { target: { value: "lt" } });
+    fireEvent.change(screen.getByLabelText("購入額の値"), { target: { value: "10000" } });
+    expect(screen.getByLabelText("対象条件の要約")).toHaveTextContent("初回ユーザー／指定なし／購入回数3回以上／購入額10,000円未満");
   });
 
   it("keeps signup free and omits paid configuration", async () => {
     selections();
     render(<LoginGachaWorkspace type="signup_once" />);
     expect(await screen.findByText("消費ポイント: 無料（0）")).toBeInTheDocument();
+    for (const label of ["対象ユーザー", "購入回数", "購入額", "初回ユーザー期間（日）"]) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+    }
     expect(screen.queryByLabelText("消費ポイント")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("最低保証（交換ポイント）")).not.toBeInTheDocument();
     expect(emptyGachaComposition("signup_once").price_points).toBe(0);

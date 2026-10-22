@@ -219,3 +219,14 @@ conditions remain prohibited until G2. Existing published and rank guards remain
 Forward-only: retain schema and snapshots on rollback; a writer without purchase
 eligibility enforcement must not serve conditioned Gachas. Operational migration
 and activation are deferred; verification uses a dedicated synthetic database.
+
+## Login Gacha conditions (000096)
+
+`2026_10_22_000096_enable_v2_login_gacha_conditions.php` was reserved under the
+Migration Allocation Lock after checking all refs and active reservations through
+000095. It replaces only typed-version audience/day and purchase-type guard
+predicates to permit login_daily conditions. signup_once remains fixed; economic,
+publication, rank and snapshot guards remain unchanged. No published row UPDATE,
+prior migration edit or operational application is authorized. Forward-only:
+do not restore older global-login writers against conditioned login Gachas.
+PHP Hotfix Human Merge HOLD remains in effect; synthetic validation only.

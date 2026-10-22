@@ -93,7 +93,7 @@ final class MemberRankGachaTest extends TestCase
         self::assertSame('member_rank_not_eligible', app(V2CatalogReadService::class)->presentationState($limited->public_id, $user)['ineligible_reason']);
     }
 
-    public function test_login_global_daily_limit_after_promotion_next_day_and_signup_exclusion(): void
+    public function test_login_per_gacha_daily_limit_after_promotion_next_day_and_signup_exclusion(): void
     {
         $this->enableRankFixture();
         $user = $this->fundedRankUser(2);
@@ -103,6 +103,7 @@ final class MemberRankGachaTest extends TestCase
         $this->rankDraw($user, $signup);
         $this->rankDraw($user, $first);
         DB::table('member_rank_states')->where('user_id', $user->id)->update(['level' => 3, 'skip_count' => 1]);
+        self::assertSame(3, $this->rankDraw($user, $second)['member_rank']['level']);
         $this->assertDrawDenied($user, $second, 'DAILY_DRAW_LIMIT_EXCEEDED');
         $read = app(V2LoginCatalogReadService::class);
         self::assertSame('already_used', $read->detail($second->public_id, $user)['data']['eligibility']['reason']);
