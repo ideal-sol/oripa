@@ -17,11 +17,16 @@ final class V2DrawTransactionRunner
      */
     public function run(callable $callback): mixed
     {
+        $outermost = DB::transactionLevel() === 0;
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             try {
-                return DB::transaction(fn () => $callback($attempt), 1);
+                return DB::transaction(function () use ($callback, $attempt): mixed {
+                    app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+
+                    return $callback($attempt);
+                }, 1);
             } catch (QueryException $exception) {
-                if (! $this->isRetryable($exception)) {
+                if (! $outermost || ! $this->isRetryable($exception)) {
                     throw $exception;
                 }
                 if ($attempt === self::MAX_ATTEMPTS) {

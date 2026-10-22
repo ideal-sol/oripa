@@ -83,6 +83,9 @@ final class V2LineFriendService
                 true
             );
         }
+        if (LinePendingFollow::query()->where('subject_hash', $subjectHash)->where('status', 'pending')->exists()) {
+            app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+        }
         $pending = LinePendingFollow::query()
             ->where('subject_hash', $subjectHash)
             ->lockForUpdate()
@@ -169,6 +172,9 @@ final class V2LineFriendService
             $replyToken,
             $requestId
         ): ?array {
+            if ($type === 'follow') {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+            }
             $eventPublicId = (string) Str::uuid7();
             $inserted = DB::table('line_webhook_events')->insertOrIgnore([
                 'public_id' => $eventPublicId,

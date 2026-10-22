@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 2cf978893f4e113408754fdc35628c26208cb3ef3eb5989a07c7d49d5883aeb4
+// Contract SHA-256: f06a6c389810981c43ffb0a35537b4f329ff401512fbb47f86328ca7ea0a6c0e
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -937,6 +937,10 @@ export type AdminMemberRankSummaryResponse = { request_id: string; data: { enabl
 export type AdminMemberRankPaymentAdjustmentReview = { id: string; user_id: string; payment_id: string; adjustment_id: string; type: "refund" | "chargeback"; month: string; past_month: boolean; requested_points: number; applied_points: number; purchase_bonus_shortfall: number; occurred_at: string; };
 
 export type AdminMemberRankBonusTotal = { count: number; amount: number; point_type: "free"; };
+
+export type AdminMemberRankPrelaunchActivationRequest = { authorization_id: OpaqueId; expected_revision: number; };
+
+export type AdminMemberRankPrelaunchActivationResponse = { request_id: OpaqueId; idempotent_replay: boolean; data: { authorization_id: OpaqueId; enabled: true; activated_at: string; revision: number; excluded_origin_count: number; }; };
 
 export interface AdminMemberRankValue {
   code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";

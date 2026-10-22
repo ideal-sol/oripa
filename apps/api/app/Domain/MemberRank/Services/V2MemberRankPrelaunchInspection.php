@@ -52,6 +52,20 @@ final class V2MemberRankPrelaunchInspection
         }
     }
 
+    public function inspectClosedAdmission(): array
+    {
+        $connection = DB::connection();
+        if ($connection->transactionLevel() !== 1 || ! $connection->selectOne(
+            "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = pg_backend_pid()
+                AND locktype = 'advisory' AND classid = 740022 AND objid = 1 AND objsubid = 2
+                AND granted AND mode = 'ExclusiveLock') AS closed"
+        )->closed) {
+            throw new \LogicException('Final inspection requires exclusive financial admission.');
+        }
+
+        return $this->observe($connection);
+    }
+
     private function connection(): Connection
     {
         $connection = DB::connection();
@@ -84,11 +98,23 @@ final class V2MemberRankPrelaunchInspection
             'pending_payments' => $connection->table('payments')
                 ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'expired'])->count(),
             'pending_provider_events' => $connection->table('payment_provider_events')
-                ->whereNotIn('processing_status', ['processed', 'ignored'])->count(),
+                ->whereNotIn('processing_status', ['processed', 'ignored'])
+                ->whereNotExists(function (Builder $query): void {
+                    $query->selectRaw('1')->from('payment_provider_event_attempts as attempt')
+                        ->whereColumn('attempt.payment_provider_event_id', 'payment_provider_events.id')
+                        ->where('attempt.outcome', 'success')->whereNotNull('attempt.completed_at')
+                        ->whereNotExists(function (Builder $later): void {
+                            $later->selectRaw('1')->from('payment_provider_event_attempts as later')
+                                ->whereColumn('later.payment_provider_event_id', 'attempt.payment_provider_event_id')
+                                ->whereColumn('later.attempt_no', '>', 'attempt.attempt_no');
+                        });
+                })->count(),
             'unassociated_provider_events' => $connection->table('payment_provider_events')
                 ->whereNull('payment_id')->count(),
             'pending_provider_operations' => $connection->table('payment_provider_operations')
                 ->whereNotIn('status', ['succeeded', 'failed'])->count(),
+            'pending_fincode_attempts' => $connection->table('fincode_payment_attempts')
+                ->whereNotIn('status', ['completed', 'failed'])->count(),
             'pending_adjustments' => $connection->table('payment_adjustments')
                 ->whereNotIn('status', ['succeeded', 'failed', 'canceled'])->count(),
             'paid_grants' => $connection->table('payment_point_grants')->count(),
@@ -96,11 +122,14 @@ final class V2MemberRankPrelaunchInspection
                 ->leftJoin('payment_point_grants as grants', 'grants.payment_id', '=', 'payments.id')
                 ->where('payments.status', 'succeeded')->whereNull('grants.id')->count(),
             'invalid_paid_origins' => $this->invalidPaidOrigins($connection),
+            'financial_discrepancies' => $this->financialDiscrepancies($connection),
+            'unresolved_reconciliations' => $connection->table('point_reconciliation_discrepancies')->where('resolved', false)->count(),
         ];
         $rankRows = [];
         foreach (['member_rank_states', 'member_rank_point_entries', 'member_rank_month_totals',
             'member_rank_changes', 'member_rank_achievements', 'member_rank_entitlements',
-            'member_rank_purchase_bonuses', 'member_rank_bonus_recoveries'] as $table) {
+            'member_rank_purchase_bonuses', 'member_rank_bonus_recoveries', 'member_rank_manual_changes',
+            'member_rank_payment_adjustments', 'member_rank_monthly_jobs'] as $table) {
             $rankRows[$table] = $connection->table($table)->count();
         }
         $holds = [];
@@ -109,8 +138,8 @@ final class V2MemberRankPrelaunchInspection
         }
         foreach (['protected_succeeded_payments', 'protected_paid_grants', 'protected_draw_requests',
             'protected_other_point_operations', 'pending_payments', 'pending_provider_events',
-            'unassociated_provider_events', 'pending_provider_operations', 'pending_adjustments',
-            'succeeded_without_grant', 'invalid_paid_origins'] as $name) {
+            'unassociated_provider_events', 'pending_provider_operations', 'pending_fincode_attempts', 'pending_adjustments',
+            'succeeded_without_grant', 'invalid_paid_origins', 'financial_discrepancies', 'unresolved_reconciliations'] as $name) {
             if ($counts[$name] > 0) {
                 $holds[] = strtoupper($name);
             }
@@ -158,6 +187,38 @@ final class V2MemberRankPrelaunchInspection
                     ->orWhereNull('payments.points_granted_at')
                     ->orWhereColumn('payments.points_granted_at', '<>', 'grants.granted_at')
                     ->orWhereColumn('operations.occurred_at', '<>', 'grants.granted_at');
+            })->orWhereNotExists(function (Builder $query): void {
+                $query->selectRaw('1')->from('point_lots as lot')
+                    ->join('point_ledger_entries as ledger', 'ledger.point_lot_id', '=', 'lot.id')
+                    ->whereColumn('lot.grant_operation_id', 'grants.point_operation_id')
+                    ->whereColumn('lot.user_id', 'payments.user_id')->where('lot.point_type', 'paid')
+                    ->whereColumn('lot.granted_amount', 'payments.amount')
+                    ->whereColumn('ledger.point_operation_id', 'grants.point_operation_id')
+                    ->whereColumn('ledger.user_id', 'payments.user_id')->where('ledger.entry_type', 'grant')
+                    ->where('ledger.point_type', 'paid')->whereColumn('ledger.amount_delta', 'payments.amount');
             })->count();
+    }
+
+    private function financialDiscrepancies(Connection $connection): int
+    {
+        return (int) $connection->selectOne(<<<'SQL'
+            WITH lots AS (
+                SELECT user_id, point_type, sum(remaining_amount) AS balance, sum(reserved_amount) AS reserved
+                FROM point_lots GROUP BY user_id, point_type
+            ), ledger AS (
+                SELECT user_id, point_type, sum(amount_delta) AS balance
+                FROM point_ledger_entries GROUP BY user_id, point_type
+            )
+            SELECT count(*) AS discrepancies FROM wallets wallet
+            CROSS JOIN (VALUES ('paid'), ('free')) AS kind(point_type)
+            LEFT JOIN lots ON lots.user_id = wallet.user_id AND lots.point_type = kind.point_type
+            LEFT JOIN ledger ON ledger.user_id = wallet.user_id AND ledger.point_type = kind.point_type
+            WHERE (CASE kind.point_type WHEN 'paid' THEN wallet.paid_balance ELSE wallet.free_balance END)
+                    IS DISTINCT FROM COALESCE(lots.balance, 0)
+                OR (CASE kind.point_type WHEN 'paid' THEN wallet.paid_balance ELSE wallet.free_balance END)
+                    IS DISTINCT FROM COALESCE(ledger.balance, 0)
+                OR (CASE kind.point_type WHEN 'paid' THEN wallet.paid_reserved_balance ELSE wallet.free_reserved_balance END)
+                    IS DISTINCT FROM COALESCE(lots.reserved, 0)
+            SQL)->discrepancies;
     }
 }

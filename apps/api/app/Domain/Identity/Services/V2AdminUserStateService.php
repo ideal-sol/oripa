@@ -55,6 +55,7 @@ final class V2AdminUserStateService
                 $request,
                 $userPublicId
             ): array {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
                 $claim = $this->idempotency->claim(
                     'user.state.update',
                     'admin',

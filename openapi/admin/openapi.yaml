@@ -14,6 +14,10 @@ x-oripa-breaking-change:
   change_id: MEMBERRANK-M9-20261020
   scope: admin-payment-provider-fincode-literal-to-actual-provider
 x-oripa-error-codes:
+  MEMBER_RANK_PRELAUNCH_HOLD: {status: 409, retryable: false, description: サイト限定承認または公開前データの照合を完了できません。}
+  MEMBER_RANK_ACTIVATION_BUSY: {status: 409, retryable: false, description: 関連処理の終了後に同じリクエストを再試行してください。}
+  MEMBER_RANK_ALREADY_ACTIVATED: {status: 409, retryable: false, description: 初回有効化は完了済みです。}
+  FRESH_MFA_REQUIRED: {status: 403, retryable: false, description: 実際の5分以内のMFA再認証が必要です。}
   PAYMENT_RANK_ADJUSTMENT_NOT_READY: {status: 409, retryable: false, description: 付与元・ランク計上・会員状態の不整合、機能停止または凍結により安全な取消を確定できません。}
   PAYMENT_ADJUSTMENT_CONFLICT: {status: 409, retryable: false, description: 競合する調整があります。最新の詳細を確認してください。}
   PAYMENT_ADJUSTMENT_INPUT_INVALID: {status: 422, retryable: false, description: 理由と確認事項を入力してください。}
@@ -767,6 +771,38 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminMemberRankSettingsMutation'}
+        default: {$ref: '#/components/responses/Problem'}
+  /settings/member-ranks/prelaunch-activation:
+    post:
+      operationId: activateAdminMemberRankPrelaunch
+      summary: 承認済み公開前サイトの会員ランクを一度だけ有効化する
+      description: >-
+        Owner、実際の5分以内のFresh MFA、Admin Session/CSRF、Idempotency-Keyを必須とする。
+        別途特権管理された不変のサイト限定承認とOrigin manifest、expected_revisionを排他下で照合する。
+        通常Adminは承認を作成・変更できない。既存テスト決済のみ不変集合で除外し、ユーザーや金融履歴は変更しない。
+        未完了処理・正規事前登録者の有償取引・既存ランク業務データ・承認不一致はMEMBER_RANK_PRELAUNCH_HOLD(409)。
+        競合時はMEMBER_RANK_ACTIVATION_BUSY(409)、二重ONはMEMBER_RANK_ALREADY_ACTIVATED(409)。
+        通常設定PUTの初回409および不可逆ONは維持する。Runtime/Activationには独立Human GOが必要。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminMemberRankPrelaunchActivationRequest'}
+      responses:
+        '200':
+          description: 不可逆有効化と除外Origin集合を同一commitで公開済み。
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankPrelaunchActivationResponse'}
         default: {$ref: '#/components/responses/Problem'}
   /settings/member-ranks/scheduled:
     delete:
@@ -6309,6 +6345,30 @@ components:
           minItems: 7
           maxItems: 7
           items: {$ref: '#/components/schemas/AdminMemberRankValue'}
+    AdminMemberRankPrelaunchActivationRequest:
+      type: object
+      additionalProperties: false
+      required: [authorization_id, expected_revision]
+      properties:
+        authorization_id: {$ref: '#/components/schemas/OpaqueId'}
+        expected_revision: {type: integer, minimum: 1}
+    AdminMemberRankPrelaunchActivationResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id, idempotent_replay]
+      properties:
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+        idempotent_replay: {type: boolean}
+        data:
+          type: object
+          additionalProperties: false
+          required: [authorization_id, enabled, activated_at, revision, excluded_origin_count]
+          properties:
+            authorization_id: {$ref: '#/components/schemas/OpaqueId'}
+            enabled: {type: boolean, const: true}
+            activated_at: {type: string, format: date-time}
+            revision: {type: integer, minimum: 1}
+            excluded_origin_count: {type: integer, minimum: 0}
     AdminMemberRankSettingsCancel:
       type: object
       additionalProperties: false

@@ -298,6 +298,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
     "apps/api/database/migrations-v2/2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
     "apps/api/database/migrations-v2/2026_10_22_000096_enable_v2_login_gacha_conditions.php",
+    "apps/api/database/migrations-v2/2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -3200,6 +3201,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php",
         "2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
         "2026_10_22_000096_enable_v2_login_gacha_conditions.php",
+        "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

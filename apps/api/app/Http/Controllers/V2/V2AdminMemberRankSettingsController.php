@@ -6,6 +6,7 @@ use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\MemberRank\Exceptions\V2MemberRankException;
 use App\Domain\MemberRank\Services\V2MemberRankSettingsService;
+use App\Domain\MemberRank\Services\V2MemberRankPrelaunchActivation;
 use App\Http\Responses\V2ProblemDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,13 @@ final class V2AdminMemberRankSettingsController
     {
         return $this->handle($request, fn ($context): array => $this->settings->update(
             $context, (string) $request->header('Idempotency-Key', ''), $request->json()->all(), true
+        ));
+    }
+
+    public function activatePrelaunch(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn ($context): array => app(V2MemberRankPrelaunchActivation::class)->activate(
+            $context, (string) $request->header('Idempotency-Key', ''), $request->json()->all()
         ));
     }
 

@@ -3,8 +3,46 @@
 Status: `MEMBERRANK_ACTIVATION_PRELAUNCH_SOURCE_HOLD`.
 R3 / Strict Change / Application Runtime Activation `deferred`.
 Issue603 / Draft PR604 / existing dedicated task branch retained.
-This checkpoint implements read-only and lock-protected observations, not an
-executable Activation. Both inspection results explicitly deny authorization.
+The latest continuation adds executable Source and isolated-only activation
+tests; see [admission/origin inventory](MEMBER_RANK_PRELAUNCH_ADMISSION_INVENTORY_2026-10-22.md).
+The observation-only checkpoint below remains historical evidence. Neither
+inspection method alone authorizes Activation. Runtime/merge HOLD is unchanged.
+
+## Technical implementation continuation
+
+Migration097 is formally reserved under the Migration Allocation Lock after
+checking latest main096, fetched refs and task reservations. Its Source adds
+transaction-scoped shared/exclusive admission, a generation fence for stale RR
+snapshots, immutable site authorization/run/excluded origins, and atomic
+post-cutover M2/M4 grant constraints. No applied migration is edited.
+
+The Owner/Fresh-MFA/CSRF/idempotency/revision API is contract-first, with generated
+Admin types. Ordinary settings PUT still refuses first ON. Shared M2/M4/M8
+classification uses exact Origin membership rather than a rounded timestamp.
+Activation never modifies old financial rows or preregistered users. The
+authorization table is empty after migration: real provisioning is a separate
+privileged site-bound Runtime decision, not an Admin boolean or public ENV.
+
+Focused synthetic PostgreSQL17/PHP8.4 acceptance currently includes actual
+HTTP commit, authentication/Owner/CSRF/exact five-minute MFA refusal, all33
+guarded table writers independently preventing ON, old-RR rejection, deferred
+commit failure and complete rollback, partial M4 failure/retry/replay, immutable
+origins, same grant timestamp across cutover, old rank-zero CB, new M2/M4/M8,
+protected free rewards and post-ON G2 login draw. The ten-origin500pt run passes
+1 test/149 assertions;1000 origins/free750 pass1/1139, including one membership
+assertion for every excluded Origin. Successful publication including commit
+took10.174331s in the latter constrained synthetic run, not an approved outage
+budget. Further outcomes are recorded in Draft604 and the worklog, separately
+from historical bef04c Required Checks.
+
+Status remains Source HOLD until the complete required failure/concurrency
+matrix and capacity evidence are accepted. Actual process termination during
+publication, exhaustive retirement/manual/lazy/monthly/M9/draw interleavings,
+replacement-provider recovery and production-equivalent load are not established
+by the focused test. No business wait/volume limit is inferred. No actual
+Runtime/operational database/Worker/Feature ON changes have been made.
+
+## Historical observation-only checkpoint
 
 ## Authority and protected users
 

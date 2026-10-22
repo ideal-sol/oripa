@@ -21,7 +21,11 @@ final class V2PointTransactionRunner
         $outermost = DB::transactionLevel() === 0;
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             try {
-                return DB::transaction($callback, 1);
+                return DB::transaction(function () use ($callback): mixed {
+                    app(V2FinancialAdmission::class)->enter();
+
+                    return $callback();
+                }, 1);
             } catch (QueryException|DeadlockException $exception) {
                 if (! $outermost || ! $this->isRetryable($exception) || $attempt === self::MAX_ATTEMPTS) {
                     throw $exception;

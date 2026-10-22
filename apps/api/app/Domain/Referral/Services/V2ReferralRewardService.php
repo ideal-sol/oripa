@@ -58,6 +58,10 @@ final class V2ReferralRewardService
     public function rewardForReferredUser(User $referredUser): ?UserReferral
     {
         return DB::transaction(function () use ($referredUser): ?UserReferral {
+            if (UserReferral::query()->where('referred_user_id', $referredUser->getKey())
+                ->where('status', 'pending')->where('reward_enabled', true)->exists()) {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+            }
             $referral = UserReferral::query()
                 ->where('referred_user_id', $referredUser->getKey())
                 ->lockForUpdate()

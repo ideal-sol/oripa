@@ -67,6 +67,7 @@ final class V2MemberRankSettingsService
         }
         try {
             return DB::transaction(function () use ($context, $admin, $key, $input, $cancel): array {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
                 $claim = $this->idempotency->claim(
                     $cancel ? 'member_rank.settings.cancel' : 'member_rank.settings.update',
                     'admin', $admin->public_id, $key, $input
