@@ -938,9 +938,9 @@ export type AdminMemberRankPaymentAdjustmentReview = { id: string; user_id: stri
 
 export type AdminMemberRankBonusTotal = { count: number; amount: number; point_type: "free"; };
 
-export type AdminMemberRankPrelaunchActivationRequest = { authorization_id: OpaqueId; expected_revision: number; };
+export type AdminMemberRankPrelaunchActivationRequest = { authorization_id: string; expected_revision: number; };
 
-export type AdminMemberRankPrelaunchActivationResponse = { request_id: OpaqueId; idempotent_replay: boolean; data: { authorization_id: OpaqueId; enabled: true; activated_at: string; revision: number; excluded_origin_count: number; }; };
+export type AdminMemberRankPrelaunchActivationResponse = { request_id: string; idempotent_replay: boolean; data: { authorization_id: string; enabled: true; activated_at: string; revision: number; excluded_origin_count: number; }; };
 
 export interface AdminMemberRankValue {
   code: "beginner" | "bronze" | "silver" | "gold" | "platinum" | "diamond" | "vip";

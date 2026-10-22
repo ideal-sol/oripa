@@ -19,6 +19,13 @@ class MemberRankPrelaunchContractTest(unittest.TestCase):
         public = json.loads((ROOT / "openapi/bundled/public.openapi.json").read_text())
         self.assertNotIn(path, public["paths"])
 
+    def test_generated_activation_ids_resolve_to_existing_string_type(self):
+        generated = (ROOT / "apps/admin/src/lib/admin-api/generated.ts").read_text()
+        for name in ["AdminMemberRankPrelaunchActivationRequest", "AdminMemberRankPrelaunchActivationResponse"]:
+            declaration = next(line for line in generated.splitlines() if line.startswith(f"export type {name} ="))
+            self.assertIn("authorization_id: string;", declaration)
+            self.assertNotIn("OpaqueId", declaration)
+
 
 if __name__ == "__main__":
     unittest.main()

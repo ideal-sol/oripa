@@ -19,6 +19,9 @@ remains intact; general backfill is outside this Change.
    database's settings UUID, the fixed prelaunch site code, Human document hash,
    revision and exact payment/grant manifest. There is no HTTP provisioning
    endpoint, arbitrary boolean, ENV override, or session-variable bypass.
+   An obsolete approval is never overwritten: a separately reviewed approval
+   may be appended for the same settings UUID. The singleton immutable run,
+   exclusive gate and irreversible settings still permit only one publication.
 5. Under the same exclusive fence, inspect protected applicants, pending
    payments/events/provider operations/attempts/adjustments, rank business data,
    paid origins and Wallet/Lot/Ledger totals. Do not repair or ignore anomalies.
@@ -128,6 +131,16 @@ free rewards and Wallet/Lot history are not an exclusion classifier or modified
 by Activation. Ordinary users can start at beginner with their free rewards.
 
 ## Acceptance status
+
+The subsequent zero-origin/free500 run passes151 assertions, including real
+publication-backend termination after settings UPDATE, full rollback verified
+from another connection, retry, stale-approval refusal and append-only
+reauthorization. Its protected applicant was registered on2026-10-21. Publication
+including commit0.804785s, occupied-gate refusal0.063498s, injected failure
+including rollback0.167793s; total38.480s/77MiB. The97-migration custom backup and
+restore have identical normalized schema and migration ledger. These are not
+proofs of exhaustive process/server failure or operational capacity. Final-head
+1000-origin results and Required Checks are recorded on Draft604.
 
 Focused real-commit/API tests pass with10 origins/free500 (149 assertions) and
 1000 origins/free750 (1139 assertions). The latter uses two payment users and

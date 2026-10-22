@@ -16,7 +16,7 @@ return new class extends Migration
             CREATE TABLE member_rank_prelaunch_authorizations (
                 public_id uuid PRIMARY KEY,
                 site_code text NOT NULL CHECK (site_code = 'oripoke-prelaunch'),
-                setting_public_id uuid NOT NULL UNIQUE REFERENCES member_rank_settings(public_id),
+                setting_public_id uuid NOT NULL REFERENCES member_rank_settings(public_id),
                 authority_sha256 text NOT NULL CHECK (authority_sha256 = 'e1e38332b160cd978fbac106387d6f07b046088cf98cd9fc57af4f810bce1248'),
                 expected_revision bigint NOT NULL CHECK (expected_revision > 0),
                 origin_digest text NOT NULL CHECK (origin_digest ~ '^[0-9a-f]{64}$'),
@@ -102,7 +102,8 @@ return new class extends Migration
             $$ LANGUAGE plpgsql;
             CREATE TRIGGER v2_financial_user_state_guard BEFORE UPDATE OF state ON users
                 FOR EACH ROW WHEN (OLD.state IS DISTINCT FROM NEW.state
-                    AND (OLD.state IN ('closed', 'anonymized') OR NEW.state IN ('closed', 'anonymized')))
+                    AND (OLD.state::text IN ('closed'::text, 'anonymized'::text)
+                        OR NEW.state::text IN ('closed'::text, 'anonymized'::text)))
                 EXECUTE FUNCTION v2_financial_user_state_guard();
             CREATE OR REPLACE FUNCTION v2_member_rank_prelaunch_manifest() RETURNS text AS $$
                 SELECT encode(sha256(convert_to(COALESCE(string_agg(

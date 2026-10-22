@@ -3,6 +3,8 @@
 namespace Tests\V2;
 
 use App\Domain\Identity\Services\V2PreRegistrationService;
+use App\Domain\Identity\Services\V2IdentityCorrelation;
+use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\MemberRank\Exceptions\V2MemberRankException;
@@ -12,6 +14,8 @@ use App\Domain\MemberRank\Services\V2MemberRankPrelaunchInspection;
 use App\Domain\Payment\V2\Services\V2AdminPaymentAdjustmentService;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use App\Domain\Point\Services\V2PointTransactionRunner;
+use App\Models\V2\User;
+use App\Models\V2\UserPhoneNumber;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
@@ -19,6 +23,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Tests\Support\MemberRankGachaFixture;
 use Tests\Support\V2TimestampFixture;
@@ -58,7 +63,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         $nonOwner = $this->rankAdmin();
         DB::table('admins')->where('id', $nonOwner->adminId)->update(['role' => 'admin']);
         $this->httpActivation($this->httpSession($nonOwner), $unapproved)->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
-        $applicant = $this->rankUser(true);
+        $applicant = $this->prelaunchApplicant();
         DB::table('pre_registration_settings')->where('id', 1)->update([
             'is_enabled' => false, 'cutoff_at' => now()->subSecond(), 'point_amount' => $rewardAmount,
         ]);
@@ -77,15 +82,26 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertSame([], app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
         $authorityId = (string) Str::uuid7();
         $setting = DB::table('member_rank_settings')->sole();
-        DB::table('member_rank_prelaunch_authorizations')->insert([
+        $authority = [
             'public_id' => $authorityId, 'site_code' => 'oripoke-prelaunch', 'setting_public_id' => $setting->public_id,
             'authority_sha256' => 'e1e38332b160cd978fbac106387d6f07b046088cf98cd9fc57af4f810bce1248',
             'expected_revision' => $setting->revision,
             'origin_digest' => DB::selectOne('SELECT v2_member_rank_prelaunch_manifest() AS digest')->digest,
+        ];
+        $obsoleteId = (string) Str::uuid7();
+        DB::table('member_rank_prelaunch_authorizations')->insert([
+            ...$authority, 'public_id' => $obsoleteId, 'origin_digest' => hash('sha256', 'obsolete synthetic manifest'),
         ]);
+        $this->httpActivation($token, ['authorization_id' => $obsoleteId, 'expected_revision' => (int) $setting->revision])
+            ->assertStatus(409)->assertJsonPath('code', 'MEMBER_RANK_PRELAUNCH_HOLD');
+        self::assertFalse((bool) DB::table('member_rank_settings')->value('enabled'));
+        DB::table('member_rank_prelaunch_authorizations')->insert($authority);
+        self::assertSame(2, DB::table('member_rank_prelaunch_authorizations')->count());
         $service = app(V2MemberRankPrelaunchActivation::class);
         $input = ['authorization_id' => $authorityId, 'expected_revision' => (int) $setting->revision];
         $key = (string) Str::uuid7();
+        $this->httpActivation($token, [...$input, 'expected_revision' => $input['expected_revision'] + 1])
+            ->assertStatus(409)->assertJsonPath('code', 'MEMBER_RANK_SETTINGS_REVISION_CONFLICT');
         $default = DB::getDefaultConnection();
         config(['database.connections.activation_writer' => config('database.connections.'.$default)]);
         $writer = DB::connection('activation_writer');
@@ -162,6 +178,30 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
             self::assertSame($before, $this->financialSnapshot());
             self::assertSame($auditBefore, DB::table('audit_logs')->count());
             self::assertSame(0, DB::table('member_rank_prelaunch_runs')->count());
+            $terminatedBackend = DB::selectOne('SELECT pg_backend_pid() AS pid')->pid;
+            $terminate = true;
+            DB::listen(function (QueryExecuted $query) use (&$terminate, $default, $writer, $terminatedBackend): void {
+                if ($terminate && $query->connectionName === $default
+                    && str_starts_with($query->sql, 'update "member_rank_settings"')) {
+                    $terminate = false;
+                    self::assertTrue($writer->selectOne('SELECT pg_terminate_backend(?) AS terminated', [$terminatedBackend])->terminated);
+                }
+            });
+            try {
+                $service->activate($admin, $key, $input);
+                self::fail('Loss of the publication backend must not commit an activation.');
+            } catch (\PDOException $exception) {
+                self::assertFalse($terminate);
+            } finally {
+                DB::purge($default);
+            }
+            self::assertNotSame($terminatedBackend, DB::selectOne('SELECT pg_backend_pid() AS pid')->pid);
+            self::assertSame($before, $this->financialSnapshot());
+            self::assertSame($auditBefore, DB::table('audit_logs')->count());
+            self::assertSame(0, DB::table('member_rank_prelaunch_runs')->count());
+            self::assertSame(0, DB::table('member_rank_prelaunch_excluded_origins')->count());
+            self::assertSame(0, (int) DB::table('financial_admission_generations')->value('generation'));
+            self::assertFalse((bool) DB::table('member_rank_settings')->value('enabled'));
             $writer->beginTransaction();
             $writer->statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
             self::assertFalse((bool) $writer->table('member_rank_settings')->value('enabled'));
@@ -289,6 +329,26 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
             CarbonImmutable::setTestNow();
             Http::assertNothingSent();
         }
+    }
+
+    private function prelaunchApplicant(): User
+    {
+        $origin = CarbonImmutable::parse('2026-10-21T01:00:00Z');
+        $email = 'prelaunch-'.Str::uuid7().'@example.test';
+        $user = new User([
+            'email_display' => $email, 'email_normalized' => $email,
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid synthetic password'), 'state' => 'active',
+            'pre_registered_at' => $origin, 'email_verified_at' => $origin->addSecond(),
+            'first_sms_verified_at' => $origin->addSeconds(2), 'first_registration_qualified_at' => $origin->addSecond(),
+        ]);
+        $user->forceFill(['created_at' => $origin])->save();
+        $phone = '+8190'.str_pad((string) $user->id, 8, '0', STR_PAD_LEFT);
+        UserPhoneNumber::query()->create([
+            'user_id' => $user->id, 'phone_ciphertext' => Crypt::encryptString($phone),
+            'phone_hmac' => app(V2IdentityCorrelation::class)->hash($phone), 'verified_at' => $origin->addSeconds(2),
+        ]);
+
+        return $user;
     }
 
     private function financialSnapshot(): array

@@ -749,7 +749,10 @@ if (
 
 const sha256 = createHash("sha256").update(source).digest("hex");
 function memberRankSchemaType(schema) {
-  if (schema.$ref) return schema.$ref.split("/").at(-1);
+  if (schema.$ref) {
+    const name = schema.$ref.split("/").at(-1);
+    return name === "OpaqueId" ? "string" : name;
+  }
   if (schema.oneOf) return schema.oneOf.map(memberRankSchemaType).join(" | ");
   if (schema.const !== undefined) return JSON.stringify(schema.const);
   if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
