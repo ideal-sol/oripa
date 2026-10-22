@@ -1220,7 +1220,8 @@ ADMIN_DEV_DEPENDENCY_VERSIONS = {
     "eslint-config-next": "16.3.3",
     "jsdom": "30.0.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.11",
+    "vite": "8.1.6",
+    "vitest": "4.1.12",
 }
 WORKSPACE_REQUIRED_FILES.update(
     ADMIN_SKELETON_FILES | {".github/workflows/platform-ci.yml"}
