@@ -172,6 +172,7 @@ final class LoginGachaEligibilityTest extends TestCase
         foreach ($fields as $field => $value) {
             self::assertSame($value, $copy[$field]);
         }
+        $copy['publish_start_at'] = CarbonImmutable::now()->toIso8601ZuluString();
         $service = app(V2GachaCompositionService::class);
         $draft = $service->save($service->validate($copy), null, null, $this->rankAdmin());
         foreach ([0, 366] as $days) {
