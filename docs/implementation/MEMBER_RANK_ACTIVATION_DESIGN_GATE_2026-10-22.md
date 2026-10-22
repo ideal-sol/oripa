@@ -1,5 +1,11 @@
 # MEMBERRANK-ACTIVATION — Design Gate / Source HOLD
 
+Historical research checkpoint. The later Human prelaunch no-backfill REV2
+exception and protected-registration requirements govern the continuation;
+see [current handoff](MEMBER_RANK_PRELAUNCH_SOURCE_HANDOFF_REV2_2026-10-22.md).
+The A/B/C alternatives and measurements below remain research evidence, not
+the current site's Activation acceptance criteria.
+
 ## Status and authority
 
 Status: `MEMBERRANK_ACTIVATION_SOURCE_HOLD`.
