@@ -8,6 +8,16 @@ Human decision tracking: [Issue #603](https://github.com/ideal-sol/oripa/issues/
 This is a design proposal and Source investigation, not implemented activation
 behavior, a completed feature, or permission to run a backfill.
 
+Latest Human decision (2026-10-22 JST): investigate option A first and implement
+only within demonstrated specification compliance. This is feasibility Source
+GO, not a finding that A is safe at all sizes. B and C remain unapproved; do not
+fall back automatically. The existing specification, immutable guards, ordinary
+409 and independent Hotfix merge/runtime HOLD remain binding. Production-sized
+workload and acceptable writer wait budgets are explicitly undecided in the
+follow-up Human answer. Investigate 0/100/1000/10000 payments, both a single-user
+concentration and multiple users; 100000 is conditional on safe isolated capacity.
+Report missing capacity evidence rather than inventing a release threshold.
+
 The Human instruction `MEMBERRANK_ACTIVATION_SOURCE_GO_HOTFIX_HOLD_2026-10-22.md`
 authorizes Source work through Draft PR only. Its section 3 explicitly requires
 HOLD when scalable activation needs a new interpretation of specification §6.3.
@@ -52,8 +62,11 @@ it was inspected, not imported or modified. Unknown historical artifacts remain
 untouched. PR #572's smoke instrumentation and G2's login eligibility/contracts
 are outside this document's ownership. A shared filename alone is not a blocker.
 
-This checkpoint edits only this design memo and its own worklog section.
-Source Lock: none selected for these independent documentation changes.
+The initial checkpoint edited only this memo and its own worklog. The follow-up
+also adds one isolated, opt-in feasibility test and registers the exact Human
+Change ID in CI metadata with rejection tests. Application services remain unchanged.
+Source Lock: none selected for these nonconflicting changes; G2 inline allowlist
+and migration inventory hunks are untouched.
 Migration Allocation Lock: not acquired; no identifier reserved or source created.
 Artifact Release Lock: not acquired; no candidate/ledger edits or publication.
 Observed OS locks and durable PR reservations are distinct: an absent OS holder
@@ -294,6 +307,82 @@ after ON; do not import it or write tests assuming it is merged. Recheck the
 approved source/authority at integration. Alpha.46 publication and Storefront
 adoption remain separate Changes; alpha.45 and its history are unchanged.
 
-No source merge, runtime/operational DB/Artifact/Feature ON/worker action occurred.
+No source merge or operational Runtime/DB/Artifact/Feature ON/worker action occurred.
 Retain this task branch/worktree for the design decision; no migration or runtime
 rollback is needed. Any later persisted financial correction is forward-only.
+
+## A feasibility experiment and evidence boundaries
+
+`apps/api/tests/V2/ZMemberRankActivationFeasibilityTest.php` is an explicitly
+opt-in **negative control**, not an activation implementation. It requires the
+exact synthetic database, testing environment and a local Unix-socket connection.
+The isolated runner supplies no network, credentials, operational environment or
+runtime mounts. Ordinary CI skips this opt-in test; a green CI result alone does
+not mean this experiment or the full activation matrix ran.
+
+The control uses real existing payment/point/accounting services, actual commits,
+all 95 unchanged migrations and existing constraints. It first confirms OFF
+accounting has no effects. It then uses the existing test-only ON fixture inside
+one transaction to study the explicitly disallowed shortcut, not to adopt it.
+Independent connections check uncommitted visibility, complete rollback of rank
+and financial effects, deferred commit rejection, timeout after reward creation,
+client-disconnect rollback and writer lock contention. A simulated JST month
+change before commit tests whether these existing kernels prevent publication
+of the old month; immutable timestamp rejection prevents pretending this can be
+repaired afterward. This control cannot validate a future private late-ON context.
+
+The initial matrix requests 0/10/1000/10000; the expanded Human-requested matrix
+uses 0/100/1000/10000 and one/ten users. Initial fixtures used only real settlement
+services. Expanded fixtures seed each user's first payment through real services,
+then bulk-clone synthetic payment/operation/paid lot/ledger/grant origins under
+unchanged constraints; they are not provider-history or payment throughput tests.
+Wallet/lot/ledger sums are checked before measuring actual accounting services.
+Fixture creation is separated from measured transactions. The initial 60-second
+diagnostic TX window is expanded to 300 seconds to gather more evidence, not to
+turn an incomplete run into an acceptance PASS. Statement/lock budgets remain
+30/2 seconds; competing ordinary payment, free-grant and refund services use
+100ms lock timeout and their measured waits are explicitly timeout-censored.
+These are safety limits, **not approved production capacity thresholds**.
+Exceeding a budget makes the test INCOMPLETE with the actual count; PHPUnit exit
+zero with an Incomplete marker is not capacity PASS.
+No extrapolation from partial fixtures or from ON-only kernels to option A is valid.
+WAL insertion delta, database-size delta, PHP peak memory, lock count, writer wait,
+commit, transaction and rollback durations are diagnostics only; database growth
+is not a table-bloat measurement and PHP memory is not PostgreSQL peak RSS.
+
+The test image is PHP8.4.23, immutable image identifier
+`sha256:826ab806235ef8aba0a3803caedf688274183b79d3233a35120c01275a119491`;
+PostgreSQL17.10 uses
+`sha256:cc4c61127125de9f69aa50f7d78b54686576d5d3d835de03128b064d12b97154`.
+Each dedicated test container is limited to 0.5 CPU/512 MiB, with no networking or
+published ports; PHP mounts only this task source read-only and its isolated
+socket. Locked dependency versions/references match all 130 packages. These
+restricted, shared-host measurements are not an environment-equivalent load test
+and do not establish Hotfix Runtime Technical Acceptance or rollback safety.
+
+Source inspection additionally finds `V2AuditLogService::lockChain()` takes
+`pg_advisory_xact_lock(hashtextextended('v2_audit_chain', 0))`. Once the first
+promotion audit occurs, a single owning transaction retains this shared global
+audit-chain lock until commit/rollback. Chunking a candidate list cannot release
+it. A future admission fence must drain existing audit writers as well as
+User/Payment/Settings paths; otherwise settings-first and audit-first cycles
+remain possible. Removing audit serialization is outside this Change.
+
+The two-process negative control reproduced the audit/User cycle with an actual
+payment confirmation: the accounting transaction owns User A and the audit
+chain, settlement owns User B and waits for that chain, then accounting requests
+User B. PostgreSQL raised 40P01; the existing outer runner retried settlement
+successfully (one observed deadlock, 2559.570ms total). The control transaction
+rolled back to OFF with no rank or promotion-operation rows; exactly three
+ordinary payment grants remained. The test passed18 assertions. This is evidence
+against naive lock ordering, not proof that a correctly fenced A is impossible.
+Exact-head matrix/check/review evidence is maintained in
+[Draft PR #604](https://github.com/ideal-sol/oripa/pull/604).
+
+Until a private late-ON service boundary, complete admission/drain protocol,
+reconciliation, real month-boundary publication guard, workload ceiling and
+acceptable writer delay are implemented and proven, A remains SOURCE_HOLD.
+The negative control does not prove A impossible; it tests why wrapping existing
+ON-only services in one transaction is not itself a compliant implementation.
+Durable nonfinancial preparation progress and restart-from-zero financial work
+remain distinct. The latest Human GO does not authorize changing either meaning.
