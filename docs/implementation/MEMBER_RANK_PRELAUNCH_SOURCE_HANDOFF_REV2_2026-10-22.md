@@ -8,7 +8,83 @@ tests; see [admission/origin inventory](MEMBER_RANK_PRELAUNCH_ADMISSION_INVENTOR
 The observation-only checkpoint below remains historical evidence. Neither
 inspection method alone authorizes Activation. Runtime/merge HOLD is unchanged.
 
-## Technical implementation continuation
+## MEMBERRANK_ACTIVATION_RESUME_VALIDATION_RESULT
+
+Remaining-acceptance work resumes the6e7e1695 checkpoint; it does not replace the
+existing implementation or redo the1000-Origin fixture. Result is
+`MEMBERRANK_ACTIVATION_PRELAUNCH_SOURCE_HOLD` because protected main moved during
+validation and the required base/head gates have not been re-established.
+
+- Protected main observed at stop: `6b70ca9f21ea2d316cdb523e13fbdec05f7b5692`.
+  PR REST still reports base `8a656d1a4fb44e15155cbec3ab0ad7b927553587`, Draft=true,
+  HEAD `6e7e1695f35167689dff2ff331de7aa620f55f94`, tree
+  `b0ffef8e2b5716c91cd8da666afe3e377a78612f`,35 committed changed paths.
+  These base observations are deliberately distinguished, not conflated.
+- New uncommitted overlay: the existing activation test, admission inventory,
+  this handoff and Worklog. No production application Source, Contract/generated
+  bytes, Migration097 or prior migration is rewritten. No additional migration,
+  allocation reservation, dependency edit, branch, PR, commit, push or main
+  import. Task Policy remains exact35; Source/Migration Locks:none.
+- Notification case PASS1 test/142 assertions,66.963s, PHPUnit81MiB.
+  Pending/auth/reward case PASS1/43,26.065s,71MiB. Test Source SHA256
+  `fb5b0be0abee5d60e3f6828920e3a1bbd7abe0db11aab86274a78af86b365a29`.
+  Real PostgreSQL17.10/PHP8.4.23, network-none, synthetic only,0.5CPU/512MiB each.
+  Raw logs `remaining-1792681861662627371-10-500.log` and
+  `remaining-1792682045264867641-10-500.log` plus resource JSON are retained in
+  task-private evidence. Fresh97 migration applied only to the disposable DB.
+- Final notification sample: publication call3.681555s; actual TX3.376347s
+  **including deliberately interleaved probes**; publisher TX age before probes
+  1.372263s. Fincode HTTP500 refusal1.512267s; Point refusal0.173322s; subsequent
+  new-payment notification refusal0.060744s; LINE refusal0.090734s. Other eight
+  Writer refusals0.051124–0.409041s, all recover after release. No refusal time
+  is called a total business outage or sender-recovery bound.
+- WAL interval5104bytes, database size delta57344bytes; interval includes
+  failed writer probes. Eleven whole-test resource samples: PG CPU max28.49%,
+  memory max169.6MiB; API CPU max35.24%, memory max150.8MiB. PG sampled block-I/O
+  stays15.2MB read/0B write on tmpfs; this is not a durable-disk benchmark.
+  Session statement_timeout/lock_timeout0 and deadlock_timeout1s are recorded;
+  Activation's own100ms defensive lock timeout is unchanged. One real synthetic
+  deadlock emits40P01 and completes in3 total attempts in this final sample.
+- Functional PASS includes real HTTP500/no successful ACK, preserved receipt
+  after interruption, two forked replay processes, one new grant/M2/M4, old
+  Origin exclusion, refund pending/uncertain/recovery/M8, LINE exactly-once free
+  reward/reply, preregistration persisted failed-target→new-batch recovery750,
+  referral pending recovery, concurrent ON refusal, role revocation, mid-TX MFA
+  expiry, protected paid-user HOLD, and real consume/G2/manual/lazy/monthly/M9/
+  withdrawal/settings refusal and recovery. See the inventory's per-entry
+  ACK/persistence/retry-owner matrix for precise limits.
+- Local quality PASS (5 contracts/143 JSON/1074 PHP/1 TOML/2 XML/25 YAML),
+  OpenAPI62 PASS, whitespace review PASS. Previous6e5/5 checks and HOLD review
+  remain historical; **new-overlay Required Checks/Fresh exact-head review are
+  NOT RUN**, not PASS. No Browser E2E or external provider transmission.
+- Development failures retained: PHP numeric SQLSTATE array-key coercion;
+  expected401 context-role mismatch initially misidentified as403; Draw's
+  existing503 retry-exhaustion translation initially expected as raw SQLSTATE;
+  artificial real-deadlock schedule produced4 total attempts rather than an
+  unjustified exact3. Assertions now match the unchanged contract:1–3 attempts
+  per process, every aborted attempt40P01, both transactions succeed. No retry,
+  financial constraint or production assertion was weakened.
+- Required next step: explicitly resolve unexpected protected-base movement
+  under Root's STOP rule, preserve CONTROL-20261022 development-dependency and
+  Control authority changes without release/payload promotion, then validate
+  the resulting exact scope, commit/push,5 Required Checks and Fresh Self-review.
+  Shared policy files have different hunks; no API/migration collision was
+  observed. Do not infer authority to rewrite history or silently repin base.
+- Capacity budgets, representative load/rollback/bloat bounds, enabled sender
+  redelivery and the replacement-provider M2/M4/M8 integration remain separate
+  Runtime Final Gates. External sender guarantees are NOT RUN, not Mock PASS.
+  Existing0/10/1000 observations are retained; no production SLO is invented.
+  OLD/NEW each need explicit artifact/schema/runtime and Activation GO, fresh
+  site read-only checks, authorized site-record provisioning, and provider
+  readiness. Hotfix acceptance/old-PHP rollback prevention plus explicit Human
+  Source Merge restart are still required before Ready/merge.
+
+Actual Runtime/operational DB/real Feature ON/backfill/operational Worker changes0;
+Source Merge0; this continuation's Build/formal Release Artifact count0. Existing
+CI verification-only images remain historical, not a released artifact. Preserve
+the uncommitted overlay and existing branch/worktree/Draft; no cleanup of refs.
+
+## Earlier technical implementation continuation (historical)
 
 Migration097 is formally reserved under the Migration Allocation Lock after
 checking latest main096, fetched refs and task reservations. Its Source adds

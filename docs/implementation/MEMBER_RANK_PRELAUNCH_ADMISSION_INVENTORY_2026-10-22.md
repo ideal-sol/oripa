@@ -132,6 +132,108 @@ by Activation. Ordinary users can start at beginner with their free rewards.
 
 ## Acceptance status
 
+### Remaining acceptance continuation (2026-10-22 UTC)
+
+The following extends, rather than reruns or replaces, the prior checkpoint.
+Tests execute Laravel HTTP routes and real independent PostgreSQL commits in
+the task-owned network-none database. Provider responses and LINE reply
+transport are synthetic; **no external sender/redelivery guarantee is claimed**.
+Existing financial constraints, signature checks and settlement authority remain
+enabled. No production application Source or migration bytes were changed by
+this continuation; the additional executable evidence is in
+`ZMemberRankPrelaunchActivationTest`.
+
+Run each case against a separately fresh `oripa_v2_activation_synthetic` database,
+using `V2_PRELAUNCH_REMAINING_CASE=notification` or `pending` and the corresponding
+`test_remaining_notification_admission_recovery_and_writer_measurements` or
+`test_remaining_pending_receipts_authorization_and_reward_recovery` filter.
+Do not run both irreversible cases against one populated database. The existing
+`V2_PRELAUNCH_ACTIVATION_TEST` large-fixture case retains its original opt-in.
+
+| Ingress → persistence/application | Closed-gate response / retry owner | Recovery evidence and boundary |
+| --- | --- | --- |
+| Signed Fincode HTTP → canonical requery → `recordVerifiedProviderEvent` → `confirmSucceeded` | Real HTTP500 `{"message":"Server Error"}`, no success `receive` ACK, no Problem code/retryable field. Point runner exhausts bounded3 attempts. | No receipt created if admission fails before receipt commit. Re-delivery after release returns200/`receive=0`; one paid grant/M2/M4. Sender must retry non-2xx; actual provider configuration/delivery is a separate Final Gate. |
+| Receipt committed, settlement interrupted by another connection's gate | HTTP500; encrypted verified receipt remains committed, no financial grant. | Connection teardown plus two forked HTTP callers reprocess the same receipt; both ACK only after consistent application, one receipt/grant/M2/M4. This is process-level replay, not proof of sender retry or network ACK delivery. |
+| Existing excluded paid Origin webhook | During publication HTTP500, existing history untouched. | After publication duplicate ACK200; old grant remains one, no historical rank entry. A different receipt for an already-settled payment can remain `received` without a success attempt; prelaunch inspection deliberately HOLDs such unresolved receipt instead of silently classifying it completed. |
+| Provider start → durable payment → Fincode attempt → external mutation | Gate rejection propagates40001 before the provider mutation. | Same-key reattempt after release creates one payment/attempt and one synthetic session mutation; replay creates no second mutation. Pending payment/attempt blocks actual publication, so publication cannot legitimately race an outstanding provider mutation. |
+| Refund intent `beginProviderRefundOperation` / `resolveProviderOperation` | Direct receipt guard returns40001; no invented internal retry. | Existing pending intent survives rejection; same operation key is recovered. Uncertain status stays uncertain and blocks inspection; only explicit confirmed resolution permits financial refund. No real refund API is called. These common service methods do not themselves implement a provider transport. |
+| Refund resolution / M9 chargeback | Owning Point runner,40001 exhaustion. | Refund pending/reservations remain; explicit success and replay produce one M8 adjustment. M9 rejected while gated and succeeds after release. Provider/financial confirmation conditions are not disabled. |
+| Signed LINE follow → receipt/friendship/reward/outbox → reply | HTTP500, no accepted ACK, no receipt/reward/reply committed. Laravel outer transaction retry remains unchanged. | Re-delivery after release ACK200, one receipt, one100pt free reward and one synthetic reply; duplicate does not grant/reply again. Enabled provider redelivery and reply-token lifetime are external Runtime gates, not Mock PASS. |
+| Referral record → pending reward → financial grant |40001 from reward; durable pending referral remains. | Explicit reward retry after release grants each beneficiary once. Existing outer identity HTTP callback retry/response is not redefined by this test. |
+| Preregistration batch → per-user target → reward | Financial attempt rejects; existing service records target `failed/temporary_failure` and batch result, not false financial success. | New batch idempotency key retries failed targets and grants750 once; same completed key is a result replay, not a recovery trigger. Qualification, phone and free balances retained. |
+| Point consume, G2 draw, manual rank, lazy materialization, monthly job, M9, user withdrawal, settings | Each actual service is invoked under an independently held gate. Draw translates to503/`DRAW_RETRY_EXHAUSTED`, retryable=true; other tested services propagate40001. | Each leaves financial snapshot unchanged on refusal and succeeds after release. These are synthetic monthly service invocations, not an operational Worker launch. |
+| Email verification write and User reference | No financial admission required for an unchanged user state. | Independent ordinary verification update/read succeeds while the financial gate is closed. No blanket signup/authentication shutdown is introduced. |
+| Unknown SQL / legacy non-V2 / unregistered batch | Prior33-table guard coverage and stale-RR rejection remain applicable. | Not certified as supported V2 entry points. Actual deployed route/worker inventory and exclusion remain a Runtime gate; never disable strict guards to admit them. |
+
+The recovery owner is explicit: Provider/LINE sender or an approved reconciliation
+entry for failed delivery; admin/client same-key retry for unapplied operations;
+new preregistration batch key for persisted failed targets; existing monthly lease
+and retry lifecycle for monthly work. No new durable queue, automatic global
+replay daemon, provider contract, retry extension or successful ACK on rejection
+was introduced. Financial rejection is not equivalent to an approved business
+outage. In particular, current Fincode/LINE HTTP500 is generic: clients cannot
+infer a structured `retryable=true` field that is absent.
+
+#### Failure / concurrency evidence
+
+- Actual publication overlaps another connection's HTTP/Point calls and second
+  activation attempt; they reject, while the observer still sees OFF/no run.
+  A transaction event measures the publication TX separately from overall call
+  time; both include the deliberate interleaving probe overhead.
+- The pending case revokes Owner after initial authorization but before locked
+  reauthorization: context-role mismatch yields `AUTHENTICATION_REQUIRED`.
+  MFA expires exactly during publication before final reauthorization: rollback
+  leaves OFF/no run/no exclusions. No stale preflight authority is reused.
+- Pending receipt/payment, pending and uncertain refund/provider operation,
+  stale manifest and an unexpected protected-applicant paid grant all HOLD.
+  Failed/canceled financial handling is not bypassed or repaired automatically.
+- PostgreSQL-raised40001 and40P01 exhaust exactly3 Point attempts;55P03 propagates
+  after1. These injected states are distinct from the real two-process reverse
+  User-lock deadlock: PostgreSQL emits40P01 and the whole outer transaction
+  retries, within3 attempts per process. Scheduling may create more than one
+  deadlock, so exactly one victim/retry is not a valid invariant.
+- Prior old-RR nested rejection, backend termination, final deferred COMMIT
+  failure, same-second old/new Origins, free500/750, M8 zero-floor/recovery and
+  G2 regressions are retained checkpoint evidence, not falsely relabeled as
+  freshly rerun exhaustive permutations. Browser E2E, real sender traffic and
+  all combinations of multi-server failure remain NOT RUN.
+
+#### Performance interpretation
+
+Keep fixture construction, publication call, actual TX interval, censored writer
+refusal and eventual sender recovery separate. The single-Origin instrumented
+test intentionally runs HTTP probes *inside* the publication interval; its time
+is not a clean throughput benchmark. WAL delta/database-size delta include those
+rejected attempts. `pg_stat_activity` verifies the publisher's open transaction
+and its disappearance after commit. Task-owned Docker CPU/memory/block-I/O
+samples observe the whole test, not a production peak or pure publication CPU.
+Tmpfs block writes of0 are not evidence of zero WAL or production disk cost.
+
+The existing1000-Origin samples (4.455915s and10.174331s publication including
+commit) and0/10 samples remain historical observations. No new1000+ fixture is
+needed to answer receipt/durability questions. No median, operational maximum,
+WAL-per-Origin scaling, table bloat bound or maximum rollback duration is proved.
+The defensible proposal is a site-equivalent rehearsal with observed cutoff size,
+timeouts and delivery/reconciliation ownership before selecting a maintenance
+window; **no numerical production window or maximum safe scale is approved**.
+Human volume/user/writer-delay budgets remain unset and are Runtime Final Gates.
+
+#### Governance stop
+
+During this continuation protected main advanced from `8a656d1a` to
+`6b70ca9f21ea2d316cdb523e13fbdec05f7b5692` (CONTROL-20261022). It changes9 paths,
+including development dependencies/lockfile, Control authority, policy and its
+tests. No API business Source or migration change is present; shared policy
+files have different hunks. Root's unexpected-Remote-movement STOP applies:
+no rebase, main import, Task Policy base replacement, commit or push was inferred.
+The existing Draft head remains6e7e1695; new tests/docs stay in its worktree.
+New-head Required Checks and Fresh Self-review cannot be claimed for an
+uncommitted overlay. Result remains `MEMBERRANK_ACTIVATION_PRELAUNCH_SOURCE_HOLD`
+pending base disposition and exact-head gates, not because external provider
+or unset capacity budgets were silently turned into Source completion criteria.
+
+### Earlier checkpoint evidence (historical)
+
 The subsequent zero-origin/free500 run passes151 assertions, including real
 publication-backend termination after settings UPDATE, full rollback verified
 from another connection, retry, stale-approval refusal and append-only
