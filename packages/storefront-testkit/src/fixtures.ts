@@ -1887,3 +1887,16 @@ export const PUBLIC_LINE_FRIEND_STATE_PROBLEM_FIXTURES = Object.freeze({
   string,
   PublicComponents["schemas"]["LineFriendStateReadProblemDetails"]
 >);
+
+export const SHIPPING_POLICY_FIXTURES = Object.freeze({
+  unrestricted: { minimum_points: "0", effective_required_points: "1", revision: 1, zero_total_allowed: false },
+  minimum: { minimum_points: "10000", effective_required_points: "10000", revision: 2, zero_total_allowed: false },
+  maximum: { minimum_points: "9007199254740991", effective_required_points: "9007199254740991", revision: 3, zero_total_allowed: false },
+} as const satisfies Record<string, PublicComponents["schemas"]["ShippingPolicy"]>);
+
+export const SHIPPING_MINIMUM_PROBLEM_FIXTURE = Object.freeze({
+  type: "https://oripa.example/problems/shipping_minimum_points_not_met",
+  title: "選択景品の合計が発送条件を満たしていません。",
+  status: 409, code: "SHIPPING_MINIMUM_POINTS_NOT_MET", request_id: "01900000-0000-7000-8000-000000000098", retryable: false,
+  minimum_points: "10000", effective_required_points: "10000", selected_total_points: "8000", shortfall_points: "2000", setting_revision: 2,
+} as const satisfies PublicComponents["schemas"]["ShippingMinimumPointsProblem"]);

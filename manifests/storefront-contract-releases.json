@@ -1383,8 +1383,8 @@
       "admin": "2.0.0-alpha.42",
       "webhook": "2.0.0-alpha.40"
     },
-    "public_openapi_sha256": "9b8359b8b1cde52fd9ac1b523b69a66ea43c2b07381ca6855f11994fb4062554",
-    "public_api_operation_count": 83,
+    "public_openapi_sha256": "81ee96478ee3d80539817b54321f9f6d181c2a78a3dae2062527dd81049dcec4",
+    "public_api_operation_count": 84,
     "packages": {
       "@oripa/storefront-client": {
         "disposition": "publish",
@@ -1412,7 +1412,7 @@
       },
       "@oripa/storefront-testkit": {
         "disposition": "publish",
-        "public_api_operation_count": 83,
+        "public_api_operation_count": 84,
         "site_schema_version": "2.0.0-alpha.23",
         "storefront_client_version": "2.0.0-alpha.46",
         "version": "2.0.0-alpha.46"

@@ -68,3 +68,5 @@ export type {
   MockJsonResponse,
   MockRequestRecord,
 } from "./mock.js";
+
+export { SHIPPING_POLICY_FIXTURES, SHIPPING_MINIMUM_PROBLEM_FIXTURE } from "./fixtures.js";

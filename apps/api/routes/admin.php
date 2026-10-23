@@ -173,6 +173,8 @@ Route::prefix('v2')
         Route::post('/settings/member-ranks/prelaunch-activation', [V2AdminMemberRankSettingsController::class, 'activatePrelaunch']);
         Route::delete('/settings/member-ranks/scheduled', [V2AdminMemberRankSettingsController::class, 'cancel']);
         Route::get('/settings/member-ranks/revisions', [V2AdminMemberRankSettingsController::class, 'history']);
+        Route::get('/settings/shipping-minimum-points', [\App\Http\Controllers\V2\V2AdminShippingMinimumPointController::class, 'show']);
+        Route::put('/settings/shipping-minimum-points', [\App\Http\Controllers\V2\V2AdminShippingMinimumPointController::class, 'update']);
         Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])
             ->name('v2.admin.settings.referral-points.show');
         Route::get('/settings/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'adminShow']);

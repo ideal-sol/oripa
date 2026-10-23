@@ -10,6 +10,11 @@ export interface ApiProblem {
   code: string;
   request_id: string;
   retryable: boolean;
+  minimum_points?: string;
+  effective_required_points?: string;
+  selected_total_points?: string;
+  shortfall_points?: string;
+  setting_revision?: number;
   detail?: string;
   instance?: string;
   errors?: Record<string, string[]>;
@@ -21,6 +26,11 @@ export class ApiProblemError extends Error {
   readonly code: string;
   readonly type: string;
   readonly title: string;
+  readonly minimum_points?: string;
+  readonly effective_required_points?: string;
+  readonly selected_total_points?: string;
+  readonly shortfall_points?: string;
+  readonly setting_revision?: number;
   readonly detail?: string;
   readonly instance?: string;
   readonly request_id: string;
@@ -41,6 +51,13 @@ export class ApiProblemError extends Error {
     this.retryable = problem.retryable;
     this.retry_after_seconds = problem.retry_after_seconds;
     this.errors = problem.errors;
+    if (problem.code === "SHIPPING_MINIMUM_POINTS_NOT_MET") {
+      for (const key of ["minimum_points", "effective_required_points", "selected_total_points", "shortfall_points"] as const) {
+        const value = problem[key];
+        if (typeof value === "string" && /^(0|[1-9][0-9]{0,17})$/.test(value)) this[key] = value;
+      }
+      if (Number.isSafeInteger(problem.setting_revision) && (problem.setting_revision ?? 0) > 0) this.setting_revision = problem.setting_revision;
+    }
   }
 }
 
@@ -143,6 +160,8 @@ const FULFILLMENT_PROBLEM_CODES: ReadonlySet<string> =
     "SESSION_EXPIRED",
     "SHIPPING_ADDRESS_NOT_FOUND",
     "SHIPPING_REQUEST_NOT_FOUND",
+    "SHIPPING_MINIMUM_POINTS_NOT_MET",
+    "SHIPPING_POLICY_UNAVAILABLE",
     "SMS_VERIFICATION_REQUIRED",
     "UNSUPPORTED_MEDIA_TYPE",
     "USER_PRIZE_NOT_FOUND",
@@ -220,4 +239,17 @@ export class StorefrontTransportError extends Error {
     this.metadata = options.metadata;
     this.cause = options.cause;
   }
+}
+
+export function isShippingMinimumPointsProblemError(error: unknown): error is ApiProblemError & {
+  readonly code: "SHIPPING_MINIMUM_POINTS_NOT_MET";
+  readonly minimum_points: string;
+  readonly effective_required_points: string;
+  readonly selected_total_points: string;
+  readonly shortfall_points: string;
+  readonly setting_revision: number;
+} {
+  return error instanceof ApiProblemError && error.code === "SHIPPING_MINIMUM_POINTS_NOT_MET"
+    && error.status === 409 && error.minimum_points !== undefined && error.effective_required_points !== undefined
+    && error.selected_total_points !== undefined && error.shortfall_points !== undefined && error.setting_revision !== undefined;
 }

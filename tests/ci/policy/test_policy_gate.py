@@ -4335,8 +4335,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
+                    "operation_count: 84",
                     "operation_count: 83",
-                    "operation_count: 82",
                 ),
                 encoding="utf-8",
             )
