@@ -382,6 +382,7 @@ describe.each(["login_daily", "signup_once"] as const)("%s without the Presentat
     fireEvent.click(screen.getByRole("button", { name: "景品を追加" }));
     fireEvent.change(screen.getByLabelText("景品名"), { target: { value: "Banner prize" } });
     fireEvent.change(screen.getByLabelText("固定当選確率（%・小数10桁まで）"), { target: { value: "100.0000000000" } });
+    await screen.findByRole("option", { name: "Cards" });
     fireEvent.change(screen.getByLabelText("Banner Category"), { target: { value: "cards" } });
     const banner = await screen.findByRole("button", { name: "Banner chosen" });
     expect(banner.querySelector("img")).toHaveAttribute("src", "/qa-banner.png");
