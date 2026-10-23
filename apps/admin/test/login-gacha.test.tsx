@@ -390,7 +390,7 @@ describe.each(["login_daily", "signup_once"] as const)("%s without the Presentat
     fireEvent.click(banner);
     expect(screen.getByLabelText("管理ID")).toHaveValue("CARD-chosen");
     expect(banner).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "構成を一括保存" }));
+    fireEvent.submit(screen.getByRole("button", { name: "構成を一括保存" }).closest("form")!);
 
     await waitFor(() => expect(create).toHaveBeenCalledOnce());
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
