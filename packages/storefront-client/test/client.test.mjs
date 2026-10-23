@@ -1547,3 +1547,18 @@ test("Card Registration state machineとtyped Problemsを公開する", () => {
   );
   assert.equal(isCardRegistrationProblemError(error, "CARD_REGISTRATION_FAILED"), false);
 });
+
+test("shipping policy reads and minimum errors retain exact decimal details", async () => {
+  const { isShippingMinimumPointsProblemError } = await import("../dist/index.js");
+  const calls = [];
+  const policy = {minimum_points: "9007199254740991", effective_required_points: "9007199254740991", revision: 2, zero_total_allowed: false};
+  const client = createStorefrontPrizeShippingClient({request: async (options) => {calls.push(options); return {data: policy};}});
+  assert.deepEqual((await client.getShippingPolicy()).data, policy);
+  assert.equal(calls[0].path, "/me/shipping-policy");
+  const detail = {type: "https://oripa.example/problems/shipping_minimum_points_not_met", title: "Minimum", status: 409, code: "SHIPPING_MINIMUM_POINTS_NOT_MET", request_id: "request", retryable: false, minimum_points: "9007199254740991", effective_required_points: "9007199254740991", selected_total_points: "0", shortfall_points: "9007199254740991", setting_revision: 2};
+  const error = new ApiProblemError(detail);
+  assert.equal(isShippingMinimumPointsProblemError(error), true);
+  assert.equal(isFulfillmentProblemError(error), true);
+  assert.equal(error.shortfall_points, "9007199254740991");
+  assert.equal(isShippingMinimumPointsProblemError(new ApiProblemError({...detail, shortfall_points: 9007199254740991})), false);
+});

@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: f06a6c389810981c43ffb0a35537b4f329ff401512fbb47f86328ca7ea0a6c0e
+// Contract SHA-256: 2d957bb9887b17928b6eba8fba89c468e5444b9e8084010020a0e38c489cadf6
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -33,6 +33,8 @@ export const ADMIN_PERMISSION_CODES = [
   "catalog.manage",
   "catalog.publish",
   "shipping.request.manage",
+  "shipping.settings.read",
+  "shipping.settings.manage",
   "qa.draw.manage",
   "reporting.financial.read",
   "reporting.financial.export",
@@ -995,6 +997,24 @@ export interface AdminMemberRankSettingsHistory {
   request_id: string;
 }
 
+export interface AdminShippingMinimumPointSetting {
+  id: string;
+  minimum_points: string;
+  revision: number;
+  updated_by_admin_id: string | null;
+  updated_at: string;
+}
+export interface AdminShippingMinimumPointSettingResponse {
+  data: AdminShippingMinimumPointSetting;
+  request_id: string;
+}
+export interface AdminShippingMinimumPointSettingUpdate {
+  minimum_points: string;
+  expected_revision: number;
+}
+export interface AdminShippingMinimumPointSettingMutationResult extends AdminShippingMinimumPointSettingResponse {
+  idempotent_replay: boolean;
+}
 export interface AdminReferralPointSetting {
   id: string;
   is_enabled: boolean;

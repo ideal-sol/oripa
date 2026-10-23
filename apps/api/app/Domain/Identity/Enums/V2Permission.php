@@ -32,6 +32,8 @@ enum V2Permission: string
     case ReadCatalog = 'catalog.read';
     case ManageCatalog = 'catalog.manage';
     case PublishCatalog = 'catalog.publish';
+    case ReadShippingSettings = 'shipping.settings.read';
+    case ManageShippingSettings = 'shipping.settings.manage';
     case ManageShippingRequest = 'shipping.request.manage';
     case ManageQaDraw = 'qa.draw.manage';
     case ReadFinancialReporting = 'reporting.financial.read';

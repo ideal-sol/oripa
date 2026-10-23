@@ -849,6 +849,48 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminMemberRankSettingsHistory'}
         default: {$ref: '#/components/responses/Problem'}
+  /settings/shipping-minimum-points:
+    get:
+      operationId: getAdminShippingMinimumPointSetting
+      summary: 発送下限ポイント設定を取得する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: 現在の発送下限ポイント設定。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminShippingMinimumPointSettingResponse'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminShippingMinimumPointSetting
+      summary: 発送下限ポイント設定を更新する
+      description: OwnerまたはAdmin、Revision OCC、Idempotency-Keyを必須とする。
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{adminSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminShippingMinimumPointSettingUpdate'}
+      responses:
+        '200':
+          description: 更新済み発送下限ポイント設定。
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminShippingMinimumPointSettingMutationResult'}
+        default: {$ref: '#/components/responses/Problem'}
   /settings/referral-points:
     get:
       operationId: getAdminReferralPointSetting
@@ -6410,6 +6452,44 @@ components:
               after: {$ref: '#/components/schemas/AdminMemberRankSettingsVersion'}
         next_before_revision: {type: [integer, 'null'], minimum: 1}
         request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminShippingMinimumPointSetting:
+      type: object
+      additionalProperties: false
+      required: [id, minimum_points, revision, updated_by_admin_id, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/OpaqueId'}
+        minimum_points:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,15})$'
+          description: 0〜9007199254740991の10進整数文字列。0でも合計0ptの発送は不可。
+        revision: {type: integer, minimum: 1, maximum: 9007199254740991}
+        updated_by_admin_id: {type: [string, 'null'], format: uuid}
+        updated_at: {type: string, format: date-time}
+    AdminShippingMinimumPointSettingResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminShippingMinimumPointSetting'}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
+    AdminShippingMinimumPointSettingUpdate:
+      type: object
+      additionalProperties: false
+      required: [minimum_points, expected_revision]
+      properties:
+        minimum_points:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,15})$'
+          description: 最大9007199254740991。範囲外・小数・負数・数値JSONは422。
+        expected_revision: {type: integer, minimum: 1, maximum: 9007199254740991}
+    AdminShippingMinimumPointSettingMutationResult:
+      type: object
+      additionalProperties: false
+      required: [data, idempotent_replay, request_id]
+      properties:
+        data: {$ref: '#/components/schemas/AdminShippingMinimumPointSetting'}
+        idempotent_replay: {type: boolean}
+        request_id: {$ref: '#/components/schemas/OpaqueId'}
     AdminReferralPointSetting:
       type: object
       additionalProperties: false
@@ -10367,6 +10447,8 @@ components:
         - catalog.manage
         - catalog.publish
         - shipping.request.manage
+        - shipping.settings.read
+        - shipping.settings.manage
         - qa.draw.manage
         - reporting.financial.read
         - reporting.financial.export

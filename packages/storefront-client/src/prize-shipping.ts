@@ -46,6 +46,7 @@ export type FulfillmentMutationRetrySemantics =
   (typeof FULFILLMENT_MUTATION_RETRY_SEMANTICS)[keyof typeof FULFILLMENT_MUTATION_RETRY_SEMANTICS];
 
 export interface StorefrontPrizeShippingClient {
+  getShippingPolicy(signal?: AbortSignal): Promise<StorefrontResponse<Schemas["ShippingPolicy"]>>;
   listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
   getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
   exchangePrizes(
@@ -85,6 +86,7 @@ export interface StorefrontPrizeShippingClient {
 }
 
 export interface BrowserStorefrontPrizeShippingClient {
+  getShippingPolicy(signal?: AbortSignal): Promise<StorefrontResponse<Schemas["ShippingPolicy"]>>;
   listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
   getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
   exchangePrizes(
@@ -145,6 +147,7 @@ export function createStorefrontPrizeShippingClient(
   transport: StorefrontTransport,
 ): StorefrontPrizeShippingClient {
   return {
+    getShippingPolicy: (signal) => transport.request({ path: "/me/shipping-policy", signal }),
     listPrizes: (value) =>
       transport.request({ path: `/me/prizes${cursor(value)}` }),
     getPrize: (id) =>
@@ -222,6 +225,7 @@ export function createCsrfManagedStorefrontPrizeShippingClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPrizeShippingClient {
   return {
+    getShippingPolicy: (signal) => transport.request({ path: "/me/shipping-policy", signal }),
     listPrizes: (value) =>
       transport.request({ path: `/me/prizes${cursor(value)}` }),
     getPrize: (id) =>

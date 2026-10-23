@@ -57,6 +57,8 @@ const expected = {
     "PUBLIC_SMS_VERIFICATION_FIXTURES",
     "PUBLIC_TOP_BANNERS_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",
+    "SHIPPING_MINIMUM_PROBLEM_FIXTURE",
+    "SHIPPING_POLICY_FIXTURES",
     "TestkitAssertionError",
     "TestkitNetworkError",
     "UnexpectedMockRequestError",
@@ -125,6 +127,8 @@ const expected = {
     "PUBLIC_SMS_VERIFICATION_FIXTURES",
     "PUBLIC_TOP_BANNERS_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",
+    "SHIPPING_MINIMUM_PROBLEM_FIXTURE",
+    "SHIPPING_POLICY_FIXTURES",
   ],
   "./mock": [
     "TestkitAssertionError",

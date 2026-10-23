@@ -1,3 +1,4 @@
+import type { AdminShippingMinimumPointSettingResponse, AdminShippingMinimumPointSettingUpdate, AdminShippingMinimumPointSettingMutationResult } from "./generated";
 import {
   ADMIN_API_BASE_PATH,
   type AdminNotionStatus,
@@ -875,6 +876,12 @@ export class AdminApiClient {
     return this.request("GET", "/identity/line-messaging", { signal });
   }
 
+  getShippingMinimumPointSetting(
+    signal?: AbortSignal,
+  ): Promise<AdminShippingMinimumPointSettingResponse> {
+    return this.request("GET", "/settings/shipping-minimum-points", { signal });
+  }
+
   getReferralPointSetting(
     signal?: AbortSignal,
   ): Promise<AdminReferralPointSettingResponse> {
@@ -1339,6 +1346,23 @@ export class AdminApiClient {
       );
     }
     return this.request("PUT", "/identity/line-messaging", {
+      body,
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  updateShippingMinimumPointSetting(
+    body: AdminShippingMinimumPointSettingUpdate,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<AdminShippingMinimumPointSettingMutationResult> {
+    if (!isIdempotencyKey(idempotencyKey)) {
+      return Promise.reject(
+        new AdminApiError(422, "SHIPPING_SETTING_INVALID", null, null, false),
+      );
+    }
+    return this.request("PUT", "/settings/shipping-minimum-points", {
       body,
       idempotencyKey,
       signal,
@@ -3289,6 +3313,7 @@ export class AdminApiClient {
       | `/qa/${string}`
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
+      | "/settings/shipping-minimum-points"
       | "/settings/referral-points"
       | `/settings/member-ranks${string}`
       | "/settings/pre-registration"
@@ -3323,6 +3348,7 @@ export class AdminApiClient {
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
+        path !== "/settings/shipping-minimum-points" &&
         path !== "/settings/referral-points" &&
         path !== "/settings/member-ranks" &&
         path !== "/settings/member-ranks/scheduled" &&

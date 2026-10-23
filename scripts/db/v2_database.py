@@ -174,6 +174,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.qa_test_user_modes",
     "public.referral_point_settings",
     "public.shipping_addresses",
+    "public.shipping_minimum_point_settings",
     "public.shipping_request_items",
     "public.shipping_request_status_histories",
     "public.shipping_requests",
@@ -569,6 +570,7 @@ def rollback_and_reapply_latest(
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
         "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php": "Prelaunch activation authority requires a forward-only migration.",
+        "2026_10_23_000098_add_v2_shipping_minimum_points.php": "Shipping minimum settings and snapshots require a forward-only migration.",
         "2026_10_22_000096_enable_v2_login_gacha_conditions.php": "Login Gacha eligibility requires a forward-only correction.",
         "2026_10_22_000095_add_v2_gacha_purchase_conditions.php": "Gacha purchase conditions and Draw snapshots are forward-only.",
         "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php": "Member rank payment adjustments require a forward-only migration.",
@@ -673,6 +675,8 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
 
 
 def task_marker(task_id: str) -> str:
+    if task_id == "SHIPPINGMIN-20261023":
+        return "shippingmin20261023"
     marker = re.sub(r"[^a-z0-9]+", "", task_id.lower())
     if not re.fullmatch(r"(?:mig[0-9]{3}[a-z]?|agency00[123]|agency004a)", marker):
         raise GuardFailure("Task ID marker is invalid")
