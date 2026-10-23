@@ -1038,7 +1038,14 @@ INVENTORY_20261014_ADMIN_FILES = {
     "apps/admin/src/components/inventory/card-inventory.module.css",
     "apps/admin/test/card-inventory.test.tsx",
 }
+SHIPPINGMIN_ADMIN_FILES = {
+    "apps/admin/e2e/admin-shipping-minimum-points.spec.ts",
+    "apps/admin/src/app/settings/shipping-minimum-points/page.tsx",
+    "apps/admin/src/components/settings/shipping-minimum-point-settings.tsx",
+    "apps/admin/test/shipping-minimum-point-settings.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
+    *SHIPPINGMIN_ADMIN_FILES,
     "apps/admin/src/components/catalog/rank-video-editor.tsx",
     "apps/admin/test/rank-video-editor.test.tsx",
     *INVENTORY_20261014_ADMIN_FILES,

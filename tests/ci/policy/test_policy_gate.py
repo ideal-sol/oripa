@@ -21,6 +21,22 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_shipping_minimum_admin_inventory_is_exact(self):
+        expected = {
+            "apps/admin/e2e/admin-shipping-minimum-points.spec.ts",
+            "apps/admin/src/app/settings/shipping-minimum-points/page.tsx",
+            "apps/admin/src/components/settings/shipping-minimum-point-settings.tsx",
+            "apps/admin/test/shipping-minimum-point-settings.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.SHIPPINGMIN_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/shipping-unreviewed.tsx"})
+
     def test_gacha_g1_admin_inventory_is_exact(self):
         expected = {"apps/admin/src/components/catalog/purchase-condition.tsx",
                     "apps/admin/test/gacha-purchase-condition.test.tsx"}

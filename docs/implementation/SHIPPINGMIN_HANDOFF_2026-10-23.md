@@ -147,9 +147,11 @@ isolated environment, including Owner/Admin/Operator, network retry/OCC,
 confirmation, mobile overflow, keyboard and unauthorized/error states.
 The final PR records Admin typecheck/lint/build completion separately.
 
-The unchanged CI lane gate requires UI Verification PASS or NOT_APPLICABLE;
-UI changes here are applicable and lack a passing browser result. Therefore
-Required Checks remain blocked/failed rather than misclassified. Final-head
-Fresh Self-review must recommend HOLD and cannot substitute for missing gates.
-After resolving these verification blockers, update exact-head checks and fresh
-review while retaining Draft until a separate Human GO.
+Latest Human steering assigns login-required browser acceptance to Human and
+explicitly removes it from Codex execution. No more login-browser runs are
+required from this task. PR UI Verification is NOT_APPLICABLE to Codex under
+that assignment; this does not claim browser PASS. Human checks the settings
+screen and role/save behavior separately. Keep the attempted failure above as
+evidence. CI gate code, CSP and assertions are unchanged. Remaining Backend/DB,
+Admin Unit/build and final-head Required Checks still determine Source HOLD.
+Fresh review cannot replace those gates. Retain Draft until separate Human GO.

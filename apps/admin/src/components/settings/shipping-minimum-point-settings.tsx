@@ -25,17 +25,20 @@ export function ShippingMinimumPointSettings() {
   const apply = useCallback((data: AdminShippingMinimumPointSetting) => {
     setSetting(data); setDraft(data.minimum_points); pending.current = null; setConfirming(false);
   }, []);
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setBusy(true); setError(null); setSaved(false);
+  const fetchSetting = useCallback(async (signal?: AbortSignal) => {
     try { const response = await client.getShippingMinimumPointSetting(signal); if (!signal?.aborted) apply(response.data); }
     catch (caught) { if (!signal?.aborted) setError(message(caught)); }
     finally { if (!signal?.aborted) setBusy(false); }
   }, [apply, client]);
+  const load = useCallback(() => {
+    setBusy(true); setError(null); setSaved(false);
+    return fetchSetting();
+  }, [fetchSetting]);
   useEffect(() => {
     if (!canRead) return;
-    const controller = new AbortController(); void load(controller.signal);
+    const controller = new AbortController(); void fetchSetting(controller.signal);
     return () => controller.abort();
-  }, [canRead, load]);
+  }, [canRead, fetchSetting]);
   const valid = /^(0|[1-9][0-9]{0,15})$/.test(draft) && BigInt(draft) <= 9007199254740991n;
   const dirty = setting !== null && draft !== setting.minimum_points;
   async function save(event: FormEvent<HTMLFormElement>) {
