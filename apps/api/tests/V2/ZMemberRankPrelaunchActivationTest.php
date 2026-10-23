@@ -860,6 +860,24 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertNotContains('PENDING_PROVIDER_EVENTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
         self::assertSame('success', DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $lateEvent->id)->value('outcome'));
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        foreach (['failed', 'canceled', 'expired'] as $terminalStatus) {
+            $terminal = $payments->createPayment($user->id, $payment->point_purchase_plan_id, 'fincode',
+                'synthetic-terminal-'.$terminalStatus, (string) Str::uuid7(), 'credit_card');
+            $type = $terminalStatus === 'canceled' ? 'payment.canceled' : 'payment.status_changed';
+            $firstEvent = $payments->recordVerifiedProviderEvent('fincode', 'synthetic-first-'.$terminalStatus, $type, '{}', [], $terminal->id);
+            $payments->applyVerifiedStatus($firstEvent->id, $terminalStatus);
+            $replayEvent = $payments->recordVerifiedProviderEvent('fincode', 'synthetic-late-'.$terminalStatus, $type, '{}', [], $terminal->id);
+            self::assertContains('PENDING_PROVIDER_EVENTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
+            $payments->applyVerifiedStatus($replayEvent->id, $terminalStatus);
+            $payments->applyVerifiedStatus($replayEvent->id, $terminalStatus);
+            self::assertNotContains('PENDING_PROVIDER_EVENTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
+            self::assertSame('success', DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $replayEvent->id)->value('outcome'));
+            self::assertSame(1, DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $replayEvent->id)->count());
+            self::assertSame($terminalStatus, DB::table('payments')->where('id', $terminal->id)->value('status'));
+            self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $terminal->id)->count());
+        }
+        $payments->confirmSucceeded($lateEvent->id);
+        self::assertSame(1, DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $lateEvent->id)->count());
         $refund = $payments->reserveFullRefund($payment->id, (string) Str::uuid7());
         $operation = $payments->beginProviderRefundOperation($payment->id, $refund->id, (string) Str::uuid7(), ['amount' => 100]);
         $assertHold();

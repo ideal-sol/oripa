@@ -79,6 +79,27 @@ historical checkpoints. No new branch/PR or history rewrite.
   headings/Changed-files heading levels during its rewrite. The canonical parser
   is unchanged. Final PR metadata is validated before push/check dispatch.
 
+### Final completion-idempotency review
+
+Before fixing the final HEAD, review reproduced the same unresolved-receipt
+defect for a new verified `failed`, `canceled` or `expired` receipt whose payment
+already had that status. Pre-fix isolation FAIL1/24 assertions retained. Both
+already-applied returns now share `completeProviderReplay()`: under the existing
+event row lock, append a successful attempt only if the latest attempt is not
+already completed successfully. Replaying the same event does not append another
+completion. Initial transition processing, signature/provider-success checks,
+financial mutations, audit, mail and refund/reversal rules are unchanged.
+
+Expanded pending/auth/reward isolation PASS1/66 (33.694s,71MiB), covering all three
+terminal statuses, late success and repeated-event completion uniqueness. The
+earlier4/376 and6/71 runs above belong to the preceding bounded completion fix;
+additional same-Source regression results and final-head CI are recorded in
+Draft604 rather than relabeled as new runs. Final Source SHA256:
+Payment service `64f7b3599cc658ff07d126cc784477110d9d9cce6429ea9b0c7116378e91ed66`,
+activation test `e51d817a0246f88033e27102d5dc5651c174081346a20a3d0a2d79a58b7796f3`.
+Neither Migration097 nor any other financial constraint changed. This review
+does not certify actual sender redelivery, capacity or any Runtime operation.
+
 Acceptance separates Source guarantees from the remaining external Final Gates:
 enabled sender redelivery, replacement-provider M2/M4/M8 settlement and recovery,
 deployed supported-entry inventory, fresh site read-only data checks, privileged

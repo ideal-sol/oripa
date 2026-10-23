@@ -150,6 +150,16 @@ and event→User→Payment locks. No grant, payment, wallet/lot, rank, mail or r
 history is rewritten. Unknown/pending events still HOLD. Completed replay is
 now observable without weakening inspection.
 
+Final review also reproduced a new same-status failed/canceled/expired receipt
+remaining pending (pre-fix FAIL1/24). Both already-applied returns now use the
+same completion helper under the event row lock. A completed successful latest
+attempt is not appended again, preserving existing duplicate-event semantics;
+otherwise the normal immutable successful attempt is appended. Expanded real
+PostgreSQL pending/auth/reward case PASS1/66 includes the three terminal statuses,
+late success, duplicate completion uniqueness and zero grants for failed cases.
+No initial transition, provider-success condition or manual-review reversal is
+changed. Final same-Source regression/CI evidence is recorded in Draft604.
+
 Integrated post-fix real PostgreSQL cases PASS4/376: atomic0-Origin/free750151,
 notification/concurrent replay/Writer142, pending/auth/reward/late receipt47,
 nested identity36. The identity case adds actual SMS HTTP rejection/retry with
