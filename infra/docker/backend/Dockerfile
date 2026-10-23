@@ -1,4 +1,6 @@
-FROM php:8.4-cli-bookworm@sha256:138a210978c7767ef2a26f499c413fe6de1c13233c9a5068139565c81191b1ac AS build
+FROM php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05 AS build
+
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 
 WORKDIR /var/www/backend
 
@@ -14,9 +16,14 @@ RUN apt-get update \
 COPY --from=composer:2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 /usr/bin/composer /usr/bin/composer
 COPY apps/api/ ./
 
-RUN composer install --no-interaction --prefer-dist --no-progress
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;' \
+    && composer install --no-interaction --prefer-dist --no-progress \
+    && composer check-platform-reqs \
+    && php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'
 
-FROM php:8.4-apache-bookworm@sha256:25d70665acee86d7231af7bc5464794abd14585f80210f85f22dfb0713ac8ec7 AS production-build
+FROM php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320 AS production-build
+
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 
 WORKDIR /var/www/backend
 
@@ -32,14 +39,19 @@ RUN apt-get update \
 COPY --from=composer:2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 /usr/bin/composer /usr/bin/composer
 COPY apps/api/ ./
 
-RUN composer install \
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;' \
+    && composer install \
         --classmap-authoritative \
         --no-dev \
         --no-interaction \
         --no-progress \
-        --prefer-dist
+        --prefer-dist \
+    && composer check-platform-reqs --no-dev \
+    && php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'
 
-FROM php:8.4-apache-bookworm@sha256:25d70665acee86d7231af7bc5464794abd14585f80210f85f22dfb0713ac8ec7 AS production
+FROM php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320 AS production
+
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 
 WORKDIR /var/www/backend
 
@@ -78,11 +90,23 @@ RUN mkdir -p storage/app storage/framework/cache storage/framework/sessions stor
 
 USER www-data
 
+RUN set -eu; \
+    php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'; \
+    test ! -e public/.php-runtime-check.php; \
+    printf '%s\n' '<?php if (PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { http_response_code(500); exit; } require __DIR__."/../vendor/autoload.php"; echo PHP_VERSION." ".PHP_SAPI;' > public/.php-runtime-check.php; \
+    apache2-foreground & apache_pid=$!; \
+    trap 'kill "$apache_pid" 2>/dev/null || true; wait "$apache_pid" 2>/dev/null || true; rm -f public/.php-runtime-check.php' EXIT; \
+    response="$(curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 --max-time 5 http://127.0.0.1:8000/.php-runtime-check.php)"; \
+    test "$response" = "$(php -r 'echo PHP_VERSION." apache2handler";')"; \
+    printf '%s\n' "$response"
+
 EXPOSE 8000
 
 CMD ["apache2-foreground"]
 
-FROM php:8.4-cli-bookworm@sha256:138a210978c7767ef2a26f499c413fe6de1c13233c9a5068139565c81191b1ac AS preview
+FROM php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05 AS preview
+
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 
 WORKDIR /var/www/backend
 
@@ -113,6 +137,8 @@ COPY --from=build /var/www/backend/ ./
 
 RUN mkdir -p storage/app storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'
 
 EXPOSE 8000
 

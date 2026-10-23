@@ -35,7 +35,7 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(
-    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION)$"
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B)$"
 )
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
@@ -6069,6 +6069,72 @@ def validate_manifest_example(
     validate_schema_value(value, schema, schema, relative)
 
 
+PHP_RELEASE_BASES = {
+    "build": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
+    "production-build": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
+    "production": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
+    "preview": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
+}
+PHP_VERSION_CHECK = (
+    'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) '
+    '{ throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
+)
+
+
+def validate_php_release_stages(dockerfile: str) -> None:
+    instructions = [
+        line.strip() for line in re.sub(r"[ \t]*\\\n[ \t]*", " ", dockerfile).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    boundaries = [
+        index for index, instruction in enumerate(instructions)
+        if instruction.split()[0].upper() == "FROM"
+    ]
+    expected = [f"FROM {image} AS {stage}" for stage, image in PHP_RELEASE_BASES.items()]
+    if [instructions[index] for index in boundaries] != expected:
+        raise PolicyFailure("infra/docker/backend/Dockerfile: PHP stage bases must match approved digests")
+    boundaries.append(len(instructions))
+    version_check = f"php -r '{PHP_VERSION_CHECK}'"
+    artifact_check = f"php -r '{PHP_VERSION_CHECK} require \"vendor/autoload.php\";'"
+    composer_copy = (
+        "COPY --from=composer:2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 "
+        "/usr/bin/composer /usr/bin/composer"
+    )
+    for position, stage in enumerate(PHP_RELEASE_BASES):
+        body = instructions[boundaries[position] + 1:boundaries[position + 1]]
+        if not body or body[0] != f"RUN {version_check}":
+            raise PolicyFailure(f"PHP {stage}: initial real-version check is required")
+        if stage in {"build", "production-build"}:
+            installs = [instruction for instruction in body if "composer install" in instruction]
+            platform_check = "composer check-platform-reqs" + (" --no-dev" if stage == "production-build" else "")
+            if (
+                body.count(composer_copy) != 1 or len(installs) != 1
+                or not installs[0].startswith(f"RUN {version_check} && composer install ")
+                or not installs[0].endswith(f" && {platform_check} && {artifact_check}")
+                or "--ignore-platform-req" in installs[0]
+            ):
+                raise PolicyFailure(f"PHP {stage}: Composer PHAR and pre/post artifact checks are required")
+        else:
+            final_run = [instruction for instruction in body if instruction.startswith("RUN ")][-1]
+            donor = "build" if stage == "preview" else "production-build"
+            copies = [instruction for instruction in body if instruction.startswith(f"COPY --from={donor} ")]
+            if not copies or body.index(copies[-1]) >= body.index(final_run) or artifact_check not in final_run:
+                raise PolicyFailure(f"PHP {stage}: copied runtime artifact check is required")
+            if stage == "production":
+                required = (
+                    'PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427',
+                    'require __DIR__."/../vendor/autoload.php";',
+                    "apache2-foreground & apache_pid=$!;",
+                    'trap \'kill "$apache_pid"',
+                    "rm -f public/.php-runtime-check.php' EXIT;",
+                    "curl --fail --silent --show-error",
+                    "http://127.0.0.1:8000/.php-runtime-check.php",
+                    'test "$response" = "$(php -r \'echo PHP_VERSION." apache2handler";\')";',
+                )
+                if not final_run.startswith(f"RUN set -eu; {artifact_check}; ") or any(fragment not in final_run for fragment in required):
+                    raise PolicyFailure("PHP production: bounded Apache HTTP version check and cleanup are required")
+
+
 def validate_release_artifact_foundation(
     repository: Path,
     paths: Iterable[str],
@@ -6129,6 +6195,7 @@ def validate_release_artifact_foundation(
     api_dockerfile = (repository / "infra/docker/backend/Dockerfile").read_text(
         encoding="utf-8"
     )
+    validate_php_release_stages(api_dockerfile)
     if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.190-1" not in api_dockerfile:
         raise PolicyFailure(
             "infra/docker/backend/Dockerfile: patched multi-stage runtime is required"

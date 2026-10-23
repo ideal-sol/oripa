@@ -1604,6 +1604,99 @@ class PolicyGateTest(unittest.TestCase):
                 ):
                     policy_gate.validate_release_artifact_foundation(root, paths)
 
+    def test_php_fastpath_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "PHP-STANDARD-FASTPATH-B"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "PHP-STANDARD-FASTPATH-C", "PHP-STANDARD-FASTPATH-*"):
+            with self.subTest(task_id=invalid):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+
+    def test_php_release_stages_accept_current_recipe(self):
+        policy_gate.validate_php_release_stages((ROOT / "infra/docker/backend/Dockerfile").read_text())
+
+    def test_php_release_each_stage_rejects_old_or_unapproved_digest(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        old_digests = {
+            "cli": "138a210978c7767ef2a26f499c413fe6de1c13233c9a5068139565c81191b1ac",
+            "apache": "25d70665acee86d7231af7bc5464794abd14585f80210f85f22dfb0713ac8ec7",
+        }
+        for stage, image in policy_gate.PHP_RELEASE_BASES.items():
+            kind = "cli" if stage in {"build", "preview"} else "apache"
+            for digest in (old_digests[kind], "0" * 64):
+                with self.subTest(stage=stage, digest=digest):
+                    changed = original.replace(f"FROM {image} AS {stage}\n",
+                                               f"FROM php:8.4-{kind}-bookworm@sha256:{digest} AS {stage}\n")
+                    self.assertNotEqual(changed, original)
+                    with self.assertRaisesRegex(policy_gate.PolicyFailure, "approved digests"):
+                        policy_gate.validate_php_release_stages(changed)
+
+    def test_php_release_stage_inventory_cannot_be_removed_renamed_or_extended(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        for stage, image in policy_gate.PHP_RELEASE_BASES.items():
+            header = f"FROM {image} AS {stage}\n"
+            for changed in (original.replace(header, ""), original.replace(header, header.replace(stage, "unexpected")),
+                            original + header):
+                with self.subTest(stage=stage), self.assertRaisesRegex(policy_gate.PolicyFailure, "approved digests"):
+                    policy_gate.validate_php_release_stages(changed)
+
+    def test_php_release_each_stage_requires_initial_real_version_check(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        check = f"RUN php -r '{policy_gate.PHP_VERSION_CHECK}'"
+        for stage, image in policy_gate.PHP_RELEASE_BASES.items():
+            prefix = f"FROM {image} AS {stage}\n\n"
+            for replacement in ("", "# " + check, check.replace("80427", "80423")):
+                changed = original.replace(prefix + check, prefix + replacement)
+                with self.subTest(stage=stage, replacement=replacement), self.assertRaisesRegex(
+                    policy_gate.PolicyFailure, "initial real-version check"
+                ):
+                    policy_gate.validate_php_release_stages(changed)
+
+    def test_php_release_composer_checks_cannot_be_skipped(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        guard = policy_gate.PHP_VERSION_CHECK
+        artifact = f"php -r '{guard} require \"vendor/autoload.php\";'"
+        for stage in ("build", "production-build"):
+            start = original.index(f"FROM {policy_gate.PHP_RELEASE_BASES[stage]} AS {stage}\n")
+            end = original.index("\nFROM ", start)
+            body = original[start:end]
+            mutations = (
+                body.replace("COPY --from=composer:2@", "COPY --from=php:8.4-cli-bookworm@"),
+                body.replace(f"RUN php -r '{guard}' \\\n    && composer install", "RUN composer install"),
+                body.replace(artifact, "true"),
+                body.replace("composer check-platform-reqs", "composer --version"),
+                body.replace("composer install", "composer install --ignore-platform-reqs"),
+            )
+            for changed_body in mutations:
+                self.assertNotEqual(changed_body, body)
+                with self.subTest(stage=stage), self.assertRaisesRegex(policy_gate.PolicyFailure, "Composer PHAR"):
+                    policy_gate.validate_php_release_stages(original[:start] + changed_body + original[end:])
+
+    def test_php_release_runtime_requires_copied_autoload_check(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        artifact = f"php -r '{policy_gate.PHP_VERSION_CHECK} require \"vendor/autoload.php\";'"
+        for stage in ("preview", "production"):
+            start = original.index(f"FROM {policy_gate.PHP_RELEASE_BASES[stage]} AS {stage}\n")
+            end = original.find("\nFROM ", start)
+            end = len(original) if end == -1 else end
+            changed = original[:start] + original[start:end].replace(artifact, "true") + original[end:]
+            with self.subTest(stage=stage), self.assertRaisesRegex(policy_gate.PolicyFailure, "runtime artifact check"):
+                policy_gate.validate_php_release_stages(changed)
+
+    def test_php_release_apache_requires_actual_http_sapi_version_and_cleanup(self):
+        original = (ROOT / "infra/docker/backend/Dockerfile").read_text()
+        mutations = (
+            original.replace('PHP_SAPI !== "apache2handler"', 'false'),
+            original.replace('PHP_SAPI !== "apache2handler" || preg_match', 'PHP_SAPI !== "apache2handler" || false && preg_match'),
+            original.replace('curl --fail', 'curl'),
+            original.replace('test "$response" =', 'test -n'),
+            original.replace('rm -f public/.php-runtime-check.php', 'true'),
+        )
+        for changed in mutations:
+            with self.assertRaisesRegex(policy_gate.PolicyFailure, "Apache HTTP"):
+                policy_gate.validate_php_release_stages(changed)
+
     def test_release_artifact_non_standalone_admin_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
