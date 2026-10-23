@@ -1,6 +1,8 @@
 # MEMBERRANK-ACTIVATION — Prelaunch REV2 Source handoff
 
-Status: `MEMBERRANK_ACTIVATION_PRELAUNCH_SOURCE_HOLD`.
+Source implementation and isolated acceptance are recorded below. The final
+HEAD, Required Checks and Fresh Self-review on Draft604 determine Source status;
+Hotfix Source Merge and all Runtime operations remain HOLD.
 R3 / Strict Change / Application Runtime Activation `deferred`.
 Issue603 / Draft PR604 / existing dedicated task branch retained.
 The latest continuation adds executable Source and isolated-only activation
@@ -8,7 +10,91 @@ tests; see [admission/origin inventory](MEMBER_RANK_PRELAUNCH_ADMISSION_INVENTOR
 The observation-only checkpoint below remains historical evidence. Neither
 inspection method alone authorizes Activation. Runtime/merge HOLD is unchanged.
 
-## MEMBERRANK_ACTIVATION_RESUME_VALIDATION_RESULT
+## Approved synchronization and Source acceptance — 2026-10-23
+
+Human GO fixes protected main `6b70ca9f21ea2d316cdb523e13fbdec05f7b5692` for the
+existing branch and Draft604. Original base8a656d1a and remote6e7e1695 remain
+historical checkpoints. No new branch/PR or history rewrite.
+
+- Protected four WIP files with a private binary patch/hash manifest and local
+  checkpoint `2b28cc0e`. All four file bytes matched before/after checkpoint,
+  including the exact test SHA256 associated with the earlier2/185 evidence.
+- Preview found a Worklog append conflict only. Task-owned records were moved
+  across append boundaries without changing any nonempty line; checkpoint
+  `c62c31426c1d3c083f39876dd10e4cab75ce8bcf` retains the entire prior history.
+  No policy/financial semantic conflict was introduced. CONTROL pins/negative
+  tests and Activation ID/097 registration are both present.
+- Canonical no-force sync produced merge
+  `2fe9d0e72a40a63054a7314893efc50fae6e529d`, parents c62c3142 and6b70ca9f,
+  tree `f75c3490b6ca727505ffba7155947966e2e7fbd7`, equal to clean merge-tree.
+  Wrapper verified35 net paths. One-use sync permission was removed immediately;
+  only then was Task Policy base advanced to6b70ca9f. Ready/Merge remain absent.
+- The seven nonshared upstream files, including dependencies/lockfile and
+  Control manifest, remain byte-identical. All97 migration bytes match6e7e1695;
+  097 SHA256 `98f451218ec4195ab8e852baf0fd0cc9662689a162d0d4d17beb95ca93d97604`.
+  No new migration reservation or operational migration.
+- Added a focused reproduction of a completion gap: another verified success
+  receipt for an already-settled payment stayed unresolved even after regular
+  replay, causing permanent `PENDING_PROVIDER_EVENTS` HOLD. The pre-fix test
+  fails after20 assertions. Minimal fix appends the existing successful provider
+  attempt before returning the existing grant. It does not rewrite receipts,
+  payments, Wallet/Lot/Point/Rank/Audit/Mail or grant again. Signature/event/time
+  checks and event→User→Payment locks precede that return as before.
+- Expanded exact policy/PR scope to36 before this Payment service edit. A payment
+  Source flock protects the bounded completion hunk. The concurrent POINT-FIRST
+  worktree's creation/eligibility edits were inspected read-only and are not
+  imported or changed. Source lock disposition is recorded in Draft604.
+- Post-fix isolated Source cases PASS: atomic0-Origin/free7501/151 (65.126s),
+  notification/real deadlock/Writer recovery1/142 (59.125s), pending/auth/reward/
+  late-success receipt recovery1/47 (26.409s), nested SMS/LINE identity recovery
+  1/36 (51.057s), total4/376. Synthetic PostgreSQL17.10/PHP8.4.23 only. Source
+  hashes: Payment service `e6297ba32838cff4f0332b845fa529836db69a5a8a3ee52192b6a91d045f3dbc`,
+  activation test `b73de172fac350e9ca6e86b0e18e31eeb1c6e87d03c1075b6f5f775d993ddffc`.
+- SMS with a pending referral returns HTTP500 while gated, leaving the challenge
+  unused, first-SMS/phone/session unchanged and referral pending. The same code
+  succeeds after release, grants100/50 once and rotates the session; stale-session
+  replay401 adds nothing. Ordinary SMS without financial reward succeeds under
+  the same gate. Rate limits and delivery checks are retained.
+- LINE identity callback with pending follow rejects409, marks only the OAuth
+  attempt failed and rolls back user/session/reward creation. Durable follow
+  remains pending. A fresh OAuth start after release claims75 free points once;
+  another login does not regrant. A used OAuth code/state is not a replay queue.
+  OIDC/PKCE/claims use the existing synthetic provider fixture; no real sender
+  or provider traffic is certified by these tests.
+- Final notification sample: publication call1.517560s/TX1.442740s includes inline
+  probes; observed TX age before probe0.554172s; HTTP refusal0.711357s, Point
+  0.079768s, new notification0.073630s, LINE0.021858s, eight Writer refusals
+  0.003808–0.232591s; WAL5072bytes/database-growth57344bytes. This is a constrained
+  single sample, not a production maintenance window, peak or approved budget.
+  Prior0/10/1000 evidence is retained and not needlessly rebuilt.
+- Integrated Policy/base-sync/Control regression297 and full Policy329 PASS,
+  focused Fincode/foundation regression6/71 PASS (40.708s), OpenAPI62 and DB tooling
+  84 PASS, generated Admin parity/typecheck and all bundles PASS. Local quality
+  PASS (5 contracts/143 JSON/1074 PHP/1 TOML/2 XML/25 YAML). Fresh97 migration
+  and custom backup/restore normalized schema/ledger equality PASS. Final Source
+  regression/quality/Required5 and Fresh review are recorded for the final HEAD
+  in Draft604; earlier6e results are not substituted.
+- Intermediate sync-head CI2fe9d0e7 failed metadata validation while the PR body
+  still carried the old template/base; local validation also caught required
+  headings/Changed-files heading levels during its rewrite. The canonical parser
+  is unchanged. Final PR metadata is validated before push/check dispatch.
+
+Acceptance separates Source guarantees from the remaining external Final Gates:
+enabled sender redelivery, replacement-provider M2/M4/M8 settlement and recovery,
+deployed supported-entry inventory, fresh site read-only data checks, privileged
+site authorization provisioning, and representative capacity/rollback/bloat and
+Human outage budgets. No production volume or allowed wait seconds are inferred.
+Hotfix Technical Acceptance, old-PHP rollback prevention and explicit Human
+Source Merge restart remain required. OLD/NEW each need their own artifact,
+schema, Runtime and Activation GO; operational Worker and Production GO remain
+independent. Browser E2E is NOT RUN (no UI added); HTTP route tests are executed.
+
+Actual Source Merge/Runtime/operational DB/real Feature ON/backfill/operational
+Worker changes0. No formal Release Artifact or Contract publication. CI
+verification-only images, when built, are recorded separately. Keep Draft,
+branch and worktree. Financial history rollback by deletion is prohibited.
+
+## Historical remaining-acceptance stop — 2026-10-22
 
 Remaining-acceptance work resumes the6e7e1695 checkpoint; it does not replace the
 existing implementation or redo the1000-Origin fixture. Result is

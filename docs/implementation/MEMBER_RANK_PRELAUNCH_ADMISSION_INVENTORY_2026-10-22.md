@@ -132,7 +132,40 @@ by Activation. Ordinary users can start at beginner with their free rewards.
 
 ## Acceptance status
 
-### Remaining acceptance continuation (2026-10-22 UTC)
+### Approved sync and completed Source cases — 2026-10-23
+
+The Human-approved no-force main sync resolves the previous base STOP. Merge
+2fe9d0e7 has parents c62c3142/6b70ca9f and canonical treef75c3490. Both Control
+and Activation policy/test/log changes are preserved; one-use sync authority is
+removed. WIP checkpoint2b28cc0e and private hash/patch evidence protect all four
+original files. All97 migration bytes are unchanged. Exact scope is now36:
+the prior35 plus the common Payment service's append-only completion fix.
+
+A verified late success receipt exposed a real recovery defect: an existing
+grant made `confirmSucceeded()` return without recording successful processing,
+so regular replay could never clear inspection's pending-event HOLD. A focused
+test failed before the fix. The service now records the existing immutable
+success-attempt type before returning the grant, under its existing admission
+and event→User→Payment locks. No grant, payment, wallet/lot, rank, mail or receipt
+history is rewritten. Unknown/pending events still HOLD. Completed replay is
+now observable without weakening inspection.
+
+Integrated post-fix real PostgreSQL cases PASS4/376: atomic0-Origin/free750151,
+notification/concurrent replay/Writer142, pending/auth/reward/late receipt47,
+nested identity36. The identity case adds actual SMS HTTP rejection/retry with
+the same unconsumed challenge and preserved session, plus ordinary no-reward SMS
+success while fenced. LINE's outer OIDC callback rejects409 and retains the
+pending follow; a new OAuth start recovers the free reward once. That recovery
+uses a new authorization flow, not reuse of a consumed provider code/state.
+Mocks certify no external redelivery behavior. Full command evidence and final
+HEAD/Required Checks/Fresh review are in Draft604 and the latest handoff.
+
+No Source retry interval, timeout, signature, payment-success condition, DB guard
+or assertion is relaxed. Later sections preserve earlier measurements and stop
+states as history. Capacity and actual sender/provider/site execution remain
+independent Runtime Final Gates, not unresolved no-backfill design questions.
+
+### Historical remaining acceptance continuation (2026-10-22 UTC)
 
 The following extends, rather than reruns or replaces, the prior checkpoint.
 Tests execute Laravel HTTP routes and real independent PostgreSQL commits in
@@ -154,7 +187,7 @@ Do not run both irreversible cases against one populated database. The existing
 | --- | --- | --- |
 | Signed Fincode HTTP → canonical requery → `recordVerifiedProviderEvent` → `confirmSucceeded` | Real HTTP500 `{"message":"Server Error"}`, no success `receive` ACK, no Problem code/retryable field. Point runner exhausts bounded3 attempts. | No receipt created if admission fails before receipt commit. Re-delivery after release returns200/`receive=0`; one paid grant/M2/M4. Sender must retry non-2xx; actual provider configuration/delivery is a separate Final Gate. |
 | Receipt committed, settlement interrupted by another connection's gate | HTTP500; encrypted verified receipt remains committed, no financial grant. | Connection teardown plus two forked HTTP callers reprocess the same receipt; both ACK only after consistent application, one receipt/grant/M2/M4. This is process-level replay, not proof of sender retry or network ACK delivery. |
-| Existing excluded paid Origin webhook | During publication HTTP500, existing history untouched. | After publication duplicate ACK200; old grant remains one, no historical rank entry. A different receipt for an already-settled payment can remain `received` without a success attempt; prelaunch inspection deliberately HOLDs such unresolved receipt instead of silently classifying it completed. |
+| Existing excluded paid Origin webhook | During publication HTTP500, existing history untouched. | After publication duplicate ACK200; old grant remains one, no historical rank entry. The2026-10-23 completion fix appends a successful processing attempt for a verified late success receipt. Before that fix it remained unresolved despite replay; the failing regression is retained. Unknown/unprocessed receipts still HOLD. |
 | Provider start → durable payment → Fincode attempt → external mutation | Gate rejection propagates40001 before the provider mutation. | Same-key reattempt after release creates one payment/attempt and one synthetic session mutation; replay creates no second mutation. Pending payment/attempt blocks actual publication, so publication cannot legitimately race an outstanding provider mutation. |
 | Refund intent `beginProviderRefundOperation` / `resolveProviderOperation` | Direct receipt guard returns40001; no invented internal retry. | Existing pending intent survives rejection; same operation key is recovered. Uncertain status stays uncertain and blocks inspection; only explicit confirmed resolution permits financial refund. No real refund API is called. These common service methods do not themselves implement a provider transport. |
 | Refund resolution / M9 chargeback | Owning Point runner,40001 exhaustion. | Refund pending/reservations remain; explicit success and replay produce one M8 adjustment. M9 rejected while gated and succeeds after release. Provider/financial confirmation conditions are not disabled. |

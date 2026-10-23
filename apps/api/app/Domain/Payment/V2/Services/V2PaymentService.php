@@ -453,6 +453,8 @@ final class V2PaymentService
             $existing = DB::table('payment_point_grants')
                 ->where('payment_id', $payment->id)->first();
             if ($existing !== null) {
+                $this->providerAttempt($event->id, 'success');
+
                 return $existing;
             }
             if (in_array($payment->status, self::TERMINAL_PAYMENT_STATUSES, true)) {

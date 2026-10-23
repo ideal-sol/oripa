@@ -853,6 +853,13 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         $assertHold();
         $payments->confirmSucceeded($event->id);
         $assertHold();
+        $lateEvent = $payments->recordVerifiedProviderEvent('fincode', 'synthetic-late-success', 'payment.succeeded', '{}', [],
+            $payment->id, null, now());
+        self::assertContains('PENDING_PROVIDER_EVENTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
+        $payments->confirmSucceeded($lateEvent->id);
+        self::assertNotContains('PENDING_PROVIDER_EVENTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
+        self::assertSame('success', DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $lateEvent->id)->value('outcome'));
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
         $refund = $payments->reserveFullRefund($payment->id, (string) Str::uuid7());
         $operation = $payments->beginProviderRefundOperation($payment->id, $refund->id, (string) Str::uuid7(), ['amount' => 100]);
         $assertHold();
@@ -908,6 +915,160 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertContains('PROTECTED_PAID_GRANTS', app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
         $assertHold();
         DB::purge('acceptance_writer');
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
+        Http::assertNothingSent();
+    }
+
+    public function test_nested_sms_verification_preserves_challenge_and_pending_referral(): void
+    {
+        if (getenv('V2_PRELAUNCH_REMAINING_CASE') !== 'identity') {
+            self::markTestSkipped('Requires a fresh dedicated disposable activation database.');
+        }
+        self::assertTrue(app()->environment('testing'));
+        self::assertSame('oripa_v2_activation_synthetic', DB::connection()->getDatabaseName());
+        self::assertNull(DB::selectOne('SELECT inet_server_addr() AS address')->address);
+        self::assertSame(0, DB::table('users')->count());
+        Http::preventStrayRequests();
+        $this->configureRankFixture();
+        $this->rankClock(DB::selectOne('SELECT clock_timestamp()::text AS instant')->instant);
+        config(['app.debug' => false, 'v2_identity.origins.user' => 'https://example.test']);
+        $admin = $this->rankAdmin();
+        $setting = DB::table('member_rank_settings')->sole();
+        $authority = (string) Str::uuid7();
+        DB::table('member_rank_prelaunch_authorizations')->insert([
+            'public_id' => $authority, 'site_code' => 'oripoke-prelaunch', 'setting_public_id' => $setting->public_id,
+            'authority_sha256' => 'e1e38332b160cd978fbac106387d6f07b046088cf98cd9fc57af4f810bce1248',
+            'expected_revision' => $setting->revision,
+            'origin_digest' => DB::selectOne('SELECT v2_member_rank_prelaunch_manifest() AS digest')->digest,
+        ]);
+        app(V2MemberRankPrelaunchActivation::class)->activate($admin, (string) Str::uuid7(), [
+            'authorization_id' => $authority, 'expected_revision' => (int) $setting->revision,
+        ]);
+        $referrer = $this->rankUser();
+        DB::table('referral_point_settings')->where('id', 1)->update([
+            'is_enabled' => true, 'referrer_point_amount' => 100, 'referred_user_point_amount' => 50,
+        ]);
+        $sessions = app(\App\Domain\Identity\Services\V2SessionManager::class);
+        $sms = app(\App\Domain\Identity\Services\V2SmsVerificationService::class);
+        $candidates = [];
+        foreach (['referred', 'ordinary'] as $index => $kind) {
+            $email = 'synthetic-sms-'.$kind.'@example.test';
+            $candidate = User::query()->create([
+                'email_display' => $email, 'email_normalized' => $email, 'email_verified_at' => now(),
+                'first_registration_qualified_at' => now(), 'state' => 'active',
+                'password_hash' => app(V2PasswordPolicy::class)->hash('valid synthetic password'),
+            ]);
+            if ($kind === 'referred') {
+                app(\App\Domain\Referral\Services\V2ReferralRewardService::class)->record($candidate, $referrer->referral_code);
+            }
+            $session = $sessions->issue(\App\Domain\Identity\Enums\V2Realm::User, $candidate->id);
+            $request = \Illuminate\Http\Request::create('/api/v2/me/sms-verification', 'POST');
+            $request->cookies->set('__Host-oripa_user_session', $session['token']);
+            $sent = $sms->send($candidate, $request, '0901234567'.$index);
+            $challenge = \App\Models\V2\SmsVerificationChallenge::query()->where('public_id', $sent['challenge_id'])->sole();
+            $message = \App\Models\V2\OutboxMessage::query()->where('topic', 'identity.sms-verification')->latest('id')->firstOrFail();
+            $delivery = json_decode(Crypt::decryptString($message->payload['message_ciphertext']), true, flags: JSON_THROW_ON_ERROR);
+            $challenge->forceFill([
+                'delivery_state' => 'accepted', 'provider_request_id' => 'synthetic-sms-'.$index,
+                'delivery_attempted_at' => now()->startOfSecond(), 'delivery_accepted_at' => now()->startOfSecond(),
+            ])->save();
+            $candidates[$kind] = compact('candidate', 'session', 'challenge', 'delivery');
+        }
+        $verify = function (array $candidate): \Illuminate\Testing\TestResponse {
+            Auth::forgetGuards();
+            $csrf = str_repeat('e', 64);
+
+            return $this->withCredentials()->withUnencryptedCookie('__Host-oripa_user_session', $candidate['session']['token'])
+                ->withUnencryptedCookie('__Host-oripa_user_xsrf', $csrf)->withServerVariables(['HTTPS' => 'on'])
+                ->withHeaders(['Origin' => 'https://example.test', 'Sec-Fetch-Site' => 'same-origin', 'X-XSRF-TOKEN' => $csrf])
+                ->postJson('/api/v2/me/sms-verification/verify', [
+                    'challenge_id' => $candidate['challenge']->public_id, 'code' => $candidate['delivery']['verification_code'],
+                ]);
+        };
+        $default = DB::getDefaultConnection();
+        config(['database.connections.identity_fence' => config('database.connections.'.$default)]);
+        $writer = DB::connection('identity_fence');
+        $writer->beginTransaction();
+        $writer->select('SELECT pg_advisory_xact_lock(740022, 1)');
+        $verify($candidates['referred'])->assertStatus(500);
+        self::assertNull($candidates['referred']['challenge']->fresh()->used_at);
+        self::assertNull($candidates['referred']['candidate']->fresh()->first_sms_verified_at);
+        self::assertSame(0, DB::table('user_phone_numbers')->where('user_id', $candidates['referred']['candidate']->id)->count());
+        self::assertSame('pending', DB::table('user_referrals')->where('referred_user_id', $candidates['referred']['candidate']->id)->value('status'));
+        self::assertSame(0, DB::table('point_operations')->where('source_type', 'referral')->count());
+        self::assertNull(DB::table('user_sessions')->where('session_id_hash', hash('sha256', $candidates['referred']['session']['token']))->value('revoked_at'));
+        $verify($candidates['ordinary'])->assertOk()->assertJsonPath('verified', true);
+        self::assertNotNull($candidates['ordinary']['challenge']->fresh()->used_at);
+        $writer->rollBack();
+        $verify($candidates['referred'])->assertOk()->assertJsonPath('verified', true);
+        self::assertNotNull($candidates['referred']['challenge']->fresh()->used_at);
+        self::assertSame('rewarded', DB::table('user_referrals')->where('referred_user_id', $candidates['referred']['candidate']->id)->value('status'));
+        self::assertSame(2, DB::table('point_operations')->where('source_type', 'referral')->count());
+        self::assertSame(50, (int) DB::table('wallets')->where('user_id', $candidates['referred']['candidate']->id)->value('free_balance'));
+        self::assertSame(100, (int) DB::table('wallets')->where('user_id', $referrer->id)->value('free_balance'));
+        self::assertSame(0, DB::table('member_rank_point_entries')->count());
+        $verify($candidates['referred'])->assertUnauthorized();
+        self::assertSame(2, DB::table('point_operations')->where('source_type', 'referral')->count());
+        require_once __DIR__.'/LineLoginVerticalSliceTest.php';
+        $callbackUrl = 'https://storefront.example.test/api/v2/auth/external/line/callback';
+        config([
+            'v2_identity.origins.user' => 'https://storefront.example.test',
+            'v2_identity.external_identity.line.client_id' => 'line-channel.test',
+            'v2_identity.external_identity.line.client_secret' => 'synthetic-line-secret',
+            'v2_identity.external_identity.line.redirect_uri' => $callbackUrl,
+            'v2_identity.external_identity.line.email_scope_enabled' => true,
+        ]);
+        DB::table('line_messaging_settings')->where('id', 1)->update(['reward_enabled' => true, 'reward_point_amount' => 75]);
+        $provider = new FakeLineOidcTransport();
+        $this->app->instance(\App\Domain\Identity\Contracts\V2LineOidcTransport::class, $provider);
+        $subject = 'synthetic-nested-line';
+        $pending = new \App\Models\V2\LinePendingFollow();
+        $pending->forceFill([
+            'public_id' => (string) Str::uuid7(), 'subject_hash' => app(V2IdentityCorrelation::class)->hash('line|https://access.line.me|'.$subject),
+            'status' => 'pending', 'followed_at' => now()->subMinute(),
+        ])->save();
+        $identities = app(\App\Domain\Identity\Services\V2ExternalIdentityService::class);
+        $start = function () use ($identities, $provider, $subject): array {
+            $started = $identities->startForProvider('line', 'login', '/', '192.0.2.70', (string) Str::uuid7(), null,
+                \Illuminate\Http\Request::create('/api/v2/auth/external/line/start', 'POST'));
+            parse_str(parse_url($started['authorization_url'], PHP_URL_QUERY), $query);
+            $provider->expectChallenge($query['code_challenge']);
+            $provider->claims($query['nonce'], $subject, 'synthetic-nested-line@example.test');
+
+            return ['state' => $query['state'], 'binding' => $started['binding_token']];
+        };
+        $callback = function (array $started) use ($identities, $callbackUrl): array {
+            $request = \Illuminate\Http\Request::create($callbackUrl, 'GET');
+            $request->cookies->set('__Host-oripa_oidc_transaction', $started['binding']);
+
+            return $identities->callbackForProvider('line', $started['state'], 'synthetic-line-code', $started['binding'],
+                $callbackUrl, '192.0.2.71', $request);
+        };
+        $started = $start();
+        $beforeUsers = DB::table('users')->count();
+        $writer->beginTransaction();
+        $writer->select('SELECT pg_advisory_xact_lock(740022, 1)');
+        try {
+            $callback($started);
+            self::fail('Nested LINE reward must reject admission before consuming its durable pending follow.');
+        } catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $exception) {
+            self::assertSame('EXTERNAL_IDENTITY_CONFLICT', $exception->errorCode);
+            self::assertSame(409, $exception->status);
+        }
+        self::assertSame($beforeUsers, DB::table('users')->count());
+        self::assertSame('pending', $pending->fresh()->status);
+        self::assertSame(0, DB::table('line_friendships')->count());
+        self::assertSame('failed', DB::table('external_identity_transactions')->latest('id')->value('status'));
+        $writer->rollBack();
+        $result = $callback($start());
+        self::assertSame('claimed', $pending->fresh()->status);
+        self::assertSame($result['user']->id, $pending->fresh()->claimed_by_user_id);
+        self::assertSame(75, (int) DB::table('wallets')->where('user_id', $result['user']->id)->value('free_balance'));
+        $callback($start());
+        self::assertSame(1, DB::table('point_operations')->where('source_type', 'line_friend')->count());
+        self::assertSame(0, DB::table('member_rank_point_entries')->count());
+        DB::purge('identity_fence');
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
         Http::assertNothingSent();
