@@ -21,6 +21,22 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_shipping_minimum_admin_inventory_is_exact(self):
+        expected = {
+            "apps/admin/e2e/admin-shipping-minimum-points.spec.ts",
+            "apps/admin/src/app/settings/shipping-minimum-points/page.tsx",
+            "apps/admin/src/components/settings/shipping-minimum-point-settings.tsx",
+            "apps/admin/test/shipping-minimum-point-settings.test.tsx",
+        }
+        self.assertEqual(expected, policy_gate.SHIPPINGMIN_ADMIN_FILES)
+        paths = set(policy_gate.tracked_paths(ROOT))
+        policy_gate.validate_admin_skeleton(ROOT, paths)
+        for relative in expected:
+            with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+        with self.assertRaises(policy_gate.PolicyFailure):
+            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/shipping-unreviewed.tsx"})
+
     def test_gacha_g1_admin_inventory_is_exact(self):
         expected = {"apps/admin/src/components/catalog/purchase-condition.tsx",
                     "apps/admin/test/gacha-purchase-condition.test.tsx"}
@@ -58,6 +74,23 @@ class PolicyGateTest(unittest.TestCase):
                     data["pr_body"].replace("GOV-008", invalid), invalid,
                     data["changed_paths"], data["base_sha"],
                 )
+
+    def test_shipping_minimum_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_10_23_000098_add_v2_shipping_minimum_points.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000098" if change == "duplicate_number" else "000099"
+                    shutil.copy2(migration, migration.with_name(f"2026_10_23_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
 
     def test_member_rank_m8_migration_inventory_remains_exact(self):
         relative = "apps/api/database/migrations-v2/2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"
@@ -4335,8 +4368,8 @@ services:
             )
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
+                    "operation_count: 84",
                     "operation_count: 83",
-                    "operation_count: 82",
                 ),
                 encoding="utf-8",
             )

@@ -114,6 +114,11 @@ final class V2PrizeShippingController
         });
     }
 
+    public function shippingPolicy(Request $request): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->service->shippingPolicy($this->user()));
+    }
+
     public function shippingRequests(Request $request): JsonResponse
     {
         return $this->handle($request, fn (): array => $this->service->shippingRequests(
@@ -212,6 +217,7 @@ final class V2PrizeShippingController
             'code' => $exception->errorCode,
             'request_id' => $requestId,
             'retryable' => $exception->retryable,
+            ...$exception->details,
         ], $exception->status, [
             ...$this->headers($requestId),
             'Content-Type' => 'application/problem+json',

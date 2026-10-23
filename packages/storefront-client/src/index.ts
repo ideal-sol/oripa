@@ -1,3 +1,4 @@
+export { isShippingMinimumPointsProblemError } from "./errors.js";
 export {
   ApiProblemError,
   StorefrontTransportError,

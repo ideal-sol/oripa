@@ -969,6 +969,24 @@ paths:
                     const: true
         default:
           $ref: '#/components/responses/FulfillmentProblem'
+  /me/shipping-policy:
+    get:
+      x-sms-verification: required
+      operationId: getShippingPolicy
+      summary: 現在の発送下限ポイントを取得する
+      description: 全ガチャ・配送専用・過去の獲得景品に共通。合計は正数かつ下限以上が必要。ポイント消費は行わない。
+      x-idempotency: safe
+      x-rate-limit: user-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: [{userSession: []}]
+      responses:
+        '200':
+          description: 現在の設定。欠落・破損時は503で拒否する。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShippingPolicy'}
+        default: {$ref: '#/components/responses/FulfillmentProblem'}
   /me/shipping-requests:
     get:
       x-sms-verification: required
@@ -1019,6 +1037,14 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateShippingRequest'
       responses:
+        '409':
+          description: 下限未達（合計0ptを含む）、状態競合または冪等性競合。最新Policyを再取得する。
+          content:
+            application/problem+json:
+              schema:
+                anyOf:
+                  - {$ref: '#/components/schemas/ShippingMinimumPointsProblem'}
+                  - {$ref: '#/components/schemas/FulfillmentProblemDetails'}
         '403':
           description: SMS_VERIFICATION_REQUIRED。現在の電話番号のSMS認証が必要。
           content:
@@ -3512,6 +3538,32 @@ components:
     ShippingStatus:
       type: string
       enum: [requested, packing, shipped, delivered, hold, return_requested, returned, canceled]
+    ShippingPointDecimal:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,17})$'
+      description: 精度を失わない10進整数文字列。景品合計は最大900719925474099100pt。
+      example: '10000'
+    ShippingPolicy:
+      type: object
+      additionalProperties: false
+      required: [minimum_points, effective_required_points, revision, zero_total_allowed]
+      properties:
+        minimum_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+        effective_required_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+        revision: {type: integer, minimum: 1, maximum: 9007199254740991}
+        zero_total_allowed: {type: boolean, const: false}
+    ShippingMinimumPointsProblem:
+      allOf:
+        - {$ref: '#/components/schemas/ProblemDetails'}
+        - type: object
+          required: [code, minimum_points, effective_required_points, selected_total_points, shortfall_points, setting_revision]
+          properties:
+            code: {type: string, const: SHIPPING_MINIMUM_POINTS_NOT_MET}
+            minimum_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+            effective_required_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+            selected_total_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+            shortfall_points: {$ref: '#/components/schemas/ShippingPointDecimal'}
+            setting_revision: {type: integer, minimum: 1, maximum: 9007199254740991}
     ShippingRequestSummary:
       type: object
       additionalProperties: false
@@ -3697,6 +3749,8 @@ components:
         - SESSION_EXPIRED
         - SHIPPING_ADDRESS_NOT_FOUND
         - SHIPPING_REQUEST_NOT_FOUND
+        - SHIPPING_MINIMUM_POINTS_NOT_MET
+        - SHIPPING_POLICY_UNAVAILABLE
         - SMS_VERIFICATION_REQUIRED
         - UNSUPPORTED_MEDIA_TYPE
         - USER_PRIZE_NOT_FOUND

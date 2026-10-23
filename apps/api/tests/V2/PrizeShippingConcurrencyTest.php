@@ -25,6 +25,8 @@ final class PrizeShippingConcurrencyTest extends TestCase
     public static function competingOperations(): array
     {
         return [
+            'two shipping requests' => [['shipping', 'shipping-second'], false],
+            'normal writer and shipping' => [['grant', 'shipping'], false],
             'normal exchange and shipping' => [['exchange', 'shipping'], false],
             'shipping-only expiration and shipping' => [['expiration', 'shipping'], true],
             'shipping-only expiration and exchange' => [['expiration', 'exchange'], true],
@@ -93,7 +95,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 ),
                 $resultPaths
             );
-            $successCount = $operations === ['expiration', 'expiration'] ? 2 : 1;
+            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping']], true) ? 2 : 1;
             self::assertCount($successCount, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
@@ -137,6 +139,43 @@ final class PrizeShippingConcurrencyTest extends TestCase
         }
     }
 
+    public function test_settings_update_serializes_with_new_shipping_snapshot(): void
+    {
+        CarbonImmutable::setTestNow('2026-07-30T00:00:00Z');
+        config(['cache.default' => 'array', 'app.key' => 'base64:'.base64_encode(str_repeat('k', 32)),
+            'v2_prize_shipping.address_hmac_key' => 'base64:'.base64_encode(str_repeat('p', 32))]);
+        [$userId, $prizeId, $addressId] = $this->fixture(false);
+        $token = (string) Str::uuid();
+        $startPath = '/tmp/shipping-minimum-'.$token.'.start';
+        $resultPath = '/tmp/shipping-minimum-'.$token.'.json';
+        // Fork with no inherited live PDO transaction; child opens its own connection.
+        DB::disconnect();
+        $pid = pcntl_fork();
+        if ($pid === 0) $this->runConcurrentOperation('shipping', $userId, $prizeId, $addressId, $startPath, $resultPath);
+        self::assertGreaterThan(0, $pid);
+        try {
+            DB::reconnect();
+            DB::beginTransaction();
+            DB::table('shipping_minimum_point_settings')->where('id', 1)->lockForUpdate()->first();
+            DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => 9007199254740991, 'revision' => 2]);
+            file_put_contents($startPath, 'start');
+            usleep(200000);
+            self::assertFileDoesNotExist($resultPath);
+            DB::commit();
+            pcntl_waitpid($pid, $status);
+            self::assertSame(0, pcntl_wexitstatus($status));
+            $result = json_decode(file_get_contents($resultPath), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(['result' => 'failure', 'code' => 'SHIPPING_MINIMUM_POINTS_NOT_MET'], $result);
+            self::assertSame(0, DB::table('shipping_requests')->count());
+            self::assertSame('stored', DB::table('user_prizes')->where('public_id', $prizeId)->value('status'));
+        } finally {
+            if (DB::transactionLevel() > 0) DB::rollBack();
+            Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
+            CarbonImmutable::setTestNow();
+            @unlink($startPath); @unlink($resultPath);
+        }
+    }
+
     private function runConcurrentOperation(
         string $operation,
         int $userId,
@@ -156,6 +195,8 @@ final class PrizeShippingConcurrencyTest extends TestCase
             $service = app(V2PrizeShippingService::class);
             if ($operation === 'expiration') {
                 $service->expireShippingOnly();
+            } elseif ($operation === 'grant') {
+                app(V2PointService::class)->grantFree($userId, 1, 'shipping-writer-concurrency');
             } elseif ($operation === 'exchange') {
                 $service->exchange(
                     $user,
@@ -168,7 +209,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
                     $user,
                     $addressId,
                     [$prizeId],
-                    'concurrent-shipping-0001',
+                    'concurrent-'.$operation.'-0001',
                     (string) Str::uuid7()
                 );
             }

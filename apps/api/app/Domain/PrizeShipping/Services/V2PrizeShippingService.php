@@ -493,6 +493,13 @@ final class V2PrizeShippingService
      * @param list<string> $prizeIds
      * @return array<string, mixed>
      */
+    public function shippingPolicy(User $user): array
+    {
+        $this->assertSmsVerified($user);
+
+        return app(V2ShippingMinimumPointService::class)->policy();
+    }
+
     public function createShippingRequest(
         User $user,
         string $addressId,
@@ -543,6 +550,7 @@ final class V2PrizeShippingService
                     );
                 }
             }
+            $snapshot = app(V2ShippingMinimumPointService::class)->shippingSnapshot($prizes);
             $address = $this->ownedAddress($user, $addressId);
             $plain = $this->decryptedAddress($address);
             $shipping = new ShippingRequest();
@@ -554,6 +562,7 @@ final class V2PrizeShippingService
                 'status' => 'requested',
                 ...$this->encryptedAddress($plain, snapshot: true),
                 'requested_at' => $now,
+                ...$snapshot,
             ])->save();
             foreach ($prizes as $prize) {
                 $this->changePrizeStatus(

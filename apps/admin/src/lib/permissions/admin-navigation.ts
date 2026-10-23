@@ -29,6 +29,7 @@ export type AdminRouteId =
   | "page-settings"
   | "rank-settings"
   | "presentation-assets"
+  | "shipping-minimum-settings"
   | "referral-settings"
   | "pre-registration-settings"
   | "member-rank-settings"
@@ -123,6 +124,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("page-settings", "ページ設定", "/settings/pages", "content.read", "content", "scaffold"),
   route("rank-settings", "景品ランク設定", "/catalog/ranks", "catalog.read", "catalog"),
   route("presentation-assets", "ランク動画", "/catalog/presentation-assets", "catalog.read", "catalog"),
+  route("shipping-minimum-settings", "発送下限ポイント設定", "/settings/shipping-minimum-points", "shipping.settings.read", "settings"),
   route("referral-settings", "紹介ポイント設定", "/settings/referral", "referral.settings.read", "settings"),
   route("pre-registration-settings", "事前登録特典設定", "/settings/pre-registration", "pre_registration.settings.read", "settings"),
   route("member-rank-settings", "会員ランク設定", "/settings/member-ranks", "member_rank.settings.read", "settings"),
@@ -171,6 +173,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "page-settings",
     "rank-settings",
     "presentation-assets",
+    "shipping-minimum-settings",
     "referral-settings",
     "pre-registration-settings",
     "member-rank-settings",

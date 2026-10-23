@@ -12,6 +12,8 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminShippingMinimumPointSetting: ["get", "/settings/shipping-minimum-points"],
+  updateAdminShippingMinimumPointSetting: ["put", "/settings/shipping-minimum-points"],
   getAdminPayment: ["get", "/payments/{paymentId}"],
   prepareAdminPaymentRefund: ["post", "/payments/{paymentId}/refunds"],
   completeAdminPaymentRefund: ["post", "/payments/{paymentId}/refunds/{adjustmentId}/complete"],
@@ -455,6 +457,10 @@ for (const [operationId, [method, path]] of Object.entries(operations)) {
 
 const schemas = contract.components?.schemas ?? {};
 const requiredSchemas = [
+  "AdminShippingMinimumPointSetting",
+  "AdminShippingMinimumPointSettingResponse",
+  "AdminShippingMinimumPointSettingUpdate",
+  "AdminShippingMinimumPointSettingMutationResult",
   "AdminNotionStatus",
   "AdminNotionSyncRun",
   "AdminNotionSyncCollection",
@@ -1703,6 +1709,24 @@ export interface AdminMemberRankSettingsHistory {
   request_id: string;
 }
 
+export interface AdminShippingMinimumPointSetting {
+  id: string;
+  minimum_points: string;
+  revision: number;
+  updated_by_admin_id: string | null;
+  updated_at: string;
+}
+export interface AdminShippingMinimumPointSettingResponse {
+  data: AdminShippingMinimumPointSetting;
+  request_id: string;
+}
+export interface AdminShippingMinimumPointSettingUpdate {
+  minimum_points: string;
+  expected_revision: number;
+}
+export interface AdminShippingMinimumPointSettingMutationResult extends AdminShippingMinimumPointSettingResponse {
+  idempotent_replay: boolean;
+}
 export interface AdminReferralPointSetting {
   id: string;
   is_enabled: boolean;

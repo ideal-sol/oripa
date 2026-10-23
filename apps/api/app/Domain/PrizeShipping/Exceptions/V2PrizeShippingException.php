@@ -10,7 +10,8 @@ final class V2PrizeShippingException extends RuntimeException
         public readonly string $errorCode,
         public readonly int $status,
         string $message,
-        public readonly bool $retryable = false
+        public readonly bool $retryable = false,
+        public readonly array $details = []
     ) {
         parent::__construct($message);
     }

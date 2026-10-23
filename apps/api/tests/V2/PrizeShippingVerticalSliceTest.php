@@ -242,7 +242,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $this->getJson('/api/v2/me/prizes')->assertUnauthorized();
     }
 
-    public function test_zero_exchange_points_allow_shipping_but_not_point_exchange(): void
+    public function test_zero_exchange_points_remain_shipping_candidates_but_not_exchangeable(): void
     {
         [$user, $prizes] = $this->fixture(1, 0);
         $item = app(V2PrizeShippingService::class)->prizeDetail($user, $prizes[0]);
@@ -990,8 +990,120 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         fwrite(STDERR, 'MIG052_PERFORMANCE='.json_encode($evidence, JSON_THROW_ON_ERROR).PHP_EOL);
     }
 
+    public function test_shipping_policy_http_requires_user_and_sms_and_is_no_store(): void
+    {
+        $this->getJson('/api/v2/me/shipping-policy')->assertUnauthorized();
+        [$user] = $this->fixture(1);
+        Auth::guard('v2_user')->setUser($user);
+        $this->getJson('/api/v2/me/shipping-policy')->assertOk()
+            ->assertJsonPath('minimum_points', '0')->assertJsonPath('effective_required_points', '1')
+            ->assertJsonPath('zero_total_allowed', false)->assertHeader('Cache-Control', 'no-store, private');
+        DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
+        $this->getJson('/api/v2/me/shipping-policy')->assertForbidden()->assertJsonPath('code', 'SMS_VERIFICATION_REQUIRED');
+    }
+
+    public static function minimumCases(): array
+    {
+        return [
+            'below' => [8000, 1, 8001, false, false],
+            'equal' => [8000, 1, 8000, false, true],
+            'above' => [8000, 1, 7999, false, true],
+            'unrestricted' => [1, 1, 0, false, true],
+            'zero single' => [0, 1, 0, false, false],
+            'zero multiple' => [0, 5, 0, false, false],
+            'shipping only' => [8000, 1, 8000, true, true],
+            '100 maximum points' => [9007199254740991, 100, 9007199254740991, false, true],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('minimumCases')]
+    public function test_shipping_minimum_is_atomic_and_integer_safe(int $points, int $count, int $minimum, bool $only, bool $allowed): void
+    {
+        [$user, $ids] = $this->fixture($count, $points, $only, uniformPoints: true);
+        DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => $minimum, 'revision' => 2]);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $tables = ['shipping_requests', 'shipping_request_items', 'shipping_request_status_histories', 'user_prize_status_histories', 'outbox_messages', 'mail_deliveries', 'idempotency_records', 'point_ledger_entries', 'point_operations'];
+        $before = [];
+        foreach ($tables as $table) $before[$table] = DB::table($table)->count();
+        $wallet = DB::table('wallets')->where('user_id', $user->id)->first();
+        self::assertTrue($service->prizeDetail($user, $ids[0])['allowed_actions']['shipping']['allowed']);
+        try {
+            $result = $service->createShippingRequest($user, $address['id'], $ids, (string) Str::uuid7(), (string) Str::uuid7());
+            self::assertTrue($allowed, 'Below-minimum shipping must fail');
+            $row = DB::table('shipping_requests')->where('public_id', $result['id'])->first();
+            self::assertSame($points * $count, (int) $row->selected_point_total_snapshot);
+            self::assertSame($minimum, (int) $row->applied_minimum_points_snapshot);
+            self::assertSame(2, (int) $row->applied_setting_revision);
+        } catch (V2PrizeShippingException $error) {
+            self::assertFalse($allowed, $error->errorCode);
+            self::assertSame('SHIPPING_MINIMUM_POINTS_NOT_MET', $error->errorCode);
+            self::assertSame((string) ($points * $count), $error->details['selected_total_points']);
+            self::assertSame((string) (max(1, $minimum) - $points * $count), $error->details['shortfall_points']);
+            foreach ($tables as $table) self::assertSame($before[$table], DB::table($table)->count(), $table);
+            self::assertSame($count, DB::table('user_prizes')->whereIn('public_id', $ids)->where('status', 'stored')->count());
+        }
+        self::assertEquals($wallet, DB::table('wallets')->where('user_id', $user->id)->first());
+        self::assertSame($before['point_ledger_entries'], DB::table('point_ledger_entries')->count());
+    }
+
+    public function test_shipping_minimum_replay_precedes_changed_or_missing_setting(): void
+    {
+        [$user, $ids] = $this->fixture(1);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $key = (string) Str::uuid7();
+        $first = $service->createShippingRequest($user, $address['id'], $ids, $key, (string) Str::uuid7());
+        DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => 9007199254740991, 'revision' => 2]);
+        $second = $service->createShippingRequest($user, $address['id'], $ids, $key, (string) Str::uuid7());
+        self::assertSame([...$first, 'idempotent_replay' => true], $second);
+        DB::table('shipping_minimum_point_settings')->delete();
+        self::assertSame($second, $service->createShippingRequest($user, $address['id'], $ids, $key, (string) Str::uuid7()));
+        try { $service->shippingPolicy($user); self::fail('Missing setting must fail closed'); }
+        catch (V2PrizeShippingException $error) { self::assertSame('SHIPPING_POLICY_UNAVAILABLE', $error->errorCode); }
+    }
+
+    public function test_shipping_minimum_mixed_snapshot_values_and_invalid_values(): void
+    {
+        $service = app(\App\Domain\PrizeShipping\Services\V2ShippingMinimumPointService::class);
+        DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => 5]);
+        $snapshot = $service->shippingSnapshot([(object) ['exchange_point_snapshot' => 0], (object) ['exchange_point_snapshot' => 5]]);
+        self::assertSame(5, $snapshot['selected_point_total_snapshot']);
+        foreach ([-1, 1.5, '9007199254740992', '1e3'] as $invalid) {
+            try { $service->shippingSnapshot([(object) ['exchange_point_snapshot' => $invalid]]); self::fail('Corrupt snapshot must fail closed'); }
+            catch (V2PrizeShippingException $error) { self::assertSame('SHIPPING_POLICY_UNAVAILABLE', $error->errorCode); }
+        }
+    }
+
+    public function test_mixed_zero_and_shipping_only_prizes_from_different_gachas_ship_together(): void
+    {
+        [$user, $ids] = $this->fixture(1, 0, mixedGachas: true);
+        self::assertSame(2, DB::table('user_prizes')
+            ->join('catalog_gacha_version_prizes as p', 'p.id', '=', 'user_prizes.gacha_version_prize_id')
+            ->join('catalog_gacha_versions as v', 'v.id', '=', 'p.gacha_version_id')
+            ->whereIn('user_prizes.public_id', $ids)->distinct()->count('v.gacha_id'));
+        DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => 8000]);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $result = $service->createShippingRequest($user, $address['id'], $ids, (string) Str::uuid7(), (string) Str::uuid7());
+        self::assertSame(2, $result['prize_count']);
+        $row = DB::table('shipping_requests')->where('public_id', $result['id'])->first();
+        self::assertSame(8000, (int) $row->selected_point_total_snapshot);
+        foreach (['selected_point_total_snapshot', 'applied_minimum_points_snapshot', 'applied_setting_revision'] as $column) {
+            DB::beginTransaction();
+            try {
+                DB::table('shipping_requests')->where('id', $row->id)->update([$column => null]);
+                self::fail('Shipping snapshot must be immutable');
+            } catch (QueryException $error) {
+                self::assertSame('P0001', $error->getCode());
+            } finally {
+                DB::rollBack();
+            }
+        }
+    }
+
     /** @return array{User, list<string>} */
-    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -1010,8 +1122,36 @@ final class PrizeShippingVerticalSliceTest extends TestCase
                 : $inventoryTotal - intdiv($inventoryTotal, 10);
         }
         unset($relation);
+        if ($uniformPoints) {
+            foreach ($fixture['prizes'] as &$prize) {
+                $prize['exchange_points'] = $exchangePoints;
+                $prize['shipping_only'] = $shippingOnly;
+            }
+            unset($prize);
+        }
+        if ($mixedGachas) {
+            $second = $fixture;
+            array_walk_recursive($second, static function (&$value): void {
+                if (is_string($value)) $value = str_replace(
+                    ['0198a001', 'fixture', 'cards', 'featured', 'Ab3Def7Gh9J'],
+                    ['0198a002', 'secondfixture', 'secondcards', 'secondfeatured', 'Bc4Efg8Hi0K'],
+                    $value
+                );
+            });
+            foreach ($second['prizes'] as &$prize) {
+                $prize['exchange_points'] = 8000;
+                $prize['shipping_only'] = true;
+            }
+            unset($prize);
+            foreach ($second as $section => $records) {
+                if (is_array($records)) $fixture[$section] = [...$fixture[$section], ...$records];
+            }
+            $fixture['expected_record_count'] *= 2;
+        }
+        // Import both gachas once: the importer initializes every rank master.
         app(V2CatalogFixtureImporter::class)->import($fixture);
         $user = $this->user();
+        $existingIds = DB::table('user_prizes')->where('user_id', $user->id)->pluck('id')->all();
         app(V2PointService::class)->grantFree(
             $user->id,
             1_000_000,
@@ -1027,15 +1167,19 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $drawCount = in_array($prizeCount, [1, 5, 10, 100, 1000], true)
             ? $prizeCount
             : 5;
-        app(V2DrawService::class)->create(
-            $user,
-            $fixture['gachas'][0]['public_id'],
-            $drawCount,
-            'prize-shipping-draw-'.Str::uuid(),
-            (string) Str::uuid7()
-        );
+        foreach ($fixture['gachas'] as $gacha) {
+            app(V2DrawService::class)->create(
+                $user,
+                $gacha['public_id'],
+                $drawCount,
+                'prize-shipping-draw-'.Str::uuid(),
+                (string) Str::uuid7()
+            );
+        }
+        $prizeCount *= count($fixture['gachas']);
         $ids = DB::table('user_prizes')
             ->where('user_id', $user->id)
+            ->whereNotIn('id', $existingIds)
             ->orderBy('id')
             ->limit($prizeCount)
             ->pluck('public_id')

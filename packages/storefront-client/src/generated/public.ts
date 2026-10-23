@@ -569,6 +569,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/shipping-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 現在の発送下限ポイントを取得する
+         * @description 全ガチャ・配送専用・過去の獲得景品に共通。合計は正数かつ下限以上が必要。ポイント消費は行わない。
+         */
+        get: operations["getShippingPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/shipping-requests": {
         parameters: {
             query?: never;
@@ -1985,6 +2005,27 @@ export interface components {
         };
         /** @enum {string} */
         ShippingStatus: "requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "canceled";
+        /**
+         * @description 精度を失わない10進整数文字列。景品合計は最大900719925474099100pt。
+         * @example 10000
+         */
+        ShippingPointDecimal: string;
+        ShippingPolicy: {
+            minimum_points: components["schemas"]["ShippingPointDecimal"];
+            effective_required_points: components["schemas"]["ShippingPointDecimal"];
+            revision: number;
+            /** @constant */
+            zero_total_allowed: false;
+        };
+        ShippingMinimumPointsProblem: components["schemas"]["ProblemDetails"] & {
+            /** @constant */
+            code: "SHIPPING_MINIMUM_POINTS_NOT_MET";
+            minimum_points: components["schemas"]["ShippingPointDecimal"];
+            effective_required_points: components["schemas"]["ShippingPointDecimal"];
+            selected_total_points: components["schemas"]["ShippingPointDecimal"];
+            shortfall_points: components["schemas"]["ShippingPointDecimal"];
+            setting_revision: number;
+        };
         ShippingRequestSummary: {
             id: components["schemas"]["OpaqueId"];
             status: components["schemas"]["ShippingStatus"];
@@ -2051,7 +2092,7 @@ export interface components {
         /** @description 既知のDraw拒否Code、または安全に汎用処理する未知のProblem Details。 */
         DrawProblemResponse: components["schemas"]["DrawProblemDetails"] | components["schemas"]["ProblemDetails"];
         /** @enum {string} */
-        FulfillmentProblemCode: "AUTHENTICATION_REQUIRED" | "CONCURRENT_OPERATION_RETRY_EXHAUSTED" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_FAILURE" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INVALID_EXCHANGE_REQUEST" | "INVALID_IDEMPOTENCY_KEY" | "INVALID_PRIZE_SELECTION" | "INVALID_SHIPPING_ADDRESS" | "INVALID_SHIPPING_REQUEST" | "PII_PROTECTION_UNAVAILABLE" | "PRIZE_NOT_EXCHANGEABLE" | "PRIZE_NOT_SHIPPABLE" | "PRIZE_ON_PAYMENT_HOLD" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SHIPPING_ADDRESS_NOT_FOUND" | "SHIPPING_REQUEST_NOT_FOUND" | "SMS_VERIFICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "USER_PRIZE_NOT_FOUND";
+        FulfillmentProblemCode: "AUTHENTICATION_REQUIRED" | "CONCURRENT_OPERATION_RETRY_EXHAUSTED" | "CSRF_TOKEN_MISMATCH" | "IDEMPOTENCY_FAILURE" | "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_REQUEST_IN_PROGRESS" | "INVALID_EXCHANGE_REQUEST" | "INVALID_IDEMPOTENCY_KEY" | "INVALID_PRIZE_SELECTION" | "INVALID_SHIPPING_ADDRESS" | "INVALID_SHIPPING_REQUEST" | "PII_PROTECTION_UNAVAILABLE" | "PRIZE_NOT_EXCHANGEABLE" | "PRIZE_NOT_SHIPPABLE" | "PRIZE_ON_PAYMENT_HOLD" | "RATE_LIMITED" | "SESSION_EXPIRED" | "SHIPPING_ADDRESS_NOT_FOUND" | "SHIPPING_REQUEST_NOT_FOUND" | "SHIPPING_MINIMUM_POINTS_NOT_MET" | "SHIPPING_POLICY_UNAVAILABLE" | "SMS_VERIFICATION_REQUIRED" | "UNSUPPORTED_MEDIA_TYPE" | "USER_PRIZE_NOT_FOUND";
         FulfillmentProblemDetails: components["schemas"]["ProblemDetails"] & {
             code: components["schemas"]["FulfillmentProblemCode"];
         };
@@ -3949,6 +3990,27 @@ export interface operations {
             default: components["responses"]["FulfillmentProblem"];
         };
     };
+    getShippingPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 現在の設定。欠落・破損時は503で拒否する。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPolicy"];
+                };
+            };
+            default: components["responses"]["FulfillmentProblem"];
+        };
+    };
     listShippingRequests: {
         parameters: {
             query?: {
@@ -4014,6 +4076,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description 下限未達（合計0ptを含む）、状態競合または冪等性競合。最新Policyを再取得する。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ShippingMinimumPointsProblem"] | components["schemas"]["FulfillmentProblemDetails"];
                 };
             };
             default: components["responses"]["FulfillmentProblem"];

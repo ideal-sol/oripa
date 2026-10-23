@@ -299,6 +299,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
     "apps/api/database/migrations-v2/2026_10_22_000096_enable_v2_login_gacha_conditions.php",
     "apps/api/database/migrations-v2/2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
+    "apps/api/database/migrations-v2/2026_10_23_000098_add_v2_shipping_minimum_points.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -1038,7 +1039,14 @@ INVENTORY_20261014_ADMIN_FILES = {
     "apps/admin/src/components/inventory/card-inventory.module.css",
     "apps/admin/test/card-inventory.test.tsx",
 }
+SHIPPINGMIN_ADMIN_FILES = {
+    "apps/admin/e2e/admin-shipping-minimum-points.spec.ts",
+    "apps/admin/src/app/settings/shipping-minimum-points/page.tsx",
+    "apps/admin/src/components/settings/shipping-minimum-point-settings.tsx",
+    "apps/admin/test/shipping-minimum-point-settings.test.tsx",
+}
 ADMIN_SKELETON_FILES = {
+    *SHIPPINGMIN_ADMIN_FILES,
     "apps/admin/src/components/catalog/rank-video-editor.tsx",
     "apps/admin/test/rank-video-editor.test.tsx",
     *INVENTORY_20261014_ADMIN_FILES,
@@ -2780,7 +2788,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getMyMemberRank","getMyPreRegistrationBonus","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getPreRegistrationCampaign","getShippingAddress","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMemberRanks","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","preRegisterUser","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getMyMemberRank","getMyPreRegistrationBonus","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getPreRegistrationCampaign","getShippingAddress","getShippingPolicy","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMemberRanks","listMyPayments","listPaymentCards","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","preRegisterUser","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","registerUser","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3203,6 +3211,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
         "2026_10_22_000096_enable_v2_login_gacha_conditions.php",
         "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
+        "2026_10_23_000098_add_v2_shipping_minimum_points.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

@@ -166,6 +166,8 @@ Route::prefix('v2')
         Route::delete('/me/shipping-addresses/{addressId}', [V2PrizeShippingController::class, 'deleteAddress'])
             ->whereUuid('addressId')
             ->name('v2.public.shipping-addresses.destroy');
+        Route::get('/me/shipping-policy', [V2PrizeShippingController::class, 'shippingPolicy'])
+            ->name('v2.public.shipping-policy.show');
         Route::get('/me/shipping-requests', [V2PrizeShippingController::class, 'shippingRequests'])
             ->name('v2.public.shipping-requests.index');
         Route::post('/me/shipping-requests', [V2PrizeShippingController::class, 'createShippingRequest'])
