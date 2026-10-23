@@ -4363,6 +4363,10 @@ services:
             ("dependencies", "next", "latest"),
             ("dependencies", "@tiptap/react", "3.30.4"),
             ("devDependencies", "vitest", "4.1.10"),
+            ("devDependencies", "vitest", "4.1.11"),
+            ("devDependencies", "vitest", "^4.1.12"),
+            ("devDependencies", "vite", "8.1.5"),
+            ("devDependencies", "vite", "^8.1.6"),
         ):
             with self.subTest(package=name, version=version):
                 package = {

@@ -275,6 +275,35 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
     def authorize(self, source=PAYLOAD, control=CONTROL):
         return wrapper.authorize_old_test_source(TASK_ID, "549", source, control, get=self.get)
 
+    def test_configured_approval_preserves_distinct_payload_and_control(self):
+        self.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = self.approval["source_sha"]
+        source_pr = str(self.approval["source_pr"])
+        task = self.approval["task_id"]
+        self.pull["merge_commit_sha"] = source
+        self.comparison = {
+            "status": "ahead", "merge_base_commit": {"sha": source},
+            "base_commit": {"sha": source},
+        }
+
+        def transport(path):
+            return self.get(path.replace(f"/pulls/{source_pr}", "/pulls/549"))
+
+        with mock.patch.object(wrapper, "installation_token") as credential:
+            result = wrapper.authorize_old_test_source(task, source_pr, source, CONTROL, get=transport)
+            self.assertEqual(result["source_sha"], source)
+            self.assertEqual(result["control_sha"], CONTROL)
+            self.assertNotEqual(result["source_sha"], result["control_sha"])
+            self.assertEqual(result["image_mode"], "normal")
+            self.assertIs(self.approval["activation_authorized"], False)
+            for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
+                original = self.approval[field]
+                self.approval[field] = invalid
+                with self.subTest(field=field), self.assertRaises(wrapper.WrapperError):
+                    wrapper.authorize_old_test_source(task, source_pr, source, CONTROL, get=transport)
+                self.approval[field] = original
+            credential.assert_not_called()
+
     def test_ci_injected_read_transport_does_not_use_host_credentials(self):
         transport = mock.Mock(side_effect=self.get)
         with mock.patch.object(wrapper, "installation_token") as credential, \

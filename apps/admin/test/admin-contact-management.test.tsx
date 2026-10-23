@@ -162,8 +162,10 @@ describe("Contact management", () => {
     const history = await screen.findByRole("region", { name: "対応状況履歴" });
     expect(within(history).getAllByRole("listitem").map((item) => item.querySelector("strong")?.textContent)).toEqual(["完了", "返信済み", "対応中"]);
     expect(history.querySelector("time")?.textContent).toBe("2026/08/05 12:00");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "お問い合わせ詳細・返信" })).toHaveFocus());
     const more = screen.getByRole("button", { name: "さらに表示" });
     more.focus();
+    expect(more).toHaveFocus();
     fireEvent.click(more);
     const dialog = screen.getByRole("dialog", { name: "対応状況履歴" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
