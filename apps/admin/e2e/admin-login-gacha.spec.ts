@@ -273,10 +273,11 @@ async function installApi(page: Page) {
     if (path.endsWith("/settings/gacha-notices")) return json(route, { data: { standard: { default_notices: "Standard QA notice", revision: 1 }, login: { default_notices: "Login QA notice", revision: 1 } }, request_id: rankId });
     if (path.endsWith(`/catalog/presentation-assets/${videoId}/content`)) return route.fulfill({ contentType: "video/webm", body: videoBytes });
     if (path.endsWith("/content") && path.includes("/catalog/presentation-assets/")) return route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") });
-    if (path.endsWith("/catalog/presentation-assets")) return json(route, { items: [
-      { id: imageId, media_type: "image", mime_type: "image/png", is_public: true, public_path: null, alt_text: "Image fixture" },
-      { id: videoId, media_type: "video", mime_type: "video/mp4", is_public: true, public_path: null, alt_text: "Video fixture" },
-    ], next_cursor: null });
+    if (path.endsWith("/catalog/presentation-assets")) return route.fulfill({ status: 503, contentType: "application/problem+json",
+      body: JSON.stringify({ code: "ASSET_DELIVERY_UNAVAILABLE", status: 503, request_id: rankId, retryable: true }) });
+    if (path.endsWith(`/catalog/presentation-assets/${imageId}`)) return json(route, { data: {
+      id: imageId, media_type: "image", mime_type: "image/png", is_public: true, public_path: "/synthetic-login-image.png", alt_text: "Image fixture",
+    } });
     if (path.endsWith("/catalog/gacha-thumbnails") && route.request().method() === "POST") {
       return json(route, { data: { id: imageId, media_type: "image", mime_type: "image/png", is_public: true, public_path: "/synthetic-login-image.png", alt_text: "QA thumbnail" } });
     }
@@ -319,10 +320,14 @@ async function selectThumbnail(page: Page) {
 
 for (const width of [1440, 390]) {
   for (const type of ["login", "signup"]) {
-    test(`${type} ${width}px shares standard card and upload layout without clipping or page errors`, async ({ page }, testInfo) => {
+    test(`${type} ${width}px shares standard card and upload layout without the unavailable Asset collection`, async ({ page }, testInfo) => {
       const errors: string[] = [];
+      const assetReads: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      page.on("request", (request) => {
+        if (new URL(request.url()).pathname.includes("/catalog/presentation-assets")) assetReads.push(request.url());
+      });
       await page.setViewportSize({ width, height: 900 });
       await installApi(page);
       await page.goto("/catalog/gachas/new/standard");
@@ -354,6 +359,7 @@ for (const width of [1440, 390]) {
       expect(cancel && save && (cancel.x + cancel.width <= save.x || cancel.y + cancel.height <= save.y)).toBe(true);
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: testInfo.outputPath(`${type}-${width}.png`), fullPage: true });
+      expect(assetReads).toEqual([]);
       expect(errors).toEqual([]);
     });
   }
