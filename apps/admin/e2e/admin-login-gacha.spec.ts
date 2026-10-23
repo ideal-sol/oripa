@@ -337,6 +337,7 @@ for (const width of [1440, 390]) {
       });
       const standardInput = await page.getByLabel("ガチャタイトル").evaluate((element) => getComputedStyle(element).height);
       await page.goto(`/catalog/gachas/new/${type}`);
+      await page.getByLabel("ガチャ名", { exact: true }).waitFor({ state: "visible" });
       await expect(page.getByLabel("ガチャ名", { exact: true })).toBeVisible();
       expect(await page.locator(".catalog-core-form-card").evaluate((element) => {
         const style = getComputedStyle(element);
@@ -386,6 +387,7 @@ for (const type of ["login_daily", "signup_once"]) {
       await page.goto(`/catalog/gachas/${gachaId}/copy`);
       const prize = page.locator(".catalog-prize-fieldset").first();
       const category = prize.getByRole("combobox", { name: "Banner Category", exact: true });
+      await category.waitFor({ state: "visible" });
       await expect(category).toHaveValue(bannerCategoryId);
       await expect(prize.getByRole("button", { name: "Card Banner", exact: true })).toHaveAttribute("aria-pressed", "true");
       await expect(prize.getByRole("button", { name: "No ID Banner", exact: true })).toHaveCount(0);
@@ -437,10 +439,12 @@ for (const type of ["login_daily", "signup_once"]) {
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: saved[0] ?? source }));
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: { id: rankId, public_code: gachaId, gacha_type: type,
         publication_status: "draft", first_published_at: null, revision: 1 } }));
-      await page.route("**/admin/api/v2/catalog/presentation-assets?*", (route) => json(route, { items: [
-        ...[imageId, replacementId].map((identifier) => ({ id: identifier, media_type: "image", mime_type: "image/png", is_public: true, public_path: "/synthetic-login-image.png", alt_text: "QA thumbnail" })),
-        { id: videoId, media_type: "video", mime_type: "video/mp4", is_public: true, public_path: null, alt_text: "QA video" },
-      ], next_cursor: null }));
+      await page.route("**/admin/api/v2/catalog/presentation-assets/*", (route) => {
+        const identifier = new URL(route.request().url()).pathname.split("/").at(-1)!;
+        expect([imageId, replacementId]).toContain(identifier);
+        return json(route, { data: { id: identifier, media_type: "image", mime_type: "image/png", is_public: true,
+          public_path: "/synthetic-login-image.png", alt_text: "QA thumbnail" } });
+      });
       await page.route("**/synthetic-login-image.png", (route) => route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64") }));
       await page.route("**/admin/api/v2/catalog/gacha-thumbnails", (route) => {
         uploads.push(route.request().postDataJSON() as Record<string, unknown>);
@@ -452,6 +456,7 @@ for (const type of ["login_daily", "signup_once"]) {
         return json(route, { data: { id: rankId, public_code: gachaId } });
       });
       await page.goto(`/catalog/gachas/${gachaId}/copy`);
+      await page.getByLabel(/サムネイル画像/u).waitFor({ state: "visible" });
       await expect(page.getByLabel(/サムネイル画像/u)).toBeEnabled();
       await expect(page.locator(".catalog-thumbnail-field img")).toBeVisible();
       expect(saved).toHaveLength(0);
@@ -489,13 +494,14 @@ for (const type of ["login_daily", "signup_once"]) {
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, (route) => json(route, { data: { id: rankId, public_code: gachaId, gacha_type: type,
         publication_status: status, first_published_at: status === "draft" ? null : "2026-10-01T00:00:00Z", revision: 1 } }));
       await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, (route) => json(route, { data: projection(type) }));
-      await page.route("**/catalog/presentation-assets?*", (route) => json(route, { items: [
-        { id: imageId, media_type: "image", mime_type: "image/png", is_public: true, public_path: "/synthetic-login-image.png", alt_text: "Current QA thumbnail" },
-        { id: videoId, media_type: "video", mime_type: "video/mp4", is_public: true, public_path: null, alt_text: "Video fixture" },
-      ], next_cursor: null }));
+      await page.route(`**/catalog/presentation-assets/${imageId}`, (route) => json(route, { data: {
+        id: imageId, media_type: "image", mime_type: "image/png", is_public: true,
+        public_path: "/synthetic-login-image.png", alt_text: "Current QA thumbnail",
+      } }));
       await page.route("**/synthetic-login-image.png", (route) => route.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XikAAAAASUVORK5CYII=", "base64") }));
       await page.goto(`/catalog/gachas/${gachaId}`);
       const input = page.getByLabel(/サムネイル画像/u);
+      await input.waitFor({ state: "visible" });
       await expect(page.getByRole("img", { name: "Current QA thumbnail" }).first()).toBeVisible();
       if (status === "draft") {
         await expect(input).toBeEnabled();
