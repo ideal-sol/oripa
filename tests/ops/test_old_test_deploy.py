@@ -416,20 +416,23 @@ class DeploymentTest(unittest.TestCase):
 
     def test_switch_preserves_original_chain_and_private_health_before_egress(self):
         private, egress = "old_v2_private", "old_v2_api_egress"
-        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {}, egress: {}}}
+        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {"NetworkID": "private"}, egress: {"NetworkID": "egress"}}}
         self.candidate["previous"]["api"].update(networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
-        ready = {"Image": NEW_IMAGE, "State": {"Health": {"Status": "healthy"}},
-                 "NetworkSettings": {"Networks": {private: {}, egress: {}}}}
-        private_ready = {**ready, "NetworkSettings": {"Networks": {private: {}}}}
-        observations = iter([private_ready, ready, ready])
+        ready = {"Image": NEW_IMAGE, "State": {"Running": True, "Health": {"Status": "healthy"}},
+                 "NetworkSettings": self.operation.runtime["api"]["NetworkSettings"]}
+        private_ready = {**ready, "NetworkSettings": {"Networks": {private: {"NetworkID": "private"}}}}
+        observations = iter([private_ready] * 3 + [ready] * 2)
         config = {"services": {"api": {"environment": {}}}}
         with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
-                deploy, "inspect", side_effect=lambda name: self.events.append("ready") or next(observations)):
+                deploy, "inspect", side_effect=lambda name: self.events.append("ready") or next(observations)), mock.patch.object(
+                self.operation, "api_readiness", side_effect=lambda **kwargs: self.events.append(("health", kwargs["private"])) or True):
             deploy.Deployment.switch(self.operation, "api", NEW_IMAGE)
         disconnect = ["docker", "network", "disconnect", egress, "/api"]
         connect = ["docker", "network", "connect", egress, "/api"]
         self.assertLess(self.events.index(disconnect), self.events.index("ready"))
         self.assertLess(self.events.index("ready"), self.events.index(connect))
+        self.assertLess(self.events.index(("health", True)), self.events.index(connect))
+        self.assertLess(self.events.index(connect), self.events.index(("health", False)))
         switch = next(event for event in self.events if isinstance(event, list) and "up" in event)
         self.assertEqual(switch[:4], ["docker", "compose", "-f", "/original.json"])
         self.assertIn("--no-build", switch)
@@ -457,15 +460,16 @@ class DeploymentTest(unittest.TestCase):
 
     def test_switch_checks_identity_on_every_health_poll_including_rollback(self):
         private, egress = "old_v2_private", "old_v2_api_egress"
-        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {}, egress: {}}}
+        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {"NetworkID": "private"}, egress: {"NetworkID": "egress"}}}
         self.candidate["previous"]["api"].update(
             networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
         config = {"services": {"api": {"environment": {}}}}
-        starting = {"Image": OLD_IMAGE, "State": {"Health": {"Status": "starting"}},
-                    "NetworkSettings": {"Networks": {private: {}}}}
+        starting = {"Image": OLD_IMAGE, "State": {"Running": True, "Health": {"Status": "starting"}},
+                    "NetworkSettings": {"Networks": {private: {"NetworkID": "private"}}}}
         changed = {**starting, "Image": NEW_IMAGE, "State": {"Health": {"Status": "healthy"}}}
         with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
-                deploy, "inspect", side_effect=[starting, changed]), mock.patch.object(deploy.time, "sleep"), self.assertRaisesRegex(
+                deploy, "inspect", side_effect=[starting, starting, changed]), mock.patch.object(
+                self.operation, "api_readiness", return_value=False), mock.patch.object(deploy.time, "sleep"), self.assertRaisesRegex(
                 deploy.Hold, "loaded_image_mismatch"):
             deploy.Deployment.switch(self.operation, "api", OLD_IMAGE)
         self.assertNotIn(["docker", "network", "connect", egress, "/api"], self.events)
@@ -478,6 +482,17 @@ class DeploymentTest(unittest.TestCase):
                 self.operation, "guard", side_effect=deploy.Hold("canonical_guard_failed")):
             with self.assertRaises(deploy.Hold):
                 self.operation.rollback(deploy.identity(self.candidate))
+        self.assertEqual(self.events, [])
+
+    def test_migration_97_or_98_cannot_opt_into_old_writer_rollback(self):
+        for name in ("2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
+                     "2026_10_23_000098_add_v2_shipping_minimum_points.php"):
+            self.candidate["migrations"] = [name]
+            self.candidate["rollback_schema_compatible"] = True
+            self.candidate["state"].update(phase="complete", migration_attempted=True, schema_verified=True)
+            with self.assertRaisesRegex(deploy.Hold, "forward_only_recovery_required"):
+                self.operation.rollback(deploy.identity(self.candidate))
+            self.command.assert_not_called()
         self.assertEqual(self.events, [])
 
     def test_candidate_cannot_be_written_inside_another_repository(self):
@@ -814,6 +829,98 @@ class GitMigrationRegressionTest(unittest.TestCase):
                 changed.write_bytes(changed.read_bytes() + b"\n")
                 with self.assertRaisesRegex(deploy.Hold, "guard_source_modified"):
                     deploy.migration_files(checkout, revision)
+
+
+class ReadinessTest(unittest.TestCase):
+    def setUp(self):
+        self.operation = deploy.Deployment({}, Path("/unused.json"))
+        self.operation.runtime = {"api": {"Name": "selected-api", "Config": {"Env": ["FILESYSTEM_DISK=s3"]},
+            "NetworkSettings": {"Networks": {"private": {"NetworkID": "private-id"}, "egress": {"NetworkID": "egress-id"}}}}}
+        self.body = {"app": "ok", "db": "ok", "redis": "ok", "storage": "error", "timestamp": "2026-10-23T12:00:00+00:00"}
+
+    def response(self, status=503):
+        return json.dumps(self.body).encode() + b"\n" + str(status).encode()
+
+    def test_private_accepts_only_known_storage_failure_and_full_health_requires_all_ok(self):
+        with mock.patch.object(deploy, "run", return_value=self.response()) as command:
+            self.assertTrue(self.operation.api_readiness(private=True))
+            with self.assertRaisesRegex(deploy.Hold, "full_health_required"):
+                self.operation.api_readiness(private=False)
+        args = command.call_args.args[0]
+        self.assertEqual(args[:5], ["docker", "exec", "selected-api", "sh", "-c"])
+        self.assertIn("--max-time 30", args[-1])
+        self.assertNotIn("--location", args[-1])
+        self.body["storage"] = "ok"
+        with mock.patch.object(deploy, "run", return_value=self.response(200)):
+            self.assertTrue(self.operation.api_readiness(private=False))
+
+    def test_app_db_redis_failures_hold_even_with_http_200(self):
+        for field in ("app", "db", "redis"):
+            for status in (200, 503):
+                with self.subTest(field=field, status=status):
+                    self.body[field] = "error"
+                    with mock.patch.object(deploy, "run", return_value=self.response(status)), self.assertRaises(deploy.Hold):
+                        self.operation.api_readiness(private=True)
+                    self.body[field] = "ok"
+
+    def test_unknown_status_body_and_storage_result_hold(self):
+        cases = [b"200", b"<html>error</html>\n503", b"{}\n200", self.response(500), self.response(200),
+                 self.response(302), b"x" * 16389]
+        self.body["storage"] = "ok"
+        cases.append(self.response(503))
+        self.body["storage"] = "unknown"
+        cases.append(self.response())
+        self.body["timestamp"] = "unknown"
+        cases.append(self.response())
+        for raw in cases:
+            with self.subTest(raw=raw[:60]), mock.patch.object(deploy, "run", return_value=raw), self.assertRaises(deploy.Hold):
+                self.operation.api_readiness(private=True)
+
+    def test_duplicate_fields_missing_timestamp_extra_fields_hold(self):
+        raw = self.response().replace(b'"app": "ok"', b'"app": "error", "app": "ok"')
+        cases = [raw]
+        del self.body["timestamp"]
+        cases.append(self.response())
+        self.body.update(timestamp="2026-10-23T12:00:00", unexpected="ok")
+        cases.append(self.response())
+        del self.body["unexpected"]
+        cases.append(self.response())
+        for raw in cases:
+            with mock.patch.object(deploy, "run", return_value=raw), self.assertRaises(deploy.Hold):
+                self.operation.api_readiness(private=True)
+
+    def test_storage_failure_on_other_disk_is_not_private_exception(self):
+        self.operation.runtime["api"]["Config"]["Env"] = ["FILESYSTEM_DISK=local"]
+        with mock.patch.object(deploy, "run", return_value=self.response()), self.assertRaises(deploy.Hold):
+            self.operation.api_readiness(private=True)
+
+    def test_connection_refused_only_retries_and_transport_errors_hold(self):
+        with mock.patch.object(deploy, "run", return_value=b"\n000"):
+            self.assertFalse(self.operation.api_readiness(private=True))
+        with mock.patch.object(deploy, "run", side_effect=deploy.Hold("command_failed")), self.assertRaises(deploy.Hold):
+            self.operation.api_readiness(private=True)
+
+    def test_network_id_and_image_drift_during_http_hold_before_acceptance(self):
+        original = {"Image": NEW_IMAGE, "State": {"Running": True, "Health": {"Status": "starting"}},
+                    "NetworkSettings": {"Networks": {"private": {"NetworkID": "private-id"}}}}
+        for changed in ({**original, "Image": OLD_IMAGE}, {**original,
+                        "NetworkSettings": {"Networks": {"private": {"NetworkID": "replacement"}}}}):
+            with mock.patch.object(deploy, "inspect", side_effect=[original, changed]), mock.patch.object(
+                    deploy, "run", return_value=self.response()), self.assertRaises(deploy.Hold):
+                self.operation.readiness("api", NEW_IMAGE, ["private"], private=True)
+
+    def test_full_readiness_waits_for_docker_health_and_rejects_s3_failure(self):
+        observed = {"Image": NEW_IMAGE, "State": {"Running": True, "Health": {"Status": "starting"}},
+                    "NetworkSettings": self.operation.runtime["api"]["NetworkSettings"]}
+        self.body["storage"] = "ok"
+        with mock.patch.object(deploy, "inspect", return_value=observed), mock.patch.object(deploy, "run", return_value=self.response(200)):
+            self.assertFalse(self.operation.readiness("api", NEW_IMAGE, ["private", "egress"]))
+            observed["State"]["Health"]["Status"] = "healthy"
+            self.assertTrue(self.operation.readiness("api", NEW_IMAGE, ["private", "egress"]))
+        self.body["storage"] = "error"
+        with mock.patch.object(deploy, "inspect", return_value=observed), mock.patch.object(
+                deploy, "run", return_value=self.response()), self.assertRaises(deploy.Hold):
+            self.operation.readiness("api", NEW_IMAGE, ["private", "egress"])
 
 
 if __name__ == "__main__":
