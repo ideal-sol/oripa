@@ -4748,5 +4748,29 @@ services:
                 policy_gate.validate_legacy_frontend_layout(root, paths)
 
 
+class MemberRankActivationTaskIdTest(unittest.TestCase):
+    def test_activation_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "MEMBERRANK-ACTIVATION"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), task_id,
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", task_id + "-20261022", "X-" + task_id, "MEMBERRANK-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(
+                    data["pr_body"].replace("GOV-008", invalid), invalid,
+                    data["changed_paths"], data["base_sha"],
+                )
+
+    def test_activation_task_id_requires_matching_title(self):
+        data = fixture("positive.json")
+        with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID is invalid or absent"):
+            policy_gate.validate_pr_body(
+                data["pr_body"].replace("GOV-008", "MEMBERRANK-ACTIVATION"), "Unrelated change",
+                data["changed_paths"], data["base_sha"],
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

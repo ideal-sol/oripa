@@ -97,6 +97,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.external_identity_account_histories",
     "public.external_identity_accounts",
     "public.external_identity_transactions",
+    "public.financial_admission_generations",
     "public.fincode_card_registration_intents",
     "public.fincode_cards",
     "public.fincode_customers",
@@ -119,6 +120,9 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.member_rank_monthly_jobs",
     "public.member_rank_payment_adjustments",
     "public.member_rank_point_entries",
+    "public.member_rank_prelaunch_authorizations",
+    "public.member_rank_prelaunch_excluded_origins",
+    "public.member_rank_prelaunch_runs",
     "public.member_rank_purchase_bonuses",
     "public.member_rank_setting_values",
     "public.member_rank_setting_versions",
@@ -564,6 +568,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php": "Prelaunch activation authority requires a forward-only migration.",
         "2026_10_22_000096_enable_v2_login_gacha_conditions.php": "Login Gacha eligibility requires a forward-only correction.",
         "2026_10_22_000095_add_v2_gacha_purchase_conditions.php": "Gacha purchase conditions and Draw snapshots are forward-only.",
         "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php": "Member rank payment adjustments require a forward-only migration.",

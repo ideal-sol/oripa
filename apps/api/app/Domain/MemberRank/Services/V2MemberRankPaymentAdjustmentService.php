@@ -28,12 +28,17 @@ final class V2MemberRankPaymentAdjustmentService
         $user = DB::table('users')->where('id', $payment->user_id)->firstOrFail();
         $state = DB::table('member_rank_states')->where('user_id', $payment->user_id)->first();
         $grantedAt = CarbonImmutable::parse($grant->granted_at)->utc();
+        $eligible = app(V2MemberRankPaymentOriginPolicy::class)->eligible((int) $payment->id);
+        if ($eligible === false && ($entry !== null
+            || DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->exists())) {
+            throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
+        }
         if ($entry !== null && (! $setting->enabled || $state === null || $state->frozen_at !== null
             || in_array($user->state, ['closed', 'anonymized'], true))) {
             throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
         }
-        if ($entry === null && (($setting->enabled && $setting->activated_at !== null
-                && $grantedAt->greaterThanOrEqualTo(CarbonImmutable::parse($setting->activated_at)->setTimezone('Asia/Tokyo')->startOfMonth()))
+        if ($entry === null && (($setting->enabled && $setting->activated_at !== null && ($eligible === true
+                || ($eligible === null && $grantedAt->greaterThanOrEqualTo(CarbonImmutable::parse($setting->activated_at)->setTimezone('Asia/Tokyo')->startOfMonth()))))
             || DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->where('bonus_amount', '>', 0)->exists())) {
             throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
         }

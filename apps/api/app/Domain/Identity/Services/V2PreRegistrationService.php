@@ -259,6 +259,7 @@ final class V2PreRegistrationService
     {
         try {
             DB::transaction(function () use ($context, $userId): void {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
                 $this->authorization->authorizePermission($context, V2Permission::ManagePreRegistrationSettings);
                 $user = User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
                 $target = DB::table('pre_registration_targets')->where('user_id', $userId)->lockForUpdate()->firstOrFail();

@@ -36,10 +36,15 @@ final class V2MemberRankPurchaseBonusService
         if (! $setting->enabled) {
             return;
         }
+        $eligible = app(V2MemberRankPaymentOriginPolicy::class)->eligible($paymentId);
+        if ($eligible === false) {
+            return;
+        }
         $payment = DB::table('payments')->where('id', $paymentId)->firstOrFail();
         $grant = DB::table('payment_point_grants')->where('payment_id', $paymentId)->firstOrFail();
         $instant = CarbonImmutable::parse($grant->granted_at)->utc();
-        if ($payment->status !== 'succeeded' || $instant->lessThan(CarbonImmutable::parse($setting->activated_at))) {
+        if ($payment->status !== 'succeeded'
+            || ($eligible === null && $instant->lessThan(CarbonImmutable::parse($setting->activated_at)))) {
             throw new \LogicException('Member rank purchase requires a current succeeded payment grant.');
         }
         if (DB::table('member_rank_purchase_bonuses')->where('payment_id', $paymentId)->exists()) {

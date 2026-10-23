@@ -27,6 +27,7 @@ const operations = {
   adjustAdminUserMemberRankPoints: ["post", "/users/{user_id}/member-rank-point-adjustments"],
   getAdminMemberRankSettings: ["get", "/settings/member-ranks"],
   updateAdminMemberRankSettings: ["put", "/settings/member-ranks"],
+  activateAdminMemberRankPrelaunch: ["post", "/settings/member-ranks/prelaunch-activation"],
   cancelAdminMemberRankSettings: ["delete", "/settings/member-ranks/scheduled"],
   listAdminMemberRankSettingsRevisions: ["get", "/settings/member-ranks/revisions"],
   getAdminPreRegistration: ["get", "/settings/pre-registration"],
@@ -586,6 +587,8 @@ const requiredSchemas = [
   "AdminMemberRankSettingsVersion",
   "AdminMemberRankSettings",
   "AdminMemberRankSettingsUpdate",
+  "AdminMemberRankPrelaunchActivationRequest",
+  "AdminMemberRankPrelaunchActivationResponse",
   "AdminMemberRankSettingsCancel",
   "AdminMemberRankSettingsResponse",
   "AdminMemberRankSettingsMutation",
@@ -746,7 +749,10 @@ if (
 
 const sha256 = createHash("sha256").update(source).digest("hex");
 function memberRankSchemaType(schema) {
-  if (schema.$ref) return schema.$ref.split("/").at(-1);
+  if (schema.$ref) {
+    const name = schema.$ref.split("/").at(-1);
+    return name === "OpaqueId" ? "string" : name;
+  }
   if (schema.oneOf) return schema.oneOf.map(memberRankSchemaType).join(" | ");
   if (schema.const !== undefined) return JSON.stringify(schema.const);
   if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(" | ");

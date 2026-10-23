@@ -33,6 +33,10 @@ final class V2MemberRankAccountingService
         if (! $setting->enabled) {
             return;
         }
+        $eligible = app(V2MemberRankPaymentOriginPolicy::class)->eligible($paymentId);
+        if ($eligible === false) {
+            return;
+        }
         $payment = DB::table('payments')->where('id', $paymentId)->lockForUpdate()->firstOrFail();
         $this->lockUserIfEnabled((int) $payment->user_id);
         if (DB::table('users')->where('id', $payment->user_id)->whereIn('state', ['closed', 'anonymized'])->exists()) {
@@ -52,7 +56,7 @@ final class V2MemberRankAccountingService
         $grantedAt = CarbonImmutable::parse($grant->granted_at);
         $monthStart = $grantedAt->setTimezone('Asia/Tokyo')->startOfMonth();
         $activationMonth = CarbonImmutable::parse($setting->activated_at)->setTimezone('Asia/Tokyo')->startOfMonth();
-        if ($monthStart->lessThan($activationMonth)) {
+        if ($eligible === null && $monthStart->lessThan($activationMonth)) {
             return;
         }
         $month = $monthStart->toDateString();

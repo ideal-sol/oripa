@@ -170,6 +170,7 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.preview');
         Route::get('/settings/member-ranks', [V2AdminMemberRankSettingsController::class, 'show']);
         Route::put('/settings/member-ranks', [V2AdminMemberRankSettingsController::class, 'update']);
+        Route::post('/settings/member-ranks/prelaunch-activation', [V2AdminMemberRankSettingsController::class, 'activatePrelaunch']);
         Route::delete('/settings/member-ranks/scheduled', [V2AdminMemberRankSettingsController::class, 'cancel']);
         Route::get('/settings/member-ranks/revisions', [V2AdminMemberRankSettingsController::class, 'history']);
         Route::get('/settings/referral-points', [V2AdminReferralPointSettingController::class, 'show'])

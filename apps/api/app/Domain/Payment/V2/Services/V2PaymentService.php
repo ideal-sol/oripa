@@ -398,6 +398,8 @@ final class V2PaymentService
                 ]);
             }
             if ($payment->status === $status) {
+                $this->completeProviderReplay($event->id);
+
                 return DB::table('payments')->where('id', $payment->id)->firstOrFail();
             }
             if (! in_array($status, self::PAYMENT_TRANSITIONS[$payment->status] ?? [], true)) {
@@ -453,6 +455,8 @@ final class V2PaymentService
             $existing = DB::table('payment_point_grants')
                 ->where('payment_id', $payment->id)->first();
             if ($existing !== null) {
+                $this->completeProviderReplay($event->id);
+
                 return $existing;
             }
             if (in_array($payment->status, self::TERMINAL_PAYMENT_STATUSES, true)) {
@@ -1377,6 +1381,16 @@ final class V2PaymentService
             'occurred_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             'created_at' => V2DatabaseTimestamp::format(now()),
         ]);
+    }
+
+    private function completeProviderReplay(int $eventId): void
+    {
+        $latest = DB::table('payment_provider_event_attempts')
+            ->where('payment_provider_event_id', $eventId)
+            ->orderByDesc('attempt_no')->first();
+        if ($latest?->outcome !== 'success' || $latest?->completed_at === null) {
+            $this->providerAttempt($eventId, 'success');
+        }
     }
 
     private function providerAttempt(int $eventId, string $outcome): void

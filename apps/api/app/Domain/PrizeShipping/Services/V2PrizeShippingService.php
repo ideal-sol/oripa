@@ -1552,7 +1552,7 @@ final class V2PrizeShippingService
     private function transaction(callable $callback): mixed
     {
         try {
-            return DB::transaction($callback, 3);
+            return app(\App\Domain\Point\Services\V2PointTransactionRunner::class)->run($callback);
         } catch (V2PrizeShippingException $exception) {
             throw $exception;
         } catch (QueryException $exception) {
