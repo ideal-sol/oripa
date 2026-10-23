@@ -155,3 +155,11 @@ screen and role/save behavior separately. Keep the attempted failure above as
 evidence. CI gate code, CSP and assertions are unchanged. Remaining Backend/DB,
 Admin Unit/build and final-head Required Checks still determine Source HOLD.
 Fresh review cannot replace those gates. Retain Draft until separate Human GO.
+
+Hosted CI subsequently reached the disposable DB migration phase. A repeated
+migrate:fresh initially failed because PostgreSQL retains trigger functions
+when dropping tables. New migration000098 now uses CREATE OR REPLACE FUNCTION,
+consistent with repeatable fresh-schema verification; snapshot immutability and
+forward-only rejection remain intact. This is an isolated CI application, not
+an OLD Test/Production migration. Final-head CI results in PR608 supersede the
+initial local NOT RUN statuses only for checks actually completed there.

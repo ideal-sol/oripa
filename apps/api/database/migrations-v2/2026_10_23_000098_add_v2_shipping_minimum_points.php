@@ -31,7 +31,7 @@ return new class extends Migration
                         AND selected_point_total_snapshot >= applied_minimum_points_snapshot
                         AND applied_setting_revision BETWEEN 1 AND 9007199254740991)
                 );
-            CREATE FUNCTION v2_shipping_minimum_snapshot_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION v2_shipping_minimum_snapshot_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 IF NEW.selected_point_total_snapshot IS DISTINCT FROM OLD.selected_point_total_snapshot
                     OR NEW.applied_minimum_points_snapshot IS DISTINCT FROM OLD.applied_minimum_points_snapshot
