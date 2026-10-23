@@ -1019,7 +1019,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('minimumCases')]
     public function test_shipping_minimum_is_atomic_and_integer_safe(int $points, int $count, int $minimum, bool $only, bool $allowed): void
     {
-        [$user, $ids] = $this->fixture($count, $points, $only);
+        [$user, $ids] = $this->fixture($count, $points, $only, uniformPoints: true);
         DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => $minimum, 'revision' => 2]);
         $service = app(V2PrizeShippingService::class);
         $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
@@ -1077,9 +1077,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
 
     public function test_mixed_zero_and_shipping_only_prizes_from_different_gachas_ship_together(): void
     {
-        [$user, $zeroIds] = $this->fixture(1, 0);
-        [, $positiveIds] = $this->fixture(1, 8000, true, $user);
-        $ids = [...$zeroIds, ...$positiveIds];
+        [$user, $ids] = $this->fixture(1, 0, mixedGachas: true);
         self::assertSame(2, DB::table('user_prizes')
             ->join('catalog_gacha_version_prizes as p', 'p.id', '=', 'user_prizes.gacha_version_prize_id')
             ->join('catalog_gacha_versions as v', 'v.id', '=', 'p.gacha_version_id')
@@ -1105,22 +1103,13 @@ final class PrizeShippingVerticalSliceTest extends TestCase
     }
 
     /** @return array{User, list<string>} */
-    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, ?User $existingUser = null): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
             true,
             flags: JSON_THROW_ON_ERROR
         );
-        if ($existingUser !== null) {
-            array_walk_recursive($fixture, static function (&$value): void {
-                if (is_string($value)) $value = str_replace(
-                    ['0198a001', 'fixture', 'cards', 'featured', 'Ab3Def7Gh9J'],
-                    ['0198a002', 'secondfixture', 'secondcards', 'secondfeatured', 'Bc4Efg8Hi0K'],
-                    $value
-                );
-            });
-        }
         $fixture['gachas'][0]['sold_count'] = 0;
         $inventoryTotal = max(1000, $prizeCount + 10);
         $fixture['versions'][0]['total_count'] = $inventoryTotal;
@@ -1133,8 +1122,35 @@ final class PrizeShippingVerticalSliceTest extends TestCase
                 : $inventoryTotal - intdiv($inventoryTotal, 10);
         }
         unset($relation);
+        if ($uniformPoints) {
+            foreach ($fixture['prizes'] as &$prize) {
+                $prize['exchange_points'] = $exchangePoints;
+                $prize['shipping_only'] = $shippingOnly;
+            }
+            unset($prize);
+        }
+        if ($mixedGachas) {
+            $second = $fixture;
+            array_walk_recursive($second, static function (&$value): void {
+                if (is_string($value)) $value = str_replace(
+                    ['0198a001', 'fixture', 'cards', 'featured', 'Ab3Def7Gh9J'],
+                    ['0198a002', 'secondfixture', 'secondcards', 'secondfeatured', 'Bc4Efg8Hi0K'],
+                    $value
+                );
+            });
+            foreach ($second['prizes'] as &$prize) {
+                $prize['exchange_points'] = 8000;
+                $prize['shipping_only'] = true;
+            }
+            unset($prize);
+            foreach ($second as $section => $records) {
+                if (is_array($records)) $fixture[$section] = [...$fixture[$section], ...$records];
+            }
+            $fixture['expected_record_count'] *= 2;
+        }
+        // Import both gachas once: the importer initializes every rank master.
         app(V2CatalogFixtureImporter::class)->import($fixture);
-        $user = $existingUser ?? $this->user();
+        $user = $this->user();
         $existingIds = DB::table('user_prizes')->where('user_id', $user->id)->pluck('id')->all();
         app(V2PointService::class)->grantFree(
             $user->id,
@@ -1151,13 +1167,16 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $drawCount = in_array($prizeCount, [1, 5, 10, 100, 1000], true)
             ? $prizeCount
             : 5;
-        app(V2DrawService::class)->create(
-            $user,
-            $fixture['gachas'][0]['public_id'],
-            $drawCount,
-            'prize-shipping-draw-'.Str::uuid(),
-            (string) Str::uuid7()
-        );
+        foreach ($fixture['gachas'] as $gacha) {
+            app(V2DrawService::class)->create(
+                $user,
+                $gacha['public_id'],
+                $drawCount,
+                'prize-shipping-draw-'.Str::uuid(),
+                (string) Str::uuid7()
+            );
+        }
+        $prizeCount *= count($fixture['gachas']);
         $ids = DB::table('user_prizes')
             ->where('user_id', $user->id)
             ->whereNotIn('id', $existingIds)

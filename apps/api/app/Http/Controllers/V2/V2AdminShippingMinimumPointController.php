@@ -33,10 +33,26 @@ final class V2AdminShippingMinimumPointController
             ...$this->settings->update(
                 $context,
                 (string) $request->header('Idempotency-Key', ''),
-                $request->json()->all()
+                $this->input($request)
             ),
             'request_id' => $context->requestId,
         ], true);
+    }
+
+    private function input(Request $request): array
+    {
+        // Preserve the contract's canonical decimal grammar before Laravel's
+        // generic TrimStrings/ConvertEmptyStringsToNull normalization.
+        try {
+            $input = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new V2PrizeShippingException('SHIPPING_SETTING_INVALID', 422, 'The shipping setting is invalid.');
+        }
+        if (! is_array($input)) {
+            throw new V2PrizeShippingException('SHIPPING_SETTING_INVALID', 422, 'The shipping setting is invalid.');
+        }
+
+        return $input;
     }
 
     /** @param callable(\App\Domain\Identity\Contracts\V2AdminAuthorizationContext): array<string, mixed> $callback */
