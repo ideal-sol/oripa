@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import GachaCreatePage from "@/app/catalog/gachas/new/page";
 import { LoginGachaWorkspace } from "@/components/catalog/login-gacha-workspace";
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminCatalogGacha, AdminCatalogGachaCoreVersion, AdminCatalogGachaVersion, AdminCatalogPresentationAsset, AdminGachaType, AdminGachaVersionPrize, AdminManagedBanner } from "@/lib/admin-api/generated";
 import { drawStateCountLabel, emptyGachaComposition, fixedPercentageScale, jstInput, jstTimestamp, percentageTotal, percentageUnits, standardCoreVersion, standardGachaVersion } from "@/lib/catalog/login-gacha";
 
@@ -354,8 +354,89 @@ function thumbnailFixture(type: AdminGachaType, status: "draft" | "published" | 
   const upload = vi.spyOn(AdminApiClient.prototype, "uploadGachaThumbnail").mockResolvedValue({ data: { ...thumbnail, id: "uploaded-thumbnail" }, idempotent_replay: false });
   const create = vi.spyOn(AdminApiClient.prototype, "createGachaComposition").mockRejectedValue(new Error("QA save boundary"));
   const update = vi.spyOn(AdminApiClient.prototype, "updateGachaComposition").mockRejectedValue(new Error("QA save boundary"));
-  return { upload, create, update };
+  return { upload, create, update, gacha };
 }
+
+describe.each(["login_daily", "signup_once"] as const)("%s without the Presentation Asset collection", (type) => {
+  it("opens and saves a new form with an uploaded thumbnail and an external-ID Banner while the collection is unavailable", async () => {
+    const { upload, create, gacha } = thumbnailFixture(type);
+    const unavailable = new AdminApiError(503, "ASSET_DELIVERY_UNAVAILABLE", "synthetic-request", null, true);
+    const list = vi.mocked(AdminApiClient.prototype.listCatalogPresentationAssets).mockRejectedValue(unavailable);
+    const read = vi.mocked(AdminApiClient.prototype.getCatalogPresentationAsset).mockRejectedValue(unavailable);
+    create.mockResolvedValue({ data: gacha, idempotent_replay: false });
+    vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [{ id: "cards", name: "Cards" }] });
+    vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
+      { ...prizeBanner("cards", "missing"), external_id: null }, prizeBanner("cards", "chosen"),
+    ], next_cursor: null });
+
+    render(<LoginGachaWorkspace type={type} />);
+    fireEvent.change(await screen.findByLabelText("ガチャ名"), { target: { value: "New gacha" } });
+    expect(screen.getByRole("img", { name: "Previewなし" })).toBeVisible();
+    expect(list).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/サムネイル画像/u), { target: {
+      files: [new File(["synthetic-image"], "qa.png", { type: "image/png" })],
+    } });
+    expect(await screen.findByAltText("選択したサムネイルのPreview")).toHaveAttribute("src", "data:image/png;base64,c3ludGhldGljLWltYWdl");
+    fireEvent.change(screen.getByLabelText("公開開始日時（JST）"), { target: { value: "2026-10-23T12:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "景品を追加" }));
+    fireEvent.change(screen.getByLabelText("景品名"), { target: { value: "Banner prize" } });
+    fireEvent.change(screen.getByLabelText("固定当選確率（%・小数10桁まで）"), { target: { value: "100.0000000000" } });
+    await screen.findByRole("option", { name: "Cards" });
+    fireEvent.change(screen.getByLabelText("Banner Category"), { target: { value: "cards" } });
+    const banner = await screen.findByRole("button", { name: "Banner chosen" });
+    expect(banner.querySelector("img")).toHaveAttribute("src", "/qa-banner.png");
+    expect(screen.queryByRole("button", { name: "Banner missing" })).not.toBeInTheDocument();
+    fireEvent.click(banner);
+    expect(screen.getByLabelText("管理ID")).toHaveValue("CARD-chosen");
+    expect(banner).toHaveAttribute("aria-pressed", "true");
+    fireEvent.submit(screen.getByRole("button", { name: "構成を一括保存" }).closest("form")!);
+
+    await waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      gacha_type: type, title: "New gacha", presentation_asset_id: "uploaded-thumbnail",
+      prizes: [expect.objectContaining({ name: "Banner prize", external_id: "CARD-chosen", presentation_asset_id: "chosen", percentage: "100.0000000000" })],
+    }), expect.any(String));
+    expect(upload).toHaveBeenCalledOnce();
+    expect(list).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("reads only the existing thumbnail for copy=%s without resolving unrelated prize or video Assets", async (copy) => {
+    thumbnailFixture(type, copy ? "published" : "draft", copy);
+    const unavailable = new AdminApiError(503, "ASSET_DELIVERY_UNAVAILABLE", "synthetic-request", null, true);
+    const list = vi.mocked(AdminApiClient.prototype.listCatalogPresentationAssets).mockRejectedValue(unavailable);
+    const read = vi.mocked(AdminApiClient.prototype.getCatalogPresentationAsset).mockImplementation(async (identifier) => {
+      if (identifier !== thumbnail.id) throw unavailable;
+      return { data: thumbnail };
+    });
+    const composition = await vi.mocked(AdminApiClient.prototype.getGachaComposition)("source", copy);
+    composition.data.prizes[0].presentation_asset_id = "unrelated-prize";
+    composition.data.ranks = [{ rank_id: "rank", rank_revision_number: 1, video_asset_id: "unrelated-video" }];
+
+    render(<LoginGachaWorkspace type={type} sourceId="source" copy={copy} />);
+    expect(await screen.findByLabelText("ガチャ名")).toHaveValue("QA thumbnail");
+    expect(screen.getByAltText("現在のサムネイル")).toHaveAttribute("src", thumbnail.public_path);
+    expect(screen.getByLabelText(/サムネイル画像/u)).toBeEnabled();
+    expect(read).toHaveBeenCalledExactlyOnceWith(thumbnail.id, expect.any(AbortSignal));
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("keeps a required thumbnail delivery failure visible and retries the same reference", async () => {
+    thumbnailFixture(type);
+    const read = vi.mocked(AdminApiClient.prototype.getCatalogPresentationAsset).mockRejectedValueOnce(
+      new AdminApiError(503, "ASSET_DELIVERY_UNAVAILABLE", "synthetic-request", null, true),
+    );
+    render(<LoginGachaWorkspace type={type} sourceId="source" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("操作を完了できませんでした");
+    expect(screen.queryByLabelText("ガチャ名")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "再試行" }));
+    expect(await screen.findByLabelText("ガチャ名")).toHaveValue("QA thumbnail");
+    expect(screen.getByAltText("現在のサムネイル")).toHaveAttribute("src", thumbnail.public_path);
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(AdminApiClient.prototype.listCatalogPresentationAssets).not.toHaveBeenCalled();
+  });
+});
 
 describe.each(["login_daily", "signup_once"] as const)("%s shared thumbnail form", (type) => {
   it("uses the standard white card, fields and upload input with an empty preview on create", async () => {

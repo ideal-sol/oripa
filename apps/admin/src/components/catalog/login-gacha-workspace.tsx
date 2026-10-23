@@ -63,9 +63,8 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
-      const [rankResponse, assetResponse, categoryResponse, tagResponse] = await Promise.all([
+      const [rankResponse, categoryResponse, tagResponse] = await Promise.all([
         client.listCatalogRanks({ limit: 100, status: "active" }, controller.signal),
-        client.listCatalogPresentationAssets({ limit: 100, archive: "active" }, controller.signal),
         client.listCatalogCategories({ limit: 100, archive: "active" }, controller.signal),
         client.listCatalogTags({ limit: 100, archive: "active" }, controller.signal),
       ]);
@@ -118,8 +117,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
       }
       const [selectedRanks, selectedAssets, selectedCategories, selectedTags] = await Promise.all([
         includeReferences(rankResponse.items, nextDraft.ranks.map((rank) => rank.rank_id), (identifier) => client.getCatalogRank(identifier, controller.signal)),
-        includeReferences(assetResponse.items, [nextDraft.presentation_asset_id, ...nextDraft.prizes.map((prize) => prize.presentation_asset_id),
-          ...nextDraft.ranks.map((rank) => rank.video_asset_id)].filter((identifier): identifier is string => !!identifier),
+        includeReferences<AdminCatalogPresentationAsset>([], nextDraft.presentation_asset_id ? [nextDraft.presentation_asset_id] : [],
         (identifier) => client.getCatalogPresentationAsset(identifier, controller.signal)),
         includeReferences(categoryResponse.items, nextDraft.category_id ? [nextDraft.category_id] : [], (identifier) => client.getCatalogCategory(identifier, controller.signal)),
         includeReferences(tagResponse.items, nextDraft.tag_ids, (identifier) => client.getCatalogTag(identifier, controller.signal)),
