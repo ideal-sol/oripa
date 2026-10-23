@@ -3,13 +3,9 @@
 namespace Tests\V2;
 
 use App\Domain\Identity\Enums\V2AdminRole;
-use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
-use App\Domain\Referral\Services\V2ReferralRewardService;
 use App\Models\V2\Admin;
-use App\Models\V2\ReferralPointSetting;
-use App\Models\V2\User;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
@@ -91,7 +87,7 @@ final class ShippingMinimumPointSettingsTest extends TestCase
         $this->asAdmin($token)->getJson($path)->assertStatus(503)->assertJsonPath('code', 'SHIPPING_POLICY_UNAVAILABLE');
     }
 
-    public function test_database_constraints_reject_invalid_setting_and_snapshot_mutations(): void
+    public function test_database_constraints_reject_invalid_setting_mutations(): void
     {
         foreach ([['minimum_points' => -1], ['minimum_points' => 9007199254740992], ['revision' => 0], ['id' => 2]] as $values) {
             DB::beginTransaction();
@@ -111,12 +107,12 @@ final class ShippingMinimumPointSettingsTest extends TestCase
 
     private function adminSession(V2AdminRole $role): string
     {
-        $email = 'referral-'.$role->value.'-'.Str::uuid7().'@example.test';
+        $email = 'shipping-minimum-'.$role->value.'-'.Str::uuid7().'@example.test';
         $admin = Admin::query()->create([
             'email_display' => $email,
             'email_normalized' => $email,
             'email_verified_at' => now(),
-            'password_hash' => app(V2PasswordPolicy::class)->hash('valid referral admin password'),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid shipping admin password'),
             'role' => $role,
             'state' => 'active',
         ]);

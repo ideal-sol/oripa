@@ -61,9 +61,9 @@ class MemberRankPublicContractTest(unittest.TestCase):
     def test_candidate_operation_inventory_and_public_disclosure(self):
         operations = [operation['operationId'] for path in self.contract['paths'].values()
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
-        self.assertEqual(len(operations), 83)
+        self.assertEqual(len(operations), 84)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertEqual(ledger['candidate']['public_api_operation_count'], 83)
+        self.assertEqual(ledger['candidate']['public_api_operation_count'], 84)
         self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.45')
         self.assertEqual(len(ledger['immutable_history']), 25)
         self.assertEqual(set(self.schemas['MemberRankPublicSetting']['properties']), {

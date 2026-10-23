@@ -1015,9 +1015,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 83件である", () => {
+test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 84件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 83);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 84);
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -1052,6 +1052,7 @@ test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 83件であ�
     "getPaymentCardUiBootstrap",
     "getPreRegistrationCampaign",
     "getShippingAddress",
+    "getShippingPolicy",
     "getShippingRequest",
     "getSmsVerificationStatus",
     "getUserPrize",
@@ -1294,6 +1295,8 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_SMS_VERIFICATION_FIXTURES",
     "PUBLIC_TOP_BANNERS_FIXTURE",
     "PUBLIC_USER_PRIZE_FIXTURE",
+    "SHIPPING_MINIMUM_PROBLEM_FIXTURE",
+    "SHIPPING_POLICY_FIXTURES",
     "TestkitAssertionError",
     "TestkitNetworkError",
     "UnexpectedMockRequestError",
@@ -1307,4 +1310,15 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "assertServerSafeRequest",
     "createMockFetch",
   ]);
+});
+
+test("shipping minimum fixtures preserve decimal bounds and positive-zero policy", async () => {
+  const { SHIPPING_POLICY_FIXTURES, SHIPPING_MINIMUM_PROBLEM_FIXTURE } = await import("../dist/fixtures.js");
+  assert.equal(SHIPPING_POLICY_FIXTURES.unrestricted.minimum_points, "0");
+  assert.equal(SHIPPING_POLICY_FIXTURES.unrestricted.effective_required_points, "1");
+  assert.equal(SHIPPING_POLICY_FIXTURES.unrestricted.zero_total_allowed, false);
+  assert.equal(BigInt(SHIPPING_POLICY_FIXTURES.maximum.minimum_points) * 100n, 900719925474099100n);
+  const problem = SHIPPING_MINIMUM_PROBLEM_FIXTURE;
+  assert.equal(BigInt(problem.selected_total_points) + BigInt(problem.shortfall_points), BigInt(problem.effective_required_points));
+  assert.equal(problem.code, "SHIPPING_MINIMUM_POINTS_NOT_MET");
 });

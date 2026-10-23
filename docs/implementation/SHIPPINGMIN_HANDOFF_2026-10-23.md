@@ -120,3 +120,36 @@ forward migration/backup evidence and a compatible separately published Site
 client. Migration098, application rollout, Site pin rollout and feature
 activation are separate gates. This Change performs none of those operational
 steps and provides no fabricated merge SHA.
+
+
+## Draft handoff verification hold (2026-10-23)
+
+Draft PR: https://github.com/ideal-sol/oripa/pull/608 . Keep Draft and the
+000098 reservation. Source implementation is committed; acceptance is HOLD.
+Client generation/typecheck/lint/build and 41 tests passed. Testkit
+ typecheck/lint/build and 54 tests passed after updating the exact operation and
+export inventories. DB runner offline regression passed 89 tests; this is not
+live PostgreSQL acceptance.
+
+The isolated DB smoke attempt did not reach migration or tests: the composed
+API/Admin image build remained incomplete under shared-host resource pressure
+and was stopped after approximately 25 minutes. Backend vertical slice,
+concurrency, rank activation/Financial Admission regression, live constraints,
+fresh migration, schema/ledger restore and forward-only recovery are NOT RUN.
+No operational database was used as a substitute.
+
+Admin Unit attempts failed before test execution (worker startup timeout).
+The browser attempt failed while the page still showed session loading; the
+development server also logged a React development/CSP eval warning. This is
+FAIL, not UI acceptance. Do not relax the CSP, assertions, timeouts or CI gate.
+Repeat using the approved production verification build in a sufficient
+isolated environment, including Owner/Admin/Operator, network retry/OCC,
+confirmation, mobile overflow, keyboard and unauthorized/error states.
+The final PR records Admin typecheck/lint/build completion separately.
+
+The unchanged CI lane gate requires UI Verification PASS or NOT_APPLICABLE;
+UI changes here are applicable and lack a passing browser result. Therefore
+Required Checks remain blocked/failed rather than misclassified. Final-head
+Fresh Self-review must recommend HOLD and cannot substitute for missing gates.
+After resolving these verification blockers, update exact-head checks and fresh
+review while retaining Draft until a separate Human GO.

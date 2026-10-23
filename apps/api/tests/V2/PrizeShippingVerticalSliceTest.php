@@ -998,7 +998,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $this->getJson('/api/v2/me/shipping-policy')->assertOk()
             ->assertJsonPath('minimum_points', '0')->assertJsonPath('effective_required_points', '1')
             ->assertJsonPath('zero_total_allowed', false)->assertHeader('Cache-Control', 'no-store, private');
-        DB::table('user_phone_numbers')->where('user_id', $user->id)->delete();
+        DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
         $this->getJson('/api/v2/me/shipping-policy')->assertForbidden()->assertJsonPath('code', 'SMS_VERIFICATION_REQUIRED');
     }
 
@@ -1075,14 +1075,52 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_mixed_zero_and_shipping_only_prizes_from_different_gachas_ship_together(): void
+    {
+        [$user, $zeroIds] = $this->fixture(1, 0);
+        [, $positiveIds] = $this->fixture(1, 8000, true, $user);
+        $ids = [...$zeroIds, ...$positiveIds];
+        self::assertSame(2, DB::table('user_prizes')
+            ->join('catalog_gacha_version_prizes as p', 'p.id', '=', 'user_prizes.gacha_version_prize_id')
+            ->join('catalog_gacha_versions as v', 'v.id', '=', 'p.gacha_version_id')
+            ->whereIn('user_prizes.public_id', $ids)->distinct()->count('v.gacha_id'));
+        DB::table('shipping_minimum_point_settings')->where('id', 1)->update(['minimum_points' => 8000]);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $result = $service->createShippingRequest($user, $address['id'], $ids, (string) Str::uuid7(), (string) Str::uuid7());
+        self::assertSame(2, $result['prize_count']);
+        $row = DB::table('shipping_requests')->where('public_id', $result['id'])->first();
+        self::assertSame(8000, (int) $row->selected_point_total_snapshot);
+        foreach (['selected_point_total_snapshot', 'applied_minimum_points_snapshot', 'applied_setting_revision'] as $column) {
+            DB::beginTransaction();
+            try {
+                DB::table('shipping_requests')->where('id', $row->id)->update([$column => null]);
+                self::fail('Shipping snapshot must be immutable');
+            } catch (QueryException $error) {
+                self::assertSame('P0001', $error->getCode());
+            } finally {
+                DB::rollBack();
+            }
+        }
+    }
+
     /** @return array{User, list<string>} */
-    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, ?User $existingUser = null): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
             true,
             flags: JSON_THROW_ON_ERROR
         );
+        if ($existingUser !== null) {
+            array_walk_recursive($fixture, static function (&$value): void {
+                if (is_string($value)) $value = str_replace(
+                    ['0198a001', 'fixture', 'cards', 'featured', 'Ab3Def7Gh9J'],
+                    ['0198a002', 'secondfixture', 'secondcards', 'secondfeatured', 'Bc4Efg8Hi0K'],
+                    $value
+                );
+            });
+        }
         $fixture['gachas'][0]['sold_count'] = 0;
         $inventoryTotal = max(1000, $prizeCount + 10);
         $fixture['versions'][0]['total_count'] = $inventoryTotal;
@@ -1096,7 +1134,8 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         }
         unset($relation);
         app(V2CatalogFixtureImporter::class)->import($fixture);
-        $user = $this->user();
+        $user = $existingUser ?? $this->user();
+        $existingIds = DB::table('user_prizes')->where('user_id', $user->id)->pluck('id')->all();
         app(V2PointService::class)->grantFree(
             $user->id,
             1_000_000,
@@ -1121,6 +1160,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         );
         $ids = DB::table('user_prizes')
             ->where('user_id', $user->id)
+            ->whereNotIn('id', $existingIds)
             ->orderBy('id')
             ->limit($prizeCount)
             ->pluck('public_id')
