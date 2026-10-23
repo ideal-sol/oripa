@@ -88,6 +88,12 @@ Docker health, then rejoins its existing egress network. The generic Preview
 egress helper is not used for API8621. Original Compose chain, environment,
 ports, mounts, private addressing and networks remain authoritative.
 
+Every private-network health poll verifies the selected immutable image ID and
+the recorded private network set before API egress is connected. A healthy
+container with another image, an unexpected network, or prematurely attached
+egress causes HOLD. The same check applies when switching to the approved old
+image during rollback. Post-connect image/network checks remain in place.
+
 Storefront stops its existing systemd unit and starts the prepared exact source
 on the same loopback port 3241 using `next dev`. There is no parallel process,
 new port, production build, Nginx edit or reload. The recorded old definition can
@@ -177,3 +183,57 @@ objects must be available. It materializes only temporary test-owned files and
 references the existing object store read-only; no checkout or index is changed.
 Live systemd, network, Artifact import,
 backup/migration and browser acceptance require a future separate Runtime GO.
+
+## OLDDEPLOY-205 Source and installed Executor boundary
+
+The repository helper already selects API/Admin from the canonical OLD Test
+AMD64 Artifact. Its wrapper revalidates GitHub Artifact identity/expiry and
+Source Authority; the control-bound verifier checks archives, OCI revision and
+image ID before service stop. It never promotes a locally patched emergency
+image to canonical Artifact authority. Loading a selected image uses the
+verified archive only, and Compose retains `--no-build --no-deps --pull never`.
+
+Source review on 2026-10-23 also found a separate, host-local execution layer:
+`oripa-old-safe-deploy/executor.py`, its `p2-adapter-implementation/adapter.py`,
+and `local-gate-implementation/gate.py`. These are not tracked by this repository.
+The installed Executor requires `local_exception` / Option B API authority and
+chooses that API image instead of the candidate's canonical API image. Its API
+switch connects egress before waiting for health. Neither behavior is changed
+by this Source PR. Do not invoke the repository helper directly to bypass this
+installed security layer or replace installed bytes from this Draft.
+
+The actual receipt issuer is host-local `Gate.verify`; the validator is
+`Gate.validate_receipt`, called by Executor `Session.check` and the adapter.
+After measurements and input revalidation, issuance sets `observed_at` to the
+current clock and `expires_at` to the earlier of `observed_at + 300` and request
+expiry. Validation requires `observed_at <= now < expires_at` and a positive
+lifetime no longer than the policy TTL. Exactly 300 seconds is expired, not a
+grace period. Acquisition, archive verification, migration and health time do
+not restart this clock.
+
+Receipts bind policy/request/candidate/Gate hashes, candidate identity,
+selection identity (including Source/Image), operation and authority mode.
+The request also binds Artifact ID/digest/authority/files, Control and recipe.
+Existing receipts are validated rather than renewed by `Session.check`.
+Historical acceptance evidence records `receipt_expired` after HTTP acceptance;
+this is an elapsed-time HOLD, not permission to extend TTL or reuse the receipt.
+
+The OLDDEPLOY-205 private offline harness loads the exact installed Gate bytes
+read-only, mocks inputs/probes/clock, and blocks subprocess execution. It covers
+299.999/300/300.001 seconds, future issuance, acquisition delay, changed binding,
+wrong Source/Image, request expiry, and new verification versus expired receipt
+reuse. This is method-level evidence only: it does not verify real policy inputs,
+issue an operational receipt, approve Runtime, or prove a refresh integration.
+It is deliberately not a host-dependent GitHub test or a copied/new Gate.
+
+Before a future OLD Test release, separately authorize review and preparation
+of the existing host-local Executor's canonical API selection, private health
+ordering and receipt lifecycle. Preserve the existing Gate and 300-second TTL;
+an expired receipt requires fresh measurement/revalidation through that Gate,
+with unchanged Source/Image/Artifact bindings and applicable locks. Do not add
+automatic exception renewal or retry a consumed candidate. Review the exact
+patched current images as rollback assets; canonical provenance alone does not
+permit returning to vulnerable PHP. Bind final approved Source/Control through
+the separately reviewed manifests, then obtain the formal Artifact and exact
+candidate Runtime GO. Source merge, installation, Artifact dispatch, operational
+DB work and member-rank Activation remain separate, unperformed operations.

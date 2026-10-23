@@ -155,6 +155,8 @@ class DeploymentTest(unittest.TestCase):
         self.assertLess(self.events.index("backup"), self.events.index(commands[0]))
         self.assertEqual(self.candidate["state"]["applied"], self.candidate["migrations"])
         self.assertTrue(self.candidate["state"]["schema_verified"])
+        self.assertLess(self.events.index(("switch", "admin", NEW_IMAGE)),
+                        self.events.index(("switch", "api", NEW_IMAGE)))
 
     def test_api_only_artifact_migration_fences_and_restarts_unchanged_admin(self):
         self.migration()
@@ -418,9 +420,11 @@ class DeploymentTest(unittest.TestCase):
         self.candidate["previous"]["api"].update(networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
         ready = {"Image": NEW_IMAGE, "State": {"Health": {"Status": "healthy"}},
                  "NetworkSettings": {"Networks": {private: {}, egress: {}}}}
+        private_ready = {**ready, "NetworkSettings": {"Networks": {private: {}}}}
+        observations = iter([private_ready, ready, ready])
         config = {"services": {"api": {"environment": {}}}}
         with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
-                deploy, "inspect", side_effect=lambda name: self.events.append("ready") or ready):
+                deploy, "inspect", side_effect=lambda name: self.events.append("ready") or next(observations)):
             deploy.Deployment.switch(self.operation, "api", NEW_IMAGE)
         disconnect = ["docker", "network", "disconnect", egress, "/api"]
         connect = ["docker", "network", "connect", egress, "/api"]
@@ -429,6 +433,42 @@ class DeploymentTest(unittest.TestCase):
         switch = next(event for event in self.events if isinstance(event, list) and "up" in event)
         self.assertEqual(switch[:4], ["docker", "compose", "-f", "/original.json"])
         self.assertIn("--no-build", switch)
+        self.assertEqual(switch[-3:], ["--pull", "never", "api"])
+
+    def test_switch_holds_before_egress_for_wrong_image_or_nonprivate_runtime(self):
+        private, egress = "old_v2_private", "old_v2_api_egress"
+        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {}, egress: {}}}
+        self.candidate["previous"]["api"].update(
+            networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
+        config = {"services": {"api": {"environment": {}}}}
+        for image, networks, reason in (
+            (OLD_IMAGE, {private: {}}, "loaded_image_mismatch"),
+            (NEW_IMAGE, {private: {}, egress: {}}, "private_start_network_mismatch"),
+            (NEW_IMAGE, {"other_v2_private": {}}, "private_start_network_mismatch"),
+        ):
+            with self.subTest(image=image, networks=networks):
+                self.events.clear()
+                observed = {"Image": image, "State": {"Health": {"Status": "healthy"}},
+                            "NetworkSettings": {"Networks": networks}}
+                with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
+                        deploy, "inspect", return_value=observed), self.assertRaisesRegex(deploy.Hold, reason):
+                    deploy.Deployment.switch(self.operation, "api", NEW_IMAGE)
+                self.assertNotIn(["docker", "network", "connect", egress, "/api"], self.events)
+
+    def test_switch_checks_identity_on_every_health_poll_including_rollback(self):
+        private, egress = "old_v2_private", "old_v2_api_egress"
+        self.operation.runtime["api"]["NetworkSettings"] = {"Networks": {private: {}, egress: {}}}
+        self.candidate["previous"]["api"].update(
+            networks=sorted([private, egress]), compose=["docker", "compose", "-f", "/original.json"])
+        config = {"services": {"api": {"environment": {}}}}
+        starting = {"Image": OLD_IMAGE, "State": {"Health": {"Status": "starting"}},
+                    "NetworkSettings": {"Networks": {private: {}}}}
+        changed = {**starting, "Image": NEW_IMAGE, "State": {"Health": {"Status": "healthy"}}}
+        with mock.patch.object(deploy, "decoded", side_effect=[config, [{"Config": {"Env": []}}]]), mock.patch.object(
+                deploy, "inspect", side_effect=[starting, changed]), mock.patch.object(deploy.time, "sleep"), self.assertRaisesRegex(
+                deploy.Hold, "loaded_image_mismatch"):
+            deploy.Deployment.switch(self.operation, "api", OLD_IMAGE)
+        self.assertNotIn(["docker", "network", "connect", egress, "/api"], self.events)
 
     def test_post_migration_rollback_checks_current_guard_before_stop(self):
         self.migration()

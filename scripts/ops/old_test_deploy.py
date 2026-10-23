@@ -453,7 +453,16 @@ class Deployment:
         run(command + ["-f", str(override), "up", "-d", "--no-build", "--no-deps", "--pull", "never", service],
             environment=environment)
         name = current["Name"]
-        self.wait(lambda: inspect(name)["State"].get("Health", {}).get("Status") == "healthy")
+        private_networks = sorted(set(expected_networks) - set(egress))
+
+        def private_healthy() -> bool:
+            observed = inspect(name)
+            require(observed["Image"] == image_id, "loaded_image_mismatch")
+            require(sorted(observed["NetworkSettings"]["Networks"]) == private_networks,
+                    "private_start_network_mismatch")
+            return observed["State"].get("Health", {}).get("Status") == "healthy"
+
+        self.wait(private_healthy)
         for network in egress:
             run(["docker", "network", "connect", network, name])
         require(inspect(name)["Image"] == image_id, "loaded_image_mismatch")
