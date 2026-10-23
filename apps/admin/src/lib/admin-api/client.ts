@@ -3314,7 +3314,7 @@ export class AdminApiClient {
       | `/qa-draw-executions${string}`
       | `/reports/dashboard/${string}`
       | "/settings/shipping-minimum-points"
-    | "/settings/referral-points"
+      | "/settings/referral-points"
       | `/settings/member-ranks${string}`
       | "/settings/pre-registration"
       | "/settings/pre-registration/preview"
@@ -3348,6 +3348,7 @@ export class AdminApiClient {
         !path.startsWith("/qa/") &&
         !path.startsWith("/qa-draw-executions") &&
         !path.startsWith("/reports/dashboard/") &&
+        path !== "/settings/shipping-minimum-points" &&
         path !== "/settings/referral-points" &&
         path !== "/settings/member-ranks" &&
         path !== "/settings/member-ranks/scheduled" &&
