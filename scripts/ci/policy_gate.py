@@ -299,6 +299,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_22_000095_add_v2_gacha_purchase_conditions.php",
     "apps/api/database/migrations-v2/2026_10_22_000096_enable_v2_login_gacha_conditions.php",
     "apps/api/database/migrations-v2/2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
+    "apps/api/database/migrations-v2/2026_10_23_000098_add_v2_shipping_minimum_points.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",

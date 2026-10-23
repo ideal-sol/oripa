@@ -25,11 +25,12 @@ export function ShippingMinimumPointSettings() {
   const apply = useCallback((data: AdminShippingMinimumPointSetting) => {
     setSetting(data); setDraft(data.minimum_points); pending.current = null; setConfirming(false);
   }, []);
-  const fetchSetting = useCallback(async (signal?: AbortSignal) => {
-    try { const response = await client.getShippingMinimumPointSetting(signal); if (!signal?.aborted) apply(response.data); }
-    catch (caught) { if (!signal?.aborted) setError(message(caught)); }
-    finally { if (!signal?.aborted) setBusy(false); }
-  }, [apply, client]);
+  const fetchSetting = useCallback((signal?: AbortSignal) =>
+    client.getShippingMinimumPointSetting(signal)
+      .then((response) => { if (!signal?.aborted) apply(response.data); })
+      .catch((caught: unknown) => { if (!signal?.aborted) setError(message(caught)); })
+      .finally(() => { if (!signal?.aborted) setBusy(false); }),
+  [apply, client]);
   const load = useCallback(() => {
     setBusy(true); setError(null); setSaved(false);
     return fetchSetting();
