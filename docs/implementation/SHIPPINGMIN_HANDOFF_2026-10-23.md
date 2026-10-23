@@ -1,15 +1,22 @@
 # SHIPPINGMIN-20261023 — Source / Site handoff
 
 Human specification: shipping minimum points v1.0, 2026-10-23. Risk R3;
-Strict Change; Application Runtime Activation deferred. Base:
+Strict Change; Application Runtime Activation deferred. Original Source base:
 `799eab891e0b428764de60847c1ced877613348c`.
 
 ## Authority and allocation
 
-This Change is authorized through a Draft PR only. Ready, merge, auto-merge,
-operational migration, package/tag publication, Site pin changes and Runtime
-activation are prohibited without separate Human authority. Existing OLD Test
-and NEW Production DB/ENV/containers/workers/providers are outside scope.
+The latest Human continuous instruction authorizes Source Ready/Squash Merge
+of PR608 after Security611 merge, latest-main integration, all formal gates and
+fresh fixed-head review PASS. It supersedes the earlier Draft-only stop recorded
+in the historical section below. Security611 merged as
+`c58dea4d027d3e802ef64f52d4e9e315966ea6e5` with Next16.4.2, zero unapproved/runtime
+findings, reviewed/merged Tree equality and content diff0. Integration uses this
+latest protected-main Source while preserving ADMIN503/609.
+
+Operational migration, package/tag publication, Site pin changes and Runtime
+activation require separate authority. Existing OLD Test and NEW Production
+DB/ENV/containers/workers/providers remain outside this Source Change.
 
 Dedicated branch `feat/SHIPPINGMIN-20261023`; worktree
 `/var/www/oripa-task-worktrees/SHIPPINGMIN-20261023`. Existing dirty checkout is
@@ -122,7 +129,7 @@ activation are separate gates. This Change performs none of those operational
 steps and provides no fabricated merge SHA.
 
 
-## Draft handoff verification hold (2026-10-23)
+## Historical Draft handoff verification hold (2026-10-23)
 
 Draft PR: https://github.com/ideal-sol/oripa/pull/608 . Keep Draft and the
 000098 reservation. Source implementation is committed; acceptance is HOLD.
@@ -163,3 +170,20 @@ consistent with repeatable fresh-schema verification; snapshot immutability and
 forward-only rejection remain intact. This is an isolated CI application, not
 an OLD Test/Production migration. Final-head CI results in PR608 supersede the
 initial local NOT RUN statuses only for checks actually completed there.
+
+## Current Source Merge handoff (Human continuous GO)
+
+PR608 records the synchronized final HEAD/Tree, actual new Required Checks,
+fresh schema2.0 review and actual Source Squash Merge SHA. Historical local
+failures and old NOT RUN/HOLD entries above do not establish new-head acceptance.
+The current final-head CI and canonical review determine it. Browser acceptance
+requiring login remains Human-owned and separate from Source Merge and Runtime
+acceptance; no Browser PASS is claimed.
+
+Migration000098 is the original formally reserved file, with no historical
+migration rewrite. Source integration preserves Financial Admission/Runner,
+shipping business logic and pending alpha.46 contracts. The OLD Test batch owner
+needs the actual Source merge evidence, matching approved Control/artifacts,
+backup/forward migration checks, separate Contract publication/Site Change and
+Runtime GO. This task performs no operational migration, deployment, Contract
+publication or Site pin update.
