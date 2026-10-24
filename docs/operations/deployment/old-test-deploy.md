@@ -84,9 +84,33 @@ API changes pause both existing F2-B timers, wait for worker/purge completion,
 then hold their existing common lock. The script stops only changed services;
 Migration additionally stops Admin and the existing SMS service. It preserves
 the independent SMS image. Admin starts first; API starts private-only, passes
-Docker health, then rejoins its existing egress network. The generic Preview
+internal readiness, then rejoins its existing egress network and passes full
+Docker and HTTP health. The generic Preview
 egress helper is not used for API8621. Original Compose chain, environment,
 ports, mounts, private addressing and networks remain authoritative.
+
+Every private-network health poll verifies the selected immutable image ID and
+the recorded private network set before API egress is connected. A healthy
+container with another image, an unexpected network, or prematurely attached
+egress causes HOLD. The same check applies when switching to the approved old
+image during rollback. Network IDs and running state are also checked before
+and after each HTTP probe; post-connect image/network checks remain in place.
+
+Private readiness calls the existing `/api/health` inside the selected API
+container. It requires exactly the known structured response, a timezone-bearing
+timestamp, and `app`, `db`, and `redis` equal to `ok`. HTTP 200 requires Storage
+`ok`. HTTP 503 is accepted only at this private stage when the preserved
+`FILESYSTEM_DISK=s3` configuration reports Storage `error` and all internal
+checks are `ok`. This is internal readiness, not complete health. Unknown fields,
+duplicate keys, malformed responses, unexpected status codes or internal
+dependency failures HOLD. Only connection-refused startup responses are retried;
+other transport failures HOLD. The bounded 30-second probe covers the existing
+20-second Storage timeout; no Storage setting, ENV or API is modified.
+
+After egress, the same structured response must be HTTP 200 with all four checks
+`ok`, and Docker must report `healthy`. Storage failure never counts as release
+success. Existing final API/session/Admin acceptance remains mandatory. Rollback
+uses the same two-stage readiness and image/network identity checks.
 
 Storefront stops its existing systemd unit and starts the prepared exact source
 on the same loopback port 3241 using `next dev`. There is no parallel process,
@@ -154,7 +178,9 @@ matching F2-B pin. Old images and source directories are never deleted.
 
 After any attempted Migration, rollback requires a completely verified target
 schema and previously reviewed old-app compatibility recorded during prepare
-with `--rollback-schema-compatible`. Partial/uncertain migration or unknown
+with `--rollback-schema-compatible`. Migration 000097/000098 candidates cannot
+opt into old-writer rollback with that flag: after an attempt they require
+forward-only recovery review. Partial/uncertain migration or unknown
 compatibility HOLD with services stopped for investigation. Schema stays forward;
 there is no automatic DB restore or down migration. Backup/Guard/switch/health
 failure never unconditionally resumes workers in a `finally` block.
@@ -177,3 +203,76 @@ objects must be available. It materializes only temporary test-owned files and
 references the existing object store read-only; no checkout or index is changed.
 Live systemd, network, Artifact import,
 backup/migration and browser acceptance require a future separate Runtime GO.
+
+## OLDDEPLOY-205 Source and installed Executor boundary
+
+The repository helper already selects API/Admin from the canonical OLD Test
+AMD64 Artifact. Its wrapper revalidates GitHub Artifact identity/expiry and
+Source Authority; the control-bound verifier checks archives, OCI revision and
+image ID before service stop. It never promotes a locally patched emergency
+image to canonical Artifact authority. Loading a selected image uses the
+verified archive only, and Compose retains `--no-build --no-deps --pull never`.
+
+Source review on 2026-10-23 also found a separate, host-local execution layer:
+`oripa-old-safe-deploy/executor.py`, its `p2-adapter-implementation/adapter.py`,
+and `local-gate-implementation/gate.py`. These are not tracked by this repository.
+The installed Executor requires `local_exception` / Option B API authority and
+chooses that API image instead of the candidate's canonical API image. Its API
+switch connects egress before waiting for health. Neither behavior is changed
+by this Source PR. Do not invoke the repository helper directly to bypass this
+installed security layer or replace installed bytes from this Draft.
+
+The actual receipt issuer is host-local `Gate.verify`; the validator is
+`Gate.validate_receipt`, called by Executor `Session.check` and the adapter.
+After measurements and input revalidation, issuance sets `observed_at` to the
+current clock and `expires_at` to the earlier of `observed_at + 300` and request
+expiry. Validation requires `observed_at <= now < expires_at` and a positive
+lifetime no longer than the policy TTL. Exactly 300 seconds is expired, not a
+grace period. Acquisition, archive verification, migration and health time do
+not restart this clock.
+
+Receipts bind policy/request/candidate/Gate hashes, candidate identity,
+selection identity (including Source/Image), operation and authority mode.
+The request also binds Artifact ID/digest/authority/files, Control and recipe.
+Existing receipts are validated rather than renewed by `Session.check`.
+Historical acceptance evidence records `receipt_expired` after HTTP acceptance;
+this is an elapsed-time HOLD, not permission to extend TTL or reuse the receipt.
+
+The OLDDEPLOY-205 private offline harness loads the exact installed Gate bytes
+read-only, mocks inputs/probes/clock, and blocks subprocess execution. It covers
+299.999/300/300.001 seconds, future issuance, acquisition delay, changed binding,
+wrong Source/Image, request expiry, and new verification versus expired receipt
+reuse. This is method-level evidence only: it does not verify real policy inputs,
+issue an operational receipt, approve Runtime, or prove a refresh integration.
+It is deliberately not a host-dependent GitHub test or a copied/new Gate.
+
+The subsequent integrated-fix GO authorizes a root-private proposal for the
+existing host-local Executor/Adapter, kept outside this public Source PR. It
+selects canonical API/Admin images, reuses verified archive loading before Gate
+measurement, keeps an immutable candidate and separate progress journal, drains
+F2-B before taking its existing lock, and avoids Backup without migrations.
+Receipt checks surround operations and each readiness poll, service/network
+switch, worker resume and completion. Only an honestly expired, originally
+bounded receipt can trigger fresh verification by the unchanged Gate; binding,
+request or authority failures remain HOLD. A fresh result is validated again
+across all required roles. Irreversible operations are never automatically retried;
+the journal distinguishes successful commands from unknown outcomes.
+
+Direct Adapter deployment dispatch is held because P2 progress mutation would
+invalidate the original Gate request's candidate binding. Canonical deployment
+uses the existing Executor's exact envelope; independent worker review remains
+verification-only. This proposal is not installed or enabled by Source changes.
+Its exact byte hashes, differences and isolated regression results belong to the
+separate private handoff. No host code, receipt or private evidence is committed.
+
+Before a future OLD Test release, separately authorize Source Merge and the
+reviewed host proposal's installation, then prepare final Source/Control/Artifact
+authority and a fresh exact candidate. Preserve the existing Gate and 300-second TTL;
+an expired receipt requires fresh measurement/revalidation through that Gate,
+with unchanged Source/Image/Artifact bindings and applicable locks. Do not add
+automatic exception renewal or retry a consumed candidate. Review the exact
+patched current images as rollback assets; canonical provenance alone does not
+permit returning to vulnerable PHP. Bind final approved Source/Control through
+the separately reviewed manifests, then obtain the formal Artifact and exact
+candidate Runtime GO. Source merge, installation, Artifact dispatch, operational
+DB work and member-rank Activation remain separate, unperformed operations.

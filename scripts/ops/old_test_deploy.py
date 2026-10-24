@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import fcntl
 import hashlib
 import io
@@ -452,12 +453,68 @@ class Deployment:
                 run(["docker", "network", "disconnect", name, current["Name"]])
         run(command + ["-f", str(override), "up", "-d", "--no-build", "--no-deps", "--pull", "never", service],
             environment=environment)
-        name = current["Name"]
-        self.wait(lambda: inspect(name)["State"].get("Health", {}).get("Status") == "healthy")
+        private_networks = sorted(set(expected_networks) - set(egress))
+        self.wait(lambda: self.readiness(role, image_id, private_networks, private=True))
         for network in egress:
-            run(["docker", "network", "connect", network, name])
-        require(inspect(name)["Image"] == image_id, "loaded_image_mismatch")
-        require(sorted(inspect(name)["NetworkSettings"]["Networks"]) == expected_networks, "restored_network_mismatch")
+            self.runtime_identity(role, image_id, private_networks, private=True)
+            run(["docker", "network", "connect", network, current["Name"]])
+        self.wait(lambda: self.readiness(role, image_id, expected_networks))
+
+    def runtime_identity(self, role: str, image_id: str, networks: list[str], *, private: bool = False) -> dict:
+        current = self.runtime[role]
+        observed = inspect(current["Name"])
+        require(observed["Image"] == image_id, "loaded_image_mismatch")
+        actual = observed["NetworkSettings"]["Networks"]
+        require(sorted(actual) == sorted(networks),
+                "private_start_network_mismatch" if private else "restored_network_mismatch")
+        require(all(current["NetworkSettings"]["Networks"][name].get("NetworkID")
+                    and actual[name].get("NetworkID") == current["NetworkSettings"]["Networks"][name]["NetworkID"]
+                    for name in networks), "network_identity_changed")
+        require(observed["State"]["Running"], "runtime_not_running")
+        return observed
+
+    def api_readiness(self, *, private: bool) -> bool:
+        # Probe the selected container's loopback, without redirects or ENV changes.
+        # Only connection-refused during startup is retryable. Timeouts, truncated
+        # bodies and all unknown responses HOLD. S3's existing timeout is 20 seconds.
+        script = ('curl --silent --show-error --connect-timeout 2 --max-time 30 '
+                  '--max-filesize 16384 --write-out "\\n%{http_code}" http://127.0.0.1:8000/api/health; '
+                  'result=$?; test "$result" -eq 0 || test "$result" -eq 7')
+        raw = run(["docker", "exec", self.runtime["api"]["Name"], "sh", "-c", script])
+        require(len(raw) <= 16388, "health_response_invalid")
+        body, separator, status = raw.rpartition(b"\n")
+        if separator and status == b"000" and not body:
+            return False
+
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                require(key not in result, "health_response_invalid")
+                result[key] = value
+            return result
+
+        try:
+            value = json.loads(body, object_pairs_hook=unique)
+            require(isinstance(value, dict) and set(value) == {"app", "db", "redis", "storage", "timestamp"},
+                    "health_response_invalid")
+            timestamp = datetime.datetime.fromisoformat(value["timestamp"].replace("Z", "+00:00"))
+            require(timestamp.tzinfo is not None, "health_response_invalid")
+        except (ValueError, TypeError, AttributeError, UnicodeError):
+            raise Hold("health_response_invalid") from None
+        require(all(value[key] == "ok" for key in ("app", "db", "redis")), "private_dependencies_unhealthy")
+        if status == b"200" and value["storage"] == "ok":
+            return True
+        environment = dict(entry.split("=", 1) for entry in self.runtime["api"]["Config"]["Env"])
+        require(private and environment.get("FILESYSTEM_DISK") == "s3"
+                and status == b"503" and value["storage"] == "error", "full_health_required")
+        return True
+
+    def readiness(self, role: str, image_id: str, networks: list[str], *, private: bool = False) -> bool:
+        observed = self.runtime_identity(role, image_id, networks, private=private)
+        ready = self.api_readiness(private=private) if role == "api" else True
+        # HTTP may take time. Recheck identity before accepting the result.
+        observed = self.runtime_identity(role, image_id, networks, private=private)
+        return ready and (private and role == "api" or observed["State"].get("Health", {}).get("Status") == "healthy")
 
     def start_storefront(self, selected: dict, name: str) -> None:
         startup = selected.get("startup")
@@ -577,6 +634,8 @@ class Deployment:
         state = self.candidate["state"]
         require(state["phase"] not in {"prepared", "rolled_back"}, "rollback_not_applicable")
         if state["migration_attempted"]:
+            require(not any("_000097_" in name or "_000098_" in name for name in self.candidate["migrations"]),
+                    "forward_only_recovery_required")
             require(state.get("schema_verified") and self.candidate["rollback_schema_compatible"],
                     "migration_rollback_compatibility_unknown")
         for role in set(self.candidate["services"]) & {"api", "admin"}:
