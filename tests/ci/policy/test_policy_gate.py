@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -1487,10 +1488,25 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.46')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.45')
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 26)
+        released46 = value['latest_immutable']
+        self.assertEqual(released46, value['immutable_history'][-1])
+        self.assertEqual(released46['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(released46['source_commit'], '1d2b0d8ff8193d55173f5bf6978a41f3dfebf7ac')
+        self.assertEqual(released46['manifest_sha256'], 'a55f578a94af700e68f0cd0d8eed0e18fb3867ec3be5e0ac0c8639a173cf2b26')
+        self.assertEqual(released46['publication']['artifact_id'], 12586773046)
+        self.assertEqual(released46['handoff_status'], 'released')
+        self.assertEqual(released46['release_mode'], 'contract-additive')
+        self.assertFalse(released46['breaking_change'])
+        self.assertEqual(released46['public_openapi']['version'], '2.0.0-alpha.42')
+        self.assertEqual(released46['public_openapi']['operation_count'], 84)
+        history_digest = hashlib.sha256(json.dumps(
+            value['immutable_history'][:-1], sort_keys=True, separators=(',', ':'),
+        ).encode()).hexdigest()
+        self.assertEqual(history_digest, 'd77ebee99ed87d04063c38562a6ce9e90be653ab0e871cf743d2cd0c2e0577cb')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 25)
         self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
         released = value['latest_immutable']

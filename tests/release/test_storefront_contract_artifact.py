@@ -43,12 +43,25 @@ def package_archive(
 class StorefrontContractArtifactTest(unittest.TestCase):
     def governance(self):
         value = artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
-        value['candidate'] = None
         return value
 
     def test_m4_candidate_is_unpublished_additive_and_preserves_released_alpha45(self):
-        value = artifact.governance(ROOT)
-        candidate = value['candidate']
+        # Historical pending46 coverage is isolated; live ROOT is released46.
+        value = copy.deepcopy(artifact.governance(ROOT))
+        self.assertIsNone(value['candidate'])
+        released = value['immutable_history'].pop()
+        candidate = copy.deepcopy(artifact.release_source({
+            **value, 'latest_immutable': released, 'candidate': None,
+        }))
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
+        candidate.update(release_state='pending', breaking_change=False,
+                         predecessor_bundle_version='2.0.0-alpha.45')
+        for name, details in candidate['packages'].items():
+            details['disposition'] = 'reference' if name == '@oripa/site-schema' else 'publish'
+            if details['disposition'] == 'publish':
+                details.pop('sha256')
+        value['candidate'] = candidate
+        artifact.validate_governance(value)
         self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.46')
         self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.45')
         self.assertEqual(candidate['release_state'], 'pending')
@@ -56,9 +69,10 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertFalse(candidate['breaking_change'])
         self.assertEqual(candidate['contract_versions']['public'], '2.0.0-alpha.42')
         self.assertNotIn('publication', candidate)
-        self.assertEqual(value['latest_immutable'], self.governance()['latest_immutable'])
-        self.assertEqual(value['immutable_history'], self.governance()['immutable_history'])
-        self.assertEqual(artifact.pending_candidate(ROOT), candidate)
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.45')
+        self.assertEqual(value['immutable_history'], self.governance()['immutable_history'][:-1])
+        with mock.patch.object(artifact, 'governance', return_value=value):
+            self.assertEqual(artifact.pending_candidate(ROOT), candidate)
 
     def next_candidate_governance(self):
         value = copy.deepcopy(self.governance())
@@ -157,6 +171,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def test_alpha_34_history_is_preserved_and_alpha_37_is_released(self):
         value = copy.deepcopy(artifact.validate_governance(self.governance()))
         self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.46')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.45')
         self.assertEqual(value['immutable_history'][-1], value['latest_immutable'])
         value['immutable_history'].pop()
@@ -256,6 +273,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
     def test_released_alpha_43_has_exact_publication_evidence_and_no_republish_candidate(self):
         value = artifact.validate_governance(self.governance())
         self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.46')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.45')
         value['immutable_history'].pop()
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
@@ -308,8 +328,125 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['source_commit'], '0ce41ab473fd5a4fb44773041ae097ffb40b14ce')
         self.assertFalse(target['breaking_change'])
 
+    def test_released_alpha_46_has_exact_publication_authority(self):
+        value = artifact.governance(ROOT)
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 26)
+        released = value['latest_immutable']
+        self.assertEqual(released, value['immutable_history'][-1])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(released['source_commit'], '1d2b0d8ff8193d55173f5bf6978a41f3dfebf7ac')
+        self.assertEqual(released['manifest_sha256'], 'a55f578a94af700e68f0cd0d8eed0e18fb3867ec3be5e0ac0c8639a173cf2b26')
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-additive')
+        self.assertFalse(released['breaking_change'])
+        self.assertEqual(released['platform_version'], '2.0.0-alpha.23')
+        self.assertEqual(released['application_versions'], {
+            'workspace': '2.0.0-alpha.23', 'admin': '2.0.0-alpha.23',
+        })
+        self.assertEqual(released['contract_versions'], {
+            'public': '2.0.0-alpha.42', 'admin': '2.0.0-alpha.42',
+            'webhook': '2.0.0-alpha.40',
+        })
+        self.assertEqual(released['public_openapi'], {
+            'version': '2.0.0-alpha.42',
+            'sha256': '81ee96478ee3d80539817b54321f9f6d181c2a78a3dae2062527dd81049dcec4',
+            'operation_count': 84,
+        })
+        self.assertEqual(released['publication'], {
+            'workflow_run_id': 40162277779,
+            'workflow_run_attempt': 1,
+            'artifact_id': 12586773046,
+            'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.46',
+            'github_digest': 'sha256:fb4bc9f64b0810e3efae8aaa85252b8fa86ec8c5fd03fb361459c5a627bca275',
+            'sha256sums_sha256': '0377250f61bb15420fb58e0ab4b572289ded5a69407e48d43195fb4128c23372',
+        })
+        self.assertEqual(released['packages']['@oripa/storefront-client'], {
+            'version': '2.0.0-alpha.46',
+            'sha256': '08bbfe84dd8e57fb69ba4578cbd1d63e711a0a579996821ecbec6bd5a6133a3f',
+            'minimum_public_api_contract': '2.0.0-alpha.42',
+            'required_capabilities': [
+                'draw.browser-mutation.v2', 'gacha.catalog-display.v2',
+                'gacha.presentation.v2', 'gacha.rank-master.v2',
+                'identity.sms-phone-ownership.v2', 'payment.fincode.v2',
+                'prize.fulfillment-browser-mutation.v2', 'user-draw-history.read.v2',
+                'user-point.read.v2', 'user-prize.presentation.v2',
+            ],
+        })
+        self.assertEqual(released['packages']['@oripa/storefront-testkit'], {
+            'version': '2.0.0-alpha.46',
+            'sha256': 'f4e324b859d1d96d66e78c9c1adf16616f132e4b114b10a2af4e9e5fe5a5de83',
+            'storefront_client_version': '2.0.0-alpha.46',
+            'site_schema_version': '2.0.0-alpha.23',
+            'public_api_operation_count': 84,
+        })
+        self.assertEqual(released['packages']['@oripa/site-schema'], {
+            'version': '2.0.0-alpha.23',
+            'sha256': 'b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2',
+            'source_bundle_version': '2.0.0-alpha.23',
+            'source_tree': '11f6bee77dd463c2f90352537f817404cf3042bd',
+        })
+        history_digest = hashlib.sha256(json.dumps(
+            value['immutable_history'][:-1], sort_keys=True, separators=(',', ':'),
+        ).encode()).hexdigest()
+        self.assertEqual(history_digest, 'd77ebee99ed87d04063c38562a6ce9e90be653ab0e871cf743d2cd0c2e0577cb')
+        self.assertEqual(sum(r['bundle_version'] == '2.0.0-alpha.46'
+                             for r in value['immutable_history']), 1)
+        target = artifact.verification_target(value)
+        self.assertEqual(target['release_state'], 'released')
+        self.assertEqual(target['source_commit'], released['source_commit'])
+        self.assertEqual(target['manifest_sha256'], released['manifest_sha256'])
+        self.assertEqual(target['predecessor_bundle_version'], '2.0.0-alpha.45')
+        self.assertEqual(target['public_api_operation_count'], 84)
+        self.assertFalse(target['breaking_change'])
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
+
+    def test_released_alpha_46_rejects_build_reissue_and_duplicate_history(self):
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+            artifact.pending_candidate(ROOT)
+        real_run = artifact.run
+
+        def no_package_build(arguments, **kwargs):
+            self.assertNotEqual(arguments[0], 'pnpm', 'released artifact build must stop before package commands')
+            return real_run(arguments, **kwargs)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'must-not-be-created'
+            head = real_run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
+            with mock.patch.object(artifact, 'run', side_effect=no_package_build):
+                with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                    artifact.build(ROOT, output, head)
+            self.assertFalse(output.exists())
+
+        value = copy.deepcopy(self.governance())
+        value['immutable_history'].append(copy.deepcopy(value['latest_immutable']))
+        with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history version inventory invalid'):
+            artifact.validate_governance(value)
+        value = copy.deepcopy(self.governance())
+        value['candidate'] = artifact.verification_target(value)
+        value['candidate'].update(release_state='pending', predecessor_bundle_version='2.0.0-alpha.46')
+        with self.assertRaisesRegex(artifact.ArtifactError, 'immutable existing version reissue prohibited'):
+            artifact.validate_governance(value)
+
+    def test_released_alpha_46_rejects_corrupt_publication_and_history(self):
+        for artifact_id in (0, '12586773046'):
+            value = copy.deepcopy(self.governance())
+            for row in (value['latest_immutable'], value['immutable_history'][-1]):
+                row['publication']['artifact_id'] = artifact_id
+            with self.subTest(artifact_id=artifact_id), self.assertRaisesRegex(
+                artifact.ArtifactError, 'immutable publication evidence invalid'
+            ):
+                artifact.validate_governance(value)
+        value = copy.deepcopy(self.governance())
+        value['immutable_history'][0]['manifest_sha256'] = 'invalid'
+        with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history evidence invalid'):
+            artifact.validate_governance(value)
+
     def test_released_alpha_45_has_exact_publication_evidence(self):
         value = artifact.validate_governance(self.governance())
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.46')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 25)
         self.assertIsNone(value['candidate'])
         released = value['latest_immutable']
@@ -362,7 +499,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertFalse(target['breaking_change'])
         source = artifact.validate_source(ROOT)
         self.assertEqual(source['bundle_version'], '2.0.0-alpha.46')
-        self.assertEqual(source['release_state'], 'pending')
+        self.assertEqual(source['release_state'], 'released')
 
     def test_released_alpha_45_cannot_be_republished_or_duplicated(self):
         with mock.patch.object(artifact, 'governance', return_value=self.governance()):
@@ -373,6 +510,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history version inventory invalid'):
             artifact.validate_governance(value)
         value = copy.deepcopy(self.governance())
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         value['candidate'] = artifact.verification_target(value)
         value['candidate']['release_state'] = 'pending'
         value['candidate']['predecessor_bundle_version'] = '2.0.0-alpha.45'
