@@ -265,6 +265,22 @@ class PolicyGateTest(unittest.TestCase):
                         data["changed_paths"], data["base_sha"],
                     )
 
+    def test_oldtest_alpha46_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task_id = "OLDTEST-ALPHA46-20261025"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id), f"[{task_id}] OLD Source Authority",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in (task_id + "A", "OLDTEST-ALPHA46-20261026", "OLDTEST-ALPHA47-20261025", "OLDTEST-ALPHA46-*"):
+            with self.subTest(task_id=invalid):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                    policy_gate.validate_pr_body(
+                        data["pr_body"].replace("GOV-008", invalid), f"[{invalid}] OLD Source Authority",
+                        data["changed_paths"], data["base_sha"],
+                    )
+
     def test_login_gacha_ui_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(

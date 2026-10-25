@@ -24,6 +24,29 @@ TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
 
 
+class Alpha46ApprovalInventoryTest(unittest.TestCase):
+    def test_exact_payload_keeps_applied_migrations_and_only_adds_097_098(self):
+        approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
+        self.assertEqual(approval["task_id"], "OLDTEST-ALPHA46-20261025")
+        self.assertEqual(approval["source_pr"], 617)
+        self.assertEqual(approval["source_sha"], "3592fcdc8e43467c3dd67d2677ec52b7d328eb77")
+        self.assertEqual(approval["image_mode"], "normal")
+        self.assertIs(approval["activation_authorized"], False)
+        baseline = "8a656d1a4fb44e15155cbec3ab0ad7b927553587"
+        target = approval["source_sha"]
+        directory = "apps/api/database/migrations-v2"
+        def inventory(ref):
+            output = subprocess.check_output(["git", "ls-tree", "-r", ref, "--", directory], cwd=ROOT, text=True)
+            return {line.split("\t", 1)[1]: line.split()[2] for line in output.splitlines() if line.endswith(".php")}
+        before, after = inventory(baseline), inventory(target)
+        self.assertEqual(len(before), 96)
+        self.assertEqual({path: after[path] for path in before}, before)
+        self.assertEqual(sorted(set(after) - set(before)), [
+            directory + "/2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php",
+            directory + "/2026_10_23_000098_add_v2_shipping_minimum_points.php",
+        ])
+
+
 class OldTestBuildRecipeTest(unittest.TestCase):
     def setUp(self):
         self.recipe = json.loads((ROOT / "manifests/old-test-build-recipe.json").read_text())
