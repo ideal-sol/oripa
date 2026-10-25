@@ -246,6 +246,24 @@ class PolicyGateTest(unittest.TestCase):
         for invalid in (task_id + "A", "S3-OLD-PLATFORM-ADMIN-PHASE1-20261010", "S3-OLD-PLATFORM-ADMIN-*"):
             self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
 
+    def test_contract46_preparation_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task_id = "CONTRACT46-20261024"
+        policy_gate.validate_pr_body(
+            data["pr_body"].replace("GOV-008", task_id),
+            f"[{task_id}] Prepare Contract publication authority",
+            data["changed_paths"], data["base_sha"],
+        )
+        for invalid in ("CONTRACT46-20261025", task_id + "A", "CONTRACT46-*", "CONTRACT47-20261024"):
+            with self.subTest(task_id=invalid):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "Task ID"):
+                    policy_gate.validate_pr_body(
+                        data["pr_body"].replace("GOV-008", invalid),
+                        f"[{invalid}] Prepare Contract publication authority",
+                        data["changed_paths"], data["base_sha"],
+                    )
+
     def test_login_gacha_ui_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
         policy_gate.validate_pr_body(
