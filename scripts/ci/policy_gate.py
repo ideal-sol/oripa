@@ -2034,7 +2034,7 @@ def validate_workspace_configuration(repository: Path) -> None:
             "@tiptap/extension-bubble-menu": "3.30.5",
             "@tiptap/extension-floating-menu": "3.30.5",
             "brace-expansion": "5.0.12",
-            "fast-uri": "3.1.8",
+            "fast-uri": "3.1.9",
             "js-yaml": "4.3.2",
             "minimatch": "10.2.5",
             "nanoid": "3.3.18",
