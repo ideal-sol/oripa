@@ -8,7 +8,94 @@ Source Merge, publication, upload, Registry publish, Tag/Release, Site change,
 operational migration, OLD Test/Production, ENV/AWS/Docker or Runtime action.
 The local Bundle below is verification output, not a published Artifact.
 
-## Source and candidate
+## Current synchronization and security verification — 2026-10-25
+
+Security PR616 (NEXTSEC-20261025) is formally Squash Merged at
+`a58aa2edebd51032e5f1e2e2f674f49861576054`, Tree
+`acab716885f18d73d8c44500aecf26d8778b5be9`. This is the inspected protected
+main and current PR614 Base. It is not alpha.46 publication authority and its
+Task ID must not be used for this Contract publication.
+
+Original Draft614 HEAD `7a1f1a3612ebfc661257e0b561cbf4a45569a993` / Tree
+`581cd3ca0e2b3be7e7f81609fb93e033bf241c45` is retained as ancestry. The original
+merge-tree conflicted only in the two Worklog append blocks. A normal
+preparatory commit relocated only614's existing record away from that boundary,
+without deleting main history. Then the actual Git clean merge passed the
+canonical `sync-task-branch-base` checker, with exact parents
+`a57f98bfc5c2164d5e2e1fdb3492a11a0901361d` and the main SHA above, canonical Tree
+`3278f09217121479e42a6b0ee50ba52603fa0cda`, sync commit
+`629a265d30fa3e0ab94a18988b6ae823b549e2e1`. No manual conflict candidate, force
+push, reset, branch recreation or path-scope expansion was used.
+
+Both fast-uri3.1.9 exact pin/rejection coverage and the exact
+CONTRACT46-20261024 registration/invalid-ID rejection are retained. The only
+PR-owned delta against the new main is this document, Policy Gate exact Task ID
+registration/test, and Worklog. Security manifests/lockfiles are inherited main
+Source and remain byte-identical to616. The installed API transport does not
+recognize the Git-only sync operation; the transient0600 policy enabled it only
+during Git synchronization, then restored the API-compatible Draft-only set
+with Base rebound to the verified new main. Canonical source/wrappers/Gates and
+all exact path constraints were preserved.
+
+### Historical HOLD and current measured posture
+
+The Oct24 preparation had HOLD_UNAPPROVED_FINDING:9 unapproved path occurrences,
+including High zod in Workspace/Legacy and High undici under Admin jsdom, plus
+four fast-uri runtime findings under referenced Site Schema23. That historical
+HOLD and old local Bundle hashes are not current acceptance evidence.
+
+616 supplies compatible locked zod4.6.6 in Workspace/Legacy, Admin
+jsdom30.0.0→undici8.12.2, and the existing root override fast-uri3.1.9. Fresh
+Workspace/Legacy Full and Production audits now each report0 findings/raw exit0;
+fresh Composer locked audit also exits0. The baseline, approved dev-only
+exception, Gate code and Required Checks are unchanged. Final-head unchanged
+Security Gate evidence must expose current_findings0, unapproved_findings0 and
+PASS_APPROVED_POLICY and is recorded verbatim in the PR.
+
+For this docs/Task-ID-only delta, the unchanged Gate classifies dependency_delta
+as NONE against current main, so its development_security_result is
+PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION even when the fresh audit inventory
+is0. It cannot emit PASS_FRESH_AUDITS for that classification. Do not change the
+Gate, dependency Source or comparison Base to manufacture the requested label.
+A no-regression label alone is never remediation evidence: keep the actual0
+counts, fresh raw audit inputs and PASS_APPROVED_POLICY separate and explicit.
+The Human's requested label condition and any clarification are recorded in the
+PR; no approval or waiver is inferred from this explanation.
+
+### Contract, inventory and final-head evidence
+
+All Contract/package/ledger bytes match616 and the original614 inputs. Public
+SHA256 remains81ee96478ee3d80539817b54321f9f6d181c2a78a3dae2062527dd81049dcec4;
+canonical comparison against actual immutable45 keeps all81 operations, adds3
+for84, removes0 and finds0 breaking changes. Latest immutable45, pending46,
+Public/Admin42, Webhook40, Client/Testkit46 and Site Schema23 reference remain.
+Schema23 Source Tree11f6bee77dd463c2f90352537f817404cf3042bd and immutable artifact
+are unchanged; no23 reissue.
+
+Fresh exact-name official repository Artifact inventory on 2026-10-25 returns0
+for `oripa-storefront-contract-2.0.0-alpha.46`, without filtering expired entries.
+All16 canonical publication runs and15 per-run Artifact records were rechecked;
+no46 existing/expired/partial Artifact or newer publication attempt exists.
+Latest official publication remains45. Repeat inventory at future publication
+GO; any matching existing Artifact blocks same-version upload/reissue.
+
+Final HEAD/Tree and final-head Gate/Client/Testkit/export/local Bundle results
+are fixed in PR614 after this source document is committed. Do not predict a
+self-referential commit or future Squash SHA in this document. The local-only
+Bundle must use the actual clean final HEAD and INPUT_TASK_ID=CONTRACT46-20261024.
+Its Manifest source_commit/commit timestamp and resulting Manifest digest
+naturally differ from the Oct24 Bundle; report actual package/OpenAPI/SHA256SUMS
+digests and any payload difference separately. Neither a Draft HEAD nor any
+local digest is official publication evidence.
+
+Separate Human GO remains required for614 Ready/Source Merge, and later for the
+one-time canonical publication from its actual approved Squash SHA still equal
+to protected current main. expected_merged_sha remains UNASSIGNED. Main drift
+HOLDs. Formal authorize/publish/readback and later independent Ledger
+Reconciliation remain NOT RUN. Runtime/operational migrations/OLD Test/Production
+and Storefront changes are0.
+
+## Historical Source and candidate inspection — 2026-10-24
 
 - Protected main inspected: `bb9f6bd4bd50b6cc9c0662ccd9dee1c1d2f4b2cb` (#612).
 - SHIPPINGMIN #608 Squash: `69dde1868f20b6fbacc06849c8ff0535b74b145e`.
@@ -65,7 +152,7 @@ read-only. Its outer digest, Manifest, package/OpenAPI digests, SHA256SUMS and
 exact five-file inventory match the ledger. Canonical OpenAPI comparison gives
 zero breaking findings and zero removed operations. Do not replace alpha.45.
 
-## Publication and collision inventory
+## Historical publication and collision inventory — 2026-10-24
 
 The preparation inspected all16 canonical publication runs and each run's
 Artifact metadata, including expired entries where returned. The most recent
@@ -82,7 +169,7 @@ current immutable/candidate state. Its old lock wording is not authority for
 this release. Preserve it and all unrelated PRs; recheck release coordination
 and take the canonical release lock before formal publication/reconciliation.
 
-## Local-only Artifact verification
+## Historical local-only Artifact verification — 2026-10-24
 
 Toolchain: Node22.22.3 / pnpm10.12.1. Frozen install, OpenAPI checks/tests,
 Client checks, Site Schema build, Testkit checks and release tests use the
