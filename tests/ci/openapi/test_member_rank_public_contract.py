@@ -58,13 +58,14 @@ class MemberRankPublicContractTest(unittest.TestCase):
         for rate in ['1.001', '101.00', '-1.00']:
             self.assertIsNone(re.fullmatch(pattern, rate))
 
-    def test_candidate_operation_inventory_and_public_disclosure(self):
+    def test_released_operation_inventory_and_public_disclosure(self):
         operations = [operation['operationId'] for path in self.contract['paths'].values()
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
         self.assertEqual(len(operations), 84)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertEqual(ledger['candidate']['public_api_operation_count'], 84)
-        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.45')
-        self.assertEqual(len(ledger['immutable_history']), 25)
+        self.assertIsNone(ledger['candidate'])
+        self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], 84)
+        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.46')
+        self.assertEqual(len(ledger['immutable_history']), 26)
         self.assertEqual(set(self.schemas['MemberRankPublicSetting']['properties']), {
             'code', 'name', 'level', 'reach_line', 'maintain_line', 'promotion_bonus', 'purchase_bonus'})
