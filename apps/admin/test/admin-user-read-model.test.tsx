@@ -185,7 +185,7 @@ describe("Admin User Read workspace", () => {
 
     expect(await screen.findByRole("heading", { name: "決済履歴" })).toBeVisible();
     expect(screen.getByText("決済成功")).toBeVisible();
-    expect(screen.getByText("PayPay")).toBeVisible();
+    expect(screen.getByText("PayPay（fincode）")).toBeVisible();
     expect(screen.getByText(/2,000/u)).toBeVisible();
     expect(reader).toHaveBeenCalledWith(
       uuid("1"),
