@@ -87,7 +87,7 @@ product prices are used. Method switches do not reroute stored payments.
 Candidate bundle: `2.0.0-alpha.47`, Public/Admin contract `2.0.0-alpha.43`;
 Webhook remains alpha.40. Client and Testkit alpha.47 are source candidates,
 not published packages. Site schema alpha.23 and all immutable ledger entries,
-including alpha.46, remain unchanged. No artifact publication is authorized.
+including alpha.46, remain unchanged. No contract artifact publication is authorized.
 
 New Public operations: authenticated `GET /api/v2/payment-methods` and
 authenticated/CSRF-protected `POST /api/v2/payments/{payment_id}/client-events`.
@@ -137,7 +137,7 @@ joint end-to-end flows before activation.
 Executed results and exact-head CI/self-review links are maintained in the Draft
 PR and worklog. Browser/E2E or visual PASS must not be inferred from component
 tests. The final local checks below passed in separate runs; initial failed runs
-remain recorded. Formal CI completion is not asserted. Draft, branch and worktree are retained for
+remain recorded. Final-head CI and self-review results are recorded in PR #620. Draft, branch and worktree are retained for
 review; Ready, merge, deployment and stable tagging are outside this authorization.
 
 | Local verification | Executed result |
@@ -165,15 +165,23 @@ CREATE OR REPLACE convention because disposable migrate:fresh retains functions.
 
 ## Formal CI authorization boundary
 
-The existing `platform-ci.yml` PR workflow schedules `production-arm64-artifact`
-for this Strict/deferred change. That job builds and packages Production candidate
-images. This conflicts with the Human prohibition on Production Artifact
-generation/dispatch. No workflow, applicability rule, Required Check or security
-gate was weakened. The observed PR run stopped at stale contract test fixtures;
-the artifact job was skipped, and those fixtures were corrected locally.
-Subsequent source pushes are held because they would retrigger the prohibited
-job. Local completion is not formal CI PASS or a lane-valid final-head review.
-Separate explicit Human resolution is needed before the corrected head can be
-delivered and all formal checks/self-review completed. Draft PR #620 remains open;
-its remote head and the newer local head are recorded separately in the PR and
-private exact-source handoff. Status: **HOLD — formal CI authorization conflict**.
+The latest Human decision resolves the previous CI authorization HOLD. The
+existing `platform-ci.yml` PR job `production-arm64-artifact` may automatically
+Build, Package, Verify and Load its validation Candidate Artifact and save it to
+GitHub Actions. SHA, manifest and provenance verification remain mandatory.
+This exception permits normal final-head CI only; it grants no Production use.
+No workflow, applicability rule, Required Check or security gate is weakened.
+The old published-head run failed and skipped downstream jobs; none of those
+results counts as final-head PASS. Corrected Source is delivered to the same
+Draft PR #620, where final Required Checks, Artifact ID and fresh exact-head
+self-review are recorded. The existing branch/worktree and local passing
+evidence are reused. Migration099 is unchanged at resumption; its allocation
+lock must be reacquired before any further migration edit.
+
+Separate Production Artifact Workflow dispatch, release publication, registry
+push, runtime transfer/load/start, Source Authority changes, operational
+DB/ENV/worker changes, OLD Test activation, Ready, merge and auto-merge remain
+prohibited. After Draft completion stop for separate Human Source Merge GO.
+OLD Test remains deferred until PAY1–PAY4 and required Storefront work are ready
+for the separate activation owner. Target status after all final checks and
+review pass: `PAY1_SOURCE_DRAFT_READY_OLD_TEST_DEFERRED`.
