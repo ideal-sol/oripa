@@ -153,6 +153,16 @@ final class V2PaymentService
                 ]);
             }
             $this->paymentHistory($paymentId, null, 'created', 'user', null);
+            if ($providerCode === 'fincode') {
+                $live = config('v2_fincode.base_url') === 'https://api.fincode.jp';
+                DB::table('payment_commercial_classifications')->insert([
+                    'payment_id' => $paymentId, 'classification' => $live ? 'commercial' : 'test',
+                    'reason' => $live ? 'provider_live_mode' : 'provider_test_mode',
+                ]);
+            }
+            app(V2PaymentProgressService::class)->append($paymentId, 'created', array_filter([
+                'amount' => (int) $plan->amount, 'provider' => $providerCode, 'method' => $paymentMethod,
+            ], static fn ($value) => $value !== null));
             $this->idempotency->complete($claim->record, 'payment', $publicId);
 
             return DB::table('payments')->where('id', $paymentId)->firstOrFail();
@@ -215,15 +225,26 @@ final class V2PaymentService
         if ($eventType === 'payment.succeeded' && $providerOccurredAt === null) {
             throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
         }
+        $payloadHash = hash('sha256', $rawPayload);
+        if (in_array($providerCode, ['univapay', 'techcoin', 'paidy'], true)) {
+            // PAY2–PAY4 must normalize verified provider data before calling this boundary.
+            // No raw body, request headers or credentials are retained for these providers.
+            $rawPayload = json_encode([
+                'event_type' => $eventType, 'payment_id' => $paymentId,
+                'adjustment_id' => $adjustmentId,
+                'provider_occurred_at' => $providerOccurredAt?->format(DATE_ATOM),
+            ], JSON_THROW_ON_ERROR);
+            $headers = [];
+        }
         foreach (array_keys($headers) as $key) {
             if (preg_match('/authorization|cookie|secret|token|signature/i', $key)) {
                 unset($headers[$key]);
             }
         }
-        return $this->transactions->run(function () use ($providerCode, $externalEventId, $eventType, $rawPayload, $headers, $paymentId, $adjustmentId, $providerOccurredAt): object {
+        return $this->transactions->run(function () use ($providerCode, $externalEventId, $eventType, $rawPayload, $payloadHash, $headers, $paymentId, $adjustmentId, $providerOccurredAt): object {
             $payment = $paymentId === null ? null : DB::table('payments')->where('id', $paymentId)->lockForUpdate()->firstOrFail();
             $ignored = $eventType === 'payment.canceled' && $payment?->status === 'succeeded';
-            DB::table('payment_provider_events')->insertOrIgnore([
+            $inserted = DB::table('payment_provider_events')->insertOrIgnore([
                     'provider_code' => $providerCode,
                     'external_event_id' => $externalEventId,
                     'event_type' => $eventType,
@@ -235,7 +256,7 @@ final class V2PaymentService
                         : CarbonImmutable::parse($providerOccurredAt->format('Y-m-d H:i:s.uP'))
                             ->utc()->startOfSecond()->toIso8601String(),
                     'received_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
-                    'payload_hash' => hash('sha256', $rawPayload),
+                    'payload_hash' => $payloadHash,
                     'payload_ciphertext' => Crypt::encryptString($rawPayload),
                     'headers_redacted' => json_encode((object) $headers, JSON_THROW_ON_ERROR),
                     'processing_status' => $ignored ? 'ignored' : 'received',
@@ -251,10 +272,13 @@ final class V2PaymentService
                 $event->event_type !== $eventType
                 || (int) ($event->payment_id ?? 0) !== (int) ($paymentId ?? 0)
                 || (int) ($event->payment_adjustment_id ?? 0) !== (int) ($adjustmentId ?? 0)
-                || ! hash_equals($event->payload_hash, hash('sha256', $rawPayload))
+                || ! hash_equals($event->payload_hash, $payloadHash)
                 || ! $this->sameInstant($event->provider_occurred_at, $providerOccurredAt)
             ) {
                 throw new V2PaymentException('PROVIDER_EVENT_ID_REUSED');
+            }
+            if ($paymentId !== null && $inserted === 1) {
+                app(V2PaymentProgressService::class)->append($paymentId, 'provider_notified');
             }
 
             return $event;
@@ -515,6 +539,7 @@ final class V2PaymentService
                 ['payment_public_id' => $payment->public_id],
                 'payment.succeeded:'.$payment->public_id
             );
+            app(V2PaymentReceiptService::class)->snapshot((int) $payment->id);
             $this->templateMail->schedule(
                 'coin_purchase_completed',
                 'coin.purchase.completed:'.$payment->public_id,
@@ -1276,6 +1301,9 @@ final class V2PaymentService
             $updates['limited_bonus_point_amount'] = $limitedBonusPointAmount ?? 0;
         }
         DB::table('payments')->where('id', $payment->id)->update($updates);
+        if (in_array($to, ['succeeded', 'failed', 'expired'], true)) {
+            app(V2PaymentProgressService::class)->append((int) $payment->id, $to);
+        }
         $this->paymentHistory(
             $payment->id,
             $payment->status,

@@ -70,3 +70,4 @@ export type {
 } from "./mock.js";
 
 export { SHIPPING_POLICY_FIXTURES, SHIPPING_MINIMUM_PROBLEM_FIXTURE } from "./fixtures.js";
+export { PAYMENT_FOUNDATION_FIXTURES } from "./payment-foundation.js";

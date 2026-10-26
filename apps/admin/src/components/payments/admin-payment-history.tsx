@@ -40,6 +40,8 @@ const methodOptions: Array<{ label: string; value: AdminPaymentMethodFilter }> =
   { label: "PayPay", value: "paypay" },
   { label: "コンビニ決済", value: "konbini" },
   { label: "銀行振込", value: "virtual_account" },
+  { label: "電子マネー（NetRideCash）", value: "netridecash" },
+  { label: "あと払い（ペイディ）", value: "paidy" },
 ];
 
 const currency = new Intl.NumberFormat("ja-JP", {
@@ -69,6 +71,10 @@ export function AdminPaymentHistory({
   );
   const [method, setMethod] = useState<AdminPaymentMethodFilter>(initialMethod);
   const [items, setItems] = useState<AdminPayment[]>([]);
+  const [provider, setProvider] = useState("");
+  const [progress, setProgress] = useState<NonNullable<AdminPaymentQuery["progress"]> | "">("");
+  const [from, setFrom] = useState("");
+  const [until, setUntil] = useState("");
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -79,6 +85,10 @@ export function AdminPaymentHistory({
   useEffect(() => {
     const controller = new AbortController();
     const query: AdminPaymentQuery = {
+      provider: provider || undefined,
+      progress: progress || undefined,
+      from: from || undefined,
+      until: until || undefined,
       cursor,
       limit: 20,
       payment_method: method === "all" ? undefined : method,
@@ -100,7 +110,7 @@ export function AdminPaymentHistory({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [client, cursor, method, reload, status, userPublicId]);
+  }, [client, cursor, method, reload, status, userPublicId, provider, progress, from, until]);
 
   function beginLoad() {
     setLoading(true);
@@ -116,6 +126,14 @@ export function AdminPaymentHistory({
     <>
       {!userPublicId ? (
         <div className="admin-payment-filters" aria-label="決済履歴フィルター">
+          <label>決済会社<select aria-label="決済会社" value={provider} onChange={(event) => { beginLoad(); resetCursor(); setProvider(event.target.value); }}>
+            <option value="">すべて</option><option value="univapay">UnivaPay</option><option value="techcoin">テックコイン</option><option value="paidy">ペイディ</option><option value="fincode">fincode</option>
+          </select></label>
+          <label>決済経過<select aria-label="決済経過" value={progress} onChange={(event) => { beginLoad(); resetCursor(); setProgress(event.target.value as typeof progress); }}>
+            <option value="">すべて</option><option value="notification_missing">通知が来ていない</option><option value="review_required">要確認</option>
+          </select></label>
+          <label>申込日（開始）<input type="date" value={from} onChange={(event) => { beginLoad(); resetCursor(); setFrom(event.target.value); }} /></label>
+          <label>申込日（終了）<input type="date" value={until} onChange={(event) => { beginLoad(); resetCursor(); setUntil(event.target.value); }} /></label>
           <label>
             <span>決済状態</span>
             <select
@@ -155,6 +173,7 @@ export function AdminPaymentHistory({
               resetCursor();
               setStatus("succeeded");
               setMethod("all");
+              setProvider(""); setProgress(""); setFrom(""); setUntil("");
               setReload((value) => value + 1);
             }}
             type="button"
@@ -284,7 +303,7 @@ function PaymentCollection({
                     </Link>
                   </td>
                 ) : null}
-                <td>{paymentMethodLabel(payment.method)}</td>
+                <td>{payment.method_label ?? paymentMethodLabel(payment.method)}（{payment.provider_label ?? payment.provider}）</td>
                 <td>{formatAmount(payment)}</td>
                 <td>
                   <PaymentStatusBadge status={payment.status} />

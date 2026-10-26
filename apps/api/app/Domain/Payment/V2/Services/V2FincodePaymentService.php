@@ -192,7 +192,6 @@ final class V2FincodePaymentService
 
         $query = DB::table('payments')
             ->where('user_id', $user->id)
-            ->where('provider_code', 'fincode')
             ->where('status', 'succeeded')
             ->orderByDesc('id');
         if ($cursorId !== null) {
@@ -458,7 +457,7 @@ final class V2FincodePaymentService
         }
         $attempt = DB::table('fincode_payment_attempts')->where('payment_id', $payment->id)->first();
         $nextAction = null;
-        if ($includeNextAction && $payment->status === 'requires_action' && $attempt !== null) {
+        if ($payment->provider_code === 'fincode' && $includeNextAction && $payment->status === 'requires_action' && $attempt !== null) {
             if ($payment->payment_method === 'credit_card' && $attempt->fincode_card_id === null) {
                 $bootstrap = $this->configuration->bootstrap();
                 $nextAction = [
@@ -490,6 +489,7 @@ final class V2FincodePaymentService
             'member_rank_purchase_bonus' => app(\App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::class)
                 ->present((int) $payment->id),
             'method' => $payment->payment_method,
+            'method_label' => V2PaymentMethodPolicy::methodLabel($payment->payment_method),
             'status' => $payment->status,
             'amount' => ['amount' => (int) $payment->amount, 'currency' => $payment->currency],
             'grant' => [

@@ -265,6 +265,7 @@ function MonthlySalesPanel({ month, report }: { month: string; report: AdminDash
     <div className="dashboard-sales-stack">
       <SectionHeading title="月別売上Summary" />
       <SalesSummary summary={report.summary} />
+      {report.provider_breakdown && <section aria-label="決済手段・会社別売上"><h3>決済手段・会社別売上</h3><table><thead><tr><th>決済手段・会社</th><th>件数</th><th>総売上</th><th>返金</th><th>チャージバック</th><th>純売上</th></tr></thead><tbody>{report.provider_breakdown.map((row) => <tr key={`${row.provider}:${row.method}`}><td>{row.method_label}（{row.provider_label}）</td><td>{row.count}</td><td>{row.gross_amount.toLocaleString()}円</td><td>{row.refund_amount.toLocaleString()}円</td><td>{row.chargeback_amount.toLocaleString()}円</td><td>{row.net_amount.toLocaleString()}円</td></tr>)}</tbody></table></section>}
       <SectionHeading action={<DeferredCsvButton />} title="日別売上Calendar" />
       <SalesCalendar month={month} report={report} />
     </div>
@@ -429,7 +430,7 @@ function PaymentTable({ loading, onLoadMore, report }: {
         <thead><tr>{["決済日時", "決済種別", "購入プラン", "決済金額", "状態", "ユーザー"].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>{report.items.map((item) => (
           <tr key={item.payment_id}>
-            <td>{formatDateTime(item.succeeded_at)}</td><td>{dailyPaymentMethodLabel(item.payment_method)}</td><td>{item.plan_name}</td>
+            <td>{formatDateTime(item.succeeded_at)}</td><td>{item.method_label ?? dailyPaymentMethodLabel(item.payment_method)}（{item.provider_label ?? item.provider}）</td><td>{item.plan_name}</td>
             <td>{currency.format(item.amount)}</td><td>成功</td><td><PublicId value={item.user_id} /></td>
           </tr>
         ))}</tbody>
@@ -445,9 +446,11 @@ function dailyPaymentMethodLabel(method: string | null | undefined): string {
     case "paypay":
     case "konbini":
     case "virtual_account":
+    case "netridecash":
+    case "paidy":
       return paymentMethodLabel(method);
     default:
-      return "-";
+      return method ?? "不明";
   }
 }
 

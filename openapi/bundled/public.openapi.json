@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.42",
+    "version": "2.0.0-alpha.43",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -3029,6 +3029,103 @@
         }
       }
     },
+    "/payment-methods": {
+      "get": {
+        "operationId": "listPaymentMethods",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "summary": "利用可能な決済手段を設定順で取得",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "point_product_id",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "private, no-store。未接続providerは利用不可。UnivaPayの100,000円超過カード行は含まない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PaymentMethodOption"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
+    "/payments/{payment_id}/client-events": {
+      "post": {
+        "operationId": "recordPaymentClientEvent",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-client-event",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "summary": "本人の決済の参考イベントを記録（決済状態は変更しない）",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentClientEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Accepted or safely suppressed after the per-kind limit."
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
     "/payments": {
       "post": {
         "x-sms-verification": "required",
@@ -4470,8 +4567,138 @@
           "credit_card",
           "paypay",
           "konbini",
-          "virtual_account"
+          "virtual_account",
+          "netridecash",
+          "paidy"
         ]
+      },
+      "PaymentMethodOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method",
+          "label",
+          "available",
+          "unavailable_reason",
+          "saved_cards_enabled",
+          "flow"
+        ],
+        "properties": {
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "label": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "enum": [
+              null,
+              "provider_unavailable",
+              "amount_too_large"
+            ]
+          },
+          "saved_cards_enabled": {
+            "type": "boolean"
+          },
+          "flow": {
+            "enum": [
+              "card_component",
+              "inline_card_form",
+              "redirect",
+              "paidy_checkout"
+            ]
+          },
+          "inline_form": {
+            "type": "null",
+            "description": "PAY1では設定を配信しない。PAY2が後方互換に型を追加する。"
+          }
+        }
+      },
+      "PaymentClientEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "redirect_started",
+              "inline_submitted",
+              "inline_result",
+              "paidy_checkout_opened",
+              "paidy_checkout_result",
+              "returned"
+            ]
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "charge_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Reference only; accepted only for inline_result."
+              },
+              "result": {
+                "enum": [
+                  "success",
+                  "error",
+                  "authorized",
+                  "rejected",
+                  "closed",
+                  "complete",
+                  "cancel",
+                  "failure"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "PaymentFormPostAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "url",
+          "fields"
+        ],
+        "properties": {
+          "type": {
+            "const": "form_post"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "value"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "value": {
+                  "type": "string",
+                  "maxLength": 4096
+                }
+              }
+            }
+          }
+        }
       },
       "PaymentStatus": {
         "enum": [
@@ -4615,6 +4842,9 @@
           "method": {
             "$ref": "#/components/schemas/PaymentMethod"
           },
+          "method_label": {
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
           },
@@ -4664,6 +4894,9 @@
               },
               {
                 "$ref": "#/components/schemas/PaymentCardComponentAction"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentFormPostAction"
               }
             ]
           }
@@ -9795,7 +10028,7 @@
         }
       },
       "PaymentProblem": {
-        "description": "PaymentのRFC 9457 Problem Details。Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
+        "description": "PaymentのRFC 9457 Problem Details。PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/XRequestId"

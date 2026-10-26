@@ -464,7 +464,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertSame(0, DB::table('member_rank_point_entries')->count());
         self::assertSame(1, DB::table('payment_point_grants')->count());
         $payments = app(V2PaymentService::class);
-        $new = $payments->createPayment($user->id, $old->point_purchase_plan_id, 'fincode', 'acceptance-new', (string) Str::uuid7(), 'credit_card');
+        $new = $this->createCommercialRankPayment($payments, $user->id, $old->point_purchase_plan_id, 'fincode', 'acceptance-new', (string) Str::uuid7(), 'credit_card');
         app(V2PointTransactionRunner::class)->run(fn () => DB::table('payments')->where('id', $new->id)->update(['provider_payment_id' => 'acceptance-new']));
         $canonical['id'] = 'acceptance-new';
         $writer->beginTransaction();
@@ -574,7 +574,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertSame(1, $transport->sent);
         self::assertSame(100, (int) DB::table('wallets')->where('user_id', $lineUser->id)->value('free_balance'));
         self::assertSame(0, DB::table('member_rank_point_entries')->where('user_id', $lineUser->id)->count());
-        $interrupted = $payments->createPayment($user->id, $old->point_purchase_plan_id, 'fincode', 'acceptance-interrupted', (string) Str::uuid7(), 'credit_card');
+        $interrupted = $this->createCommercialRankPayment($payments, $user->id, $old->point_purchase_plan_id, 'fincode', 'acceptance-interrupted', (string) Str::uuid7(), 'credit_card');
         app(V2PointTransactionRunner::class)->run(fn () => DB::table('payments')->where('id', $interrupted->id)->update(['provider_payment_id' => 'acceptance-interrupted']));
         $canonical['id'] = 'acceptance-interrupted';
         $closeAfterReceipt = true;
@@ -861,7 +861,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertSame('success', DB::table('payment_provider_event_attempts')->where('payment_provider_event_id', $lateEvent->id)->value('outcome'));
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
         foreach (['failed', 'canceled', 'expired'] as $terminalStatus) {
-            $terminal = $payments->createPayment($user->id, $payment->point_purchase_plan_id, 'fincode',
+            $terminal = $this->createCommercialRankPayment($payments, $user->id, $payment->point_purchase_plan_id, 'fincode',
                 'synthetic-terminal-'.$terminalStatus, (string) Str::uuid7(), 'credit_card');
             $type = $terminalStatus === 'canceled' ? 'payment.canceled' : 'payment.status_changed';
             $firstEvent = $payments->recordVerifiedProviderEvent('fincode', 'synthetic-first-'.$terminalStatus, $type, '{}', [], $terminal->id);

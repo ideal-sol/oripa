@@ -5,6 +5,14 @@ use App\Domain\Point\Services\PointExpirationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Artisan::command('v2:payment-progress:purge', function (): void {
+    $this->info('Expired payment progress events purged: '.app(\App\Domain\Payment\V2\Services\V2PaymentProgressService::class)->purge());
+});
+
+if (config('v2_payment.progress_purge_enabled') === true) {
+    Schedule::command('v2:payment-progress:purge')->daily()->withoutOverlapping();
+}
+
 Artisan::command('points:expire {--limit=1000}', function (PointExpirationService $service): int {
     $result = $service->expire((int) $this->option('limit'));
 

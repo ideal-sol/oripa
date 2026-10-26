@@ -1096,6 +1096,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 利用可能な決済手段を設定順で取得 */
+        get: operations["listPaymentMethods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/client-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 本人の決済の参考イベントを記録（決済状態は変更しない） */
+        post: operations["recordPaymentClientEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments": {
         parameters: {
             query?: never;
@@ -1574,7 +1608,42 @@ export interface components {
             };
         };
         /** @enum {unknown} */
-        PaymentMethod: "credit_card" | "paypay" | "konbini" | "virtual_account";
+        PaymentMethod: "credit_card" | "paypay" | "konbini" | "virtual_account" | "netridecash" | "paidy";
+        PaymentMethodOption: {
+            method: components["schemas"]["PaymentMethod"];
+            label: string;
+            available: boolean;
+            /** @enum {unknown} */
+            unavailable_reason: null | "provider_unavailable" | "amount_too_large";
+            saved_cards_enabled: boolean;
+            /** @enum {unknown} */
+            flow: "card_component" | "inline_card_form" | "redirect" | "paidy_checkout";
+            /** @description PAY1では設定を配信しない。PAY2が後方互換に型を追加する。 */
+            inline_form?: null;
+        };
+        PaymentClientEvent: {
+            /** @enum {unknown} */
+            type: "redirect_started" | "inline_submitted" | "inline_result" | "paidy_checkout_opened" | "paidy_checkout_result" | "returned";
+            detail?: {
+                /**
+                 * Format: uuid
+                 * @description Reference only; accepted only for inline_result.
+                 */
+                charge_id?: string;
+                /** @enum {unknown} */
+                result?: "success" | "error" | "authorized" | "rejected" | "closed" | "complete" | "cancel" | "failure";
+            };
+        };
+        PaymentFormPostAction: {
+            /** @constant */
+            type: "form_post";
+            /** Format: uri */
+            url: string;
+            fields: {
+                name: string;
+                value: string;
+            }[];
+        };
         /** @enum {unknown} */
         PaymentStatus: "created" | "requires_action" | "processing" | "succeeded" | "failed" | "canceled" | "expired";
         /** @description Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。 */
@@ -1614,6 +1683,7 @@ export interface components {
             /** @description 購入対象のCanonical Public Opaque PointProduct.id。valid Paymentのterminal non-success時は`/points/purchase/{point_product_id}?pid={Payment.id}`へ戻す。 */
             point_product_id?: components["schemas"]["OpaqueId"];
             method: components["schemas"]["PaymentMethod"];
+            method_label?: string;
             status: components["schemas"]["PaymentStatus"];
             amount: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PaymentGrant"];
@@ -1626,7 +1696,7 @@ export interface components {
             /** Format: date-time */
             succeeded_at: string | null;
             /** @description Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。 */
-            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"];
+            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"];
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         MemberRankPurchaseBonus: {
@@ -2868,7 +2938,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description PaymentのRFC 9457 Problem Details。Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
+        /** @description PaymentのRFC 9457 Problem Details。PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
         PaymentProblem: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -4865,6 +4935,58 @@ export interface operations {
                 };
             };
             default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    listPaymentMethods: {
+        parameters: {
+            query?: {
+                point_product_id?: components["schemas"]["OpaqueId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description private, no-store。未接続providerは利用不可。UnivaPayの100,000円超過カード行は含まない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PaymentMethodOption"][];
+                    };
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    recordPaymentClientEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentClientEvent"];
+            };
+        };
+        responses: {
+            /** @description Accepted or safely suppressed after the per-kind limit. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["PaymentProblem"];
         };
     };
     createPayment: {

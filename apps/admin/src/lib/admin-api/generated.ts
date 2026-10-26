@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 2d957bb9887b17928b6eba8fba89c468e5444b9e8084010020a0e38c489cadf6
+// Contract SHA-256: fa01344a3fbc1c1c050b1261cfe59fa7d337c65e7b80c93ea2aab245e53978b7
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -337,7 +337,9 @@ export type AdminPaymentMethod =
   | "credit_card"
   | "paypay"
   | "konbini"
-  | "virtual_account";
+  | "virtual_account"
+  | "netridecash"
+  | "paidy";
 
 export type AdminPaymentStatus =
   | "created"
@@ -352,6 +354,8 @@ export interface AdminPayment {
   id: string;
   user: { id: string; display_name: string | null };
   provider: string;
+  provider_label?: string;
+  method_label?: string;
   adjustments?: AdminPaymentAdjustmentSummary;
   provider_payment_reference: string;
   method: AdminPaymentMethod;
@@ -369,6 +373,8 @@ export interface AdminPayment {
   updated_at: string;
 }
 
+export type PaymentProgressEvent = { type: string; source: "client" | "server"; detail: { result?: string; amount?: number; method?: string; provider?: string; }; recorded_at: string; };
+export type PaymentProviderSales = { method: string | null; provider: string; method_label: string; provider_label: string; count: number; gross_amount: number; refund_amount: number; chargeback_amount: number; net_amount: number; };
 export type AdminPaymentPurchaseBonusImpact = { required_amount: number; reversed_amount: number; shortfall_amount: number; };
 export type AdminPaymentRankRecovery = { rank: AdminMemberRankCode; requested_amount: number; recovered_amount: number; shortfall_amount: number; };
 export type AdminPaymentRankAdjustment = { month: string; effect: "none" | "current_month" | "past_month"; requested_points: number; applied_points: number; before_rank: string | null; after_rank: string | null; recoveries: Array<AdminPaymentRankRecovery>; };
@@ -380,7 +386,7 @@ export type AdminPaymentAdjustmentHistory = { from_status: string | null; to_sta
 export type AdminPaymentAdjustment = { id: string; type: "refund" | "chargeback" | "chargeback_reversal"; status: AdminPaymentAdjustmentStatus; parent_id: string | null; amount: number; reason: string | null; requested_by_admin_id: string | null; provider_adjustment_id: string | null; provider_case_id: string | null; source: "admin" | "provider" | "system"; requested_at: string | null; succeeded_at: string | null; canceled_at: string | null; impact: AdminPaymentPointImpact | null; history: Array<AdminPaymentAdjustmentHistory>; };
 export type AdminPaymentLot = { operation_id: string; point_type: "paid" | "free"; source: string; granted_amount: number; remaining_amount: number; reserved_amount: number; expire_at: string | null; member_rank_purchase_bonus: boolean; };
 export type AdminPaymentAdjustmentSummary = { refund_pending: boolean; refunded: boolean; chargeback: boolean; review_required: boolean; };
-export type AdminPaymentDetail = { payment: AdminPayment; lots: Array<AdminPaymentLot>; adjustments: Array<AdminPaymentAdjustment>; refund_eligibility: { allowed: boolean; code: string | null; reason: string | null; }; rank_adjustment_pending: boolean; };
+export type AdminPaymentDetail = { payment: AdminPayment; lots: Array<AdminPaymentLot>; adjustments: Array<AdminPaymentAdjustment>; refund_eligibility: { allowed: boolean; code: string | null; reason: string | null; }; rank_adjustment_pending: boolean; progress?: Array<PaymentProgressEvent>; };
 export type AdminPaymentDetailResponse = { data: AdminPaymentDetail; request_id: string; };
 export type AdminPaymentAdjustmentResponse = { data: AdminPaymentAdjustment; rank_adjustment_pending: boolean; idempotent_replay: boolean; request_id: string; };
 export type AdminPaymentChargebackPreview = { impact: AdminPaymentPointImpact; rank_adjustment_pending: boolean; };
@@ -612,6 +618,7 @@ export interface AdminDashboardSalesSummary {
 }
 
 export interface AdminDashboardMonthlySales {
+  provider_breakdown?: PaymentProviderSales[];
   month: string;
   timezone: "Asia/Tokyo";
   currency: "JPY";
@@ -621,6 +628,8 @@ export interface AdminDashboardMonthlySales {
 }
 
 export interface AdminDashboardPayment {
+  provider_label?: string;
+  method_label?: string;
   payment_id: string;
   user_id: string;
   amount: number;

@@ -49,6 +49,8 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 ] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
 
 export interface StorefrontPaymentClient {
+  listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
+  recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: PaymentCsrfOptions): Promise<StorefrontResponse<void>>;
   getPaymentCardUiBootstrap(): Promise<
     StorefrontResponse<Schemas["PaymentCardUiBootstrap"]>
   >;
@@ -94,6 +96,8 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
+  recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<void>>;
   getPaymentCardUiBootstrap(): Promise<
     StorefrontResponse<Schemas["PaymentCardUiBootstrap"]>
   >;
@@ -176,6 +180,12 @@ export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    listPaymentMethods: (id) => transport.request({path: `/payment-methods${id ? `?point_product_id=${encodeURIComponent(id)}` : ""}`}),
+    recordPaymentClientEvent: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/client-events`, method: "POST", body: input,
+      ...("csrf_token" in options ? {headers: csrf(options.csrf_token)} : {}),
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     getPaymentCardUiBootstrap: () => transport.request({
       path: "/me/payment-card-ui-bootstrap",
     }),
@@ -275,6 +285,11 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    listPaymentMethods: (id) => transport.request({path: `/payment-methods${id ? `?point_product_id=${encodeURIComponent(id)}` : ""}`}),
+    recordPaymentClientEvent: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/client-events`, method: "POST", body: input,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     getPaymentCardUiBootstrap: () => transport.request({
       path: "/me/payment-card-ui-bootstrap",
     }),

@@ -46,6 +46,20 @@ const jsonResponse = (body, init = {}) =>
     ...init,
   });
 
+test("payment method lookup and reference events preserve the transport boundary", async () => {
+  const calls = [];
+  const client = createStorefrontPaymentClient({request: async request => {calls.push(request); return {data: undefined};}});
+  await client.listPaymentMethods("synthetic/product");
+  assert.equal(calls[0].path, "/payment-methods?point_product_id=synthetic%2Fproduct");
+  const body = {type: "redirect_started"};
+  await client.recordPaymentClientEvent("0198a001-0000-7000-8000-000000000099", body, {csrf_token: "a".repeat(64)});
+  assert.equal(calls[1].method, "POST");
+  assert.equal(calls[1].csrf, "required");
+  assert.equal(calls[1].retry, false);
+  assert.deepEqual(calls[1].body, body);
+  assert.equal(calls[1].headers["X-XSRF-TOKEN"], "a".repeat(64));
+});
+
 test("member rank facade uses thin browser and request-scoped server reads", async () => {
   const calls = [];
   const body = { data: { enabled: false, rank: null, period: null, rank_points: null,

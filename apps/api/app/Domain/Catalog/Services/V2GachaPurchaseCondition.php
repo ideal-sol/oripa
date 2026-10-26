@@ -47,6 +47,7 @@ final class V2GachaPurchaseCondition
     public static function aggregate(int $userId): array
     {
         $aggregate = DB::table('payments as purchase')
+            ->whereRaw('v2_payment_commercial(purchase.id)')
             ->where('purchase.user_id', $userId)->where('purchase.status', 'succeeded')
             ->whereNotExists(function ($query): void {
                 $query->selectRaw('1')->from('payment_adjustments as adjustment')

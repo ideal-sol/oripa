@@ -159,6 +159,27 @@ final class AdminPaymentAdjustmentTest extends TestCase
         $this->expectConflict(fn () => $service->write($context, $payment->public_id, 'chargeback', ['reason' => 'CB'], (string) Str::uuid7()), 'PAYMENT_RANK_ADJUSTMENT_NOT_READY');
     }
 
+    public function test_payment_progress_filters_and_detail_preserve_financial_read_authority(): void
+    {
+        [$payment] = $this->rankPayment($this->rankUser(), 1000);
+        $progress = app(\App\Domain\Payment\V2\Services\V2PaymentProgressService::class);
+        $progress->append((int) $payment->id, 'redirect_started', [], 'client');
+        // rankPayment also records its synthetic server event, so use a second client-only payment.
+        $core = app(\App\Domain\Payment\V2\Services\V2PaymentService::class);
+        $missing = $core->createPayment($payment->user_id, $payment->point_purchase_plan_id, 'techcoin', 'missing-notification', 'missing-notification-key', 'netridecash');
+        $progress->append((int) $missing->id, 'redirect_started', [], 'client');
+        $read = app(\App\Domain\Payment\V2\Services\V2AdminPaymentReadService::class);
+        $context = $this->rankAdmin();
+        $rows = $read->all($context, null, 20, null, null, null, 'techcoin', 'notification_missing');
+        self::assertSame([$missing->public_id], array_column($rows['data'], 'id'));
+        $progress->append((int) $missing->id, 'provider_notified', ['match'=>'amount_mismatch']);
+        self::assertSame([], $read->all($context, null, 20, null, null, null, 'techcoin', 'notification_missing')['data']);
+        self::assertSame([$missing->public_id], array_column($read->all($context, null, 20, null, null, null, 'techcoin', 'review_required')['data'], 'id'));
+        $detail = app(V2AdminPaymentAdjustmentService::class)->detail($context, $missing->public_id)['data'];
+        self::assertSame('テックコイン', $detail['payment']['provider_label']);
+        self::assertSame(['created','redirect_started','provider_notified'], array_column($detail['progress'], 'type'));
+    }
+
     public function test_purchase_bonus_lot_is_displayed_and_supported_with_atomic_rank_recovery(): void
     {
         $this->enableRankFixture();

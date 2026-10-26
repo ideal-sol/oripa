@@ -6,6 +6,8 @@ use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodePublicConfiguration;
+use App\Domain\Payment\V2\Services\V2PaymentMethodPolicy;
+use App\Domain\Payment\V2\Services\V2PaymentProgressService;
 use App\Domain\Reporting\Exceptions\V2ReportingException;
 use App\Models\V2\User;
 use Illuminate\Http\JsonResponse;
@@ -49,6 +51,9 @@ final class V2PaymentController
                 throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
             }
 
+            app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($this->user());
+            app(V2PaymentMethodPolicy::class)->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
+
             return $this->payments->start(
                 $this->user(),
                 $pointProductId,
@@ -88,6 +93,28 @@ final class V2PaymentController
         });
     }
 
+    public function methods(Request $request): JsonResponse
+    {
+        return $this->handle($request, function () use ($request): array {
+            $this->user();
+            $product = $request->query('point_product_id');
+            if ($product !== null && ! is_string($product)) {
+                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The point product identifier is invalid.');
+            }
+
+            return app(V2PaymentMethodPolicy::class)->methods($product);
+        });
+    }
+
+    public function clientEvent(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, function () use ($request, $paymentId): array {
+            app(V2PaymentProgressService::class)->client($this->user(), $paymentId, $request->json()->all());
+
+            return [];
+        }, 204);
+    }
+
     public function resume(Request $request, string $paymentId): JsonResponse
     {
         return $this->handle($request, function () use ($paymentId): array {
@@ -105,13 +132,13 @@ final class V2PaymentController
 
     public function cards(Request $request): JsonResponse
     {
-        return $this->handle($request, fn (): array => $this->cards->cards($this->user()));
+        return $this->handle($request, fn (): array => $this->cards->cards($this->cardUser()));
     }
 
     public function cardUiBootstrap(Request $request): JsonResponse
     {
         return $this->handle($request, function (): array {
-            $this->user();
+            $this->cardUser();
 
             return $this->configuration->bootstrap();
         });
@@ -121,7 +148,7 @@ final class V2PaymentController
     {
         return $this->handle(
             $request,
-            fn (): array => $this->cards->reserveRegistration($this->user(), $this->idempotencyKey($request)),
+            fn (): array => $this->cards->reserveRegistration($this->cardUser(), $this->idempotencyKey($request)),
             201
         );
     }
@@ -129,6 +156,7 @@ final class V2PaymentController
     public function startCardRegistration(Request $request): JsonResponse
     {
         return $this->handle($request, function () use ($request): array {
+            $this->cardUser();
             if ($request->hasAny([
                 'return_url',
                 'return_url_on_failure',
@@ -155,7 +183,7 @@ final class V2PaymentController
             }
 
             return $this->cards->startRegistration(
-                $this->user(),
+                $this->cardUser(),
                 $cardToken,
                 $this->idempotencyKey($request)
             );
@@ -166,7 +194,7 @@ final class V2PaymentController
     {
         return $this->handle(
             $request,
-            fn (): array => $this->cards->registration($this->user(), $registrationId)
+            fn (): array => $this->cards->registration($this->cardUser(), $registrationId)
         );
     }
 
@@ -174,7 +202,7 @@ final class V2PaymentController
     {
         return $this->handle(
             $request,
-            fn (): array => $this->cards->reconcileRegistration($this->user(), $registrationId)
+            fn (): array => $this->cards->reconcileRegistration($this->cardUser(), $registrationId)
         );
     }
 
@@ -182,19 +210,20 @@ final class V2PaymentController
     {
         return $this->handle(
             $request,
-            fn (): array => $this->cards->cancelRegistration($this->user(), $registrationId)
+            fn (): array => $this->cards->cancelRegistration($this->cardUser(), $registrationId)
         );
     }
 
     public function completeCard(Request $request, string $registrationIntentId): JsonResponse
     {
         return $this->handle($request, function () use ($request, $registrationIntentId): array {
+            $this->cardUser();
             $providerCardId = $request->input('provider_card_id');
             if (! is_string($providerCardId) || ! preg_match('/^[A-Za-z0-9_-]{1,64}$/', $providerCardId)) {
                 throw new V2FincodeException('CARD_REFERENCE_INVALID', 422, 'The card reference is invalid.');
             }
 
-            return $this->cards->completeRegistration($this->user(), $registrationIntentId, $providerCardId);
+            return $this->cards->completeRegistration($this->cardUser(), $registrationIntentId, $providerCardId);
         });
     }
 
@@ -202,12 +231,22 @@ final class V2PaymentController
     {
         $requestId = $this->requestId($request);
         try {
-            $this->cards->delete($this->user(), $cardId);
+            $this->cardUser();
+            app(V2PaymentMethodPolicy::class)->assertSavedCardsEnabled();
+            $this->cards->delete($this->cardUser(), $cardId);
 
             return response()->json(null, 204, $this->headers($requestId));
         } catch (V2FincodeException $exception) {
             return $this->problem($exception, $requestId);
         }
+    }
+
+    private function cardUser(): User
+    {
+        $user = $this->user();
+        app(V2PaymentMethodPolicy::class)->assertSavedCardsEnabled();
+
+        return $user;
     }
 
     private function user(): User
