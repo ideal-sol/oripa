@@ -221,7 +221,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
         $expected = '<p>登録氏名|購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|</p>';
         Mail::shouldReceive('html')->once()->withArgs(
             static fn (string $html, callable $callback): bool => $html === $expected
-        );
+        )->andReturn(\Mockery::mock(\Illuminate\Mail\SentMessage::class));
         $delivery = DB::table('mail_deliveries')
             ->where('event_key', 'coin.purchase.completed:'.$payment->public_id)->firstOrFail();
         app(V2TemplateMailDeliveryService::class)->deliver($delivery->public_id);

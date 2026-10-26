@@ -105,6 +105,8 @@ describe("Admin Payment History", () => {
       { label: "PayPay", value: "paypay" },
       { label: "コンビニ決済", value: "konbini" },
       { label: "銀行振込", value: "virtual_account" },
+      { label: "電子マネー（NetRideCash）", value: "netridecash" },
+      { label: "あと払い（ペイディ）", value: "paidy" },
     ]);
 
     for (const status of ["processing", "expired", "failed", "canceled", "succeeded"] as const) {
@@ -119,6 +121,8 @@ describe("Admin Payment History", () => {
       "paypay",
       "konbini",
       "virtual_account",
+      "netridecash",
+      "paidy",
     ] as const) {
       fireEvent.change(screen.getByLabelText("支払方法"), {
         target: { value: paymentMethod },

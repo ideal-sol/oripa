@@ -123,11 +123,14 @@ final class V2TemplateMailDeliveryService
         try {
             [$recipient, $values] = $this->resolve($delivery);
             $template = MailTemplate::query()->findOrFail($delivery->mail_template_id);
-            $this->send(
+            $accepted = $this->send(
                 $recipient,
                 $this->renderer->subject($template->subject_template, $values),
                 $this->renderer->html($template->body_html, $values)
             );
+            if ($delivery->source_type === 'payment' && ! $accepted) {
+                throw new RuntimeException('Payment mail transport acceptance requires review.');
+            }
             MailDelivery::query()->whereKey($delivery->id)->where('status', 'sending')->update([
                 'status' => 'sent',
                 'sent_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
@@ -374,14 +377,16 @@ final class V2TemplateMailDeliveryService
         #[\SensitiveParameter] string $recipient,
         string $subject,
         string $bodyHtml
-    ): void
+    ): bool
     {
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
             throw new RuntimeException('Template Mail rendering is invalid.');
         }
-        Mail::html($bodyHtml, static function ($message) use ($recipient, $subject): void {
+        $result = Mail::html($bodyHtml, static function ($message) use ($recipient, $subject): void {
             $message->to($recipient)->subject($subject);
         });
+
+        return $result instanceof \Illuminate\Mail\SentMessage;
     }
 
     private function decrypt(string $ciphertext): string

@@ -192,12 +192,28 @@ final class PaymentCommonFoundationTest extends TestCase
             self::assertStringNotContainsString('商品ボーナス', $body);
             self::assertStringNotContainsString('還元', $body);
             return true;
-        });
+        })->andReturn(\Mockery::mock(\Illuminate\Mail\SentMessage::class));
         $delivery = DB::table('mail_deliveries')->where('source_public_id', $payment->public_id)->sole();
         $mail = app(\App\Domain\Mail\Services\V2TemplateMailDeliveryService::class);
         $mail->deliver($delivery->public_id);
         $mail->deliver($delivery->public_id);
         $this->assertDatabaseHas('mail_deliveries', ['id'=>$delivery->id, 'status'=>'sent', 'attempts'=>1]);
+    }
+
+    public function test_missing_mail_acceptance_result_requires_review_without_resending(): void
+    {
+        [, $payment] = $this->payment('techcoin', 'netridecash');
+        $service = app(V2PaymentService::class);
+        $event = $service->recordVerifiedProviderEvent('techcoin', 'mail-no-result', 'payment.succeeded', '{}', [], (int) $payment->id, providerOccurredAt: now());
+        $service->confirmSucceeded((int) $event->id);
+        $delivery = DB::table('mail_deliveries')->where('source_public_id', $payment->public_id)->sole();
+        \Illuminate\Support\Facades\Mail::shouldReceive('html')->once()->andReturnNull();
+        $mail = app(\App\Domain\Mail\Services\V2TemplateMailDeliveryService::class);
+        $mail->deliver($delivery->public_id);
+        $mail->deliver($delivery->public_id);
+        $this->assertDatabaseHas('mail_deliveries', ['id'=>$delivery->id, 'status'=>'failed', 'attempts'=>1, 'failure_code'=>'delivery_requires_review', 'sent_at'=>null]);
+        $this->assertDatabaseHas('payments', ['id'=>$payment->id, 'status'=>'succeeded']);
+        self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
     }
 
     public function test_disabled_cards_are_guarded_in_every_controller_operation_after_authentication(): void
