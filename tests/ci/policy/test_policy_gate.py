@@ -4422,10 +4422,11 @@ services:
                 root
                 / "packages/storefront-testkit/src/generated/public-contract.ts"
             )
+            self.assertIn("operation_count: 86", generated.read_text(encoding="utf-8"))
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 84",
-                    "operation_count: 83",
+                    "operation_count: 86",
+                    "operation_count: 85",
                 ),
                 encoding="utf-8",
             )
