@@ -10,13 +10,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "b5c28015ef94cb80f6702a61b1237cacd91d9863"
+APPROVED = "3592fcdc8e43467c3dd67d2677ec52b7d328eb77"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "CONTRACT-20261016A"
-SOURCE_PR = 574
+SOURCE_CHANGE = "CONTRACT-20261025"
+SOURCE_PR = 617
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -123,7 +123,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             ("ASSETURL-20260925", 508), ("OPS-20260929", 516),
             ("PAY-20260928C", 515), ("PRODAUTH-20260930", 519),
             ("SECINT-20260930", 523), ("OTSEC-20261006", 544),
-            ("SMSOTP-20261014", 566),
+            ("SMSOTP-20261014", 566), ("CONTRACT-20261016A", 574),
+            ("OLDTEST-ALPHA46-20261025", 618),
         ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
@@ -194,6 +195,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                "b5c28015ef94cb80f6702a61b1237cacd91d9863",
+                "c802ff91cf3d5a96b695f70e3d91194c3bed7567",
                 "aef1759d072dab48be4b052d53e2ef969feddd9f",
                 "cba63981e443992d7b4f9ebcd0ee219dce38c0f9",
                 "77723309fdd9f27039f7b5cbe804fa3e2a50fbc1",
@@ -230,7 +233,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(versions["symfony/http-foundation"], "v8.1.9")
         root = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:package.json"))
         self.assertEqual(root["pnpm"]["overrides"]["brace-expansion"], "5.0.12")
-        self.assertEqual(root["pnpm"]["overrides"]["fast-uri"], "3.1.8")
+        self.assertEqual(root["pnpm"]["overrides"]["fast-uri"], "3.1.9")
         self.assertEqual(root["pnpm"]["overrides"]["source-map-js"], "1.2.2")
         self.assertEqual(root["pnpm"]["overrides"]["prosemirror-view"], "1.42.3")
         legacy = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:legacy/v1-frontend/package.json"))
@@ -238,7 +241,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(legacy["pnpm"]["overrides"]["source-map-js"], "1.2.2")
         workspace_lock = MODULE["git"](ROOT, "show", f"{APPROVED}:pnpm-lock.yaml")
         self.assertIn("  brace-expansion@5.0.12:", workspace_lock)
-        self.assertIn("  fast-uri@3.1.8:", workspace_lock)
+        self.assertIn("  fast-uri@3.1.9:", workspace_lock)
         self.assertIn("  source-map-js@1.2.2:", workspace_lock)
         self.assertIn("  prosemirror-view@1.42.3:", workspace_lock)
         self.assertNotIn("source-map-js@1.2.1", workspace_lock)
@@ -296,28 +299,29 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_parity_payload_contract_and_migration_boundary(self):
         self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"),
-                         "f272a372adef6af42285364097eb0e3681e6ca7a")
-        contract_source = "c4efbee32a7846bc94f7375d0d5f71779aa0ac77"
+                         "78c5fca7b5dca92b640584b28de10898f3d039c7")
+        contract_source = "1d2b0d8ff8193d55173f5bf6978a41f3dfebf7ac"
         subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", contract_source, APPROVED], check=True)
         self.assertEqual(MODULE["git"](ROOT, "diff", "--name-only", contract_source, APPROVED,
                                       "--", "openapi/public.yaml", "packages/storefront-client", "packages/storefront-testkit"), "")
         for package in ["storefront-client", "storefront-testkit"]:
             manifest = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:packages/{package}/package.json"))
-            self.assertEqual(manifest["version"], "2.0.0-alpha.45")
+            self.assertEqual(manifest["version"], "2.0.0-alpha.46")
         ledger = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:manifests/storefront-contract-releases.json"))
-        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.45"]
+        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.46"]
         self.assertEqual(len(contracts), 1)
         self.assertEqual(contracts[0]["source_commit"], contract_source)
-        self.assertEqual(contracts[0]["publication"]["artifact_id"], 12031381227)
-        self.assertEqual(contracts[0]["manifest_sha256"], "0fd03ceb42cf316fc01de0c9757ee20be3bc1242b25cd52bc20870c50c2ce3a5")
+        self.assertEqual(contracts[0]["publication"]["artifact_id"], 12586773046)
+        self.assertEqual(contracts[0]["manifest_sha256"], "a55f578a94af700e68f0cd0d8eed0e18fb3867ec3be5e0ac0c8639a173cf2b26")
         migrations = [path for path in MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED,
                                   "apps/api/database/migrations-v2").splitlines() if path.endswith(".php")]
-        self.assertEqual(len(migrations), 87)
+        self.assertEqual(len(migrations), 98)
         self.assertTrue(any("000085_create_v2_notion_inventory_sync.php" in path for path in migrations))
         self.assertTrue(any("000086_add_v2_rank_video_sets.php" in path for path in migrations))
         self.assertTrue(any("000087_create_v2_pre_registration.php" in path for path in migrations))
+        self.assertTrue(any("000098_add_v2_shipping_minimum_points.php" in path for path in migrations))
         self.assertEqual({Path(path).name.split("_")[3] for path in migrations},
-                         {str(number).zfill(6) for number in range(1, 88)})
+                         {str(number).zfill(6) for number in range(1, 99)})
 
     def test_parity_operating_boundaries_remain_human_gated(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
@@ -325,8 +329,10 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         for boundary in [
             "NEW F2-B is already ON and Production Accepted",
             "F6 and general Scheduler remain OFF",
-            "exclude 000088 and later, member rank",
-            "initial受付 OFF",
+            "Member rank remains OFF",
+            "Agency Runtime remains unchanged",
+            "exact 000088 through 000098 in order",
+            "Preserve current preregistration受付/deadline/Basic state",
             "Human alone configures Basic/public scope and Admin deadline/受付ON",
             "actual500pt grants and batch execution require separate approval and Acceptance",
             "authority Draft PR preparation only",
