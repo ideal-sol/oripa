@@ -136,10 +136,32 @@ joint end-to-end flows before activation.
 
 Executed results and exact-head CI/self-review links are maintained in the Draft
 PR and worklog. Browser/E2E or visual PASS must not be inferred from component
-tests. Initial new backend tests passed 6 tests / 58 assertions; expanded
-coverage and regression checks are in progress. Completion is not asserted until
-all applicable checks are evaluated. Draft, branch and worktree are retained for
+tests. The final local checks below passed in separate runs; initial failed runs
+remain recorded. Formal CI completion is not asserted. Draft, branch and worktree are retained for
 review; Ready, merge, deployment and stable tagging are outside this authorization.
+
+| Local verification | Executed result |
+| --- | --- |
+| PAY1 foundation, mail, provider-switch resume/Webhook | 25 tests / 215 assertions PASS |
+| Unknown provider compatibility, concurrent fincode/Webhook, historical migration upgrade | 3 tests / 118 assertions PASS after SQL function rebuild correction |
+| Admin payment adjustment, gacha purchase conditions, rank purchase bonus | 71 tests / 554 assertions PASS; 4 dedicated prelaunch cases skipped in this run |
+| Dedicated prelaunch atomic publication/origin protection | 1 test / 164 assertions PASS, isolated DB and explicit flag |
+| Reporting/export regression including mixed commercial/test origins | 9 tests / 72 assertions PASS |
+| Public/OpenAPI | 66 tests PASS; bundles/generated candidate validation PASS |
+| Client / Testkit | 42 / 54 tests PASS; generation, typecheck, lint, build, export/network checks PASS |
+| Admin | payment components18 + client1 + dashboard18 PASS; typecheck/lint/build PASS |
+| Contract release | 45 tests PASS; immutable historical release assertions retained |
+| Database guard suite | 89 tests PASS |
+| Policy | local gate PASS; 340/341 suite cases passed, remaining stale negative fixture corrected and focused rerun1 PASS |
+| Quality / Security | local gates PASS; five fresh dependency audits0 findings, secret candidates0 |
+
+Backend results total109 distinct focused cases /1123 assertions across the
+listed runs. This is not a claim that the complete V2 suite passed in one run.
+Three additional dedicated prelaunch scenarios, Browser/E2E, visual and real
+provider/runtime checks were not executed. Initial broad regression failures,
+Admin load timeouts and stale contract fixtures were investigated and corrected;
+no assertion or protection was removed. Migration099's functions use the existing
+CREATE OR REPLACE convention because disposable migrate:fresh retains functions.
 
 ## Formal CI authorization boundary
 
@@ -153,4 +175,5 @@ Subsequent source pushes are held because they would retrigger the prohibited
 job. Local completion is not formal CI PASS or a lane-valid final-head review.
 Separate explicit Human resolution is needed before the corrected head can be
 delivered and all formal checks/self-review completed. Draft PR #620 remains open;
-its remote head and the newer local head are recorded separately in the handoff.
+its remote head and the newer local head are recorded separately in the PR and
+private exact-source handoff. Status: **HOLD — formal CI authorization conflict**.
