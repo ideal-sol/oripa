@@ -97,6 +97,14 @@ final class PaymentCommonFoundationTest extends TestCase
         self::assertStringNotContainsString('@', json_encode($service->timeline((int) $payment->id)));
     }
 
+    public function test_unknown_provider_codes_keep_the_existing_domain_format_and_safe_label(): void
+    {
+        [, $payment] = $this->payment('future.provider-2');
+        self::assertSame('future.provider-2', V2PaymentMethodPolicy::providerLabel($payment->provider_code));
+        $events = app(V2PaymentProgressService::class)->timeline((int) $payment->id);
+        self::assertSame('future.provider-2', $events[0]['detail']->provider);
+    }
+
     public function test_test_payment_classification_is_not_a_permanent_fincode_provider_exclusion(): void
     {
         config(['v2_fincode.base_url'=>'https://api.test.fincode.jp']);

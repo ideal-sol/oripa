@@ -52,7 +52,7 @@ final class V2PaymentProgressService
             || (isset($detail['result']) && ! in_array($detail['result'], ['success','error','authorized','rejected','closed','complete','cancel','failure'], true))
             || (isset($detail['amount']) && (! is_int($detail['amount']) || $detail['amount'] < 0))
             || (isset($detail['method']) && ! isset(V2PaymentMethodPolicy::LABELS[$detail['method']]))
-            || (isset($detail['provider']) && (! is_string($detail['provider']) || ! preg_match('/^[a-z][a-z0-9_-]{0,63}$/', $detail['provider'])))
+            || (isset($detail['provider']) && (! is_string($detail['provider']) || ! preg_match('/\A[a-z0-9._-]{1,64}\z/', $detail['provider'])))
             || (isset($detail['charge_id']) && (! is_string($detail['charge_id']) || ! Str::isUuid($detail['charge_id'])))
             || (isset($detail['match']) && ! in_array($detail['match'], ['ok','amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge'], true))
             || (isset($detail['operation']) && ! in_array($detail['operation'], ['lookup','capture','cancel','refund'], true))

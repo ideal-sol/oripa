@@ -50,7 +50,7 @@ final class V2AdminPaymentReadService
         $this->authorize($context);
         $query = $this->query($status, $method, $userPublicId);
         if ($provider !== null) {
-            if (! preg_match('/^[a-z][a-z0-9_-]{0,63}$/', $provider)) {
+            if (! preg_match('/\A[a-z0-9._-]{1,64}\z/', $provider)) {
                 throw new V2AdminPaymentReadException('PAYMENT_PROVIDER_FILTER_INVALID', 422, 'The provider filter is invalid.');
             }
             $query->where('payments.provider_code', $provider);
