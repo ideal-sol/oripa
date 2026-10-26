@@ -755,6 +755,8 @@ final class FincodePaymentBackendTest extends TestCase
             'virtual_account',
             'resume-http-contract'
         );
+        config(['v2_payment.methods_enabled' => 'credit_card,netridecash,paidy',
+            'v2_payment.credit_card_provider' => 'univapay', 'v2_payment.saved_cards_enabled' => false]);
         $expectedUrl = $payment['next_action']['url'];
         $paymentCount = DB::table('payments')->count();
         $providerCallCount = Http::recorded()->count();
@@ -789,6 +791,8 @@ final class FincodePaymentBackendTest extends TestCase
             'paypay',
             'webhook-once'
         );
+        config(['v2_payment.methods_enabled' => 'credit_card,netridecash,paidy',
+            'v2_payment.credit_card_provider' => 'univapay', 'v2_payment.saved_cards_enabled' => false]);
         app(V2FincodePaymentService::class)->show($user, $payment['id']);
         self::assertSame(0, DB::table('payment_point_grants')->count());
 
@@ -804,6 +808,8 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame('processed', $webhooks->process($raw, 'test-webhook-signature')['status']);
         $paymentRow = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
         self::assertSame('succeeded', $paymentRow->status);
+        self::assertSame('fincode', $paymentRow->provider_code);
+        self::assertSame('PayPay', app(V2FincodePaymentService::class)->history($user, 'succeeded', null, 20)['data'][0]['method_label']);
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $paymentRow->id)->count());
         self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
         self::assertSame(1, DB::table('mail_deliveries')
