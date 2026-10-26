@@ -252,6 +252,8 @@ export const ADMIN_PAYMENT_METHOD_FILTERS = [
   "paypay",
   "konbini",
   "virtual_account",
+  "netridecash",
+  "paidy",
 ] as const;
 
 export type AdminPaymentStatusFilter = typeof ADMIN_PAYMENT_STATUS_FILTERS[number];
