@@ -39,7 +39,7 @@ return new class extends Migration
             CREATE INDEX payment_progress_timeline ON payment_progress_events (payment_id, recorded_at, id);
             CREATE INDEX payment_progress_kind ON payment_progress_events (payment_id, type);
             CREATE INDEX payment_progress_retention ON payment_progress_events (retain_until);
-            CREATE FUNCTION v2_payment_progress_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION v2_payment_progress_guard() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 IF TG_OP = 'DELETE' AND OLD.retain_until < CURRENT_TIMESTAMP
                     AND current_setting('oripa.payment_progress_purge', true) = 'on' THEN RETURN OLD; END IF;
@@ -59,7 +59,7 @@ return new class extends Migration
                 FOR EACH ROW EXECUTE FUNCTION v2_prelaunch_immutable();
             CREATE TRIGGER payment_receipt_truncate BEFORE TRUNCATE ON payment_receipt_snapshots
                 EXECUTE FUNCTION v2_prelaunch_immutable();
-            CREATE FUNCTION v2_payment_commercial(payment_key bigint) RETURNS boolean LANGUAGE sql STABLE AS $$
+            CREATE OR REPLACE FUNCTION v2_payment_commercial(payment_key bigint) RETURNS boolean LANGUAGE sql STABLE AS $$
                 SELECT NOT EXISTS (SELECT 1 FROM payment_commercial_classifications
                     WHERE payment_id = payment_key AND classification = 'test')
                     AND NOT EXISTS (SELECT 1 FROM member_rank_prelaunch_excluded_origins WHERE payment_id = payment_key);
