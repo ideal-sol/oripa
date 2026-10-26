@@ -13,6 +13,11 @@ in the existing work input directory and verified before implementation.
 Base: `c802ff91cf3d5a96b695f70e3d91194c3bed7567`.
 The existing primary checkout was preserved; work uses dedicated branch
 `feat/PAY1-20261026` and a dedicated worktree.
+Draft PR: https://github.com/ideal-sol/oripa/pull/620. `PAY-20261026` is the
+CI-compatible identifier for this same PAY1 Change, not a second Change.
+During work, protected main advanced to `0372d25ea61a4e6f15485568819f8f1029443b73`.
+Its Production Source authority record/test/worklog changes were inspected and
+do not overlap payment behavior, migration allocation or the contract candidate.
 
 | Existing component | PAY1 treatment |
 | --- | --- |
@@ -50,6 +55,10 @@ PAY2–PAY4 must classify their own test-mode transactions before granting/ranki
 | Gacha purchase count/amount | Excluded |
 | New rank accounting and purchase bonus | Excluded; existing prelaunch rules preserved |
 | Wallet/point/rank balances already granted | **Not corrected by PAY1** |
+
+The existing first-user product one-use/pending-payment guard remains unchanged:
+it prevents duplicate grants for the same product and is not a purchase-total
+report. Activation data inspection must include these historical reservations.
 
 Operational data has not been read. Before activation, separately authorized
 read-only inspection must quantify existing test payments, their lots/current
@@ -103,6 +112,8 @@ unique reservation, pending/sending/sent/failed states and attempts <= 1 remain.
 Payment transport errors use `delivery_requires_review` and existing audit
 records; they are not proof of non-delivery and are never automatically retried.
 A process interrupted while sending also requires operator verification.
+An empty transport result also records `delivery_requires_review` with no
+`sent_at`; only an explicit Laravel SentMessage result establishes acceptance.
 No mail failure reverses or repeats settlement, point grants or rank work.
 Retries only for provably pre-send failures require a future specification.
 Exactly-once external SMTP acceptance is not claimed.
@@ -129,3 +140,17 @@ tests. Initial new backend tests passed 6 tests / 58 assertions; expanded
 coverage and regression checks are in progress. Completion is not asserted until
 all applicable checks are evaluated. Draft, branch and worktree are retained for
 review; Ready, merge, deployment and stable tagging are outside this authorization.
+
+## Formal CI authorization boundary
+
+The existing `platform-ci.yml` PR workflow schedules `production-arm64-artifact`
+for this Strict/deferred change. That job builds and packages Production candidate
+images. This conflicts with the Human prohibition on Production Artifact
+generation/dispatch. No workflow, applicability rule, Required Check or security
+gate was weakened. The observed PR run stopped at stale contract test fixtures;
+the artifact job was skipped, and those fixtures were corrected locally.
+Subsequent source pushes are held because they would retrigger the prohibited
+job. Local completion is not formal CI PASS or a lane-valid final-head review.
+Separate explicit Human resolution is needed before the corrected head can be
+delivered and all formal checks/self-review completed. Draft PR #620 remains open;
+its remote head and the newer local head are recorded separately in the handoff.
