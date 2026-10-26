@@ -450,7 +450,7 @@ function dailyPaymentMethodLabel(method: string | null | undefined): string {
     case "paidy":
       return paymentMethodLabel(method);
     default:
-      return method ?? "不明";
+      return method || "不明";
   }
 }
 

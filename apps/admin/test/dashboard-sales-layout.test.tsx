@@ -85,11 +85,13 @@ describe("Dashboard sales layout", () => {
     ["paypay", "PayPay"],
     ["konbini", "コンビニ決済"],
     ["virtual_account", "銀行振込"],
-    ["unknown_method", "-"],
-    ["all", "-"],
-    ["", "-"],
-    [null, "-"],
-    [undefined, "-"],
+    ["netridecash", "電子マネー（NetRideCash）"],
+    ["paidy", "あと払い（ペイディ）"],
+    ["unknown_method", "unknown_method"],
+    ["all", "all"],
+    ["", "不明"],
+    [null, "不明"],
+    [undefined, "不明"],
   ])("shows the stored daily payment method %s without changing other cells", (method, label) => {
     const daily = dailySales();
     reports.set("daily-sales", {
@@ -105,7 +107,7 @@ describe("Dashboard sales layout", () => {
     const row = screen.getByText("Synthetic Plan").closest("tr") as HTMLTableRowElement;
     const cells = within(row).getAllByRole("cell");
     expect(cells.map((cell) => cell.textContent)).toEqual([
-      "2026/08/03 10:00", label, "Synthetic Plan", "￥12,000", "成功", "01910191…",
+      "2026/08/03 10:00", `${label}（fincode）`, "Synthetic Plan", "￥12,000", "成功", "01910191…",
     ]);
     expect(within(row).getByTitle(uuid("2"))).toBeVisible();
     expect(screen.queryByText("fincode")).toBeNull();
