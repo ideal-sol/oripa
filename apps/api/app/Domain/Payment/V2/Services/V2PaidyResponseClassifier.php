@@ -32,6 +32,11 @@ final class V2PaidyResponseClassifier
             default => 'ok',
         };
         if ($match !== 'ok') return [...$unknown, 'match' => $match, 'uncaptured' => $uncaptured];
+        foreach ($body['refunds'] as $refund) {
+            if (! is_array($refund) || ! is_string($refund['id'] ?? null)
+                || ! preg_match('/\Aref_[A-Za-z0-9_-]{1,124}\z/', $refund['id'])
+                || self::yen($refund['amount'] ?? null) === null) return $unknown;
+        }
         if ($uncaptured) return [...$unknown, 'state' => 'authorized', 'uncaptured' => true];
         if ($body['refunds'] !== []) return [...$unknown, 'state' => 'reversed'];
         if ($status === 'rejected' && $body['captures'] === []) return [...$unknown, 'state' => 'failed'];
@@ -46,6 +51,7 @@ final class V2PaidyResponseClassifier
                 || ! preg_match('/\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z\z/', $capture['created_at'])) return $unknown;
             try { $date = CarbonImmutable::parse($capture['created_at']); }
             catch (\Exception) { return $unknown; }
+            if ($date->format('Y-m-d\TH:i:s') !== substr($capture['created_at'], 0, 19)) return $unknown;
             if ($date->isFuture() || $date->lessThan(CarbonImmutable::parse($payment->created_at)->startOfSecond())) return $unknown;
             $occurred = $occurred === null || $date->greaterThan($occurred) ? $date : $occurred;
             $ids[] = $capture['id']; $total += self::yen($capture['amount']);

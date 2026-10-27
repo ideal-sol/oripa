@@ -183,6 +183,10 @@ found leftover committed Paidy fixtures. Reset the isolated schema and rerun;
 never delete or relax immutable financial histories to satisfy fixture counts.
 The cleanup bootstraps a testing-only PostgreSQL application and applies the
 existing V2 migration root; it cannot authorize an operational database reset.
+Final classifier review also rejects normalized invalid calendar dates and
+malformed/fractional refund elements as uncertain2xx results, retaining durable
+reconciliation. Added assertions preserve these negative cases. Any earlier-head
+CI/Candidate is historical only; Source changes renew every formal head gate.
 
 No Migration is created or reserved; allocation lock: none. Existing migrations
 are applied only in the disposable task-scoped synthetic PostgreSQL database.

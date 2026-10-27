@@ -238,6 +238,13 @@ final class PaidyPaymentTest extends TestCase
         self::assertNull(V2PaidyResponseClassifier::yen($decoded['amount']));
         self::assertSame(1000, V2PaidyResponseClassifier::yen($decoded['captures'][0]['amount']));
         self::assertTrue($decoded['test']); self::assertSame('pay_123', $decoded['id']);
+        $payment = (object) ['public_id' => (string) Str::uuid(), 'amount' => 1000, 'created_at' => '2026-01-01T00:00:00Z'];
+        $body = $this->paidyObject($payment, 'CLOSED', 'pay_synthetic');
+        $body['captures'][0]['created_at'] = '2026-02-31T00:00:00Z';
+        self::assertSame('uncertain', app(V2PaidyResponseClassifier::class)->classify($body, $payment, 'pay_synthetic', true)['state']);
+        $body['captures'][0]['created_at'] = now()->utc()->startOfSecond()->format('Y-m-d\TH:i:s\Z');
+        $body['refunds'] = [['id' => 'ref_synthetic', 'amount' => '0.000000000000001']];
+        self::assertSame('uncertain', app(V2PaidyResponseClassifier::class)->classify($body, $payment, 'pay_synthetic', true)['state']);
     }
 
     public function test_capture_grant_failure_rolls_back_money_and_recovers_without_second_capture(): void
