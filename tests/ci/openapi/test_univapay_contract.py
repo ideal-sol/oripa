@@ -1,11 +1,29 @@
 import json
+import copy
 import unittest
 from pathlib import Path
+from scripts.ci.openapi_contract_gate import is_authorized_univapay_inline_extension
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class UnivapayContractTest(unittest.TestCase):
+    def test_only_the_authorized_nullable_placeholder_extension_is_accepted(self):
+        current = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        previous = copy.deepcopy(current)
+        previous['components']['schemas']['PaymentMethodOption']['properties']['inline_form'] = {'type': 'null'}
+        self.assertTrue(is_authorized_univapay_inline_extension('public', previous, current))
+        self.assertFalse(is_authorized_univapay_inline_extension('admin', previous, current))
+        for mutate in (
+            lambda doc: doc['components']['schemas']['PaymentMethodOption']['properties']['inline_form']['oneOf'].pop(0),
+            lambda doc: doc['components']['schemas']['PaymentUnivapayInlineForm']['properties']['options']['properties']['tokenType'].update({'const': 'recurring'}),
+            lambda doc: doc['paths'].pop('/payments'),
+            lambda doc: doc['components']['schemas']['Payment']['properties']['amount'].update({'type': 'string'}),
+        ):
+            invalid = copy.deepcopy(current)
+            mutate(invalid)
+            self.assertFalse(is_authorized_univapay_inline_extension('public', previous, invalid))
+
     def test_report_is_owned_csrf_and_no_store(self):
         doc = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
         op = doc['paths']['/payments/{payment_id}/univapay-charges']['post']

@@ -138,6 +138,14 @@ artifacts and site-schema alpha.23 are unchanged. New Public operation:
 `reportUnivapayCharge`; optional inline form and action schemas are additive.
 No contract publication/dispatch is authorized.
 
+The strict compatibility gate treats the PAY1 null-only `inline_form` placeholder
+as a type change. PAY2 v2.2 explicitly authorizes its nullable one_time form
+extension. An exact Public alpha.43 compatibility rule accepts only that field's
+specified null/form union and rejects every additional breaking change; negative
+tests retain null, one_time, amount bound, existing operations and payment types.
+Admin progress detail adds the existing bounded reconciliation fields to its
+closed schema and generated types, without exposing arbitrary provider text.
+
 Executed evidence, failures and corrections are recorded in the PR/worklog.
 Initial24 mock cases:22 passed; corrected a strict float fixture and removed an
 attempt to update immutable receipt state (Outbox alone owns delivery state).
@@ -145,6 +153,10 @@ Initial OpenAPI68 cases:67 passed; operation inventory updated86→87 while
 retaining disclosure assertions. Final exact HEAD/Tree, local results, five
 Required Checks, CI-only Candidate Artifact ID and machine-readable self-review
 are recorded in the final Draft PR. No earlier-head CI is reused as final PASS.
+Initial formal CI40444831739 passed Policy, Security, backend and support; failed
+the authorized placeholder extension check and Admin type generation. The latter
+also stopped the automatic Candidate and database-smoke Admin image builds before
+DB smoke began. These are source/contract corrections, not gate or timeout bypasses.
 
 Only automatic formal PR CI Candidate Build/Package/Verify/Load and Actions
 storage is allowed. It is validation-only, never a formal release artifact.
