@@ -1015,9 +1015,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつPAY1共通基盤を含むOperation 86件である", () => {
+test("Public OpenAPIは3.1.1かつPAY1共通基盤とTechcoin戻りを含むOperation 88件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 86);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 88);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
@@ -1082,6 +1082,8 @@ test("Public OpenAPIは3.1.1かつPAY1共通基盤を含むOperation 86件であ
     "logoutUser",
     "normalizeFincodePaymentFailureReturn",
     "normalizeFincodePaymentReturn",
+    "normalizeTechcoinPaymentFailureReturn",
+    "normalizeTechcoinPaymentReturn",
     "preRegisterUser",
     "reauthenticateUserPassword",
     "reconcileFincodeCardRegistrationFailureReturn",

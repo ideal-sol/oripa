@@ -111,6 +111,9 @@ final class V2PaymentMethodPolicy
 
     private function available(?string $provider): bool
     {
+        if ($provider === 'techcoin') {
+            return app(V2TechcoinConfiguration::class)->available();
+        }
         // PAY2–PAY4 supply real adapters. Configuration alone cannot enable an unimplemented provider.
         if ($provider !== 'fincode') {
             return false;

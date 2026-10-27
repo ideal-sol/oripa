@@ -54,6 +54,14 @@ final class V2PaymentController
             app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($this->user());
             app(V2PaymentMethodPolicy::class)->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
 
+            if ($method === 'netridecash') {
+                if (array_diff(array_keys($request->all()), ['point_product_id', 'payment_method'])) {
+                    throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
+                }
+                return app(\App\Domain\Payment\V2\Services\V2TechcoinPaymentService::class)
+                    ->start($this->user(), $pointProductId, $this->idempotencyKey($request));
+            }
+
             return $this->payments->start(
                 $this->user(),
                 $pointProductId,

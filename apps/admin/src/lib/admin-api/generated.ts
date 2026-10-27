@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: fa01344a3fbc1c1c050b1261cfe59fa7d337c65e7b80c93ea2aab245e53978b7
+// Contract SHA-256: f8a1153b6be029b17a890a1cf59f7041c99d03c27ee7256012828dae9d7a7b2d
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -373,7 +373,7 @@ export interface AdminPayment {
   updated_at: string;
 }
 
-export type PaymentProgressEvent = { type: string; source: "client" | "server"; detail: { result?: string; amount?: number; method?: string; provider?: string; }; recorded_at: string; };
+export type PaymentProgressEvent = { type: string; source: "client" | "server"; detail: { result?: string; amount?: number; method?: string; provider?: string; match?: "ok" | "amount_mismatch" | "member_mismatch" | "source_mismatch" | "mode_mismatch" | "expired" | "duplicate_charge"; reason?: "provider_event" | "provider_api" | "system" | "user" | "timeout" | "reconciliation_failed" | "capture_grant_failed" | "provider_reversed"; }; recorded_at: string; };
 export type PaymentProviderSales = { method: string | null; provider: string; method_label: string; provider_label: string; count: number; gross_amount: number; refund_amount: number; chargeback_amount: number; net_amount: number; };
 export type AdminPaymentPurchaseBonusImpact = { required_amount: number; reversed_amount: number; shortfall_amount: number; };
 export type AdminPaymentRankRecovery = { rank: AdminMemberRankCode; requested_amount: number; recovered_amount: number; shortfall_amount: number; };

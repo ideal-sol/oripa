@@ -30,6 +30,15 @@ const methods: AdminPaymentMethod[] = [
 describe("Admin Payment History", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("includes unpaid states when selecting payment review", async () => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listAdminPayments").mockResolvedValue(collection([]));
+    render(<AdminPaymentHistory />);
+    await screen.findByLabelText("決済経過");
+    fireEvent.change(screen.getByLabelText("決済経過"), {target: {value: "review_required"}});
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(expect.objectContaining({progress: "review_required", status: undefined}), expect.anything()));
+    expect(screen.getByLabelText("決済状態")).toHaveValue("all");
+  });
+
   it("renders every canonical status, method, User, amount, and JST timestamp", async () => {
     vi.spyOn(AdminApiClient.prototype, "listAdminPayments")
       .mockResolvedValue(collection(statuses.map((status, index) => payment(index + 1, status))));

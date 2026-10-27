@@ -28,6 +28,22 @@ describe("Admin manual payment adjustments", () => {
     expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("synthetic-provider-order");
   });
 
+  it("shows Techcoin mismatch review for an unpaid payment without implying cancellation", async () => {
+    const value = detail();
+    value.payment.provider = "techcoin";
+    value.payment.provider_label = "テックコイン";
+    value.payment.method = "netridecash";
+    value.payment.method_label = "電子マネー（NetRideCash）";
+    value.payment.status = "requires_action";
+    value.payment.adjustments = {refund_pending: false, refunded: false, chargeback: false, review_required: true};
+    value.progress = [{type: "provider_notified", source: "server", detail: {match: "amount_mismatch", reason: "reconciliation_failed"}, recorded_at: "2026-10-27T00:00:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("決済通知の照合");
+    expect(screen.getByText(/決済会社：テックコイン/u)).toHaveTextContent("電子マネー（NetRideCash）");
+    expect(screen.getByRole("region", {name: "決済の経過"})).toHaveTextContent("amount_mismatch");
+  });
+
   it("requires a reason, preserves the key after a transport failure and prevents duplicate clicks", async () => {
     const write = vi.spyOn(AdminApiClient.prototype, "writeAdminPaymentAdjustment")
       .mockRejectedValueOnce(new Error("network"))

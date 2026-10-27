@@ -1150,6 +1150,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payment-returns/techcoin/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Techcoinの固定戻りURLをStorefrontへ正規化する
+         * @description refはPayment UUIDのハイフンを除いたcookie。状態・Provider event・コイン・ランク・メールを変更しない。不明なrefは固定/pointsへ戻す。
+         */
+        get: operations["normalizeTechcoinPaymentReturn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payment-returns/techcoin/failure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Techcoinの固定戻りURLをStorefrontへ正規化する
+         * @description refはPayment UUIDのハイフンを除いたcookie。状態・Provider event・コイン・ランク・メールを変更しない。不明なrefは固定/pointsへ戻す。
+         */
+        get: operations["normalizeTechcoinPaymentFailureReturn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payment-returns/fincode/normal": {
         parameters: {
             query?: never;
@@ -1634,6 +1674,7 @@ export interface components {
                 result?: "success" | "error" | "authorized" | "rejected" | "closed" | "complete" | "cancel" | "failure";
             };
         };
+        /** @description Techcoin NetRideCashは固定HTTPS送信先へclientip, payment_code, cookie, price, sendid, emailの順で6項目をPOSTする。サーバー価格と識別子を使用し、戻りURL・tel・sendpoint・product_nameを含めない。 */
         PaymentFormPostAction: {
             /** @constant */
             type: "form_post";
@@ -5024,6 +5065,52 @@ export interface operations {
                 };
             };
             default: components["responses"]["PaymentProblem"];
+        };
+    };
+    normalizeTechcoinPaymentReturn: {
+        parameters: {
+            query?: {
+                ref?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical Storefront Originの固定購入先へリダイレクトする。 */
+            303: {
+                headers: {
+                    Location: string;
+                    "Cache-Control"?: "no-store";
+                    "Referrer-Policy"?: "no-referrer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    normalizeTechcoinPaymentFailureReturn: {
+        parameters: {
+            query?: {
+                ref?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical Storefront Originの固定購入先へリダイレクトする。 */
+            303: {
+                headers: {
+                    Location: string;
+                    "Cache-Control"?: "no-store";
+                    "Referrer-Policy"?: "no-referrer";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     normalizeFincodePaymentReturn: {

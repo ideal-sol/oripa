@@ -1971,6 +1971,58 @@ paths:
                 $ref: '#/components/schemas/Payment'
         default:
           $ref: '#/components/responses/PaymentProblem'
+  /payment-returns/techcoin/complete:
+    get:
+      operationId: normalizeTechcoinPaymentReturn
+      summary: Techcoinの固定戻りURLをStorefrontへ正規化する
+      description: refはPayment UUIDのハイフンを除いたcookie。状態・Provider event・コイン・ランク・メールを変更しない。不明なrefは固定/pointsへ戻す。
+      x-idempotency: safe
+      x-rate-limit: provider-browser-return
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: ref
+          in: query
+          required: false
+          schema: {type: string, pattern: '^[0-9a-f]{32}$'}
+      responses:
+        '303':
+          description: Canonical Storefront Originの固定購入先へリダイレクトする。
+          headers:
+            Location:
+              required: true
+              schema: {type: string, format: uri}
+            Cache-Control:
+              schema: {const: no-store}
+            Referrer-Policy:
+              schema: {const: no-referrer}
+  /payment-returns/techcoin/failure:
+    get:
+      operationId: normalizeTechcoinPaymentFailureReturn
+      summary: Techcoinの固定戻りURLをStorefrontへ正規化する
+      description: refはPayment UUIDのハイフンを除いたcookie。状態・Provider event・コイン・ランク・メールを変更しない。不明なrefは固定/pointsへ戻す。
+      x-idempotency: safe
+      x-rate-limit: provider-browser-return
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: ref
+          in: query
+          required: false
+          schema: {type: string, pattern: '^[0-9a-f]{32}$'}
+      responses:
+        '303':
+          description: Canonical Storefront Originの固定購入先へリダイレクトする。
+          headers:
+            Location:
+              required: true
+              schema: {type: string, format: uri}
+            Cache-Control:
+              schema: {const: no-store}
+            Referrer-Policy:
+              schema: {const: no-referrer}
   /payment-returns/fincode/normal:
     post:
       operationId: normalizeFincodePaymentReturn
@@ -2684,6 +2736,7 @@ components:
     PaymentFormPostAction:
       type: object
       additionalProperties: false
+      description: Techcoin NetRideCashは固定HTTPS送信先へclientip, payment_code, cookie, price, sendid, emailの順で6項目をPOSTする。サーバー価格と識別子を使用し、戻りURL・tel・sendpoint・product_nameを含めない。
       required: [type, url, fields]
       properties:
         type: {const: form_post}

@@ -457,6 +457,9 @@ final class V2FincodePaymentService
         }
         $attempt = DB::table('fincode_payment_attempts')->where('payment_id', $payment->id)->first();
         $nextAction = null;
+        if ($payment->provider_code === 'techcoin' && $includeNextAction) {
+            $nextAction = app(V2TechcoinPaymentService::class)->action($payment);
+        }
         if ($payment->provider_code === 'fincode' && $includeNextAction && $payment->status === 'requires_action' && $attempt !== null) {
             if ($payment->payment_method === 'credit_card' && $attempt->fincode_card_id === null) {
                 $bootstrap = $this->configuration->bootstrap();

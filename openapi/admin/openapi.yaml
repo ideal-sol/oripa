@@ -5758,6 +5758,8 @@ components:
             amount: {type: integer, minimum: 0}
             method: {type: string}
             provider: {type: string}
+            match: {enum: [ok, amount_mismatch, member_mismatch, source_mismatch, mode_mismatch, expired, duplicate_charge]}
+            reason: {enum: [provider_event, provider_api, system, user, timeout, reconciliation_failed, capture_grant_failed, provider_reversed]}
         recorded_at: {type: string, format: date-time, description: Server receipt time in UTC; display in Asia/Tokyo.}
     AdminPayment:
       type: object

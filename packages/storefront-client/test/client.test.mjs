@@ -60,6 +60,23 @@ test("payment method lookup and reference events preserve the transport boundary
   assert.equal(calls[1].headers["X-XSRF-TOKEN"], "a".repeat(64));
 });
 
+test("NetRideCash start returns the ordered opaque form action without interpreting provider fields", async () => {
+  const action = {type: "form_post", url: "https://secure.tc-site.com/access", fields: [
+    {name: "clientip", value: "0123456789"}, {name: "payment_code", value: "10055"},
+    {name: "cookie", value: "0198a001000070008000000000000099"}, {name: "price", value: "3000"},
+    {name: "sendid", value: "syntheticmember1"}, {name: "email", value: "synthetic@example.test"},
+  ]};
+  let request;
+  const client = createStorefrontPaymentClient({request: async value => {request = value; return {data: {next_action: action}};}});
+  const body = {point_product_id: "0198a001-0000-7000-8000-000000000099", payment_method: "netridecash"};
+  const result = await client.startPayment(body, {csrf_token: "c".repeat(64), idempotency_key: "synthetic-payment-key"});
+  assert.equal(request.path, "/payments");
+  assert.deepEqual(request.body, body);
+  assert.equal(request.csrf, "required");
+  assert.equal(request.idempotency_key, "synthetic-payment-key");
+  assert.deepEqual(result.data.next_action, action);
+});
+
 test("member rank facade uses thin browser and request-scoped server reads", async () => {
   const calls = [];
   const body = { data: { enabled: false, rank: null, period: null, rank_points: null,

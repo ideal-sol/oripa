@@ -74,7 +74,9 @@ final class V2AdminPaymentReadService
         } elseif ($progress === 'review_required') {
             $query->where(function ($review): void {
                 $review->whereExists(fn ($q) => $q->selectRaw('1')->from('payment_provider_events as event')
-                    ->whereColumn('event.payment_id', 'payments.id')->whereIn('event.processing_status', ['failed', 'ignored']))
+                    ->whereColumn('event.payment_id', 'payments.id')->where(fn ($event) => $event
+                        ->whereIn('event.processing_status', ['failed', 'ignored'])
+                        ->orWhere('event.event_type', 'like', 'payment.review.%')))
                     ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('payment_progress_events as event')
                         ->whereColumn('event.payment_id', 'payments.id')->where('event.source', 'server')
                         ->whereRaw("(event.detail->>'match' IN ('amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge') OR event.detail->>'reason' IN ('capture_grant_failed','provider_reversed','reconciliation_failed'))"))
@@ -226,9 +228,11 @@ final class V2AdminPaymentReadService
             'refund_pending' => $adjustments->contains(fn ($row) => $row->type === 'refund' && in_array($row->status, ['requested', 'points_reserved', 'submitted', 'processing'], true)),
             'refunded' => $adjustments->contains(fn ($row) => $row->type === 'refund' && $row->status === 'succeeded'),
             'chargeback' => $adjustments->contains(fn ($row) => $row->type === 'chargeback' && $row->status === 'succeeded'),
-            'review_required' => $payment->status === 'succeeded' && DB::table('payment_provider_events')
-                ->where('payment_id', $payment->id)->where('processing_status', 'ignored')
-                ->whereIn('event_type', ['payment.canceled', 'payment.cancelled'])->exists(),
+            'review_required' => DB::table('payment_provider_events')->where('payment_id', $payment->id)
+                ->where(fn ($event) => $event->where('event_type', 'like', 'payment.review.%')
+                    ->orWhere(fn ($reversal) => $reversal->where('processing_status', 'ignored')
+                        ->whereIn('event_type', ['payment.canceled', 'payment.cancelled'])
+                        ->whereRaw('? = ?', [$payment->status, 'succeeded'])))->exists(),
         ];
     }
 

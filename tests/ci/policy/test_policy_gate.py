@@ -1507,7 +1507,7 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.47')
         self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.46')
         self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['public_api_operation_count'], 86)
+        self.assertEqual(value['candidate']['public_api_operation_count'], 88)
         # Continue checking the immutable historical ledger independently of the new candidate.
         value['candidate'] = None
         self.assertEqual(len(value['immutable_history']), 26)
@@ -4422,11 +4422,11 @@ services:
                 root
                 / "packages/storefront-testkit/src/generated/public-contract.ts"
             )
-            self.assertIn("operation_count: 86", generated.read_text(encoding="utf-8"))
+            self.assertIn("operation_count: 88", generated.read_text(encoding="utf-8"))
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 86",
-                    "operation_count: 85",
+                    "operation_count: 88",
+                    "operation_count: 87",
                 ),
                 encoding="utf-8",
             )

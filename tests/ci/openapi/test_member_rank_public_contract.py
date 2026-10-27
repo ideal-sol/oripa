@@ -61,7 +61,7 @@ class MemberRankPublicContractTest(unittest.TestCase):
     def test_released_operation_inventory_and_public_disclosure(self):
         operations = [operation['operationId'] for path in self.contract['paths'].values()
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
-        self.assertEqual(len(operations), 86)
+        self.assertEqual(len(operations), 88)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
         self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.47')
         self.assertEqual(ledger['candidate']['release_state'], 'pending')
