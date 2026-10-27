@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Payment\V2\Services\V2PaymentCommercialQuery;
 use App\Support\V2DatabaseTimestamp;
 use App\Domain\Reporting\ValueObjects\V2ExportDefinition;
 use Carbon\CarbonImmutable;
@@ -156,7 +157,7 @@ final class V2ExportRowSource
 
     private function sales(): Builder
     {
-        return DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        return DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->join('users', 'users.id', '=', 'payments.user_id')
             ->where('payments.status', 'succeeded')
             ->select([
@@ -175,7 +176,7 @@ final class V2ExportRowSource
 
     private function adjustments(): Builder
     {
-        return DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        return DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->join('payments', 'payments.id', '=', 'payment_adjustments.payment_id')
             ->select([
                 'payment_adjustments.id as source_id',

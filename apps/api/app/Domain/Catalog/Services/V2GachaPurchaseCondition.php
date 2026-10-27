@@ -2,7 +2,9 @@
 
 namespace App\Domain\Catalog\Services;
 
+use App\Domain\Payment\V2\Services\V2PaymentCommercialQuery;
 use App\Domain\Catalog\Exceptions\V2CatalogException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 final class V2GachaPurchaseCondition
@@ -47,7 +49,7 @@ final class V2GachaPurchaseCondition
     public static function aggregate(int $userId): array
     {
         $aggregate = DB::table('payments as purchase')
-            ->whereRaw('v2_payment_commercial(purchase.id)')
+            ->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'purchase.id'))
             ->where('purchase.user_id', $userId)->where('purchase.status', 'succeeded')
             ->whereNotExists(function ($query): void {
                 $query->selectRaw('1')->from('payment_adjustments as adjustment')

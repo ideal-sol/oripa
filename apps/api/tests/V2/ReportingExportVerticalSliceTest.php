@@ -102,6 +102,11 @@ final class ReportingExportVerticalSliceTest extends TestCase
             DB::table('payment_commercial_classifications')->insert(['payment_id'=>$payment, 'classification'=>$classification, 'reason'=>$classification === 'test' ? 'pay1_existing_fincode' : 'provider_live_mode']);
             if ($provider === 'fincode') $this->adjustment($payment, 'refund', '2026-08-02T01:00:00Z', $amount);
         }
+        $excluded = $this->payment($user, '2026-08-01T01:00:00Z', 10000);
+        // The run FK is deferred; this rolled-back fixture exercises historical exclusion.
+        DB::select('SELECT pg_advisory_xact_lock(740022, 1)');
+        DB::table('member_rank_prelaunch_excluded_origins')->insert(['payment_id'=>$excluded, 'run_id'=>1]);
+        $this->adjustment($excluded, 'refund', '2026-08-02T01:00:00Z', 10000);
         $report = app(V2ReportingService::class)->monthlySales($context, '2026-08');
         self::assertSame(9000, $report['gross_sales']['amount']);
         self::assertSame(2000, $report['refunds']['amount']);
@@ -109,7 +114,7 @@ final class ReportingExportVerticalSliceTest extends TestCase
         self::assertSame($report['gross_sales']['amount'], array_sum(array_column($report['provider_breakdown'], 'gross_amount')));
         self::assertSame($report['net_sales_amount'], array_sum(array_column($report['provider_breakdown'], 'net_amount')));
         self::assertCount(3, $report['provider_breakdown']);
-        self::assertSame(4, DB::table('payments')->count());
+        self::assertSame(5, DB::table('payments')->count());
         $daily = app(V2ReportingService::class)->dailySales($context, '2026-08-01', null, 20);
         self::assertCount(3, $daily['items']);
         self::assertContains('UnivaPay', array_column($daily['items'], 'provider_label'));

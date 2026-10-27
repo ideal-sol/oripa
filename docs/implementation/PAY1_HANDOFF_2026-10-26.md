@@ -45,6 +45,9 @@ creation by the configured canonical live/test endpoint, with immutable reason.
 The provider name is not a permanent exclusion. The SQL predicate
 `v2_payment_commercial(payment_id)` combines the classification with existing
 prelaunch exclusions and is reusable by future Paidy buyer-data construction.
+Bulk financial reads use `V2PaymentCommercialQuery` with the same two indexed
+`NOT EXISTS` exclusions so PostgreSQL can optimize them as anti-joins; retain
+the SQL predicate for database guards. Neither path excludes fincode by name.
 PAY2–PAY4 must classify their own test-mode transactions before granting/ranking.
 
 | Read path | Historical test classification |

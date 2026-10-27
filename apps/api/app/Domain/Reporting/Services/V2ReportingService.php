@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Payment\V2\Services\V2PaymentCommercialQuery;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
@@ -27,13 +28,13 @@ final class V2ReportingService
     ): array {
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::month($month);
-        $payment = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $payment = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->where('status', 'succeeded')
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
             ->selectRaw('COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount')
             ->first();
-        $adjustments = DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        $adjustments = DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
             ->selectRaw(
@@ -58,7 +59,7 @@ final class V2ReportingService
         $gross = (int) ($payment->amount ?? 0);
         $refund = (int) ($adjustments->refund_amount ?? 0);
         $chargeback = (int) ($adjustments->chargeback_amount ?? 0);
-        $daily = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $daily = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->where('status', 'succeeded')
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
@@ -105,7 +106,7 @@ final class V2ReportingService
     ): array {
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::date($date);
-        $query = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $query = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->join('users', 'users.id', '=', 'payments.user_id')
             ->where('payments.status', 'succeeded')
             ->where('payments.succeeded_at', '>=', $period->utcStart()->toIso8601String())
@@ -151,7 +152,7 @@ final class V2ReportingService
     ): array {
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::date($date);
-        $query = DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        $query = DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->join('payments', 'payments.id', '=', 'payment_adjustments.payment_id')
             ->where(
                 'payment_adjustments.succeeded_at',
@@ -233,7 +234,7 @@ final class V2ReportingService
     ): array {
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::month($month);
-        $payments = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $payments = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->where('status', 'succeeded')
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
@@ -242,7 +243,7 @@ final class V2ReportingService
             ->groupByRaw("(succeeded_at AT TIME ZONE 'Asia/Tokyo')::date")
             ->get()
             ->keyBy(fn (object $row): string => (string) $row->report_date);
-        $adjustments = DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        $adjustments = DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->where('status', 'succeeded')
             ->whereIn('type', ['refund', 'chargeback'])
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
@@ -287,7 +288,7 @@ final class V2ReportingService
     ): array {
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::date($date);
-        $query = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $query = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->join('users', 'users.id', '=', 'payments.user_id')
             ->where('payments.status', 'succeeded')
             ->where('payments.succeeded_at', '>=', $period->utcStart()->toIso8601String())
@@ -439,7 +440,7 @@ final class V2ReportingService
         $admin = $this->authorization->authorizeReporting($context);
         $period = V2ReportingPeriod::dateRange($startDate, $endDate);
         $occurredAt = 'COALESCE(payment_adjustments.succeeded_at, payment_adjustments.requested_at)';
-        $query = DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        $query = DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->join('payments', 'payments.id', '=', 'payment_adjustments.payment_id')
             ->whereRaw($occurredAt.' >= ?', [$period->utcStart()->toIso8601String()])
             ->whereRaw($occurredAt.' < ?', [$period->utcEnd()->toIso8601String()])
@@ -820,13 +821,13 @@ final class V2ReportingService
     /** @return array<string, int> */
     private function dashboardSalesSummaryForPeriod(V2ReportingPeriod $period): array
     {
-        $payment = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)')
+        $payment = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->where('status', 'succeeded')
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
             ->selectRaw('COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS gross_sales_amount')
             ->first();
-        $adjustment = DB::table('payment_adjustments')->whereRaw('v2_payment_commercial(payment_adjustments.payment_id)')
+        $adjustment = DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->where('status', 'succeeded')
             ->whereIn('type', ['refund', 'chargeback'])
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
@@ -842,7 +843,7 @@ final class V2ReportingService
 
     private function providerBreakdown(V2ReportingPeriod $period): array
     {
-        $base = DB::table('payments')->whereRaw('v2_payment_commercial(payments.id)');
+        $base = DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'));
         $sales = (clone $base)->where('status', 'succeeded')
             ->where('succeeded_at', '>=', $period->utcStart()->toIso8601String())
             ->where('succeeded_at', '<', $period->utcEnd()->toIso8601String())
