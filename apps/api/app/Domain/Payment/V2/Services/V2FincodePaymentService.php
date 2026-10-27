@@ -483,6 +483,10 @@ final class V2FincodePaymentService
         $bonusPoints = (int) $payment->free_point_amount;
         $limitedBonusPoints = (int) ($payment->limited_bonus_point_amount ?? 0);
 
+        if ($payment->provider_code === 'paidy' && $includeNextAction) {
+            $nextAction = app(V2PaidyPaymentService::class)->action($payment);
+        }
+
         return [
             'id' => $payment->public_id,
             'point_product_id' => $payment->point_product_public_id,

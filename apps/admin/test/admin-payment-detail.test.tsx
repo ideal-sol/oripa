@@ -28,6 +28,23 @@ describe("Admin manual payment adjustments", () => {
     expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("synthetic-provider-order");
   });
 
+  it("shows Paidy processing review without enabling manual financial actions", async () => {
+    const value = detail();
+    value.payment.provider_label = "ペイディ";
+    value.payment.provider_payment_reference = "pay_synthetic";
+    value.payment.status = "processing";
+    value.payment.adjustments = {...value.payment.adjustments!, review_required: true};
+    value.refund_eligibility = {allowed: false, code: "PAYMENT_NOT_SUCCEEDED", reason: "未確定"};
+    value.progress = [{type: "provider_api_called", source: "server", detail: {reason: "reconciliation_failed"}, recorded_at: "2026-10-27T01:00:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("売上確定・付与・返金");
+    expect(screen.getByText(/決済会社：ペイディ/u)).toBeInTheDocument();
+    expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("pay_synthetic");
+    expect(screen.getByRole("button", {name: "返金の準備"})).toBeDisabled();
+    expect(screen.getByRole("button", {name: "チャージバックを記録"})).toBeDisabled();
+  });
+
   it("requires a reason, preserves the key after a transport failure and prevents duplicate clicks", async () => {
     const write = vi.spyOn(AdminApiClient.prototype, "writeAdminPaymentAdjustment")
       .mockRejectedValueOnce(new Error("network"))

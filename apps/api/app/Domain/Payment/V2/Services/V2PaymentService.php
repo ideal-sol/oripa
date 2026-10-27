@@ -153,8 +153,10 @@ final class V2PaymentService
                 ]);
             }
             $this->paymentHistory($paymentId, null, 'created', 'user', null);
-            if ($providerCode === 'fincode') {
-                $live = config('v2_fincode.base_url') === 'https://api.fincode.jp';
+            if (in_array($providerCode, ['fincode', 'paidy'], true)) {
+                if ($providerCode === 'paidy') app(V2PaidyConfiguration::class)->validate();
+                $live = $providerCode === 'paidy' ? config('v2_paidy.mode') === 'live'
+                    : config('v2_fincode.base_url') === 'https://api.fincode.jp';
                 DB::table('payment_commercial_classifications')->insert([
                     'payment_id' => $paymentId, 'classification' => $live ? 'commercial' : 'test',
                     'reason' => $live ? 'provider_live_mode' : 'provider_test_mode',
@@ -187,7 +189,7 @@ final class V2PaymentService
         ): object {
             $payment = DB::table('payments')->where('id', $paymentId)
                 ->lockForUpdate()->firstOrFail();
-            if ($payment->provider_code !== 'fincode') {
+            if (! in_array($payment->provider_code, ['fincode', 'paidy'], true)) {
                 throw new V2PaymentException('PAYMENT_PROVIDER_INVALID');
             }
             DB::table('payments')->where('id', $payment->id)->update([

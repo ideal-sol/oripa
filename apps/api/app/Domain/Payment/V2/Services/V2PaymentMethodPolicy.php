@@ -111,7 +111,15 @@ final class V2PaymentMethodPolicy
 
     private function available(?string $provider): bool
     {
-        // PAY2–PAY4 supply real adapters. Configuration alone cannot enable an unimplemented provider.
+        if ($provider === 'paidy') {
+            try {
+                app(V2PaidyConfiguration::class)->validate();
+                return true;
+            } catch (V2FincodeException) {
+                return false;
+            }
+        }
+        // Other provider adapters are separate Changes.
         if ($provider !== 'fincode') {
             return false;
         }

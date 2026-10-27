@@ -8,3 +8,5 @@ Route::post('/v2/line', V2LineMessagingWebhookController::class)
     ->name('v2.webhook.line');
 Route::post('/v2/fincode', V2FincodeWebhookController::class)
     ->name('v2.webhook.fincode');
+Route::post('/v2/paidy/{token}', \App\Http\Controllers\V2\V2PaidyWebhookController::class)
+    ->name('v2.webhook.paidy');

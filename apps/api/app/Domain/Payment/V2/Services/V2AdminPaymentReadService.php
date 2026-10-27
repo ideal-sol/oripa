@@ -226,9 +226,12 @@ final class V2AdminPaymentReadService
             'refund_pending' => $adjustments->contains(fn ($row) => $row->type === 'refund' && in_array($row->status, ['requested', 'points_reserved', 'submitted', 'processing'], true)),
             'refunded' => $adjustments->contains(fn ($row) => $row->type === 'refund' && $row->status === 'succeeded'),
             'chargeback' => $adjustments->contains(fn ($row) => $row->type === 'chargeback' && $row->status === 'succeeded'),
-            'review_required' => $payment->status === 'succeeded' && DB::table('payment_provider_events')
+            'review_required' => DB::table('payment_progress_events')->where('payment_id', $payment->id)
+                ->where('source', 'server')
+                ->whereRaw("(detail->>'match' IN ('amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge') OR detail->>'reason' IN ('capture_grant_failed','provider_reversed','reconciliation_failed'))")->exists()
+                || ($payment->status === 'succeeded' && DB::table('payment_provider_events')
                 ->where('payment_id', $payment->id)->where('processing_status', 'ignored')
-                ->whereIn('event_type', ['payment.canceled', 'payment.cancelled'])->exists(),
+                ->whereIn('event_type', ['payment.canceled', 'payment.cancelled'])->exists()),
         ];
     }
 

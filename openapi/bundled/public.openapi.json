@@ -3126,12 +3126,70 @@
         }
       }
     },
+    "/payments/{payment_id}/paidy-authorizations": {
+      "post": {
+        "operationId": "confirmPaidyAuthorization",
+        "summary": "本人のPaidy承認をサーバー照会し売上確定する",
+        "description": "Retrieveで照合してからCaptureする。Callback単独では付与しない。不確定結果はprocessingで再照合。本人以外404、非Paidy409、不正本文422。",
+        "x-sms-verification": "required",
+        "x-idempotency": "required",
+        "x-rate-limit": "payment-create",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentPaidyAuthorizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "所有会員のみ。private, no-store。processingは成功確定を意味しない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
     "/payments": {
       "post": {
         "x-sms-verification": "required",
         "operationId": "createPayment",
-        "summary": "fincode Paymentを支払操作時に開始する",
-        "description": "credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。",
+        "summary": "Paymentを支払操作時に開始する",
+        "description": "paidyはデジタル商品用Checkoutを返し、paidy-authorizationsのサーバー照合とCaptureで確定する。 credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。",
         "x-idempotency": "required",
         "x-rate-limit": "payment-create",
         "x-cache-policy": "no-store",
@@ -4700,6 +4758,199 @@
           }
         }
       },
+      "PaymentPaidyAuthorizationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "paidy_payment_id"
+        ],
+        "properties": {
+          "paidy_payment_id": {
+            "type": "string",
+            "pattern": "^pay_[A-Za-z0-9_-]{1,124}$",
+            "maxLength": 128
+          }
+        }
+      },
+      "PaymentPaidyCheckoutAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "script_url",
+          "public_key",
+          "payload"
+        ],
+        "properties": {
+          "type": {
+            "const": "paidy_checkout"
+          },
+          "script_url": {
+            "const": "https://apps.paidy.com/"
+          },
+          "public_key": {
+            "type": "string",
+            "pattern": "^pk_"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "amount",
+              "currency",
+              "store_name",
+              "description",
+              "buyer",
+              "buyer_data",
+              "order"
+            ],
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "currency": {
+                "const": "JPY"
+              },
+              "store_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "const": "コイン購入"
+              },
+              "buyer": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "email",
+                  "phone"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^0[789]0[0-9]{8}$"
+                  },
+                  "name1": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "buyer_data": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "user_id",
+                  "age",
+                  "ltv",
+                  "order_count",
+                  "order_count_last3months",
+                  "order_amount_last3months",
+                  "number_of_points"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "age": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Days since account registration."
+                  },
+                  "ltv": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "order_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "last_order_amount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "last_order_at": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Days since last eligible purchase."
+                  },
+                  "order_count_last3months": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "order_amount_last3months": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "number_of_points": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "order": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "items",
+                  "order_ref",
+                  "shipping",
+                  "tax"
+                ],
+                "properties": {
+                  "order_ref": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "shipping": {
+                    "const": 0
+                  },
+                  "tax": {
+                    "const": 0
+                  },
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "title",
+                        "quantity",
+                        "unit_price"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "quantity": {
+                          "const": 1
+                        },
+                        "unit_price": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "PaymentStatus": {
         "enum": [
           "created",
@@ -4897,6 +5148,9 @@
               },
               {
                 "$ref": "#/components/schemas/PaymentFormPostAction"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentPaidyCheckoutAction"
               }
             ]
           }
@@ -10028,7 +10282,7 @@
         }
       },
       "PaymentProblem": {
-        "description": "PaymentのRFC 9457 Problem Details。PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
+        "description": "PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/XRequestId"

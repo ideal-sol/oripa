@@ -1130,6 +1130,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/{payment_id}/paidy-authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 本人のPaidy承認をサーバー照会し売上確定する
+         * @description Retrieveで照合してからCaptureする。Callback単独では付与しない。不確定結果はprocessingで再照合。本人以外404、非Paidy409、不正本文422。
+         */
+        post: operations["confirmPaidyAuthorization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments": {
         parameters: {
             query?: never;
@@ -1140,8 +1160,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * fincode Paymentを支払操作時に開始する
-         * @description credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。
+         * Paymentを支払操作時に開始する
+         * @description paidyはデジタル商品用Checkoutを返し、paidy-authorizationsのサーバー照合とCaptureで確定する。 credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。
          */
         post: operations["createPayment"];
         delete?: never;
@@ -1644,6 +1664,60 @@ export interface components {
                 value: string;
             }[];
         };
+        PaymentPaidyAuthorizationRequest: {
+            paidy_payment_id: string;
+        };
+        PaymentPaidyCheckoutAction: {
+            /** @constant */
+            type: "paidy_checkout";
+            /** @constant */
+            script_url: "https://apps.paidy.com/";
+            public_key: string;
+            payload: {
+                amount: number;
+                /** @constant */
+                currency: "JPY";
+                store_name: string;
+                /** @constant */
+                description: "コイン購入";
+                buyer: {
+                    /** Format: email */
+                    email: string;
+                    phone: string;
+                    name1?: string;
+                };
+                buyer_data: {
+                    /** Format: uuid */
+                    user_id: string;
+                    /** @description Days since account registration. */
+                    age: number;
+                    ltv: number;
+                    order_count: number;
+                    last_order_amount?: number;
+                    /** @description Days since last eligible purchase. */
+                    last_order_at?: number;
+                    order_count_last3months: number;
+                    order_amount_last3months: number;
+                    number_of_points: number;
+                };
+                order: {
+                    /** Format: uuid */
+                    order_ref: string;
+                    /** @constant */
+                    shipping: 0;
+                    /** @constant */
+                    tax: 0;
+                    items: {
+                        /** Format: uuid */
+                        id: string;
+                        title: string;
+                        /** @constant */
+                        quantity: 1;
+                        unit_price: number;
+                    }[];
+                };
+            };
+        };
         /** @enum {unknown} */
         PaymentStatus: "created" | "requires_action" | "processing" | "succeeded" | "failed" | "canceled" | "expired";
         /** @description Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。 */
@@ -1696,7 +1770,7 @@ export interface components {
             /** Format: date-time */
             succeeded_at: string | null;
             /** @description Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。 */
-            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"];
+            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"] | components["schemas"]["PaymentPaidyCheckoutAction"];
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         MemberRankPurchaseBonus: {
@@ -2938,7 +3012,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description PaymentのRFC 9457 Problem Details。PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
+        /** @description PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
         PaymentProblem: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -4985,6 +5059,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    confirmPaidyAuthorization: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentPaidyAuthorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description 所有会員のみ。private, no-store。processingは成功確定を意味しない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
             };
             default: components["responses"]["PaymentProblem"];
         };
