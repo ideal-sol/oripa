@@ -45,6 +45,22 @@ final class ZPaymentCommonFoundationMigrationTest extends TestCase
             }
             self::assertSame(0, DB::table('payment_point_grants')->count());
             self::assertSame(0, DB::table('mail_deliveries')->count());
+            DB::beginTransaction();
+            try {
+                foreach ([null, 'credit_card', 'paypay', 'konbini', 'virtual_account', 'netridecash', 'paidy'] as $method) {
+                    DB::table('payments')->where('id', $ids[0])->update(['payment_method' => $method]);
+                    self::assertSame($method, DB::table('payments')->where('id', $ids[0])->value('payment_method'));
+                }
+                try {
+                    DB::transaction(fn () => DB::table('payments')->where('id', $ids[0])->update(['payment_method' => 'unknown']));
+                    self::fail('Unknown payment method must violate the database constraint.');
+                } catch (\Illuminate\Database\QueryException $exception) {
+                    self::assertSame('23514', $exception->getCode());
+                }
+            } finally {
+                DB::rollBack();
+            }
+            self::assertSame($before, DB::table('payments')->whereIn('id', $ids)->orderBy('id')->get()->toJson());
         } finally {
             Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
         }

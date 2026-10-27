@@ -10,7 +10,7 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
             ALTER TABLE payments DROP CONSTRAINT payments_fincode_method_check;
             ALTER TABLE payments ADD CONSTRAINT payments_fincode_method_check CHECK
-                (payment_method IS NULL OR payment_method IN ('credit_card','paypay','konbini','virtual_account','netridecash','paidy'));
+                (payment_method IS NULL OR payment_method::text IN ('credit_card','paypay','konbini','virtual_account','netridecash','paidy'));
             CREATE TABLE payment_commercial_classifications (
                 payment_id bigint PRIMARY KEY REFERENCES payments(id) ON DELETE RESTRICT,
                 classification text NOT NULL CHECK (classification IN ('test', 'commercial')),

@@ -178,8 +178,10 @@ The old published-head run failed and skipped downstream jobs; none of those
 results counts as final-head PASS. Corrected Source is delivered to the same
 Draft PR #620, where final Required Checks, Artifact ID and fresh exact-head
 self-review are recorded. The existing branch/worktree and local passing
-evidence are reused. Migration099 is unchanged at resumption; its allocation
-lock must be reacquired before any further migration edit.
+evidence are reused. The allocation lock was reacquired before correcting
+Migration099's payment-method comparison to explicit text, preserving its
+allowlist and exact pg_dump/restore schema identity. Retain the lock through
+Draft handoff and reacquire it before any later migration edit.
 
 Separate Production Artifact Workflow dispatch, release publication, registry
 push, runtime transfer/load/start, Source Authority changes, operational
