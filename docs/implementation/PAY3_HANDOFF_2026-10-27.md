@@ -3,6 +3,7 @@
 Task: PAY3-20261027 / canonical CI Change ID: TEC-20261027 (one Change).
 Issue: none / Risk: R3 / Lane: Strict Change / Application Runtime Activation: deferred.
 Branch: `feat/TEC-20261027`, dedicated isolated worktree.
+Draft PR: https://github.com/ideal-sol/oripa/pull/624.
 **Draft only. Ready, Merge, auto-merge and Runtime Activation remain prohibited
 until current Production reflection completes and Human separately gives explicit GO.**
 
@@ -155,6 +156,23 @@ Corrected47 cases/577 assertions PASS. Initial OpenAPI68 tests passed67; stale
 Additional accounting/HTTP, true process races, common/fincode regression,
 package/Admin, formal Required Checks and security evidence are recorded in the
 Draft PR. A local component test is never a Browser/E2E or visual PASS.
+
+Additional local accounting/manual-refund and authenticated HTTP cases passed;
+the retention fixture initially advanced PHP time without PostgreSQL time and
+was corrected to historical app-created progress (1 case/7 assertions PASS).
+Actual forked start/kickback/reference races passed1 case/45 assertions.
+Client43, Testkit54, immutable release34 and policy255 passed; Admin typecheck
+passed. Local Admin rendering and worker startup hit unchanged timeouts on a
+host observed at load average63/swap7.3GiB; those failures are retained and must
+be distinguished from final-head formal CI. No timeout or assertion was weakened.
+
+Initial formal PR CI40481921141 stopped at missing PR headings Scope/Specification
+sources; body corrected and locally validated against the exact42-path diff.
+Supplemental same-head formal CI40482355143 via the approved task-check dispatch
+passed Policy/Security/support but its existing PR-event-only Candidate job is
+not applicable to workflow_dispatch. This is not Candidate or final-head PASS.
+This evidence update pushes a normal PR synchronize event so the unchanged
+formal PR CI can generate/verify its authorized validation-only Candidate.
 
 Only the automatic formal PR CI validation Candidate Build/Package/Verify/Load
 and Actions storage is authorized. The Candidate must match the exact Source
