@@ -12,6 +12,18 @@ use Illuminate\Support\Str;
 
 trait PaidyFixtures
 {
+    protected static function resetPaidyTestDatabase(): void
+    {
+        // HTTP boundary tests commit real transactions. Restore the disposable
+        // test schema after the class instead of deleting immutable money rows.
+        $application = require dirname(__DIR__, 3).'/bootstrap/app.php';
+        $application->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+        if (! $application->environment('testing') || config('database.default') !== 'pgsql') {
+            throw new \LogicException('Paidy fixture cleanup requires isolated PostgreSQL testing.');
+        }
+        \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
+    }
+
     protected function quiescePaidyFixtureJobs(): void
     {
         // Synthetic test database only: keep prior cases out of worker batches.

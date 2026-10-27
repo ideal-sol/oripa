@@ -17,6 +17,7 @@ final class ZPaidyConcurrencyTest extends TestCase
 {
     use PaidyFixtures;
     protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); parent::tearDown(); }
+    public static function tearDownAfterClass(): void { self::resetPaidyTestDatabase(); parent::tearDownAfterClass(); }
 
     public function test_callback_webhook_and_worker_race_sends_one_capture_and_grants_once(): void
     {

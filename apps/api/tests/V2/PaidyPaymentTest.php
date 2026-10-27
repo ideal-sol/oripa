@@ -24,6 +24,7 @@ final class PaidyPaymentTest extends TestCase
 
     protected function setUp(): void { parent::setUp(); $this->configurePaidy(); }
     protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); parent::tearDown(); }
+    public static function tearDownAfterClass(): void { self::resetPaidyTestDatabase(); parent::tearDownAfterClass(); }
 
     public function test_checkout_uses_saved_amount_verified_identity_and_no_secret_or_address(): void
     {

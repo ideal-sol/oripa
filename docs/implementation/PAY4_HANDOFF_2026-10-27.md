@@ -49,6 +49,8 @@ another provider409. The request accepts only `paidy_payment_id`.
 The response remains `private, no-store`; browser reports cannot settle money.
 Paidy resume is409. Method visibility gates new starts only; stored provider
 reconciliation and history continue after hiding the method.
+Coin balance reuses the current-user point reader, including its existing
+expired/reserved-lot handling, rather than duplicating raw wallet arithmetic.
 
 `V2PaidyResponseClassifier` is shared by browser, Webhook worker and scheduled
 recovery. AUTHORIZED with empty captures does not grant. CLOSED needs exact
@@ -173,6 +175,14 @@ OpenAPI69, Client43, Testkit55, Admin focused12, policy255 and immutable release
 tests PASS. Admin typecheck/lint and package generation/typecheck/lint/build/export/
 network boundaries are checked as applicable. fincode/PAY1 regression results and
 formal final-head checks are recorded in the Draft PR before completion.
+
+Nontransaction HTTP/race classes restore the disposable V2 test schema once per
+class, matching the existing committed-race harness's isolation principle. The
+initial local fincode rerun was stopped after its whole-database count assertions
+found leftover committed Paidy fixtures. Reset the isolated schema and rerun;
+never delete or relax immutable financial histories to satisfy fixture counts.
+The cleanup bootstraps a testing-only PostgreSQL application and applies the
+existing V2 migration root; it cannot authorize an operational database reset.
 
 No Migration is created or reserved; allocation lock: none. Existing migrations
 are applied only in the disposable task-scoped synthetic PostgreSQL database.

@@ -15,6 +15,7 @@ final class PaidyWebhookTest extends TestCase
     use PaidyFixtures;
     protected function setUp(): void { parent::setUp(); $this->configurePaidy(); }
     protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); parent::tearDown(); }
+    public static function tearDownAfterClass(): void { self::resetPaidyTestDatabase(); parent::tearDownAfterClass(); }
 
     public function test_webhook_authentication_durable_receipt_deduplication_and_async_worker(): void
     {
