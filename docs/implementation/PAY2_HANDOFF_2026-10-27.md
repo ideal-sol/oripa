@@ -157,6 +157,10 @@ Initial formal CI40444831739 passed Policy, Security, backend and support; faile
 the authorized placeholder extension check and Admin type generation. The latter
 also stopped the automatic Candidate and database-smoke Admin image builds before
 DB smoke began. These are source/contract corrections, not gate or timeout bypasses.
+The expanded isolated28-case run passed27 and exposed a test-only call to a
+nonexistent custom-guard method. Use the Auth manager's guard reset for the
+unauthenticated assertion; corrected focused HTTP case passes1/8. Financial
+source is unchanged. Full formal final-head coverage remains mandatory.
 
 Only automatic formal PR CI Candidate Build/Package/Verify/Load and Actions
 storage is allowed. It is validation-only, never a formal release artifact.

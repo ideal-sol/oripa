@@ -255,7 +255,7 @@ final class UnivapayPaymentTest extends TestCase
         self::assertStringContainsString('no-store',$response->headers->get('Cache-Control'));
         $this->postJson('/api/v2/payments/'.$payment->public_id.'/univapay-charges',['charge_id'=>$id],['Origin'=>'https://example.test'])
             ->assertStatus(403)->assertJsonPath('code','CSRF_TOKEN_MISMATCH');
-        \Illuminate\Support\Facades\Auth::guard('v2_user')->forgetUser();
+        \Illuminate\Support\Facades\Auth::forgetGuards();
         self::assertSame(401,app(V2PaymentController::class)->univapayCharge($request,$payment->public_id)->status());
         $other=app(V2PaymentService::class)->createPayment((int)$user->id,(int)$payment->point_purchase_plan_id,'fincode','synthetic-other','other-provider','credit_card');
         $this->problem(fn () => app(V2UnivapayPaymentService::class)->report($user,$other->public_id,['charge_id'=>$id]),'PAYMENT_PROVIDER_MISMATCH',409);
