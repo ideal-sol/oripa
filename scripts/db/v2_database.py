@@ -141,11 +141,14 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.payment_adjustment_prize_actions",
     "public.payment_adjustment_status_histories",
     "public.payment_adjustments",
+    "public.payment_commercial_classifications",
     "public.payment_limited_bonus_snapshots",
     "public.payment_point_grants",
+    "public.payment_progress_events",
     "public.payment_provider_event_attempts",
     "public.payment_provider_events",
     "public.payment_provider_operations",
+    "public.payment_receipt_snapshots",
     "public.payment_status_histories",
     "public.payments",
     "public.point_adjustments",
@@ -569,6 +572,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_26_000099_add_v2_payment_common_foundation.php": "Payment classifications, progress and receipts require a forward-only migration.",
         "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php": "Prelaunch activation authority requires a forward-only migration.",
         "2026_10_23_000098_add_v2_shipping_minimum_points.php": "Shipping minimum settings and snapshots require a forward-only migration.",
         "2026_10_22_000096_enable_v2_login_gacha_conditions.php": "Login Gacha eligibility requires a forward-only correction.",

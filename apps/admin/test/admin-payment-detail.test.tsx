@@ -14,6 +14,20 @@ describe("Admin manual payment adjustments", () => {
     vi.spyOn(AdminApiClient.prototype, "getAdminPayment").mockResolvedValue({ data: detail(), request_id: paymentId });
   });
 
+  it("shows API labels, provider reference and reference-only progress in JST", async () => {
+    const value = detail();
+    value.payment.provider_label = "UnivaPay";
+    value.payment.method_label = "クレジットカード";
+    value.payment.provider_payment_reference = "synthetic-provider-order";
+    value.progress = [{type: "redirect_started", source: "client", detail: {}, recorded_at: "2026-10-26T10:02:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("region", {name: "決済の経過"})).toHaveTextContent("19:02");
+    expect(screen.getByRole("region", {name: "決済の経過"})).toHaveTextContent("会員画面の参考記録");
+    expect(screen.getByText(/決済会社：UnivaPay/u)).toHaveTextContent("クレジットカード");
+    expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("synthetic-provider-order");
+  });
+
   it("requires a reason, preserves the key after a transport failure and prevents duplicate clicks", async () => {
     const write = vi.spyOn(AdminApiClient.prototype, "writeAdminPaymentAdjustment")
       .mockRejectedValueOnce(new Error("network"))

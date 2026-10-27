@@ -9,12 +9,13 @@ final class V2MemberRankPaymentOriginPolicy
 {
     public function eligible(int $paymentId): ?bool
     {
+        $test = DB::table('payment_commercial_classifications')->where('payment_id', $paymentId)->where('classification', 'test')->exists();
         $eligible = DB::selectOne('SELECT v2_member_rank_prelaunch_eligible(?) AS eligible', [$paymentId])->eligible;
         if ($eligible === null) {
-            return null;
+            return $test ? false : null;
         }
         if ($eligible) {
-            return true;
+            return ! $test;
         }
         $excluded = DB::table('member_rank_prelaunch_excluded_origins')->where('payment_id', $paymentId)->sole();
         $grant = DB::table('payment_point_grants')->where('payment_id', $paymentId)->first();

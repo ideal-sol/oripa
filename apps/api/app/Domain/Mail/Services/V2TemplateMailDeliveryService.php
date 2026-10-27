@@ -123,11 +123,14 @@ final class V2TemplateMailDeliveryService
         try {
             [$recipient, $values] = $this->resolve($delivery);
             $template = MailTemplate::query()->findOrFail($delivery->mail_template_id);
-            $this->send(
+            $accepted = $this->send(
                 $recipient,
                 $this->renderer->subject($template->subject_template, $values),
                 $this->renderer->html($template->body_html, $values)
             );
+            if ($delivery->source_type === 'payment' && ! $accepted) {
+                throw new RuntimeException('Payment mail transport acceptance requires review.');
+            }
             MailDelivery::query()->whereKey($delivery->id)->where('status', 'sending')->update([
                 'status' => 'sent',
                 'sent_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
@@ -135,12 +138,14 @@ final class V2TemplateMailDeliveryService
             ]);
             $this->safeAudit('mail.template.sent', $delivery, 'success');
         } catch (Throwable) {
+            // Transport errors can occur after acceptance. Never retry or assert non-delivery.
+            $failureCode = $delivery->source_type === 'payment' ? 'delivery_requires_review' : 'delivery_failed';
             MailDelivery::query()->whereKey($delivery->id)->where('status', 'sending')->update([
                 'status' => 'failed',
-                'failure_code' => 'delivery_failed',
+                'failure_code' => $failureCode,
                 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
-            $this->safeAudit('mail.template.failed', $delivery, 'failure', 'delivery_failed');
+            $this->safeAudit('mail.template.failed', $delivery, 'failure', $failureCode);
         }
     }
 
@@ -249,6 +254,15 @@ final class V2TemplateMailDeliveryService
     /** @return array{0: string, 1: array<string, string|list<string>|null>} */
     private function paymentValues(string $publicId): array
     {
+        $receipt = DB::table('payment_receipt_snapshots as receipt')->join('payments as payment', 'payment.id', '=', 'receipt.payment_id')
+            ->join('users as user', 'user.id', '=', 'payment.user_id')->where('payment.public_id', $publicId)
+            ->first(['receipt.snapshot', 'user.email_display', 'user.display_name', 'user.full_name']);
+        if ($receipt !== null) {
+            return [(string) $receipt->email_display, $this->variables([
+                'user_name' => (string) ($receipt->display_name ?? ''), 'full_name' => (string) ($receipt->full_name ?? ''),
+                ...json_decode($receipt->snapshot, true, 512, JSON_THROW_ON_ERROR),
+            ])];
+        }
         $row = DB::table('payments as payment')
             ->join('users as user', 'user.id', '=', 'payment.user_id')
             ->join('payment_point_grants as grant', 'grant.payment_id', '=', 'payment.id')
@@ -363,14 +377,16 @@ final class V2TemplateMailDeliveryService
         #[\SensitiveParameter] string $recipient,
         string $subject,
         string $bodyHtml
-    ): void
+    ): bool
     {
         if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
             throw new RuntimeException('Template Mail rendering is invalid.');
         }
-        Mail::html($bodyHtml, static function ($message) use ($recipient, $subject): void {
+        $result = Mail::html($bodyHtml, static function ($message) use ($recipient, $subject): void {
             $message->to($recipient)->subject($subject);
         });
+
+        return $result instanceof \Illuminate\Mail\SentMessage;
     }
 
     private function decrypt(string $ciphertext): string

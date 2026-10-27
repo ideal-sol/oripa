@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.42",
+    "version": "2.0.0-alpha.43",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -13004,6 +13004,40 @@
             "schema": {
               "$ref": "#/components/schemas/OpaqueId"
             }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "progress",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "notification_missing",
+                "review_required"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -13592,6 +13626,12 @@
           },
           "rank_adjustment_pending": {
             "type": "boolean"
+          },
+          "progress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentProgressEvent"
+            }
           }
         }
       },
@@ -14596,7 +14636,9 @@
           "credit_card",
           "paypay",
           "konbini",
-          "virtual_account"
+          "virtual_account",
+          "netridecash",
+          "paidy"
         ]
       },
       "AdminPaymentStatus": {
@@ -14609,6 +14651,51 @@
           "canceled",
           "expired"
         ]
+      },
+      "PaymentProgressEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "source",
+          "detail",
+          "recorded_at"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "client",
+              "server"
+            ]
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "method": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              }
+            }
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server receipt time in UTC; display in Asia/Tokyo."
+          }
+        }
       },
       "AdminPayment": {
         "type": "object",
@@ -14659,6 +14746,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64
+          },
+          "method_label": {
+            "type": "string"
+          },
+          "provider_label": {
+            "type": "string"
           },
           "provider_payment_reference": {
             "type": "string",
@@ -30241,6 +30334,57 @@
           }
         }
       },
+      "PaymentProviderSales": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method",
+          "provider",
+          "method_label",
+          "provider_label",
+          "count",
+          "gross_amount",
+          "refund_amount",
+          "chargeback_amount",
+          "net_amount"
+        ],
+        "properties": {
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "method_label": {
+            "type": "string"
+          },
+          "provider_label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gross_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "refund_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "chargeback_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "net_amount": {
+            "type": "integer"
+          }
+        }
+      },
       "MonthlySalesDay": {
         "type": "object",
         "additionalProperties": false,
@@ -30280,6 +30424,12 @@
           "days"
         ],
         "properties": {
+          "provider_breakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentProviderSales"
+            }
+          },
           "month": {
             "type": "string",
             "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
@@ -30409,6 +30559,12 @@
           "days"
         ],
         "properties": {
+          "provider_breakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentProviderSales"
+            }
+          },
           "month": {
             "type": "string",
             "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
@@ -30450,6 +30606,12 @@
           "succeeded_at"
         ],
         "properties": {
+          "method_label": {
+            "type": "string"
+          },
+          "provider_label": {
+            "type": "string"
+          },
           "payment_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -30482,6 +30644,8 @@
               "paypay",
               "konbini",
               "virtual_account",
+              "netridecash",
+              "paidy",
               null
             ],
             "description": "Stored payment method; null for legacy payments without a method."

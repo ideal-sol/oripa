@@ -30,7 +30,11 @@ final class V2AdminPaymentController
             $this->limit($request),
             $this->query($request, 'status'),
             $this->query($request, 'payment_method'),
-            $this->query($request, 'user_id')
+            $this->query($request, 'user_id'),
+            $this->query($request, 'provider'),
+            $this->query($request, 'progress'),
+            $this->query($request, 'from'),
+            $this->query($request, 'until')
         ));
     }
 

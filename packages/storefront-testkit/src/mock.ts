@@ -132,7 +132,7 @@ export function createMockFetch(): MockFetchController {
     if (response.kind === "pending") {
       return pendingResponse(init?.signal);
     }
-    return new Response(JSON.stringify(response.body), {
+    return new Response(response.status === 204 ? null : JSON.stringify(response.body), {
       status: response.status,
       headers: {
         "Content-Type": "application/json",

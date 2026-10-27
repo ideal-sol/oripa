@@ -1015,9 +1015,11 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 84件である", () => {
+test("Public OpenAPIは3.1.1かつPAY1共通基盤を含むOperation 86件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 84);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 86);
+  assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
+  assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
@@ -1070,6 +1072,7 @@ test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 84件であ�
     "listMemberRanks",
     "listMyPayments",
     "listPaymentCards",
+    "listPaymentMethods",
     "listPointLedgerEntries",
     "listPointProducts",
     "listShippingAddresses",
@@ -1084,6 +1087,7 @@ test("Public OpenAPIは3.1.1かつ会員ランクを含むOperation 84件であ�
     "reconcileFincodeCardRegistrationFailureReturn",
     "reconcileFincodeCardRegistrationReturn",
     "reconcilePaymentCardRegistration",
+    "recordPaymentClientEvent",
     "registerUser",
     "requestPasswordReset",
     "resendSmsVerification",
@@ -1253,6 +1257,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
   assert.deepEqual(exports, [
     "CAPABILITY_SITE_MANIFEST_FIXTURE",
     "MINIMAL_SITE_MANIFEST_FIXTURE",
+    "PAYMENT_FOUNDATION_FIXTURES",
     "PLATFORM_COMPATIBILITY_FIXTURE",
     "PUBLIC_ACCOUNT_SECURITY_FIXTURE",
     "PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES",

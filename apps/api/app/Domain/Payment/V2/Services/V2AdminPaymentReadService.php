@@ -25,7 +25,7 @@ final class V2AdminPaymentReadService
         'expired',
     ];
 
-    private const METHODS = ['credit_card', 'paypay', 'konbini', 'virtual_account'];
+    private const METHODS = ['credit_card', 'paypay', 'konbini', 'virtual_account', 'netridecash', 'paidy'];
 
     public function __construct(
         private readonly V2AuditLogService $audit,
@@ -41,11 +41,52 @@ final class V2AdminPaymentReadService
         int $limit,
         ?string $status,
         ?string $method,
-        ?string $userPublicId
+        ?string $userPublicId,
+        ?string $provider = null,
+        ?string $progress = null,
+        ?string $from = null,
+        ?string $until = null
     ): array {
         $this->authorize($context);
+        $query = $this->query($status, $method, $userPublicId);
+        if ($provider !== null) {
+            if (! preg_match('/\A[a-z0-9._-]{1,64}\z/', $provider)) {
+                throw new V2AdminPaymentReadException('PAYMENT_PROVIDER_FILTER_INVALID', 422, 'The provider filter is invalid.');
+            }
+            $query->where('payments.provider_code', $provider);
+        }
+        foreach (['from' => $from, 'until' => $until] as $boundary => $date) {
+            if ($date === null) {
+                continue;
+            }
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || ! checkdate((int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4))) {
+                throw new V2AdminPaymentReadException('PAYMENT_PERIOD_INVALID', 422, 'The payment period is invalid.');
+            }
+            $instant = CarbonImmutable::parse($date, 'Asia/Tokyo');
+            $query->where('payments.created_at', $boundary === 'from' ? '>=' : '<',
+                ($boundary === 'from' ? $instant : $instant->addDay())->utc()->toIso8601String());
+        }
+        if ($progress === 'notification_missing') {
+            $query->whereExists(fn ($q) => $q->selectRaw('1')->from('payment_progress_events as event')
+                ->whereColumn('event.payment_id', 'payments.id')->where('event.type', 'redirect_started'))
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('payment_progress_events as event')
+                    ->whereColumn('event.payment_id', 'payments.id')->where('event.type', 'provider_notified'));
+        } elseif ($progress === 'review_required') {
+            $query->where(function ($review): void {
+                $review->whereExists(fn ($q) => $q->selectRaw('1')->from('payment_provider_events as event')
+                    ->whereColumn('event.payment_id', 'payments.id')->whereIn('event.processing_status', ['failed', 'ignored']))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('payment_progress_events as event')
+                        ->whereColumn('event.payment_id', 'payments.id')->where('event.source', 'server')
+                        ->whereRaw("(event.detail->>'match' IN ('amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge') OR event.detail->>'reason' IN ('capture_grant_failed','provider_reversed','reconciliation_failed'))"))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('mail_deliveries as delivery')
+                        ->whereColumn('delivery.source_public_id', 'payments.public_id')->where('delivery.source_type', 'payment')
+                        ->whereIn('delivery.status', ['sending', 'failed']));
+            });
+        } elseif ($progress !== null) {
+            throw new V2AdminPaymentReadException('PAYMENT_PROGRESS_FILTER_INVALID', 422, 'The progress filter is invalid.');
+        }
         $result = $this->page(
-            $this->query($status, $method, $userPublicId),
+            $query,
             $cursor,
             $limit
         );
@@ -139,6 +180,8 @@ final class V2AdminPaymentReadService
                 'display_name' => $payment->user_display_name,
             ],
             'provider' => $payment->provider_code,
+            'provider_label' => V2PaymentMethodPolicy::providerLabel($payment->provider_code),
+            'method_label' => V2PaymentMethodPolicy::methodLabel($payment->payment_method),
             'adjustments' => $this->adjustmentSummary($payment),
             'provider_payment_reference' => $payment->provider_payment_id,
             'method' => $payment->payment_method,

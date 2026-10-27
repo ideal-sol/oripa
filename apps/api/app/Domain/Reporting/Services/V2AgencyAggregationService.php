@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Payment\V2\Services\V2PaymentCommercialQuery;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
@@ -83,7 +84,7 @@ final class V2AgencyAggregationService
                 ->select('payment_id')->selectRaw('SUM(amount) AS refunded_amount')->groupBy('payment_id');
             $metrics->join('payments', 'payments.user_id', '=', 'classified.user_id')
                 ->leftJoinSub($refunds, 'refunds', 'refunds.payment_id', '=', 'payments.id')
-                ->where('payments.status', 'succeeded')
+                ->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))->where('payments.status', 'succeeded')
                 ->where('payments.succeeded_at', '>=', $period->utcStart()->toIso8601String())
                 ->where('payments.succeeded_at', '<', $period->utcEnd()->toIso8601String());
             foreach (['temporary', 'full'] as $classification) {

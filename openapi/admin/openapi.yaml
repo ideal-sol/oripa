@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.42
+  version: 2.0.0-alpha.43
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -5446,6 +5446,10 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/OpaqueId'
+        - {name: provider, in: query, schema: {type: string, maxLength: 64}}
+        - {name: progress, in: query, schema: {enum: [notification_missing, review_required]}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: until, in: query, schema: {type: string, format: date}}
       responses:
         '200':
           description: succeeded、pending、expired、failed、canceledを含む全Payment状態。
@@ -5538,7 +5542,7 @@ components:
     AdminPaymentAdjustment: {"type":"object","additionalProperties":false,"required":["id","type","status","parent_id","amount","reason","requested_by_admin_id","provider_adjustment_id","provider_case_id","source","requested_at","succeeded_at","canceled_at","impact","history"],"properties":{"id":{"$ref":"#/components/schemas/OpaqueId"},"type":{"enum":["refund","chargeback","chargeback_reversal"]},"status":{"$ref":"#/components/schemas/AdminPaymentAdjustmentStatus"},"parent_id":{"type":["string","null"]},"amount":{"type":"integer","minimum":0},"reason":{"type":["string","null"]},"requested_by_admin_id":{"type":["string","null"]},"provider_adjustment_id":{"type":["string","null"]},"provider_case_id":{"type":["string","null"]},"source":{"enum":["admin","provider","system"]},"requested_at":{"type":["string","null"],"format":"date-time"},"succeeded_at":{"type":["string","null"],"format":"date-time"},"canceled_at":{"type":["string","null"],"format":"date-time"},"impact":{"anyOf":[{"$ref":"#/components/schemas/AdminPaymentPointImpact"},{"type":"null"}]},"history":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustmentHistory"}}}}
     AdminPaymentLot: {"type":"object","additionalProperties":false,"required":["operation_id","point_type","source","granted_amount","remaining_amount","reserved_amount","expire_at","member_rank_purchase_bonus"],"properties":{"operation_id":{"$ref":"#/components/schemas/OpaqueId"},"point_type":{"enum":["paid","free"]},"source":{"type":"string"},"granted_amount":{"type":"integer","minimum":0},"remaining_amount":{"type":"integer","minimum":0},"reserved_amount":{"type":"integer","minimum":0},"expire_at":{"type":["string","null"],"format":"date-time"},"member_rank_purchase_bonus":{"type":"boolean"}}}
     AdminPaymentAdjustmentSummary: {"type":"object","additionalProperties":false,"required":["refund_pending","refunded","chargeback","review_required"],"properties":{"refund_pending":{"type":"boolean"},"refunded":{"type":"boolean"},"chargeback":{"type":"boolean"},"review_required":{"type":"boolean"}}}
-    AdminPaymentDetail: {"type":"object","additionalProperties":false,"required":["payment","lots","adjustments","refund_eligibility","rank_adjustment_pending"],"properties":{"payment":{"$ref":"#/components/schemas/AdminPayment"},"lots":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentLot"}},"adjustments":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustment"}},"refund_eligibility":{"type":"object","additionalProperties":false,"required":["allowed","code","reason"],"properties":{"allowed":{"type":"boolean"},"code":{"type":["string","null"]},"reason":{"type":["string","null"]}}},"rank_adjustment_pending":{"type":"boolean"}}}
+    AdminPaymentDetail: {"type":"object","additionalProperties":false,"required":["payment","lots","adjustments","refund_eligibility","rank_adjustment_pending"],"properties":{"payment":{"$ref":"#/components/schemas/AdminPayment"},"lots":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentLot"}},"adjustments":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustment"}},"refund_eligibility":{"type":"object","additionalProperties":false,"required":["allowed","code","reason"],"properties":{"allowed":{"type":"boolean"},"code":{"type":["string","null"]},"reason":{"type":["string","null"]}}},"rank_adjustment_pending":{"type":"boolean"},"progress":{"type":"array","items":{"$ref":"#/components/schemas/PaymentProgressEvent"}}}}
     AdminPaymentDetailResponse: {"type":"object","additionalProperties":false,"required":["data","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminPaymentDetail"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
     AdminPaymentAdjustmentResponse: {"type":"object","additionalProperties":false,"required":["data","rank_adjustment_pending","idempotent_replay","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminPaymentAdjustment"},"rank_adjustment_pending":{"type":"boolean"},"idempotent_replay":{"type":"boolean"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
     AdminPaymentChargebackPreview: {"type":"object","additionalProperties":false,"required":["impact","rank_adjustment_pending"],"properties":{"impact":{"$ref":"#/components/schemas/AdminPaymentPointImpact"},"rank_adjustment_pending":{"type":"boolean"}}}
@@ -5736,9 +5740,25 @@ components:
     AdminAgencySalesAggregateRow: {"type":"object","additionalProperties":false,"required":["company_name","advertising_code","temporary_paying_users","temporary_amount","full_paying_users","full_amount"],"properties":{"company_name":{"type":"string"},"advertising_code":{"type":"string","pattern":"^[A-Za-z0-9]{8}$"},"temporary_paying_users":{"type":"integer","minimum":0},"temporary_amount":{"type":"integer","description":"JPY。元Paymentに紐づく確定refundのみ控除。"},"full_paying_users":{"type":"integer","minimum":0},"full_amount":{"type":"integer","description":"JPY。元Paymentに紐づく確定refundのみ控除。"}}}
     AdminAgencySalesAggregate: {"type":"object","additionalProperties":false,"required":["items","period","next_cursor"],"properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/AdminAgencySalesAggregateRow"}},"period":{"$ref":"#/components/schemas/AgencyAggregatePeriod"},"next_cursor":{"type":["string","null"]}}}
     AdminPaymentMethod:
-      enum: [credit_card, paypay, konbini, virtual_account]
+      enum: [credit_card, paypay, konbini, virtual_account, netridecash, paidy]
     AdminPaymentStatus:
       enum: [created, requires_action, processing, succeeded, failed, canceled, expired]
+    PaymentProgressEvent:
+      type: object
+      additionalProperties: false
+      required: [type, source, detail, recorded_at]
+      properties:
+        type: {type: string}
+        source: {enum: [client, server]}
+        detail:
+          type: object
+          additionalProperties: false
+          properties:
+            result: {type: string}
+            amount: {type: integer, minimum: 0}
+            method: {type: string}
+            provider: {type: string}
+        recorded_at: {type: string, format: date-time, description: Server receipt time in UTC; display in Asia/Tokyo.}
     AdminPayment:
       type: object
       additionalProperties: false
@@ -5762,6 +5782,8 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+        method_label: {type: string}
+        provider_label: {type: string}
         provider_payment_reference:
           type: string
           maxLength: 64
@@ -11002,6 +11024,7 @@ components:
         amount:
           type: integer
           minimum: 0
+    PaymentProviderSales: {"type":"object","additionalProperties":false,"required":["method","provider","method_label","provider_label","count","gross_amount","refund_amount","chargeback_amount","net_amount"],"properties":{"method":{"type":["string","null"]},"provider":{"type":"string"},"method_label":{"type":"string"},"provider_label":{"type":"string"},"count":{"type":"integer","minimum":0},"gross_amount":{"type":"integer","minimum":0},"refund_amount":{"type":"integer","minimum":0},"chargeback_amount":{"type":"integer","minimum":0},"net_amount":{"type":"integer"}}}
     MonthlySalesDay:
       type: object
       additionalProperties: false
@@ -11031,6 +11054,9 @@ components:
         - pending_adjustments
         - days
       properties:
+        provider_breakdown:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentProviderSales'}
         month:
           type: string
           pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
@@ -11115,6 +11141,9 @@ components:
       additionalProperties: false
       required: [month, timezone, currency, basis, summary, days]
       properties:
+        provider_breakdown:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentProviderSales'}
         month:
           type: string
           pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
@@ -11146,6 +11175,8 @@ components:
         - status
         - succeeded_at
       properties:
+        method_label: {type: string}
+        provider_label: {type: string}
         payment_id:
           $ref: '#/components/schemas/OpaqueId'
         user_id:
@@ -11164,7 +11195,7 @@ components:
           maxLength: 64
         payment_method:
           type: [string, 'null']
-          enum: [credit_card, paypay, konbini, virtual_account, null]
+          enum: [credit_card, paypay, konbini, virtual_account, netridecash, paidy, null]
           description: Stored payment method; null for legacy payments without a method.
         status:
           type: string

@@ -42,6 +42,7 @@ final class V2AdminPaymentAdjustmentService
             $eligibility = ['allowed' => false, 'code' => $exception->getMessage(), 'reason' => $this->message($exception->getMessage())];
         }
         $data = [
+            'progress' => app(V2PaymentProgressService::class)->timeline((int) $payment->id),
             'payment' => $this->read->present($payment),
             'lots' => $lots->map(fn ($lot): array => [
                 'operation_id' => $lot->operation_public_id, 'point_type' => $lot->point_type, 'source' => $lot->source_type,

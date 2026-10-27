@@ -2,6 +2,7 @@
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Payment\V2\Services\V2PaymentCommercialQuery;
 use App\Support\V2DatabaseTimestamp;
 use App\Domain\Reporting\ValueObjects\V2ExportDefinition;
 use Carbon\CarbonImmutable;
@@ -24,6 +25,8 @@ final class V2ExportRowSource
                 'paid_points',
                 'free_points',
                 'succeeded_at',
+                'payment_method',
+                'provider',
             ],
             'adjustments' => [
                 'business_date',
@@ -34,6 +37,8 @@ final class V2ExportRowSource
                 'amount',
                 'currency',
                 'succeeded_at',
+                'payment_method',
+                'provider',
             ],
             'point_ledger' => [
                 'business_date',
@@ -152,7 +157,7 @@ final class V2ExportRowSource
 
     private function sales(): Builder
     {
-        return DB::table('payments')
+        return DB::table('payments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payments.id'))
             ->join('users', 'users.id', '=', 'payments.user_id')
             ->where('payments.status', 'succeeded')
             ->select([
@@ -161,6 +166,8 @@ final class V2ExportRowSource
                 'users.public_id as user_public_id',
                 'payments.amount',
                 'payments.currency',
+                'payments.payment_method',
+                'payments.provider_code',
                 'payments.paid_point_amount',
                 'payments.free_point_amount',
                 'payments.succeeded_at',
@@ -169,7 +176,7 @@ final class V2ExportRowSource
 
     private function adjustments(): Builder
     {
-        return DB::table('payment_adjustments')
+        return DB::table('payment_adjustments')->tap(fn (Builder $query) => V2PaymentCommercialQuery::apply($query, 'payment_adjustments.payment_id'))
             ->join('payments', 'payments.id', '=', 'payment_adjustments.payment_id')
             ->select([
                 'payment_adjustments.id as source_id',
@@ -179,6 +186,8 @@ final class V2ExportRowSource
                 'payment_adjustments.status',
                 'payment_adjustments.amount',
                 'payment_adjustments.currency',
+                'payments.payment_method',
+                'payments.provider_code',
                 'payment_adjustments.succeeded_at',
             ]);
     }
@@ -278,6 +287,8 @@ final class V2ExportRowSource
                 'paid_points' => (int) $row->paid_point_amount,
                 'free_points' => (int) $row->free_point_amount,
                 'succeeded_at' => $this->timestamp($row->succeeded_at),
+                'payment_method' => $row->payment_method,
+                'provider' => $row->provider_code,
             ],
             'adjustments' => [
                 'business_date' => $this->businessDate($row->succeeded_at),
@@ -288,6 +299,8 @@ final class V2ExportRowSource
                 'amount' => (int) $row->amount,
                 'currency' => $row->currency,
                 'succeeded_at' => $this->timestamp($row->succeeded_at),
+                'payment_method' => $row->payment_method,
+                'provider' => $row->provider_code,
             ],
             'point_ledger' => [
                 'business_date' => (string) $row->business_date,

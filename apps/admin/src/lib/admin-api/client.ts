@@ -252,6 +252,8 @@ export const ADMIN_PAYMENT_METHOD_FILTERS = [
   "paypay",
   "konbini",
   "virtual_account",
+  "netridecash",
+  "paidy",
 ] as const;
 
 export type AdminPaymentStatusFilter = typeof ADMIN_PAYMENT_STATUS_FILTERS[number];
@@ -354,6 +356,10 @@ export interface AdminPointPurchasePlanQuery {
 }
 
 export interface AdminPaymentQuery {
+  provider?: string;
+  progress?: "notification_missing" | "review_required";
+  from?: string;
+  until?: string;
   cursor?: string;
   limit?: number;
   payment_method?: AdminPaymentMethod;
@@ -3518,6 +3524,9 @@ export class AdminApiClient {
     if (query.status) parameters.set("status", query.status);
     if (query.payment_method) {
       parameters.set("payment_method", query.payment_method);
+    }
+    for (const key of ["provider", "progress", "from", "until"] as const) {
+      if (query[key]) parameters.set(key, query[key]);
     }
     return this.request("GET", `${path}?${parameters.toString()}`, { signal });
   }

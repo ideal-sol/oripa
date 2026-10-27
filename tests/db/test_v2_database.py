@@ -612,6 +612,17 @@ class V2DatabaseGuardTest(unittest.TestCase):
         )
 
     def test_payment_schema_inventory_is_explicit(self):
+        inventory = v2_database.EXPECTED_V2_SCHEMA_INVENTORY
+        for table in (
+            "public.payment_commercial_classifications",
+            "public.payment_progress_events",
+            "public.payment_receipt_snapshots",
+        ):
+            self.assertIn(table, inventory)
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory([name for name in inventory if name != table])
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory(sorted(inventory + [table]))
         self.assertIn(
             "public.admin_authentication_policy",
             v2_database.EXPECTED_V2_SCHEMA_INVENTORY,

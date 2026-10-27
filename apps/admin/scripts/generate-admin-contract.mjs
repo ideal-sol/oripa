@@ -774,6 +774,7 @@ const memberRankTypes = Object.entries(contract.components.schemas)
   .join("\n\n");
 
 const paymentSchemaNames = [
+  "PaymentProgressEvent", "PaymentProviderSales",
   "AdminPaymentPurchaseBonusImpact", "AdminPaymentRankRecovery", "AdminPaymentRankAdjustment",
   "AdminPaymentAdjustmentInput", "AdminPaymentRefundCompleteInput", "AdminPaymentAdjustmentStatus",
   "AdminPaymentPointImpact", "AdminPaymentAdjustmentHistory", "AdminPaymentAdjustment", "AdminPaymentLot",
@@ -790,6 +791,7 @@ function paymentSchemaType(schema) {
   if (schema.enum) return schema.enum.map(value => JSON.stringify(value)).join(" | ");
   if (schema.anyOf) return schema.anyOf.map(paymentSchemaType).join(" | ");
   if (Array.isArray(schema.type)) return schema.type.map(type => paymentSchemaType({ ...schema, type })).join(" | ");
+  if (schema.type === "object" && !schema.properties) return "Record<string, unknown>";
   if (schema.type === "object") return "{ " + Object.entries(schema.properties).map(([key, value]) =>
     key + (schema.required?.includes(key) ? "" : "?") + ": " + paymentSchemaType(value) + ";").join(" ") + " }";
   if (schema.type === "array") return "Array<" + paymentSchemaType(schema.items) + ">";
@@ -1098,7 +1100,9 @@ export type AdminPaymentMethod =
   | "credit_card"
   | "paypay"
   | "konbini"
-  | "virtual_account";
+  | "virtual_account"
+  | "netridecash"
+  | "paidy";
 
 export type AdminPaymentStatus =
   | "created"
@@ -1113,6 +1117,8 @@ export interface AdminPayment {
   id: string;
   user: { id: string; display_name: string | null };
   provider: string;
+  provider_label?: string;
+  method_label?: string;
   adjustments?: AdminPaymentAdjustmentSummary;
   provider_payment_reference: string;
   method: AdminPaymentMethod;
@@ -1358,6 +1364,7 @@ export interface AdminDashboardSalesSummary {
 }
 
 export interface AdminDashboardMonthlySales {
+  provider_breakdown?: PaymentProviderSales[];
   month: string;
   timezone: "Asia/Tokyo";
   currency: "JPY";
@@ -1367,6 +1374,8 @@ export interface AdminDashboardMonthlySales {
 }
 
 export interface AdminDashboardPayment {
+  provider_label?: string;
+  method_label?: string;
   payment_id: string;
   user_id: string;
   amount: number;

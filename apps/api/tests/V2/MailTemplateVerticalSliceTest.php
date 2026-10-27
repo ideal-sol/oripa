@@ -71,7 +71,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'agency_login_information_reissued',
         ], array_column($result['items'], 'key'));
         foreach ($result['items'] as $template) {
-            self::assertCount(24, $template['variables']);
+            self::assertCount(25, $template['variables']);
         }
         self::assertSame([
             'メールアドレス認証のお願い',
@@ -221,7 +221,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
         $expected = '<p>登録氏名|購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|</p>';
         Mail::shouldReceive('html')->once()->withArgs(
             static fn (string $html, callable $callback): bool => $html === $expected
-        );
+        )->andReturn(\Mockery::mock(\Illuminate\Mail\SentMessage::class));
         $delivery = DB::table('mail_deliveries')
             ->where('event_key', 'coin.purchase.completed:'.$payment->public_id)->firstOrFail();
         app(V2TemplateMailDeliveryService::class)->deliver($delivery->public_id);
@@ -231,11 +231,11 @@ final class MailTemplateVerticalSliceTest extends TestCase
     public static function purchaseCases(): array
     {
         return [
-            ['credit_card', 'クレジットカード', '2026-09-08T14:59:59Z', '2026年9月8日'],
-            ['paypay', 'PayPay', '2026-09-08T15:00:00Z', '2026年9月9日'],
-            ['konbini', 'コンビニ決済', '2026-09-09T00:00:00+09:00', '2026年9月9日'],
-            ['virtual_account', '銀行振込', '2026-09-08T10:00:00-05:00', '2026年9月9日'],
-            [null, '', '2026-09-09T12:00:00Z', '2026年9月9日'],
+            ['credit_card', 'クレジットカード', '2026-09-08T14:59:59Z', '2026年9月8日 23:59:59（日本時間）'],
+            ['paypay', 'PayPay', '2026-09-08T15:00:00Z', '2026年9月9日 00:00:00（日本時間）'],
+            ['konbini', 'コンビニ決済', '2026-09-09T00:00:00+09:00', '2026年9月9日 00:00:00（日本時間）'],
+            ['virtual_account', '銀行振込', '2026-09-08T10:00:00-05:00', '2026年9月9日 00:00:00（日本時間）'],
+            [null, '不明', '2026-09-09T12:00:00Z', '2026年9月9日 21:00:00（日本時間）'],
         ];
     }
 

@@ -10,6 +10,7 @@ import type { AdminPaymentDetail as PaymentDetail, AdminPaymentAdjustment, Admin
 type Operation = "refund" | "complete" | "cancel" | "chargeback" | "reversal";
 const labels: Record<Operation, string> = { refund: "返金の準備", complete: "返金済みにする", cancel: "取りやめる", chargeback: "チャージバックを記録", reversal: "チャージバック取消を記録" };
 const statuses: Record<string, string> = { requested: "受付", points_reserved: "返金準備中", submitted: "送信済み", processing: "処理中", succeeded: "成立", failed: "失敗", canceled: "取りやめ", manual_review: "要確認（自動復元なし）" };
+const progressLabels: Record<string, string> = {created: "申込", redirect_started: "決済画面へ移動", inline_submitted: "カード入力を送信", inline_result: "カード画面の結果", paidy_checkout_opened: "ペイディを開いた", paidy_checkout_result: "ペイディ画面の結果", provider_notified: "決済会社から通知", provider_api_called: "決済会社への照会・操作", charge_reported: "課金IDを受信", succeeded: "成立", failed: "失敗", expired: "期限切れ", returned: "戻り先に到着"};
 const date = (value: string | null) => value ? new Date(value).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }) : "—";
 const message = (error: unknown) => error instanceof AdminApiError
   ? error.status === 403 ? "この操作を行う権限がありません。" : error.status === 401 ? "再ログインしてください。"
@@ -40,7 +41,9 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
     {detail && <>
       <section aria-label="決済情報"><h2>{detail.payment.amount.amount.toLocaleString()}円</h2>
         <p style={{ overflowWrap: "anywhere" }}>決済ID：{detail.payment.id}</p>
-        <p>決済会社：{detail.payment.provider} ／ 支払方法：{detail.payment.method} ／ 状態：{detail.payment.status}</p>
+        <section aria-label="決済の経過"><h2>決済の経過（日本時間・記録時刻）</h2><ol>{detail.progress?.map((event, index) => <li key={index} style={{overflowWrap: "anywhere"}}>{date(event.recorded_at)} — {progressLabels[event.type] ?? event.type}{event.source === "client" ? "（会員画面の参考記録）" : ""}<span> {JSON.stringify(event.detail)}</span></li>)}</ol></section>
+        <p>決済会社：{detail.payment.provider_label ?? detail.payment.provider} ／ 支払方法：{detail.payment.method_label ?? detail.payment.method} ／ 状態：{detail.payment.status}</p>
+        <p style={{overflowWrap: "anywhere"}}>決済会社側の取引ID：{detail.payment.provider_payment_reference ?? "未発行"}</p>
         <p>成立日時：{date(detail.payment.succeeded_at)}（日本時間）</p>
         {detail.payment.adjustments?.review_required && <p role="alert">要確認：成立後の取消通知があります。決済会社側の状態を確認してください。</p>}
         {detail.rank_adjustment_pending && <p role="alert">ランク会計の確認が必要です。機能停止・会員凍結・元付与記録の欠落や不整合がある場合は取消を記録できません。返金予約の取りやめは可能です。</p>}

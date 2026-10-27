@@ -92,6 +92,35 @@ final class ReportingExportVerticalSliceTest extends TestCase
         );
     }
 
+    public function test_provider_breakdowns_exclude_classified_tests_and_include_future_commercial_fincode(): void
+    {
+        $context = $this->context(V2AdminRole::Owner);
+        $user = $this->user();
+        foreach ([['fincode','test',1000], ['fincode','commercial',2000], ['univapay','commercial',3000], ['techcoin','commercial',4000]] as [$provider,$classification,$amount]) {
+            $payment = $this->payment($user, '2026-08-01T01:00:00Z', $amount);
+            DB::table('payments')->where('id', $payment)->update(['provider_code'=>$provider, 'payment_method'=>$provider === 'techcoin' ? 'netridecash' : 'credit_card']);
+            DB::table('payment_commercial_classifications')->insert(['payment_id'=>$payment, 'classification'=>$classification, 'reason'=>$classification === 'test' ? 'pay1_existing_fincode' : 'provider_live_mode']);
+            if ($provider === 'fincode') $this->adjustment($payment, 'refund', '2026-08-02T01:00:00Z', $amount);
+        }
+        $excluded = $this->payment($user, '2026-08-01T01:00:00Z', 10000);
+        // The run FK is deferred; this rolled-back fixture exercises historical exclusion.
+        DB::select('SELECT pg_advisory_xact_lock(740022, 1)');
+        DB::table('member_rank_prelaunch_excluded_origins')->insert(['payment_id'=>$excluded, 'run_id'=>1]);
+        $this->adjustment($excluded, 'refund', '2026-08-02T01:00:00Z', 10000);
+        $report = app(V2ReportingService::class)->monthlySales($context, '2026-08');
+        self::assertSame(9000, $report['gross_sales']['amount']);
+        self::assertSame(2000, $report['refunds']['amount']);
+        self::assertSame(7000, $report['net_sales_amount']);
+        self::assertSame($report['gross_sales']['amount'], array_sum(array_column($report['provider_breakdown'], 'gross_amount')));
+        self::assertSame($report['net_sales_amount'], array_sum(array_column($report['provider_breakdown'], 'net_amount')));
+        self::assertCount(3, $report['provider_breakdown']);
+        self::assertSame(5, DB::table('payments')->count());
+        $daily = app(V2ReportingService::class)->dailySales($context, '2026-08-01', null, 20);
+        self::assertCount(3, $daily['items']);
+        self::assertContains('UnivaPay', array_column($daily['items'], 'provider_label'));
+        self::assertContains('電子マネー（NetRideCash）', array_column($daily['items'], 'method_label'));
+    }
+
     public function test_point_report_uses_immutable_ledger_not_wallet_balance(): void
     {
         $context = $this->context(V2AdminRole::Admin);

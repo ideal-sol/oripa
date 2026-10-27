@@ -77,11 +77,24 @@ trait MemberRankAccountingFixture
             'status' => 'published', 'published_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
         $service = app(V2PaymentService::class);
-        $payment = $service->createPayment($user->id, $planId, 'fincode', 'rank-'.Str::uuid7(), (string) Str::uuid7(), $method);
+        $payment = $this->createCommercialRankPayment($service, $user->id, $planId, 'fincode', 'rank-'.Str::uuid7(), (string) Str::uuid7(), $method);
         $event = $service->recordVerifiedProviderEvent('fincode', 'rank-'.Str::uuid7(), 'payment.succeeded', '{}', [],
             $payment->id, null, $providerAt === null ? now() : CarbonImmutable::parse($providerAt));
 
         return [$payment, $event];
+    }
+
+    protected function createCommercialRankPayment(V2PaymentService $service, mixed ...$arguments): object
+    {
+        // Synthetic commercial business fixture; direct domain creation performs no provider IO.
+        // Keep test-mode exclusion tests separate and retain every existing rank assertion.
+        $previousEndpoint = config('v2_fincode.base_url');
+        try {
+            config(['v2_fincode.base_url' => 'https://api.fincode.jp']);
+            return $service->createPayment(...$arguments);
+        } finally {
+            config(['v2_fincode.base_url' => $previousEndpoint]);
+        }
     }
 
     protected function settleRankPayment(User $user, int $amount, int $free = 0, ?string $providerAt = null): object
