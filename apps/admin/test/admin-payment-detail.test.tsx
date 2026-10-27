@@ -45,6 +45,18 @@ describe("Admin manual payment adjustments", () => {
     expect(await screen.findByRole("status", { name: "操作結果" })).toHaveTextContent("返金準備中");
   });
 
+  it("shows an expired UnivaPay success as a review item with its reconciliation evidence", async () => {
+    const value = detail();
+    value.payment.status = "expired";
+    value.payment.provider_label = "UnivaPay";
+    value.payment.adjustments = {...value.payment.adjustments, refund_pending: false, refunded: false, chargeback: false, review_required: true};
+    value.progress = [{type: "provider_api_called", source: "server", detail: {match: "expired", reason: "reconciliation_failed"}, recorded_at: "2026-10-27T10:00:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("要確認：決済の照合結果");
+    expect(screen.getByRole("region", {name: "決済の経過"})).toHaveTextContent("expired");
+  });
+
   it("requires explicit provider completion and shows actual returned impact", async () => {
     const value = detail(); value.adjustments = [adjustment()];
     vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({ data: value, request_id: paymentId });

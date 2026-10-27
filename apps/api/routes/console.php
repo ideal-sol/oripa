@@ -5,6 +5,21 @@ use App\Domain\Point\Services\PointExpirationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Artisan::command('v2:univapay:work {--limit=20}', function (): int {
+    if (config('v2_univapay.worker_enabled') !== true) return 1;
+    $this->info('Processed receipts: '.app(\App\Domain\Payment\V2\Services\V2UnivapayWebhookService::class)->work((int) $this->option('limit')));
+    return 0;
+});
+Artisan::command('v2:univapay:reconcile {--limit=100}', function (): int {
+    if (config('v2_univapay.worker_enabled') !== true) return 1;
+    $this->info('Reconciled payments: '.app(\App\Domain\Payment\V2\Services\V2UnivapayPaymentService::class)->reconcileDue((int) $this->option('limit')));
+    return 0;
+});
+if (config('v2_univapay.worker_enabled') === true) {
+    Schedule::command('v2:univapay:work')->everyMinute()->withoutOverlapping();
+    Schedule::command('v2:univapay:reconcile')->everyFiveMinutes()->withoutOverlapping();
+}
+
 Artisan::command('v2:payment-progress:purge', function (): void {
     $this->info('Expired payment progress events purged: '.app(\App\Domain\Payment\V2\Services\V2PaymentProgressService::class)->purge());
 });

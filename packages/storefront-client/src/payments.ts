@@ -49,6 +49,7 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 ] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
 
 export interface StorefrontPaymentClient {
+  reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
   recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: PaymentCsrfOptions): Promise<StorefrontResponse<void>>;
   getPaymentCardUiBootstrap(): Promise<
@@ -96,6 +97,7 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
   recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<void>>;
   getPaymentCardUiBootstrap(): Promise<
@@ -180,6 +182,11 @@ export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    reportUnivapayCharge: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/univapay-charges`, method: "POST", body: input,
+      headers: csrf(options.csrf_token), csrf: "required", retry: false,
+      signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     listPaymentMethods: (id) => transport.request({path: `/payment-methods${id ? `?point_product_id=${encodeURIComponent(id)}` : ""}`}),
     recordPaymentClientEvent: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/client-events`, method: "POST", body: input,
@@ -285,6 +292,10 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    reportUnivapayCharge: (id, input, options = {}) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/univapay-charges`, method: "POST", body: input,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     listPaymentMethods: (id) => transport.request({path: `/payment-methods${id ? `?point_product_id=${encodeURIComponent(id)}` : ""}`}),
     recordPaymentClientEvent: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/client-events`, method: "POST", body: input,
