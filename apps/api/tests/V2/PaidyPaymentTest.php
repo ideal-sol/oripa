@@ -184,8 +184,34 @@ final class PaidyPaymentTest extends TestCase
             return Http::response($body);
         });
         self::assertSame('failed', $this->authorizePaidy($user, $payment, $body['id'])['status']);
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/close'));
         self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
     }
+
+    #[DataProvider('foreignOrderAmounts')]
+    public function test_another_orders_unbound_paidy_id_is_never_closed(int $amount): void
+    {
+        [$user, $payment] = $this->paidyPayment();
+        [, $other] = $this->paidyPayment();
+        $body = $this->paidyObject($other); $body['amount'] = $amount;
+        // No local provider binding exists: that database check alone cannot
+        // establish ownership of a retrieved authorization.
+        self::assertFalse(DB::table('payments')->where('provider_payment_id', $body['id'])->exists());
+        Http::fake(function (Request $request) use ($body) {
+            self::assertSame('GET', $request->method());
+            return Http::response($body);
+        });
+        self::assertSame('requires_action', $this->authorizePaidy($user, $payment, $body['id'])['status']);
+        Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
+        self::assertFalse(DB::table('outbox_messages')->where('deduplication_key', 'paidy.operation:'.$payment->public_id)->exists());
+        self::assertSame(0, DB::table('payment_point_grants')->whereIn('payment_id', [$payment->id, $other->id])->count());
+        self::assertTrue(DB::table('payment_progress_events')->where('payment_id', $payment->id)
+            ->whereRaw("detail->>'match' = ?", [$amount === 1000 ? 'member_mismatch' : 'amount_mismatch'])->exists());
+        self::assertSame('requires_action', DB::table('payments')->where('id', $other->id)->value('status'));
+    }
+
+    public static function foreignOrderAmounts(): array { return [[1000], [2000]]; }
 
     public function test_ownership_provider_request_and_idempotency_boundaries(): void
     {

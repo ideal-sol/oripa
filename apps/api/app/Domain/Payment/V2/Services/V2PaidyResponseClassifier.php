@@ -17,12 +17,13 @@ final class V2PaidyResponseClassifier
 
     public function classify(?array $body, object $payment, string $id, bool $test): array
     {
-        $unknown = ['state' => 'uncertain', 'match' => 'ok', 'uncaptured' => false, 'occurred_at' => null];
+        $unknown = ['state' => 'uncertain', 'match' => 'ok', 'uncaptured' => false, 'order_matches' => false, 'occurred_at' => null];
         if ($body === null || ($body['id'] ?? null) !== $id || ! is_string($body['status'] ?? null)
             || ! is_bool($body['test'] ?? null) || ! is_array($body['order'] ?? null)
             || ! is_array($body['captures'] ?? null) || ! array_is_list($body['captures'])
             || ! is_array($body['refunds'] ?? null) || ! array_is_list($body['refunds'])
             || self::yen($body['amount'] ?? null) === null) return $unknown;
+        $unknown['order_matches'] = ($body['order']['order_ref'] ?? null) === $payment->public_id;
         $status = strtolower($body['status']);
         $uncaptured = $status === 'authorized' && $body['captures'] === [] && $body['refunds'] === [];
         $match = match (true) {

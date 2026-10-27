@@ -79,6 +79,70 @@ ambiguous money request. This conservative choice can leave a truly unsent
 Capture for manual investigation. Do not remove the claim to force retry.
 Provider HTTP never holds a database transaction.
 
+### Final supplement: specification 6.4.3 retry gap — Human decision OPEN
+
+The final supplement explicitly rechecked specification v2.2 section6.4.3(2).
+It requires another Capture after Retrieve confirms AUTHORIZED with no captures.
+The permanent operation claim **does not implement this retry requirement**.
+This is an unresolved specification deviation, not completed recovery acceptance.
+No automatic second Capture has been added in this supplement.
+
+Safety could not be demonstrated from the approved contract. A possible sequence
+is: Capture A times out locally while still pending at the provider; Retrieve B
+returns AUTHORIZED before A commits; Capture C is submitted; A and C overlap at
+the provider. Local row locks/leases serialize local claims but cannot fence A
+after the client timeout, process crash or lease recovery. A waiting period alone
+does not prove A is finished. The [official Paidy API reference](https://paidy.com/docs/api/jp/index.html)
+describes Capture for AUTHORIZED payments and rejection of CLOSED payments;
+we found no documented guarantee for concurrent in-flight Capture requests or
+Retrieve consistency sufficient to rule out this interleaving. This is a safety
+assessment, not a claim that Paidy actually double-captures. Synthetic tests
+cannot establish that external guarantee; no real provider calls were made.
+
+Risk of keeping the claim: a genuinely unsent/failed Capture may remain
+processing/review and never complete automatically, even after a valid fresh
+AUTHORIZED Retrieve. Risk of deleting/replacing the claim: duplicate in-flight
+provider operations, despite one local grant. The existing one-grant invariant
+does not itself prove one provider charge.
+
+Alternatives for Human/provider decision before acceptance/activation:
+
+- Obtain an explicit provider guarantee that concurrent Capture is atomically
+  serialized/rejected and that the required Retrieve observation permits retry;
+  then implement a bounded, per-payment serialized attempt after a fresh exact
+  ID/order_ref/JPY/amount/mode/uncaptured Retrieve, retaining audit and deadline
+  guards and covering callback/Webhook/worker/lease interleavings.
+- Use a provider-supported idempotency/fencing mechanism if separately confirmed
+  and approved; none is assumed or invented here.
+- Explicitly approve a specification amendment retaining Retrieve-only automated
+  recovery and operator/provider investigation for unresolved authorization.
+
+Until that decision, retain the permanent claim and Source Merge HOLD. Do not
+delete claims, resend Capture unconditionally, auto-Close uncertain requests or
+expire processing payments. Existing timeout/5xx/403/invalid2xx and expiry tests
+verify that conservative behavior, not compliance with the missing retry clause.
+
+### Final supplement: Close ownership
+
+Close now requires the validated Retrieve object's `order.order_ref` to equal
+the target local payment UUID independently of the classifier's first mismatch.
+Thus an amount mismatch cannot hide a different order. An unbound foreign Paidy
+ID never causes Capture/Close or a grant; review remains recorded. Same-order
+amount mismatch with verified empty captures/refunds still Closes. The Close
+response must also retain the target order reference before local failure is
+applied. This follows the latest explicit Human instruction, which overrides
+the broader order-number-mismatch wording in section6.4.4. No migration,
+contract or financial settlement change is introduced.
+
+Supplement isolated combined run:30 tests/251 assertions, no assertion failures,
+exit0;5 PHPUnit risky warnings reported removed error/exception handlers in the
+Webhook/concurrency classes following the existing cross-class schema cleanup.
+This is not reported as a clean30-test PASS. Keep the diagnostic visible; do not
+relax PHPUnit settings or change unrelated fixture lifecycle for this supplement.
+The separate single-class run of directly affected Close/uncertain-Capture cases
+passed cleanly:8 tests/67 assertions, no risky warnings. New exact-head formal
+CI/review and Candidate metadata are recorded in PR623 after completion.
+
 If Capture succeeds but grant fails, its grant transaction rolls back, review is
 recorded and the durable lookup retries Retrieve/settlement. Existing terminal
 state and common financial locks are checked again inside the grant transaction.

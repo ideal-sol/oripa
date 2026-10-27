@@ -202,7 +202,9 @@ final class V2PaidyReconciliationService
 
     private function closeIfSafe(object $payment, string $id, array $result, OutboxMessage $message, string $worker): bool
     {
-        if (! $result['uncaptured'] || $this->captureAttempted($payment)
+        // A valid uncaptured authorization may belong to an entirely different
+        // order, including when amount_mismatch masks member_mismatch.
+        if (! $result['order_matches'] || ! $result['uncaptured'] || $this->captureAttempted($payment)
             || DB::table('payments')->where('provider_code', 'paidy')->where('provider_payment_id', $id)->where('id', '<>', $payment->id)->exists()) return false;
         // Close and Capture share the same permanent per-payment operation exclusion.
         if (! $this->claimCapture($payment, $message, $worker, 'cancel')) return false;
@@ -211,7 +213,7 @@ final class V2PaidyReconciliationService
         $body = $response['body'];
         if (($body['id'] ?? null) === $id && is_string($body['status'] ?? null) && strtolower($body['status']) === 'closed'
             && V2PaidyResponseClassifier::yen($body['amount'] ?? null) !== null && is_string($body['currency'] ?? null)
-            && is_bool($body['test'] ?? null) && is_string($body['order']['order_ref'] ?? null)
+            && is_bool($body['test'] ?? null) && ($body['order']['order_ref'] ?? null) === $payment->public_id
             && ($body['captures'] ?? null) === [] && ($body['refunds'] ?? null) === []) {
             $fresh = DB::table('payments')->where('id', $payment->id)->firstOrFail();
             if (! in_array($fresh->status, ['succeeded', 'failed', 'canceled', 'expired'], true)) $this->apply($fresh, 'failed');
