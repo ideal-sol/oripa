@@ -161,6 +161,12 @@ The expanded isolated28-case run passed27 and exposed a test-only call to a
 nonexistent custom-guard method. Use the Auth manager's guard reset for the
 unauthenticated assertion; corrected focused HTTP case passes1/8. Financial
 source is unchanged. Full formal final-head coverage remains mandatory.
+CI40447029827 ran1743 V2 cases and exposed one further fixture dependency: the
+isolated local harness supplied the Public origin while CI did not. The fixture
+now configures its synthetic origin explicitly, so the missing-CSRF request
+reaches the real CSRF guard and asserts403 rather than configuration-error503.
+Authentication code and the expected status are unchanged. Revalidate this case
+with the external origin ENV empty and renew all checks on the new final head.
 
 Only automatic formal PR CI Candidate Build/Package/Verify/Load and Actions
 storage is allowed. It is validation-only, never a formal release artifact.

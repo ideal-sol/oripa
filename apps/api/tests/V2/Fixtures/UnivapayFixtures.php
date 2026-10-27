@@ -16,6 +16,7 @@ trait UnivapayFixtures
     {
         $jwt = 'eyJhbGciOiJIUzI1NiJ9.'.rtrim(strtr(base64_encode(json_encode(['mode' => $mode])), '+/', '-_'), '=').'.c3ludGhldGlj';
         config([
+            'v2_identity.origins.user' => 'https://example.test',
             'v2_payment.credit_card_provider' => 'univapay', 'v2_payment.methods_enabled' => 'credit_card',
             'v2_audit.active_hmac_key_version' => 'v1', 'v2_audit.hmac_keys.v1' => 'base64:'.base64_encode(str_repeat('a', 32)),
             'v2_fincode.storefront_origin' => 'https://example.test', 'v2_fincode.admin_origin' => 'https://admin.example.test',
