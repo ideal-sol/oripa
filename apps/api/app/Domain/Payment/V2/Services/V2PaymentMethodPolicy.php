@@ -61,7 +61,7 @@ final class V2PaymentMethodPolicy
         }
     }
 
-    public function methods(?string $productId): array
+    public function methods(?string $productId, ?\App\Models\V2\User $user = null): array
     {
         $amount = $productId === null ? null : $this->amount($productId);
         $result = [];
@@ -82,6 +82,8 @@ final class V2PaymentMethodPolicy
                     $method === 'credit_card' => 'card_component',
                     default => 'redirect',
                 },
+                'inline_form' => $provider === 'univapay' && $amount !== null && $user !== null
+                    ? app(V2UnivapayConfiguration::class)->inlineForm($amount, $user) : null,
             ];
         }
 
@@ -114,7 +116,15 @@ final class V2PaymentMethodPolicy
         if ($provider === 'techcoin') {
             return app(V2TechcoinConfiguration::class)->available();
         }
-        // PAY2–PAY4 supply real adapters. Configuration alone cannot enable an unimplemented provider.
+        if ($provider === 'paidy') {
+            try {
+                app(V2PaidyConfiguration::class)->validate();
+                return true;
+            } catch (V2FincodeException) {
+                return false;
+            }
+        }
+        if ($provider === 'univapay') return app(V2UnivapayConfiguration::class)->available();
         if ($provider !== 'fincode') {
             return false;
         }

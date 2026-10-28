@@ -44,6 +44,23 @@ describe("Admin manual payment adjustments", () => {
     expect(screen.getByRole("region", {name: "決済の経過"})).toHaveTextContent("amount_mismatch");
   });
 
+  it("shows Paidy processing review without enabling manual financial actions", async () => {
+    const value = detail();
+    value.payment.provider_label = "ペイディ";
+    value.payment.provider_payment_reference = "pay_synthetic";
+    value.payment.status = "processing";
+    value.payment.adjustments = {...value.payment.adjustments!, review_required: true};
+    value.refund_eligibility = {allowed: false, code: "PAYMENT_NOT_SUCCEEDED", reason: "未確定"};
+    value.progress = [{type: "provider_api_called", source: "server", detail: {reason: "reconciliation_failed"}, recorded_at: "2026-10-27T01:00:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("売上確定・付与・返金");
+    expect(screen.getByText(/決済会社：ペイディ/u)).toBeInTheDocument();
+    expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("pay_synthetic");
+    expect(screen.getByRole("button", {name: "返金の準備"})).toBeDisabled();
+    expect(screen.getByRole("button", {name: "チャージバックを記録"})).toBeDisabled();
+  });
+
   it("requires a reason, preserves the key after a transport failure and prevents duplicate clicks", async () => {
     const write = vi.spyOn(AdminApiClient.prototype, "writeAdminPaymentAdjustment")
       .mockRejectedValueOnce(new Error("network"))
@@ -59,6 +76,18 @@ describe("Admin manual payment adjustments", () => {
     await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
     expect(write.mock.calls[0][3]).toBe(write.mock.calls[1][3]);
     expect(await screen.findByRole("status", { name: "操作結果" })).toHaveTextContent("返金準備中");
+  });
+
+  it("shows an expired UnivaPay success as a review item with its reconciliation evidence", async () => {
+    const value = detail();
+    value.payment.status = "expired";
+    value.payment.provider_label = "UnivaPay";
+    value.payment.adjustments = {...value.payment.adjustments, refund_pending: false, refunded: false, chargeback: false, review_required: true};
+    value.progress = [{type: "provider_api_called", source: "server", detail: {match: "expired", reason: "reconciliation_failed"}, recorded_at: "2026-10-27T10:00:00Z"}];
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("要確認：決済の照合結果");
+    expect(screen.getByRole("region", {name: "決済の経過"})).toHaveTextContent("expired");
   });
 
   it("requires explicit provider completion and shows actual returned impact", async () => {

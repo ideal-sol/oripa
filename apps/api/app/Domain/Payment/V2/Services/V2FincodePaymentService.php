@@ -482,9 +482,16 @@ final class V2FincodePaymentService
                 ];
             }
         }
+        if ($payment->provider_code === 'univapay' && $includeNextAction) {
+            $nextAction = app(V2UnivapayPaymentService::class)->action($payment);
+        }
         $paidPoints = (int) $payment->paid_point_amount;
         $bonusPoints = (int) $payment->free_point_amount;
         $limitedBonusPoints = (int) ($payment->limited_bonus_point_amount ?? 0);
+
+        if ($payment->provider_code === 'paidy' && $includeNextAction) {
+            $nextAction = app(V2PaidyPaymentService::class)->action($payment);
+        }
 
         return [
             'id' => $payment->public_id,

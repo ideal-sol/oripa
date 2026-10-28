@@ -14688,6 +14688,10 @@
               "provider": {
                 "type": "string"
               },
+              "charge_id": {
+                "type": "string",
+                "format": "uuid"
+              },
               "match": {
                 "enum": [
                   "ok",
@@ -14698,6 +14702,24 @@
                   "expired",
                   "duplicate_charge"
                 ]
+              },
+              "operation": {
+                "enum": [
+                  "lookup",
+                  "capture",
+                  "cancel",
+                  "refund"
+                ]
+              },
+              "http_status": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              "error_code": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 999999
               },
               "reason": {
                 "enum": [

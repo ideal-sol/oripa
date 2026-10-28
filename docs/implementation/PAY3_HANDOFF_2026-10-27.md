@@ -1,5 +1,44 @@
 # PAY3 — Techcoin NetRideCash Source handoff
 
+## PAY234-INTEGRATION-20261028 — integrated Source-only authorization
+
+Latest Human GO on2026-10-28 authorizes existing PR622 → PR623 → PR624 Source
+integration and canonical squash merges only. Historical Draft/Source Merge HOLD
+statements below are superseded within that scope. R3 / Strict Change;
+Application Runtime Activation remains deferred. Provider acceptance, real DB,
+ENV/Worker/Scheduler/Runtime, Production Authority, formal Artifact/package
+publication, tag/release/registry and Storefront PR192 remain excluded.
+
+PAY2 reviewed `dc269f0361424edcd87162f39335e41e82bd2966` / tree `2752d1d14491c38eb0061daf8dbdaafa504013e6` merged as
+`ccb5887cf80d7edfe2fc715e3b731b5f60825ffa`. PAY4 reviewed `6972abb0256e10918b9e3749f22aae3ae504fcab` / tree
+`7c233a59ecaff345543d25f8b3c47493471bdba9` merged as `80e8f7448eafd70d88f7a457f067e461ee88f5e5`. Both canonical merge actors:
+`ideal-sol-oripa-codex[bot]`. Each reviewed tree equals its squash tree, content diff0;
+Required5 and fresh Strict review passed. Exact CI/review/merge evidence is in
+the respective PR records and the batch closeout.
+
+PAY3 retains original `4352ae7be5cf84a4e5517d0750fed8fe80da24fe` and imports PAY2+PAY4 main by an ordinary
+merge. The final candidate retains all three provider operations plus existing
+fincode/LINE and PAY1 financial/mail/rank authority. Canonical generation produces
+Public90 and Webhook5 operations. Unpublished Client/Testkit alpha47,
+Public/Admin alpha43 and Webhook alpha41 form one combined candidate; published
+alpha46/history and Site-schema alpha23 remain immutable. No formal publication
+or Runtime use is authorized by validation-only CI Candidates.
+
+Paidy specification6.4.3(2) Capture retry deviation remains SEV-2 / Human-provider
+decision OPEN before acceptance/Activation. Retain permanent Capture claims,
+Retrieve-only uncertainty recovery, foreign-order Close protection and review;
+never infer permission to release claims or resend Capture. U/P/T merchant,
+real SDK/3DS/Webhook/browser/mail acceptance remain pending. A separate task must
+publish integrated alpha47, connect/merge Storefront PR192 and obtain OLD Test /
+Production Activation GO. Source rollback uses a separately reviewed forward fix;
+never alter financial histories or automatically refund.
+
+Final PR624 head/tree, Required5, fresh review, canonical squash, protected main
+and exact tree/content verification are recorded externally in PR624/batch
+closeout to avoid self-referential commit hashes. No new migration or allocation;
+operational migration application0, formal publication0, Runtime Activation0.
+
+
 Task: PAY3-20261027 / canonical CI Change ID: TEC-20261027 (one Change).
 Issue: none / Risk: R3 / Lane: Strict Change / Application Runtime Activation: deferred.
 Branch: `feat/TEC-20261027`, dedicated isolated worktree.

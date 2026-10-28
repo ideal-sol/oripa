@@ -46,6 +46,21 @@ const jsonResponse = (body, init = {}) =>
     ...init,
   });
 
+test("Paidy authorization uses CSRF, exact idempotency and no transport replay", async () => {
+  const calls = [];
+  const client = createStorefrontPaymentClient({request: async request => {calls.push(request); return {data: {status: "processing"}};}});
+  const input = {paidy_payment_id: "pay_synthetic"};
+  const result = await client.confirmPaidyAuthorization("synthetic-id", input, {csrf_token: "a".repeat(64), idempotency_key: "synthetic-key"});
+  assert.equal(result.data.status, "processing");
+  assert.deepEqual(calls[0].body, input);
+  assert.equal(calls[0].path, "/payments/synthetic-id/paidy-authorizations");
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].idempotency_key, "synthetic-key");
+  assert.equal(calls[0].csrf, "required");
+  assert.equal(calls[0].headers["X-XSRF-TOKEN"], "a".repeat(64));
+  assert.equal(calls[0].retry, false);
+});
+
 test("payment method lookup and reference events preserve the transport boundary", async () => {
   const calls = [];
   const client = createStorefrontPaymentClient({request: async request => {calls.push(request); return {data: undefined};}});
@@ -1577,6 +1592,22 @@ test("Card Registration state machineとtyped Problemsを公開する", () => {
     true,
   );
   assert.equal(isCardRegistrationProblemError(error, "CARD_REGISTRATION_FAILED"), false);
+});
+
+test("UnivaPay charge reporting is an owned CSRF mutation without automatic retry", async () => {
+  const calls = [];
+  const client = createStorefrontPaymentClient({request: async (request) => { calls.push(request); return {data: {status: "requires_action"}}; }});
+  const charge = {charge_id: "0198a001-0000-7000-8000-000000000099"};
+  const csrf = "a".repeat(64);
+  const result = await client.reportUnivapayCharge("payment-id", charge, {csrf_token: csrf});
+  assert.equal(result.data.status, "requires_action");
+  assert.equal(calls[0].path, "/payments/payment-id/univapay-charges");
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].body, charge);
+  assert.equal(calls[0].headers["X-XSRF-TOKEN"], csrf);
+  assert.equal(calls[0].csrf, "required");
+  assert.equal(calls[0].retry, false);
+  assert.throws(() => client.reportUnivapayCharge("../other", charge, {csrf_token: csrf}), TypeError);
 });
 
 test("shipping policy reads and minimum errors retain exact decimal details", async () => {
