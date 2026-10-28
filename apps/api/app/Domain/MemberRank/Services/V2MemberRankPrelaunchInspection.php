@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 final class V2MemberRankPrelaunchInspection
 {
     public const FINANCIAL_TABLES = [
-        'payments', 'payment_point_grants', 'payment_provider_events', 'payment_provider_operations',
+        'payment_commercial_classifications', 'payments', 'payment_point_grants', 'payment_provider_events', 'payment_provider_operations',
         'payment_adjustments', 'payment_adjustment_point_operations',
         'point_operations', 'wallets', 'point_lots', 'point_ledger_entries',
         'draw_requests', 'draw_results',
@@ -83,6 +83,8 @@ final class V2MemberRankPrelaunchInspection
         $counts = [
             'users' => $connection->table('users')->count(),
             'protected_applicants' => (clone $protected)->count(),
+            'protected_payments' => $connection->table('payments')->whereIn('user_id', clone $protected)->count(),
+            'unapproved_origins' => $connection->table('payments')->whereRaw('NOT v2_prelaunch_test_origin(id)')->count(),
             'protected_succeeded_payments' => $connection->table('payments')
                 ->whereIn('user_id', clone $protected)->where('status', 'succeeded')->count(),
             'protected_paid_grants' => $connection->table('payment_point_grants as grants')
@@ -96,9 +98,11 @@ final class V2MemberRankPrelaunchInspection
             'protected_preregistration_grants' => $connection->table('pre_registration_grants')
                 ->whereIn('user_id', clone $protected)->count(),
             'pending_payments' => $connection->table('payments')
-                ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'expired'])->count(),
+                ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'expired'])
+                ->whereRaw("NOT (v2_prelaunch_legacy_test_origin(id) AND status = 'requires_action')")->count(),
             'pending_provider_events' => $connection->table('payment_provider_events')
                 ->whereNotIn('processing_status', ['processed', 'ignored'])
+                ->whereRaw('NOT v2_prelaunch_test_event(id)')
                 ->whereNotExists(function (Builder $query): void {
                     $query->selectRaw('1')->from('payment_provider_event_attempts as attempt')
                         ->whereColumn('attempt.payment_provider_event_id', 'payment_provider_events.id')
@@ -114,7 +118,8 @@ final class V2MemberRankPrelaunchInspection
             'pending_provider_operations' => $connection->table('payment_provider_operations')
                 ->whereNotIn('status', ['succeeded', 'failed'])->count(),
             'pending_fincode_attempts' => $connection->table('fincode_payment_attempts')
-                ->whereNotIn('status', ['completed', 'failed'])->count(),
+                ->whereNotIn('status', ['completed', 'failed'])
+                ->whereRaw('NOT v2_prelaunch_test_attempt(id)')->count(),
             'pending_adjustments' => $connection->table('payment_adjustments')
                 ->whereNotIn('status', ['succeeded', 'failed', 'canceled'])->count(),
             'paid_grants' => $connection->table('payment_point_grants')->count(),
@@ -132,11 +137,13 @@ final class V2MemberRankPrelaunchInspection
             'member_rank_payment_adjustments', 'member_rank_monthly_jobs'] as $table) {
             $rankRows[$table] = $connection->table($table)->count();
         }
+        $allowedZeroAdjustments = $connection->table('member_rank_payment_adjustments')
+            ->whereRaw('v2_prelaunch_zero_adjustment(id)')->count();
         $holds = [];
         if ($setting->enabled || $setting->activated_at !== null) {
             $holds[] = 'ALREADY_ACTIVATED';
         }
-        foreach (['protected_succeeded_payments', 'protected_paid_grants', 'protected_draw_requests',
+        foreach (['protected_payments', 'unapproved_origins', 'protected_succeeded_payments', 'protected_paid_grants', 'protected_draw_requests',
             'protected_other_point_operations', 'pending_payments', 'pending_provider_events',
             'unassociated_provider_events', 'pending_provider_operations', 'pending_fincode_attempts', 'pending_adjustments',
             'succeeded_without_grant', 'invalid_paid_origins', 'financial_discrepancies', 'unresolved_reconciliations'] as $name) {
@@ -144,7 +151,7 @@ final class V2MemberRankPrelaunchInspection
                 $holds[] = strtoupper($name);
             }
         }
-        if (array_sum($rankRows) > 0) {
+        if (array_sum($rankRows) - $allowedZeroAdjustments > 0) {
             $holds[] = 'EXISTING_RANK_BUSINESS_STATE';
         }
 
@@ -155,7 +162,7 @@ final class V2MemberRankPrelaunchInspection
             'read_only' => $connection->selectOne('SHOW transaction_read_only')->transaction_read_only === 'on',
             'revision' => (int) $setting->revision, 'enabled' => (bool) $setting->enabled,
             'protection_basis' => 'pre_registered_at_or_preregistration_history_without_date_filter',
-            'counts' => $counts, 'rank_rows' => $rankRows, 'data_holds' => $holds,
+            'counts' => $counts, 'allowed_zero_rank_adjustments' => $allowedZeroAdjustments, 'rank_rows' => $rankRows, 'data_holds' => $holds,
             'unproven_gates' => ['SITE_BOUND_HUMAN_AUTHORITY', 'EXACT_CUTOVER',
                 'FINANCIAL_ADMISSION_AND_DRAIN', 'NEW_PROVIDER_INTEGRATION', 'HUMAN_ACTIVATION_GO'],
         ];

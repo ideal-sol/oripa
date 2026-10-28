@@ -68,7 +68,7 @@ trait MemberRankAccountingFixture
         return $user;
     }
 
-    protected function rankPayment(User $user, int $amount, int $free = 0, ?string $providerAt = null, string $method = 'credit_card', ?int $planId = null): array
+    protected function rankPayment(User $user, int $amount, int $free = 0, ?string $providerAt = null, string $method = 'credit_card', ?int $planId = null, bool $commercial = true): array
     {
         $planId ??= DB::table('point_purchase_plans')->insertGetId([
             'public_id' => (string) Str::uuid7(), 'code' => 'rank-'.Str::uuid7(), 'version_no' => 1,
@@ -77,7 +77,17 @@ trait MemberRankAccountingFixture
             'status' => 'published', 'published_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
         $service = app(V2PaymentService::class);
-        $payment = $this->createCommercialRankPayment($service, $user->id, $planId, 'fincode', 'rank-'.Str::uuid7(), (string) Str::uuid7(), $method);
+        if ($commercial) {
+            $payment = $this->createCommercialRankPayment($service, $user->id, $planId, 'fincode', 'rank-'.Str::uuid7(), (string) Str::uuid7(), $method);
+        } else {
+            $endpoint = config('v2_fincode.base_url');
+            try {
+                config(['v2_fincode.base_url' => 'https://api.test.fincode.jp']);
+                $payment = $service->createPayment($user->id, $planId, 'fincode', 'rank-'.Str::uuid7(), (string) Str::uuid7(), $method);
+            } finally {
+                config(['v2_fincode.base_url' => $endpoint]);
+            }
+        }
         $event = $service->recordVerifiedProviderEvent('fincode', 'rank-'.Str::uuid7(), 'payment.succeeded', '{}', [],
             $payment->id, null, $providerAt === null ? now() : CarbonImmutable::parse($providerAt));
 
@@ -97,9 +107,9 @@ trait MemberRankAccountingFixture
         }
     }
 
-    protected function settleRankPayment(User $user, int $amount, int $free = 0, ?string $providerAt = null): object
+    protected function settleRankPayment(User $user, int $amount, int $free = 0, ?string $providerAt = null, bool $commercial = true): object
     {
-        [$payment, $event] = $this->rankPayment($user, $amount, $free, $providerAt);
+        [$payment, $event] = $this->rankPayment($user, $amount, $free, $providerAt, commercial: $commercial);
         app(V2PaymentService::class)->confirmSucceeded($event->id);
 
         return $payment;

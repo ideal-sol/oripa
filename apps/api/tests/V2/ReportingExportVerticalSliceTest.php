@@ -97,9 +97,8 @@ final class ReportingExportVerticalSliceTest extends TestCase
         $context = $this->context(V2AdminRole::Owner);
         $user = $this->user();
         foreach ([['fincode','test',1000], ['fincode','commercial',2000], ['univapay','commercial',3000], ['techcoin','commercial',4000]] as [$provider,$classification,$amount]) {
-            $payment = $this->payment($user, '2026-08-01T01:00:00Z', $amount);
+            $payment = $this->payment($user, '2026-08-01T01:00:00Z', $amount, $classification);
             DB::table('payments')->where('id', $payment)->update(['provider_code'=>$provider, 'payment_method'=>$provider === 'techcoin' ? 'netridecash' : 'credit_card']);
-            DB::table('payment_commercial_classifications')->insert(['payment_id'=>$payment, 'classification'=>$classification, 'reason'=>$classification === 'test' ? 'pay1_existing_fincode' : 'provider_live_mode']);
             if ($provider === 'fincode') $this->adjustment($payment, 'refund', '2026-08-02T01:00:00Z', $amount);
         }
         $excluded = $this->payment($user, '2026-08-01T01:00:00Z', 10000);
@@ -417,9 +416,9 @@ final class ReportingExportVerticalSliceTest extends TestCase
         ]);
     }
 
-    private function payment(int $userId, string $succeededAt, int $amount): int
+    private function payment(int $userId, string $succeededAt, int $amount, string $classification = 'commercial'): int
     {
-        return DB::table('payments')->insertGetId([
+        $id = DB::table('payments')->insertGetId([
             'public_id' => (string) Str::uuid7(),
             'user_id' => $userId,
             'point_purchase_plan_id' => null,
@@ -439,6 +438,11 @@ final class ReportingExportVerticalSliceTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('payment_commercial_classifications')->insert([
+            'payment_id' => $id, 'classification' => $classification,
+            'reason' => $classification === 'test' ? 'provider_test_mode' : 'provider_live_mode',
+        ]);
+        return $id;
     }
 
     private function adjustment(
