@@ -1509,9 +1509,15 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.48')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        value['candidate'] = None  # The remaining assertions inspect immutable historical releases.
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 28)
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.48')
+        self.assertEqual(value['latest_immutable']['source_commit'], '6e945df343d3d42ffa844b3b369ca0c171a6bbbe')
+        self.assertEqual(value['latest_immutable']['manifest_sha256'], '9affb95def4858a748a5343614dcdf4d8e0ca20705d5d227cc48e976f01df60f')
+        self.assertEqual(value['latest_immutable']['publication']['artifact_id'], 12819254428)
+        self.assertEqual(hashlib.sha256(json.dumps(value['immutable_history'][:-1], sort_keys=True, separators=(',', ':')).encode()).hexdigest(), '074b827e4a288f06c67091aa737b1c11f648fb2f6929de47b0edb91e384a078c')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 27)
         released47 = value['latest_immutable']
         self.assertEqual(released47, value['immutable_history'][-1])
