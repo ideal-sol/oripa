@@ -70,6 +70,8 @@ final class ZReportingExportPerformanceTest extends TestCase
             SQL,
             [$userId]
         );
+        DB::statement("INSERT INTO payment_commercial_classifications (payment_id, classification, reason)
+            SELECT id, 'commercial', 'provider_live_mode' FROM payments WHERE user_id = ?", [$userId]);
         $durations = [];
         $summaryQueries = 0;
         $countSummaryQueries = true;

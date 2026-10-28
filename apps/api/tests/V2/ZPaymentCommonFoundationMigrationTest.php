@@ -16,7 +16,7 @@ final class ZPaymentCommonFoundationMigrationTest extends TestCase
         self::assertTrue(app()->environment('testing'));
         $migration = '2026_10_26_000099_add_v2_payment_common_foundation.php';
         $paths = array_values(array_filter(glob(database_path('migrations-v2/*.php')),
-            static fn (string $path): bool => basename($path) !== $migration));
+            static fn (string $path): bool => basename($path) < $migration));
         Artisan::call('migrate:fresh', ['--path' => $paths, '--realpath' => true, '--force' => true]);
         try {
             $user = User::query()->create([

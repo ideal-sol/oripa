@@ -57,7 +57,7 @@ final class ZMemberRankPrelaunchInspectionTest extends TestCase
             $first = $this->applicant('2026-10-21T01:00:00Z');
             $second = $this->applicant('2026-10-21T02:00:00Z');
             $oldTestUser = $this->rankUser();
-            $oldPayment = $this->settleRankPayment($oldTestUser, 10000);
+            $oldPayment = $this->settleRankPayment($oldTestUser, 10000, commercial: false);
             $beforeRewards = $this->preservedRows();
             $report = $inspection->inspect();
             self::assertSame($beforeRewards, $this->preservedRows());

@@ -572,6 +572,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php": "Prelaunch classification authority requires a forward-only migration.",
         "2026_10_26_000099_add_v2_payment_common_foundation.php": "Payment classifications, progress and receipts require a forward-only migration.",
         "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php": "Prelaunch activation authority requires a forward-only migration.",
         "2026_10_23_000098_add_v2_shipping_minimum_points.php": "Shipping minimum settings and snapshots require a forward-only migration.",

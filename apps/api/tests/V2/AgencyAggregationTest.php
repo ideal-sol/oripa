@@ -251,12 +251,16 @@ final class AgencyAggregationTest extends TestCase
 
     private function payment(int $userId, string $succeeded, int $amount, string $status = 'succeeded'): int
     {
-        return DB::table('payments')->insertGetId([
+        $id = DB::table('payments')->insertGetId([
             'public_id' => (string) Str::uuid7(), 'user_id' => $userId, 'provider_code' => 'test',
             'status' => $status, 'amount' => $amount, 'currency' => 'JPY', 'paid_point_amount' => $amount, 'free_point_amount' => 0,
             'plan_name_snapshot' => 'Synthetic Plan', 'plan_code_snapshot' => 'test-plan', 'succeeded_at' => $succeeded,
             'created_at' => now(), 'updated_at' => now(),
         ]);
+        DB::table('payment_commercial_classifications')->insert([
+            'payment_id' => $id, 'classification' => 'commercial', 'reason' => 'provider_live_mode',
+        ]);
+        return $id;
     }
 
     private function adjustment(int $paymentId, int $amount, string $type = 'refund', string $status = 'succeeded'): void

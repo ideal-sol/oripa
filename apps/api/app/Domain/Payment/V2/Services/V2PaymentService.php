@@ -489,6 +489,9 @@ final class V2PaymentService
 
                 return $existing;
             }
+            if (DB::table('member_rank_prelaunch_excluded_origins')->where('payment_id', $payment->id)->exists()) {
+                throw new V2PaymentException('PAYMENT_PRELAUNCH_ORIGIN_EXCLUDED');
+            }
             if (in_array($payment->status, self::TERMINAL_PAYMENT_STATUSES, true)) {
                 throw new V2PaymentException('PAYMENT_TERMINAL_STATE');
             }

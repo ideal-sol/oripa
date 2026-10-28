@@ -76,7 +76,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         $oldPayments = [];
         $seedStarted = hrtime(true);
         for ($index = 0; $index < $count; $index++) {
-            $oldPayments[] = $this->settleRankPayment($index % 2 === 0 ? $oldUser : $otherUser, 100);
+            $oldPayments[] = $this->settleRankPayment($index % 2 === 0 ? $oldUser : $otherUser, 100, commercial: false);
         }
         $seedSeconds = (hrtime(true) - $seedStarted) / 1e9;
         self::assertSame([], app(V2MemberRankPrelaunchInspection::class)->inspect()['data_holds']);
@@ -113,7 +113,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
                 JOIN pg_class relation ON relation.oid = trigger.tgrelid
                 JOIN pg_proc procedure ON procedure.oid = trigger.tgfoid
                 WHERE procedure.proname = 'v2_financial_write_guard' ORDER BY relation.relname");
-            self::assertCount(33, $guardedTables);
+            self::assertCount(34, $guardedTables);
             foreach ($guardedTables as $table) {
                 self::assertMatchesRegularExpression('/\A[a-z_]+\z/', $table->relname);
                 $writer->beginTransaction();
@@ -358,7 +358,7 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         ]);
         $admin = $this->rankAdmin();
         $user = $this->rankUser();
-        $old = $this->settleRankPayment($user, 100);
+        $old = $this->settleRankPayment($user, 100, commercial: false);
         DB::table('payments')->where('id', $old->id)->update(['provider_payment_id' => 'acceptance-old']);
         $canonical = ['id' => 'acceptance-old', 'pay_type' => 'Card', 'status' => 'CAPTURED',
             'amount' => '100', 'tax' => '0', 'transaction_date' => now()->format('Y/m/d H:i:s')];
