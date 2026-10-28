@@ -33,6 +33,35 @@ final class UnivapayPaymentTest extends TestCase
         $this->configureUnivapay();
     }
 
+    public function test_integrated_provider_discovery_start_and_pending_presentation_are_independent(): void
+    {
+        config([
+            'v2_payment.methods_enabled' => 'credit_card,paidy',
+            'v2_paidy.api_base_url' => 'https://api.paidy.com', 'v2_paidy.api_version' => '2018-04-10',
+            'v2_paidy.public_key' => 'pk_synthetic_public_key', 'v2_paidy.secret_key' => 'sk_synthetic_server_key',
+            'v2_paidy.store_name' => 'Synthetic store', 'v2_paidy.mode' => 'test',
+            'v2_paidy.webhook_path_token' => str_repeat('p', 32), 'v2_paidy.worker_enabled' => false,
+        ]);
+        $user = $this->univapayUser(); $plan = $this->univapayPlan();
+        $policy = app(V2PaymentMethodPolicy::class);
+        self::assertSame([true, true], array_column($policy->methods($plan->public_id, $user)['data'], 'available'));
+        $univapay = app(V2UnivapayPaymentService::class)->start($user, $plan->public_id, 'integrated-univapay');
+        $paidy = app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)->start($user, $plan->public_id, 'integrated-paidy');
+        self::assertNotSame($univapay['id'], $paidy['id']);
+        self::assertSame('univapay_inline', $univapay['next_action']['type']);
+        self::assertSame('paidy_checkout', $paidy['next_action']['type']);
+        config(['v2_payment.methods_enabled' => '']);
+        self::assertSame([], $policy->methods($plan->public_id, $user)['data']);
+        foreach ([$univapay, $paidy] as $result) {
+            $read = app(V2FincodePaymentService::class)->show($user, $result['id']);
+            self::assertSame($result['next_action']['type'], $read['next_action']['type']);
+            self::assertSame('requires_action', $read['status']);
+            $payment = DB::table('payments')->where('public_id', $result['id'])->firstOrFail();
+            self::assertSame('test', DB::table('payment_commercial_classifications')->where('payment_id', $payment->id)->value('classification'));
+        }
+        Http::assertNothingSent();
+    }
+
     public function test_inline_configuration_amount_boundary_snapshot_and_idempotency(): void
     {
         $user = $this->univapayUser(); $plan = $this->univapayPlan(100000);

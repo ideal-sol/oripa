@@ -310,7 +310,7 @@ function PaymentCollection({
                   {payment.adjustments?.refund_pending && <span>返金準備中</span>}
                   {payment.adjustments?.refunded && <span>返金済み</span>}
                   {payment.adjustments?.chargeback && <span>チャージバック</span>}
-                  {payment.adjustments?.review_required && <strong>要確認：照合・取消通知</strong>}
+                  {payment.adjustments?.review_required && <strong>要確認：決済の照合</strong>}
                 </td>
                 <td>{formatJst(payment.created_at)}</td>
                 <td>{formatJst(payment.succeeded_at ?? payment.expires_at ?? payment.updated_at)}</td>

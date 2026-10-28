@@ -45,7 +45,7 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
         <p>決済会社：{detail.payment.provider_label ?? detail.payment.provider} ／ 支払方法：{detail.payment.method_label ?? detail.payment.method} ／ 状態：{detail.payment.status}</p>
         <p style={{overflowWrap: "anywhere"}}>決済会社側の取引ID：{detail.payment.provider_payment_reference ?? "未発行"}</p>
         <p>成立日時：{date(detail.payment.succeeded_at)}（日本時間）</p>
-        {detail.payment.adjustments?.review_required && <p role="alert">要確認：決済の照合結果または取消通知を経過で確認し、決済会社側の状態と照合してください。</p>}
+        {detail.payment.adjustments?.review_required && <p role="alert">要確認：決済の照合結果を確認してください。決済通知の照合・売上確定・付与・返金について、決済会社側の状態と決済の経過を確認してください。</p>}
         {detail.rank_adjustment_pending && <p role="alert">ランク会計の確認が必要です。機能停止・会員凍結・元付与記録の欠落や不整合がある場合は取消を記録できません。返金予約の取りやめは可能です。</p>}
         <p>円返金額に購入ボーナスは含みません。ポイントとランクポイントの取消は別々に記録します。</p>
         {!detail.refund_eligibility.allowed && <p>返金準備不可：{detail.refund_eligibility.reason}</p>}

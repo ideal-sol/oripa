@@ -5,6 +5,21 @@ use App\Domain\Point\Services\PointExpirationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Artisan::command('v2:paidy:work {--limit=20}', function (): int {
+    if (config('v2_paidy.worker_enabled') !== true) {
+        $this->error('Paidy worker is disabled.');
+        return 1;
+    }
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
+    if ($limit === false || $limit < 1 || $limit > 100) return 1;
+    $this->info('Paidy reconciliation jobs processed: '.app(\App\Domain\Payment\V2\Services\V2PaidyReconciliationService::class)->work($limit));
+    return 0;
+});
+
+if (config('v2_paidy.worker_enabled') === true) {
+    Schedule::command('v2:paidy:work')->everyMinute()->withoutOverlapping();
+}
+
 Artisan::command('v2:univapay:work {--limit=20}', function (): int {
     if (config('v2_univapay.worker_enabled') !== true) return 1;
     $this->info('Processed receipts: '.app(\App\Domain\Payment\V2\Services\V2UnivapayWebhookService::class)->work((int) $this->option('limit')));

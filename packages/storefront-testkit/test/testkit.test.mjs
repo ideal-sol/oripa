@@ -12,7 +12,8 @@ import {
 import {
   createServerStorefrontClient,
 } from "@oripa/storefront-client/server";
-import { createStorefrontMemberRankClient } from "@oripa/storefront-client";
+import { createStorefrontMemberRankClient, createStorefrontPaymentClient } from "@oripa/storefront-client";
+import { PAYMENT_FOUNDATION_FIXTURES } from "../dist/payment-foundation.js";
 import {
   SiteManifestValidationError,
   validateSiteManifest,
@@ -121,6 +122,25 @@ test("Testkit VersionとClient bundle metadataを一致させる", async () => {
     packageManifest.dependencies["@oripa/storefront-client"],
     `workspace:${packageManifest.version}`,
   );
+});
+
+test("Paidy fixture and mock preserve authorization correlation and processing uncertainty", async () => {
+  const mock = createMockFetch();
+  mock.enqueueJson({method: "GET", url: "/api/v2/auth/session"}, {body: PUBLIC_AUTH_FIXTURE.authenticated_session});
+  const client = createStorefrontPaymentClient(createBrowserStorefrontClient({
+    base_url: "/api/v2", site_version: "1.0.0", default_timeout_ms: 1000, fetch: mock.fetch,
+    cookie_reader: () => "a".repeat(64),
+  }));
+  mock.enqueueJson({method: "POST", url: "/api/v2/payments/synthetic/paidy-authorizations"}, {
+    body: {id: "synthetic", status: "processing"}, headers: {"Cache-Control": "private, no-store"},
+  });
+  const response = await client.confirmPaidyAuthorization("synthetic", PAYMENT_FOUNDATION_FIXTURES.paidy_authorization,
+    {csrf_token: "a".repeat(64), idempotency_key: "synthetic-paidy-key"});
+  assert.equal(response.data.status, "processing");
+  assert.deepEqual(JSON.parse(mock.requests[1].body), PAYMENT_FOUNDATION_FIXTURES.paidy_authorization);
+  assert.equal(mock.requests[1].headers["idempotency-key"], "synthetic-paidy-key");
+  assert.equal(PAYMENT_FOUNDATION_FIXTURES.paidy_checkout.payload.amount, 1000);
+  mock.assertExhausted();
 });
 
 test("Member rank fixtures exercise private reads, public list and inherited Problem Details", async () => {
@@ -1015,9 +1035,9 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつPAY2課金報告を含むOperation 87件である", () => {
+test("Public OpenAPIは3.1.1かつPAY4承認確定を含むOperation 88件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 87);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 88);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
@@ -1027,6 +1047,7 @@ test("Public OpenAPIは3.1.1かつPAY2課金報告を含むOperation 87件であ
     "completeGoogleOidc",
     "completeLineLogin",
     "completePaymentCardRegistration",
+    "confirmPaidyAuthorization",
     "confirmPasswordReset",
     "createContactInquiry",
     "createDraw",

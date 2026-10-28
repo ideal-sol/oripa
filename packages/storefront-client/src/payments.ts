@@ -49,6 +49,7 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 ] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
 
 export interface StorefrontPaymentClient {
+  confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
   recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: PaymentCsrfOptions): Promise<StorefrontResponse<void>>;
@@ -97,6 +98,7 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
   recordPaymentClientEvent(paymentId: string, input: Schemas["PaymentClientEvent"], options: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<void>>;
@@ -182,6 +184,11 @@ export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    confirmPaidyAuthorization: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/paidy-authorizations`, method: "POST", body: input,
+      headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     reportUnivapayCharge: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/univapay-charges`, method: "POST", body: input,
       headers: csrf(options.csrf_token), csrf: "required", retry: false,
@@ -292,6 +299,11 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    confirmPaidyAuthorization: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/paidy-authorizations`, method: "POST", body: input,
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     reportUnivapayCharge: (id, input, options = {}) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/univapay-charges`, method: "POST", body: input,
       csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,

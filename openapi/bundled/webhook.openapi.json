@@ -106,6 +106,80 @@
         }
       }
     },
+    "/paidy/{token}": {
+      "post": {
+        "operationId": "receivePaidyPaymentWebhook",
+        "summary": "Paidy通知の最小キーを永続Outboxに受理する",
+        "description": "パストークン不一致404。本文は信用せずworkerのRetrieveだけで判定。未知通知も最小受信記録、永続化失敗503。同期Provider通信なし。",
+        "x-idempotency": "canonical-event-fingerprint",
+        "x-rate-limit": "provider-signed-webhook",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "payment_id": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "event_type": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "order_ref": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "耐久的に受理済み。決済成功を意味しない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/line": {
       "post": {
         "operationId": "receiveLineMessagingWebhook",

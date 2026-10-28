@@ -54,6 +54,13 @@ final class V2PaymentController
             app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($this->user());
             app(V2PaymentMethodPolicy::class)->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
 
+            if ($method === 'paidy') {
+                if (array_diff(array_keys($request->json()->all()), ['point_product_id', 'payment_method'])) {
+                    throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
+                }
+                return app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)
+                    ->start($this->user(), $pointProductId, $this->idempotencyKey($request));
+            }
             if (app(V2PaymentMethodPolicy::class)->provider($method) === 'univapay') {
                 return app(\App\Domain\Payment\V2\Services\V2UnivapayPaymentService::class)->start($this->user(), $pointProductId, $this->idempotencyKey($request));
             }
@@ -66,6 +73,12 @@ final class V2PaymentController
                 $card
             );
         }, 201);
+    }
+
+    public function paidyAuthorization(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)
+            ->authorize($this->user(), $paymentId, $request->json()->all(), $this->idempotencyKey($request)));
     }
 
     public function show(Request $request, string $paymentId): JsonResponse

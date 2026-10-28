@@ -113,8 +113,16 @@ final class V2PaymentMethodPolicy
 
     private function available(?string $provider): bool
     {
+        if ($provider === 'paidy') {
+            try {
+                app(V2PaidyConfiguration::class)->validate();
+                return true;
+            } catch (V2FincodeException) {
+                return false;
+            }
+        }
+        // Other provider adapters are separate Changes.
         if ($provider === 'univapay') return app(V2UnivapayConfiguration::class)->available();
-        // PAY3–PAY4 supply their adapters.
         if ($provider !== 'fincode') {
             return false;
         }
