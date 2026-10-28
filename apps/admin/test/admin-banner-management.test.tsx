@@ -50,6 +50,102 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Banner management", () => {
+  const published = { ...banner(), status: "published" as const };
+  const publishResult = { id: banner().id, identifier: "main-banner", is_legal: false, status: "published" as const, versions: [] };
+
+  it.each([true, false])("saves published banner fields and publishes the returned version (top=%s)", async (showOnTop) => {
+    const secondCategory = { ...category, id: uuid("7"), name: "別カテゴリ" };
+    vi.spyOn(AdminApiClient.prototype, "listBannerCategories").mockResolvedValue({ items: [category, secondCategory] });
+    const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [published], next_cursor: null });
+    const upload = vi.spyOn(AdminApiClient.prototype, "uploadBannerAsset").mockResolvedValue({ id: uuid("6"), byte_size: 3, mime_type: "image/png", public_url: "/image.png", idempotent_replay: false });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner").mockResolvedValue({ ...published, version_id: uuid("8"), idempotent_replay: false });
+    let finishPublish!: (value: typeof publishResult) => void;
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner").mockImplementation(() => new Promise((resolve) => { finishPublish = resolve; }));
+    render(<BannerManagementWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "メインバナーを編集" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("カテゴリ"), { target: { value: secondCategory.id } });
+    fireEvent.change(within(dialog).getByLabelText("タイトル"), { target: { value: "変更タイトル" } });
+    fireEvent.change(within(dialog).getByLabelText("クリック先URL"), { target: { value: "/gachas/new" } });
+    if (!showOnTop) fireEvent.click(within(dialog).getByLabelText("トップに表示"));
+    const file = new File(["png"], "new.png", { type: "image/png" });
+    Object.defineProperty(file, "arrayBuffer", { value: vi.fn().mockResolvedValue(new TextEncoder().encode("png").buffer) });
+    fireEvent.change(within(dialog).getByLabelText("画像（変更する場合のみ）"), { target: { files: [file] } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "更新" }).closest("form")!);
+    fireEvent.submit(within(dialog).getByRole("button", { name: "更新中" }).closest("form")!);
+    await waitFor(() => expect(publish).toHaveBeenCalledWith(published.id, uuid("8")));
+    expect(update).toHaveBeenCalledExactlyOnceWith(published.id, expect.objectContaining({ asset_id: uuid("6"), category_id: secondCategory.id, title: "変更タイトル", link_url: showOnTop ? "/gachas/new" : null, show_on_top: showOnTop }), expect.any(String));
+    expect(upload).toHaveBeenCalledOnce();
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(publish.mock.invocationCallOrder[0]!);
+    expect(dialog).toBeVisible();
+    expect(list).toHaveBeenCalledOnce();
+    finishPublish(publishResult);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps draft edits unpublished", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner").mockResolvedValue({ ...banner(), version_id: uuid("8"), idempotent_replay: false });
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner");
+    permissionSet.delete("content.publish");
+    render(<BannerManagementWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "メインバナーを編集" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "更新" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(update).toHaveBeenCalledOnce();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("retains a saved version after publish failure and retries without another save (close=%s)", async (close) => {
+    const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [published], next_cursor: null });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner").mockResolvedValue({ ...published, version_id: uuid("8"), idempotent_replay: false });
+    const upload = vi.spyOn(AdminApiClient.prototype, "uploadBannerAsset");
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner").mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(publishResult);
+    render(<BannerManagementWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "メインバナーを編集" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "更新" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("更新内容は保存されましたが、公開反映に失敗しました");
+    expect(list).toHaveBeenCalledOnce();
+    expect(within(screen.getByRole("dialog")).getByLabelText("タイトル")).toBeDisabled();
+    if (close) {
+      fireEvent.click(screen.getByRole("button", { name: "バナー編集を閉じる" }));
+      fireEvent.click(screen.getByRole("button", { name: "最新内容を公開に反映" }));
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "公開反映を再試行" }));
+    }
+    await waitFor(() => expect(publish).toHaveBeenCalledTimes(2));
+    expect(publish.mock.calls.map((args) => args.slice(0, 2))).toEqual([[published.id, uuid("8")], [published.id, uuid("8")]]);
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(update).toHaveBeenCalledOnce();
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2])("reflects the latest existing version without creating or uploading (v%s)", async (version) => {
+    const latest = { ...published, version_id: uuid("8"), version_number: version };
+    vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [latest], next_cursor: null });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner");
+    const upload = vi.spyOn(AdminApiClient.prototype, "uploadBannerAsset");
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner").mockResolvedValue(publishResult);
+    render(<BannerManagementWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "最新内容を公開に反映" }));
+    await waitFor(() => expect(publish).toHaveBeenCalledExactlyOnceWith(latest.id, latest.version_id));
+    expect(update).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it.each(["content.publish", "content.manage"])("blocks published edits without %s", async (permission) => {
+    permissionSet.delete(permission);
+    vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockResolvedValue({ items: [published], next_cursor: null });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateManagedBanner");
+    const publish = vi.spyOn(AdminApiClient.prototype, "publishContentBanner");
+    render(<BannerManagementWorkspace />);
+    await screen.findByText("Published");
+    expect(screen.queryByRole("button", { name: "メインバナーを編集" })).not.toBeInTheDocument();
+    if (permission === "content.publish") expect(screen.queryByRole("button", { name: "最新内容を公開に反映" })).not.toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("continues listing Banners with and without an external ID", async () => {
     vi.mocked(AdminApiClient.prototype.listManagedBanners).mockResolvedValue({ items: [
       { ...banner(), external_id: "CARD-0001" },

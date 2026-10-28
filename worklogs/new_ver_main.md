@@ -12176,6 +12176,24 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 
 - Canonical naming resolution: Change/Task ID OLDTEST-20261028, branch chore/OLDTEST-20261028, request alias OLDTEST-PAY-RANK-ALPHA47. The prior Draft #628 is superseded because its requested label is outside the existing policy Task ID pattern. No gate exception or workflow edit; Source, migrations and approval boundaries remain unchanged. Historical remote branch preserved. Replacement Draft remains pending Human Source Merge GO.
 
+
+## BANNERSYNC-20261028 — Admin published banner edit hotfix
+
+- Human scope: Admin-only implementation and Draft PR; no Ready, merge, OLD Test / NEW Production operation, or Runtime Activation authorized.
+- Issue: none; Risk: R2; Lane: Standard Change; Application Runtime Activation: none.
+- Dedicated worktree/branch: BANNERSYNC-20261028 / fix/BANNERSYNC-20261028; protected main base b5e18969db9ec01323127eef05936ca53b370870 confirmed live. Original worktree changes left untouched.
+- Scope: apps/admin/src/components/banners/banner-management-workspace.tsx; apps/admin/test/admin-banner-management.test.tsx; this worklog. Transient wrapper policy limits operations to branch push, Draft PR/body, checks and self-review (no ready/merge/activation). No Source/Migration locks needed.
+- Cause: update creates a new version without advancing the published pointer. Published edits now publish the update response version; draft edits remain draft. Both calls must succeed before dialog close/reload.
+- Recovery: saved version retained after publish failure, explicit Japanese partial-success error, fields locked and retry publishes only. List action publishes the latest existing version without update/upload, including already-published versions accepted by existing Backend. Published edits require existing manage + publish permissions.
+- Tests added: published update ordering and returned version; image/title/category/URL/top ON/OFF payloads; duplicate submit; draft stays unpublished; partial failure retry in dialog and after close; existing latest version recovery; permission restrictions.
+- PASS: contract generation check, git diff --check, added-diff secret scan and manual scope/PII/contract review. Lint/typecheck still running at commit; final results recorded in PR.
+- Focused test attempts: default forks and one threads worker each failed before test execution (60-second worker startup timeout under host load), no test PASS claimed. Local Playwright attempt failed before tests at 120-second webServer startup timeout; no Browser/E2E PASS claimed. Required CI will run without skipping/bypass; final exact-head results and self-review recorded in PR.
+- No Backend/API/client/schema/migration/Storefront/notices/pages/gacha/CSV/workflow/release change. No auth definitions, point/payment/draw or infrastructure change. Migrations created/applied: zero. Build command attempts: 1 (E2E startup timed out); Runtime Activation: 0; human wait: 0.
+- Risks: save/publish remain separate requests; old public version stays active on publish failure; saved version can be republished. Existing concurrency policy retained. Rollback via separate Admin revert PR; version history and DB protections unchanged.
+- Delivery remains Draft for Human review; branch/worktree retained, no squash SHA/merge actor/main synchronization or cleanup. Final commit/remote SHA, checks, elapsed/CI wait/rerun metrics and evidence URL are recorded on the PR.
+
+- Human Source Merge GO (PR630 then PR631): reconcile append-only worklog with current main, preserving both tasks; application files unchanged. New head requires CI and schema2 self-review; runtime/artifact/migration operations excluded.
+
 ## ACCOUNT-CLOSURE-20261028 — initial source investigation (2026-10-28)
 
 - Human scope: Platform account closure v1.4 through one Draft PR, CI and fixed-head review only. Issue none; Strict Change / R3 / Application Runtime Activation deferred. Implementation and requested Draft delivery are NOT COMPLETE. No external implementation blocker has been established; this entry is investigation evidence, not acceptance evidence.
@@ -12211,3 +12229,5 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - Draft PR #631 was created at `959a15a9384dffb6de20681a1648f289da16d56d`, with draft=true and merged=false. Initial CI 40669401053 passed policy, quality, security, integration-suite/support, CodeQL and ARM64 candidate validation; quality included Admin444, Client46, Testkit55 and OpenAPI76. The DB gate failed only because ZMemberRankClassifiedActivationTest invokes current payment/mail services on its historical schema99 fixture, before account_closures exists; the aggregate gates consequently failed.
 - Bounded fixture correction: install independent closure support101 in that synthetic historical fixture while explicitly asserting migration100 remains pending, closure history is empty and all financial rows are unchanged. All existing classification, historical financial adjustment/backfill, activation and future-payment assertions remain. Production/application schema guards and migrations are unchanged. Proper ordered100→101 upgrade is separately verified with retained synthetic balances/ledger. Required CI will rerun on the new head; no Ready, merge, formal publication or runtime action.
 - Corrected historical-upgrade test PASS in isolated PostgreSQL: 1 test / 54 assertions. Final scope is82 paths; PHP syntax and diff checks PASS. One new-head CI replacement is required; no manual check bypass or workflow dispatch. Existing branch and Draft PR631 retained.
+
+- Human Source Merge GO: PR630 merged first as607f0f6f4b259766e55dda4088bc21db869a3caf. Reconcile append-only records for PR631, retaining both tasks; application/migration bytes unchanged. Final HEAD requires CI and fresh Strict self-review. Source Merge only; runtime/artifact/tag/release/operational migration actions excluded.
