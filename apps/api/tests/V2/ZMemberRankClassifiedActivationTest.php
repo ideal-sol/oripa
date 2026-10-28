@@ -155,7 +155,7 @@ final class ZMemberRankClassifiedActivationTest extends TestCase
                         self::assertSame($origins[0], $id, 'An excluded pending origin cannot grant points.');
                     } catch (V2PaymentException $exception) {
                         self::assertSame($origins[16], $id);
-                        self::assertSame('PAYMENT_PRELAUNCH_ORIGIN_EXCLUDED', $exception->errorCode);
+                        self::assertSame('PAYMENT_PRELAUNCH_ORIGIN_EXCLUDED', $exception->getMessage());
                     }
                 }
             }
