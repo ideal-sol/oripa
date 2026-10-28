@@ -3080,6 +3080,60 @@
         }
       }
     },
+    "/payments/{payment_id}/univapay-charges": {
+      "post": {
+        "operationId": "reportUnivapayCharge",
+        "summary": "本人のUnivaPay課金IDを報告しサーバー照会する",
+        "description": "課金IDだけを受け取りpolling照会・照合する。通信不確定時は現在のPaymentを返す。他人は404、他Providerは409。ブラウザ報告自体は付与Authorityではない。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "payment-client-event",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnivapayChargeReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "private, no-store。照合後の現在のPayment。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
     "/payments/{payment_id}/client-events": {
       "post": {
         "operationId": "recordPaymentClientEvent",
@@ -3188,7 +3242,7 @@
       "post": {
         "x-sms-verification": "required",
         "operationId": "createPayment",
-        "summary": "Paymentを支払操作時に開始する",
+        "summary": "設定済みProviderのPaymentを支払操作時に開始する",
         "description": "paidyはデジタル商品用Checkoutを返し、paidy-authorizationsのサーバー照合とCaptureで確定する。 credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。",
         "x-idempotency": "required",
         "x-rate-limit": "payment-create",
@@ -4670,8 +4724,168 @@
             ]
           },
           "inline_form": {
-            "type": "null",
-            "description": "PAY1では設定を配信しない。PAY2が後方互換に型を追加する。"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentUnivapayInlineForm"
+              }
+            ]
+          }
+        }
+      },
+      "UnivapayChargeReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "charge_id"
+        ],
+        "properties": {
+          "charge_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PaymentUnivapayInlineForm": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "script_url",
+          "options"
+        ],
+        "properties": {
+          "provider": {
+            "const": "univapay"
+          },
+          "script_url": {
+            "const": "https://widget.univapay.com/client/checkout.js"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "appId",
+              "checkout",
+              "amount",
+              "currency",
+              "tokenType",
+              "capture",
+              "inline",
+              "locale",
+              "email",
+              "showCvv"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "description": "Domain-restricted public form application token only."
+              },
+              "checkout": {
+                "const": "payment"
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "currency": {
+                "const": "jpy"
+              },
+              "tokenType": {
+                "const": "one_time"
+              },
+              "capture": {
+                "const": true
+              },
+              "inline": {
+                "const": true
+              },
+              "locale": {
+                "const": "ja"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "showCvv": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "PaymentUnivapayInlineAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "amount",
+          "update",
+          "success_url"
+        ],
+        "properties": {
+          "type": {
+            "const": "univapay_inline"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "success_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "update": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "metadata",
+              "email"
+            ],
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "oripa-payment-id",
+                  "oripa-member"
+                ],
+                "properties": {
+                  "oripa-payment-id": {
+                    "$ref": "#/components/schemas/OpaqueId"
+                  },
+                  "oripa-member": {
+                    "$ref": "#/components/schemas/OpaqueId"
+                  }
+                }
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "phoneNumber": {
+                "description": "Omitted when verified phone cannot be represented; inline form collects it. U10 requires provider acceptance.",
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "countryCode",
+                  "localNumber"
+                ],
+                "properties": {
+                  "countryCode": {
+                    "const": "+81"
+                  },
+                  "localNumber": {
+                    "type": "string",
+                    "pattern": "^0[0-9]{9,10}$"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -4965,7 +5179,7 @@
       "PaymentCreateRequest": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。",
+        "description": "Return URL、pid、Payment ID、Product return targetはPlatformだけが生成する。UnivaPayではcardフィールドはnullを含め存在自体を拒否する。カード番号・CVV・トークンを送信しない。",
         "required": [
           "point_product_id",
           "payment_method"
@@ -5151,6 +5365,9 @@
               },
               {
                 "$ref": "#/components/schemas/PaymentPaidyCheckoutAction"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentUnivapayInlineAction"
               }
             ]
           }

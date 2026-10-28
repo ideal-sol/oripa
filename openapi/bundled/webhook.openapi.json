@@ -17,6 +17,95 @@
     }
   ],
   "paths": {
+    "/univapay/{token}": {
+      "post": {
+        "operationId": "receiveUnivapayWebhook",
+        "summary": "UnivaPay通知を永続Outboxへ受け付ける",
+        "description": "Path tokenとAuthorizationを定数時間比較。任意IP制限。HTTP内ではProvider照会・付与を行わず3秒以内の200応答を目標とする。永続化失敗は503。生本文は保存しない。",
+        "x-idempotency": "provider-event-id",
+        "x-rate-limit": "provider-signed-webhook",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 32
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 32
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "event": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Durable acceptance or minimal ignored receipt. No settlement authority from request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "accepted"
+                  ],
+                  "properties": {
+                    "accepted": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid authorization or optional source IP restriction."
+          },
+          "404": {
+            "description": "Invalid path token."
+          },
+          "503": {
+            "description": "Durable acceptance failed; retry required."
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/paidy/{token}": {
       "post": {
         "operationId": "receivePaidyPaymentWebhook",

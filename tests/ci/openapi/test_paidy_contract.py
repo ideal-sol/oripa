@@ -34,7 +34,8 @@ class PaidyContractTest(unittest.TestCase):
         self.assertIn('ltv', payload['buyer_data']['required'])
         self.assertNotIn('secret', json.dumps(action))
         variants = schemas['Payment']['properties']['next_action']['oneOf']
-        self.assertEqual(len(variants), 5)
+        self.assertEqual(len(variants), 6)
+        self.assertIn({'$ref': '#/components/schemas/PaymentUnivapayInlineAction'}, variants)
         self.assertIn({'$ref': '#/components/schemas/PaymentCardComponentAction'}, variants)
 
     def test_webhook_is_durable_trigger_and_separate_from_public(self):

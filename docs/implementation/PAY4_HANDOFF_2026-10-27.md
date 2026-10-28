@@ -1,5 +1,33 @@
 # PAY4 — Paidy Source handoff
 
+## 2026-10-28 Source integration authorization
+
+PAY234-INTEGRATION-20261028 explicitly authorizes Source-only sequential squash
+merges of PR622 → PR623 → PR624. This supersedes the historical Draft/Source
+Merge HOLD statements below only within that scope. Runtime Activation remains
+deferred; publication, operational DB/ENV/Worker changes, Production Authority
+and Storefront PR192 remain excluded.
+
+PAY2 merged as `ccb5887cf80d7edfe2fc715e3b731b5f60825ffa` from reviewed head
+`dc269f0361424edcd87162f39335e41e82bd2966`; both trees are
+`2752d1d14491c38eb0061daf8dbdaafa504013e6`, content diff zero. Fresh review:
+https://github.com/ideal-sol/oripa/pull/622#issuecomment-6457627688.
+PAY4 integrates that protected main by an ordinary merge retaining original head
+`6fff61c788e3810995d5214e4b0ace56e350c8bc`. Provider-specific authentication,
+routes, workers, start/classification/action branches and Client methods coexist.
+The canonical generators produce 88 Public operations and four Webhook operations;
+the unpublished alpha47 candidate digest/inventory is recomputed. Published
+alpha46, immutable history and Site schema alpha23 remain unchanged.
+
+Paidy Capture retry deviation remains SEV-2, a Human/provider open decision
+before real acceptance/Activation. Keep the permanent operation claim,
+Retrieve-only recovery, foreign-order Close rejection and manual review policy.
+This Source GO does not approve specification6.4.3(2) deviation for real payments.
+Final exact-head CI, self-review, merge/tree verification and cleanup are recorded
+in PR623 and the batch closeout. All real-provider/browser/runtime acceptance
+conditions below remain pending. Rollback is a separately reviewed Source fix;
+no financial history reversal or automatic refund is authorized.
+
 Task: PAY4-20261027 / CI Change ID: PDY-20261027 (one Change) / Issue: none.
 Risk: R3 / Lane: Strict Change / Application Runtime Activation: deferred.
 Branch: `feat/PDY-20261027`, dedicated isolated worktree.

@@ -188,6 +188,8 @@ Route::prefix('v2')
             ->name('v2.public.payments.client-events');
         Route::post('/payments/{paymentId}/paidy-authorizations', [V2PaymentController::class, 'paidyAuthorization'])
             ->name('v2.public.payments.paidy-authorizations');
+        Route::post('/payments/{paymentId}/univapay-charges', [V2PaymentController::class, 'univapayCharge'])
+            ->name('v2.public.payments.univapay-charges');
         Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
             ->whereUuid('registrationIntentId')
             ->name('v2.public.payment-card-registration-intents.complete');

@@ -1113,6 +1113,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/{payment_id}/univapay-charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 本人のUnivaPay課金IDを報告しサーバー照会する
+         * @description 課金IDだけを受け取りpolling照会・照合する。通信不確定時は現在のPaymentを返す。他人は404、他Providerは409。ブラウザ報告自体は付与Authorityではない。
+         */
+        post: operations["reportUnivapayCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments/{payment_id}/client-events": {
         parameters: {
             query?: never;
@@ -1160,7 +1180,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Paymentを支払操作時に開始する
+         * 設定済みProviderのPaymentを支払操作時に開始する
          * @description paidyはデジタル商品用Checkoutを返し、paidy-authorizationsのサーバー照合とCaptureで確定する。 credit_cardはnew save=falseまたはverified saved Cardを受け付け、いずれもPayment 3DS2を必須とする。 Legacy source=new save=trueはRegistration 3DS2 proofを持たないためCARD_REGISTRATION_3DS_REQUIREDで拒否する。 新規Cardを保存して購入する場合はCard Registration completed後のsaved_card_idで別途このoperationを呼ぶ。
          */
         post: operations["createPayment"];
@@ -1638,8 +1658,59 @@ export interface components {
             saved_cards_enabled: boolean;
             /** @enum {unknown} */
             flow: "card_component" | "inline_card_form" | "redirect" | "paidy_checkout";
-            /** @description PAY1では設定を配信しない。PAY2が後方互換に型を追加する。 */
-            inline_form?: null;
+            inline_form?: null | components["schemas"]["PaymentUnivapayInlineForm"];
+        };
+        UnivapayChargeReport: {
+            /** Format: uuid */
+            charge_id: string;
+        };
+        PaymentUnivapayInlineForm: {
+            /** @constant */
+            provider: "univapay";
+            /** @constant */
+            script_url: "https://widget.univapay.com/client/checkout.js";
+            options: {
+                /** @description Domain-restricted public form application token only. */
+                appId: string;
+                /** @constant */
+                checkout: "payment";
+                amount: number;
+                /** @constant */
+                currency: "jpy";
+                /** @constant */
+                tokenType: "one_time";
+                /** @constant */
+                capture: true;
+                /** @constant */
+                inline: true;
+                /** @constant */
+                locale: "ja";
+                /** Format: email */
+                email: string;
+                /** @constant */
+                showCvv: true;
+            };
+        };
+        PaymentUnivapayInlineAction: {
+            /** @constant */
+            type: "univapay_inline";
+            amount: number;
+            /** Format: uri */
+            success_url: string;
+            update: {
+                metadata: {
+                    "oripa-payment-id": components["schemas"]["OpaqueId"];
+                    "oripa-member": components["schemas"]["OpaqueId"];
+                };
+                /** Format: email */
+                email: string;
+                /** @description Omitted when verified phone cannot be represented; inline form collects it. U10 requires provider acceptance. */
+                phoneNumber?: {
+                    /** @constant */
+                    countryCode: "+81";
+                    localNumber: string;
+                };
+            };
         };
         PaymentClientEvent: {
             /** @enum {unknown} */
@@ -1720,7 +1791,7 @@ export interface components {
         };
         /** @enum {unknown} */
         PaymentStatus: "created" | "requires_action" | "processing" | "succeeded" | "failed" | "canceled" | "expired";
-        /** @description Return URL、pid、Payment ID、Product return targetはPlatformだけが生成し、このRequestでは受け付けない。 */
+        /** @description Return URL、pid、Payment ID、Product return targetはPlatformだけが生成する。UnivaPayではcardフィールドはnullを含め存在自体を拒否する。カード番号・CVV・トークンを送信しない。 */
         PaymentCreateRequest: {
             /** @description Canonical Public Opaque PointProduct.id。failure/cancel時の固定購入ページ相関にも使用する。 */
             point_product_id: components["schemas"]["OpaqueId"];
@@ -1770,7 +1841,7 @@ export interface components {
             /** Format: date-time */
             succeeded_at: string | null;
             /** @description Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。 */
-            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"] | components["schemas"]["PaymentPaidyCheckoutAction"];
+            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"] | components["schemas"]["PaymentPaidyCheckoutAction"] | components["schemas"]["PaymentUnivapayInlineAction"];
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         MemberRankPurchaseBonus: {
@@ -5031,6 +5102,35 @@ export interface operations {
                     "application/json": {
                         data: components["schemas"]["PaymentMethodOption"][];
                     };
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    reportUnivapayCharge: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnivapayChargeReport"];
+            };
+        };
+        responses: {
+            /** @description private, no-store。照合後の現在のPayment。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
                 };
             };
             default: components["responses"]["PaymentProblem"];

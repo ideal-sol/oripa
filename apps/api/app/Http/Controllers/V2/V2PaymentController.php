@@ -61,6 +61,9 @@ final class V2PaymentController
                 return app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)
                     ->start($this->user(), $pointProductId, $this->idempotencyKey($request));
             }
+            if (app(V2PaymentMethodPolicy::class)->provider($method) === 'univapay') {
+                return app(\App\Domain\Payment\V2\Services\V2UnivapayPaymentService::class)->start($this->user(), $pointProductId, $this->idempotencyKey($request));
+            }
 
             return $this->payments->start(
                 $this->user(),
@@ -116,7 +119,7 @@ final class V2PaymentController
                 throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The point product identifier is invalid.');
             }
 
-            return app(V2PaymentMethodPolicy::class)->methods($product);
+            return app(V2PaymentMethodPolicy::class)->methods($product, $this->user());
         });
     }
 
@@ -127,6 +130,12 @@ final class V2PaymentController
 
             return [];
         }, 204);
+    }
+
+    public function univapayCharge(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => app(\App\Domain\Payment\V2\Services\V2UnivapayPaymentService::class)
+            ->report($this->user(), $paymentId, $request->json()->all()));
     }
 
     public function resume(Request $request, string $paymentId): JsonResponse

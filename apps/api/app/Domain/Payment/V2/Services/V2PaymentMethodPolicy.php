@@ -61,7 +61,7 @@ final class V2PaymentMethodPolicy
         }
     }
 
-    public function methods(?string $productId): array
+    public function methods(?string $productId, ?\App\Models\V2\User $user = null): array
     {
         $amount = $productId === null ? null : $this->amount($productId);
         $result = [];
@@ -82,6 +82,8 @@ final class V2PaymentMethodPolicy
                     $method === 'credit_card' => 'card_component',
                     default => 'redirect',
                 },
+                'inline_form' => $provider === 'univapay' && $amount !== null && $user !== null
+                    ? app(V2UnivapayConfiguration::class)->inlineForm($amount, $user) : null,
             ];
         }
 
@@ -120,6 +122,7 @@ final class V2PaymentMethodPolicy
             }
         }
         // Other provider adapters are separate Changes.
+        if ($provider === 'univapay') return app(V2UnivapayConfiguration::class)->available();
         if ($provider !== 'fincode') {
             return false;
         }
