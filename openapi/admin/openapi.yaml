@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.43
+  version: 2.0.0-alpha.44
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -7874,7 +7874,7 @@ components:
             - {$ref: '#/components/schemas/AdminCatalogAssetReference'}
             - {type: 'null'}
         exchange_points: {type: integer, minimum: 0}
-        status: {type: string, enum: [stored, exchange_processing, converted, shipping_requested, packing, shipped, delivered, hold, return_requested, returned, expired, canceled]}
+        status: {type: string, enum: [stored, exchange_processing, converted, shipping_requested, packing, shipped, delivered, hold, return_requested, returned, expired, canceled, forfeited]}
         status_updated_at: {type: string, format: date-time}
     AdminGachaUsageHistoryDetail:
       type: object
@@ -8898,7 +8898,7 @@ components:
       type: string
       enum:
         [email_verification, registration_completed, coin_purchase_completed,
-         shipping_requested, shipping_completed, user_closed, contact_received, contact_reply,
+         shipping_requested, shipping_completed, user_closed, account_closure_code, account_closure_payment, contact_received, contact_reply,
          password_reset, email_change_verification, email_change_completed,
          password_changed, phone_changed, agency_account_created, agency_password_changed, agency_login_information_reissued, agency_email_changed]
     AdminMailTemplateVariable:
@@ -10012,7 +10012,7 @@ components:
           type: [string, 'null']
     AdminUserPrizeStatus:
       type: string
-      enum: [stored, exchange_processing, converted, shipping_requested, packing, shipped, delivered, hold, return_requested, returned, expired, canceled]
+      enum: [stored, exchange_processing, converted, shipping_requested, packing, shipped, delivered, hold, return_requested, returned, expired, canceled, forfeited]
     AdminUserPrizeUser:
       type: object
       additionalProperties: false
@@ -10653,6 +10653,17 @@ components:
       additionalProperties: false
       required: [id, display_name, status, point_balance, created_at, email, email_verified_at, state_revision, updated_at]
       properties:
+        account_closure:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [completed_at, closed_by, closure_kind, financial_suspended_at, forfeited_points, forfeited_prizes]
+          properties:
+            completed_at: {type: string, format: date-time}
+            closed_by: {type: string, enum: [self, admin]}
+            closure_kind: {type: string, enum: [normal, forced, financial]}
+            financial_suspended_at: {type: [string, 'null'], format: date-time}
+            forfeited_points: {type: integer, minimum: 0}
+            forfeited_prizes: {type: integer, minimum: 0}
         id: {$ref: '#/components/schemas/OpaqueId'}
         display_name: {type: [string, 'null'], maxLength: 255}
         status: {$ref: '#/components/schemas/AdminUserState'}
@@ -10679,6 +10690,7 @@ components:
       additionalProperties: false
       required: [status, expected_revision, reason]
       properties:
+        closure_kind: {type: string, enum: [normal, forced]}
         status:
           type: string
           enum: [active, suspended, closed]
@@ -11422,7 +11434,7 @@ components:
           enum: [paid, free]
         entry_type:
           type: string
-          enum: [grant, spend, expire, reverse, restore]
+          enum: [grant, spend, expire, reverse, restore, forfeit]
         source_type:
           type: string
           maxLength: 32

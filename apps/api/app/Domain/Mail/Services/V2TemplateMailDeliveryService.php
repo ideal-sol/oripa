@@ -43,11 +43,18 @@ final class V2TemplateMailDeliveryService
         array $values
     ): void
     {
+        if ($templateKey === 'account_closure_code') {
+            $transport = config('mail.mailers.'.config('mail.default').'.transport');
+            if (in_array($transport, ['log', 'failover', 'roundrobin'], true)) {
+                throw new RuntimeException('Closure code requires a non-persisting mail transport.');
+            }
+        }
         if (! in_array($templateKey, [
             'password_reset',
             'email_change_verification',
             'email_change_completed',
             'password_changed',
+            'account_closure_code',
         ], true)) {
             throw new RuntimeException('Security Mail Template is invalid.');
         }
@@ -123,10 +130,23 @@ final class V2TemplateMailDeliveryService
         try {
             [$recipient, $values] = $this->resolve($delivery);
             $template = MailTemplate::query()->findOrFail($delivery->mail_template_id);
+            $userId = match ($delivery->source_type) {
+                'user' => DB::table('users')->where('public_id', $delivery->source_public_id)->value('id'),
+                'payment' => DB::table('payments')->where('public_id', $delivery->source_public_id)->value('user_id'),
+                'shipping_request' => DB::table('shipping_requests')->where('public_id', $delivery->source_public_id)->value('user_id'),
+                'contact_inquiry' => DB::table('contact_inquiries')->where('public_id', $delivery->source_public_id)->value('user_id'),
+                default => null,
+            };
+            $closure = $userId === null ? null : DB::table('account_closures')->where('user_id', $userId)->first();
+            if ($closure !== null && ! ($template->template_key === 'user_closed' && $closure->closure_kind !== 'forced')
+                && $template->template_key !== 'account_closure_payment') {
+                throw new RuntimeException('Closed account notification suppressed.');
+            }
             $accepted = $this->send(
                 $recipient,
                 $this->renderer->subject($template->subject_template, $values),
-                $this->renderer->html($template->body_html, $values)
+                $this->renderer->html($template->body_html, $values).($template->template_key === 'user_closed'
+                    ? '<p>退会当日に後から確認された決済について、決済関連のお知らせメールが送られる場合があります。</p>' : '')
             );
             if ($delivery->source_type === 'payment' && ! $accepted) {
                 throw new RuntimeException('Payment mail transport acceptance requires review.');
@@ -226,6 +246,16 @@ final class V2TemplateMailDeliveryService
     /** @return array{0: string, 1: array<string, string|list<string>|null>} */
     private function resolve(MailDelivery $delivery): array
     {
+        $key = MailTemplate::query()->whereKey($delivery->mail_template_id)->value('template_key');
+        if ($key === 'account_closure_payment' && $delivery->source_type === 'payment') {
+            $payment = DB::table('payments')->where('public_id', $delivery->source_public_id)->firstOrFail();
+            if (! DB::table('account_closure_late_payments')->where('payment_id', $payment->id)->where('same_jst_day', true)->exists()) {
+                throw new RuntimeException('Closure payment notification is not eligible.');
+            }
+            $publicId = DB::table('users')->where('id', $payment->user_id)->value('public_id');
+
+            return $this->userValues($publicId);
+        }
         return match ($delivery->source_type) {
             'user' => $this->userValues($delivery->source_public_id),
             'payment' => $this->paymentValues($delivery->source_public_id),

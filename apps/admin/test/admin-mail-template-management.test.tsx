@@ -41,6 +41,8 @@ const keys: MailTemplateKey[] = [
   "shipping_requested",
   "shipping_completed",
   "user_closed",
+  "account_closure_code",
+  "account_closure_payment",
   "contact_received",
   "contact_reply",
   "password_reset",
@@ -65,12 +67,12 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Mail Template management", () => {
-  it("shows exactly seventeen fixed templates without create or delete controls", async () => {
+  it("shows exactly nineteen fixed templates without create or delete controls", async () => {
     render(<MailTemplateWorkspace />);
 
     const table = await screen.findByRole("table");
-    expect(within(table).getAllByRole("row")).toHaveLength(18);
-    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(17);
+    expect(within(table).getAllByRole("row")).toHaveLength(20);
+    expect(within(table).getAllByRole("link", { name: /を編集$/u })).toHaveLength(19);
     expect(screen.queryByRole("button", { name: /新規|追加|削除/u })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "メール設定" })).toBeVisible();
   });

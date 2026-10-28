@@ -1,0 +1,56 @@
+AccountClosurePreviewResponse:
+  type: object
+  additionalProperties: false
+  required: [data]
+  properties:
+    data:
+      type: object
+      additionalProperties: false
+      required: [point_balance, unclaimed_prize_count, shipping_in_progress_count, can_close, blocked_reason, verification_method, masked_email]
+      properties:
+        point_balance: {type: integer, minimum: 0}
+        unclaimed_prize_count: {type: integer, minimum: 0}
+        shipping_in_progress_count: {type: integer, minimum: 0}
+        can_close: {type: boolean}
+        blocked_reason: {type: [string, 'null'], enum: [payment_processing, null]}
+        verification_method: {type: string, enum: [password, email_code]}
+        masked_email: {type: [string, 'null']}
+AccountClosureRequest:
+  type: object
+  additionalProperties: false
+  required: [confirmed, expected_point_balance, expected_unclaimed_prize_count]
+  properties:
+    confirmed: {type: boolean, const: true}
+    expected_point_balance: {type: integer, minimum: 0}
+    expected_unclaimed_prize_count: {type: integer, minimum: 0}
+    password: {type: string, minLength: 8, maxLength: 128, writeOnly: true}
+    email_code: {type: string, pattern: '^[0-9]{6}$', writeOnly: true}
+  oneOf:
+    - required: [password]
+      not: {required: [email_code]}
+    - required: [email_code]
+      not: {required: [password]}
+AccountClosureResponse:
+  type: object
+  additionalProperties: false
+  required: [data]
+  properties:
+    data:
+      type: object
+      additionalProperties: false
+      required: [closed_at]
+      properties:
+        closed_at: {type: string, format: date-time}
+AccountClosureEmailCodeResponse:
+  type: object
+  additionalProperties: false
+  required: [data]
+  properties:
+    data:
+      type: object
+      additionalProperties: false
+      required: [masked_email, expires_at, resend_available_at]
+      properties:
+        masked_email: {type: string}
+        expires_at: {type: string, format: date-time}
+        resend_available_at: {type: string, format: date-time}

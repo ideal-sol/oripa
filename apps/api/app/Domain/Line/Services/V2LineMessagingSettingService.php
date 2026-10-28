@@ -359,9 +359,11 @@ final class V2LineMessagingSettingService
             'reward_point_amount' => (int) $setting->reward_point_amount,
             'reward_expiration_days' => (int) $setting->reward_expiration_days,
             'friends_count' => LineFriendship::query()
+                ->whereNull('superseded_at')
                 ->where('status', 'friend')
                 ->count(),
             'blocked_count' => LineFriendship::query()
+                ->whereNull('superseded_at')
                 ->where('status', 'unfollowed')
                 ->count(),
             'revision' => (int) $setting->revision,

@@ -18,6 +18,7 @@ type MutableUserState = "active" | "suspended" | "closed";
 
 const transitions: Partial<Record<AdminUserState, MutableUserState[]>> = {
   active: ["suspended", "closed"],
+  restricted: ["suspended", "closed"],
   suspended: ["active", "closed"],
 };
 
@@ -31,7 +32,8 @@ export function AdminUserStateManagement({
   const client = useMemo(() => new AdminApiClient(), []);
   const { hasPermission } = usePermissions();
   const canManage = hasPermission("user.state.manage");
-  const options = transitions[user.status] ?? [];
+  const options = user.account_closure && user.account_closure.closure_kind !== "normal" ? [] : transitions[user.status] ?? [];
+  const [closureKind, setClosureKind] = useState<"normal" | "forced">("normal");
   const [open, setOpen] = useState(false);
   const [nextState, setNextState] = useState<MutableUserState | "">("");
   const [reason, setReason] = useState("");
@@ -67,6 +69,7 @@ export function AdminUserStateManagement({
           status: nextState,
           expected_revision: user.state_revision,
           reason: reason.trim(),
+          ...(nextState === "closed" ? { closure_kind: closureKind } : {}),
         },
         crypto.randomUUID(),
       );
@@ -108,6 +111,14 @@ export function AdminUserStateManagement({
         ) : null}
       </div>
       <dl className="admin-user-state-summary">
+        {user.account_closure ? <>
+          <div><dt>退会手続完了</dt><dd>{user.account_closure.completed_at}</dd></div>
+          <div><dt>手続方法</dt><dd>{user.account_closure.closed_by === "self" ? "本人" : "運営"}</dd></div>
+          <div><dt>退会区分</dt><dd>{{ normal: "通常退会", forced: "強制退会・再利用禁止", financial: "金融処理・再利用禁止停止" }[user.account_closure.closure_kind]}</dd></div>
+          <div><dt>失効ポイント</dt><dd>{user.account_closure.forfeited_points}</dd></div>
+          <div><dt>失効カード</dt><dd>{user.account_closure.forfeited_prizes}</dd></div>
+          {user.account_closure.financial_suspended_at ? <div><dt>金融停止日時</dt><dd>{user.account_closure.financial_suspended_at}</dd></div> : null}
+        </> : null}
         <div><dt>現在状態</dt><dd>{stateLabel(user.status)}</dd></div>
         <div><dt>変更可否</dt><dd>{canManage && options.length > 0 ? "変更可能" : "閲覧のみ"}</dd></div>
       </dl>
@@ -134,6 +145,7 @@ export function AdminUserStateManagement({
               </button>
             </header>
             <form className="admin-user-state-form" onSubmit={submit}>
+              {nextState === "closed" ? <label><span>退会種別</span><select value={closureKind} onChange={(event) => setClosureKind(event.target.value as "normal" | "forced")}><option value="normal">お問い合わせによる通常退会</option><option value="forced">規約違反による強制退会（再利用禁止・退会メールなし）</option></select></label> : null}
               <dl className="admin-user-state-impact">
                 <div><dt>対象ユーザー</dt><dd>{user.display_name ?? "未設定"}</dd></div>
                 <div><dt>現在状態</dt><dd>{stateLabel(user.status)}</dd></div>

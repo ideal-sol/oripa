@@ -746,6 +746,50 @@ final class PasswordResetSmsVerificationTest extends TestCase
         self::assertFalse($service->status($first)['verified']);
     }
 
+    public function test_formal_closure_sms_normal_reuse_and_late_financial_ban_at_send_and_verify(): void
+    {
+        $service = app(V2SmsVerificationService::class);
+        foreach ([false, true] as $financial) {
+            $suffix = $financial ? 'financial' : 'normal';
+            $phone = $financial ? '09055550002' : '09055550001';
+            $old = $this->user('closure-old-'.$suffix.'@example.test');
+            [$oldRequest] = $this->authenticatedRequest($old);
+            $service->send($old, $oldRequest, $phone);
+            $challenge = SmsVerificationChallenge::query()->where('user_id', $old->id)->sole();
+            $this->acceptChallenge($challenge);
+            $service->verify($old, $oldRequest, $challenge->public_id, $this->decryptedOutbox('identity.sms-verification', $challenge->public_id)['verification_code']);
+            app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($old, 'admin', 'normal', (string) \Illuminate\Support\Str::uuid7());
+            $new = $this->user('closure-new-'.$suffix.'@example.test');
+            [$newRequest] = $this->authenticatedRequest($new);
+            $service->send($new, $newRequest, $phone);
+            $pending = SmsVerificationChallenge::query()->where('user_id', $new->id)->sole();
+            $this->acceptChallenge($pending);
+            $code = $this->decryptedOutbox('identity.sms-verification', $pending->public_id)['verification_code'];
+            if (! $financial) {
+                $service->verify($new, $newRequest, $pending->public_id, $code);
+                self::assertTrue($service->isVerified($new));
+                self::assertTrue(app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused($new->id));
+                continue;
+            }
+            app(\App\Domain\Identity\Services\V2UserClosureService::class)->financialStop($old->id);
+            try {
+                $service->verify($new, $newRequest, $pending->public_id, $code);
+                self::fail('A financial closure must block the already issued SMS challenge.');
+            } catch (V2AuthenticationException $error) {
+                self::assertSame('PHONE_NUMBER_UNAVAILABLE', $error->errorCode);
+            }
+            $third = $this->user('closure-third@example.test');
+            [$thirdRequest] = $this->authenticatedRequest($third);
+            try {
+                $service->send($third, $thirdRequest, $phone);
+                self::fail('A financial closure must block subsequent SMS sends.');
+            } catch (V2AuthenticationException $error) {
+                self::assertSame('PHONE_NUMBER_UNAVAILABLE', $error->errorCode);
+            }
+            self::assertSame(V2UserState::Active, $new->refresh()->state);
+        }
+    }
+
     public function test_anonymized_account_phone_can_be_reused_on_claim(): void
     {
         $holder = $this->user('anonymized-phone-holder@example.test');

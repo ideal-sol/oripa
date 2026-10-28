@@ -127,6 +127,16 @@ final class TechcoinPaymentTest extends TestCase
         $this->assertReview($payment, 'duplicate_charge');
     }
 
+    public function test_account_closure_late_techcoin_success_is_reviewed_once_without_points(): void
+    {
+        [$user, $payment, $input] = $this->techcoinPayment();
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($user, 'admin', 'normal', (string) Str::uuid7());
+        foreach ([1, 2] as $attempt) self::assertSame(200, $this->notify($input)->getStatusCode());
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('account_closure_late_payments')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('mail_deliveries')->where('event_key', 'account.closure.payment:'.$payment->public_id)->count());
+    }
+
     public static function badNotification(): array
     {
         $cases = [];

@@ -25,6 +25,10 @@ final class V2PointPurchaseEligibilityService
 
     public function assertSettlementEligible(User $user, object $plan): void
     {
+        if ($plan->audience_code === self::AUDIENCE_FIRST_PURCHASE
+            && app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id)) {
+            throw new V2PaymentException('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED');
+        }
         if (! in_array($plan->audience_code, [
             self::AUDIENCE_ALL,
             self::AUDIENCE_FIRST_PURCHASE,
@@ -113,6 +117,7 @@ final class V2PointPurchaseEligibilityService
 
     private function isWithinFirstUserWindow(User $user, CarbonImmutable $asOf): bool
     {
+        if (app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id)) return false;
         $qualifiedAt = $this->qualifiedAt($user);
 
         return $qualifiedAt !== null

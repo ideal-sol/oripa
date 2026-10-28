@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[3]
 class UnivapayContractTest(unittest.TestCase):
     def test_only_the_authorized_nullable_placeholder_extension_is_accepted(self):
         current = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        # This historical exception is intentionally restricted to PAY2 alpha.43.
+        current['info']['version'] = '2.0.0-alpha.43'
         previous = copy.deepcopy(current)
         previous['components']['schemas']['PaymentMethodOption']['properties']['inline_form'] = {'type': 'null'}
         self.assertTrue(is_authorized_univapay_inline_extension('public', previous, current))

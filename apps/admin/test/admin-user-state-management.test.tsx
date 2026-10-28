@@ -83,13 +83,36 @@ describe("Admin User state management", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
-  it("keeps closed and non-manual states terminal in the UI", () => {
+  it("keeps closed terminal and permits restricted closure", () => {
     permissions.add("user.state.manage");
     const { rerender } = render(
       <AdminUserStateManagement onRefresh={vi.fn()} user={{ ...user, status: "closed" }} />,
     );
     expect(screen.queryByRole("button", { name: "状態を変更" })).toBeNull();
     rerender(<AdminUserStateManagement onRefresh={vi.fn()} user={{ ...user, status: "restricted" }} />);
+    expect(screen.getByRole("button", { name: "状態を変更" })).toBeVisible();
+  });
+
+  it("sends an explicit forced closure with revision and idempotency", async () => {
+    permissions.add("user.state.manage");
+    render(<AdminUserStateManagement onRefresh={vi.fn()} user={user} />);
+    fireEvent.click(screen.getByRole("button", { name: "状態を変更" }));
+    fireEvent.change(screen.getByLabelText("変更後の状態"), { target: { value: "closed" } });
+    expect(screen.getByLabelText("退会種別")).toHaveValue("normal");
+    fireEvent.change(screen.getByLabelText("退会種別"), { target: { value: "forced" } });
+    fireEvent.change(screen.getByLabelText("変更理由"), { target: { value: "Synthetic policy violation" } });
+    fireEvent.click(screen.getByRole("button", { name: "確認して変更" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(user.id,
+      { status: "closed", closure_kind: "forced", expected_revision: 1, reason: "Synthetic policy violation" }, expect.any(String)));
+  });
+
+  it("shows permanent financial closure without a reactivation action", () => {
+    permissions.add("user.state.manage");
+    render(<AdminUserStateManagement onRefresh={vi.fn()} user={{ ...user, status: "suspended",
+      account_closure: { completed_at: "2026-10-28T00:00:00Z", closed_by: "self", closure_kind: "financial",
+        financial_suspended_at: "2026-10-29T00:00:00Z", forfeited_points: 12500, forfeited_prizes: 3 } }} />);
+    expect(screen.getByText("金融処理・再利用禁止停止")).toBeVisible();
+    expect(screen.getByText("12500")).toBeVisible();
     expect(screen.queryByRole("button", { name: "状態を変更" })).toBeNull();
   });
 });

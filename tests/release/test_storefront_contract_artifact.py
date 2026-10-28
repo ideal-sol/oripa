@@ -53,7 +53,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_released_alpha_47_has_exact_publication_authority_and_preserves_history(self):
         value = artifact.governance(ROOT)
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.48')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        value['candidate'] = None  # Validate the published predecessor independently.
         self.assertEqual(len(value['immutable_history']), 27)
         self.assertEqual(value['immutable_history'][:-1], self.governance()['immutable_history'])
         history_digest = hashlib.sha256(json.dumps(
@@ -112,15 +114,18 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['public_api_operation_count'], 90)
         self.assertEqual(target['source_commit'], expected['source_commit'])
         self.assertFalse(target['breaking_change'])
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'pending')
 
     def test_released_alpha_47_rejects_reissue_and_duplicate_history(self):
-        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
-            artifact.pending_candidate(ROOT)
+        released = copy.deepcopy(artifact.governance(ROOT))
+        released['candidate'] = None
+        with mock.patch.object(artifact, 'governance', return_value=released):
+            with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                artifact.pending_candidate(ROOT)
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'must-not-be-created'
             head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
-            with mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
+            with mock.patch.object(artifact, 'governance', return_value=released), mock.patch.object(artifact, 'validate_source', return_value=artifact.release_source(released)), mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
                 with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
                     artifact.build(ROOT, output, head)
             self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
@@ -130,7 +135,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history version inventory invalid'):
             artifact.validate_governance(value)
         value = copy.deepcopy(artifact.governance(ROOT))
-        value['candidate'] = artifact.verification_target(value)
+        value['candidate'] = artifact.verification_target(released)
         value['candidate'].update(release_state='pending', predecessor_bundle_version='2.0.0-alpha.47')
         with self.assertRaisesRegex(artifact.ArtifactError, 'immutable existing version reissue prohibited'):
             artifact.validate_governance(value)
@@ -489,7 +494,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['predecessor_bundle_version'], '2.0.0-alpha.45')
         self.assertEqual(target['public_api_operation_count'], 84)
         self.assertFalse(target['breaking_change'])
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'pending')
 
     def test_released_alpha_46_rejects_build_reissue_and_duplicate_history(self):
         with mock.patch.object(artifact, 'governance', return_value=self.governance()), self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
@@ -589,8 +594,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['manifest_sha256'], released['manifest_sha256'])
         self.assertFalse(target['breaking_change'])
         source = artifact.validate_source(ROOT)
-        self.assertEqual(source['bundle_version'], '2.0.0-alpha.47')
-        self.assertEqual(source['release_state'], 'released')
+        self.assertEqual(source['bundle_version'], '2.0.0-alpha.48')
+        self.assertEqual(source['release_state'], 'pending')
 
     def test_released_alpha_45_cannot_be_republished_or_duplicated(self):
         with mock.patch.object(artifact, 'governance', return_value=self.governance()):
@@ -759,7 +764,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         result = artifact.validate_source(ROOT)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
-            "2.0.0-alpha.47",
+            "2.0.0-alpha.48",
         )
         with mock.patch.object(
             artifact,

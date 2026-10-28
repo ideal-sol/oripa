@@ -80,7 +80,11 @@ final class V2MemberRankCorrectionService
         $state = DB::table('member_rank_states')->where('user_id', $userId)->firstOrFail();
         $total = (int) DB::table('member_rank_month_totals')->where('user_id', $userId)->where('month', $entry->month)->value('points');
         $level = min((int) $state->level, max((int) $state->baseline_level, $this->reachedLevel($total, $version)));
-        if ($level < (int) $state->level) {
+        // Financial corrections keep the closed account's frozen rank snapshot;
+        // signed accounting entries and promotion-bonus recovery still proceed.
+        $frozenClosureAdjustment = $state->frozen_at !== null && $entry->reason === 'payment_adjustment'
+            && DB::table('account_closures')->where('user_id', $userId)->exists();
+        if ($level < (int) $state->level && ! $frozenClosureAdjustment) {
             $this->change($userId, $entryId, $state, $level, 'promotion_reversal', $total, $version, $instant);
         }
         $result = [];

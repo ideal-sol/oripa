@@ -11,6 +11,9 @@ export interface IdentityMutationOptions {
 }
 
 export interface StorefrontIdentityClient {
+  getAccountClosurePreview(): Promise<StorefrontResponse<Schemas["AccountClosurePreviewResponse"]>>;
+  closeAccount(input: Schemas["AccountClosureRequest"], options: IdentityMutationOptions & { idempotency_key: string }): Promise<StorefrontResponse<Schemas["AccountClosureResponse"]>>;
+  sendAccountClosureEmailCode(options?: IdentityMutationOptions): Promise<StorefrontResponse<Schemas["AccountClosureEmailCodeResponse"]>>;
   preRegister(input: Schemas["PreRegistrationRequest"], options?: IdentityMutationOptions): Promise<StorefrontResponse<Schemas["PendingRegistration"]>>;
   getPreRegistrationCampaign(): Promise<StorefrontResponse<Schemas["PreRegistrationCampaignResponse"]>>;
   getPreRegistrationBonus(): Promise<StorefrontResponse<Schemas["PreRegistrationBonusResponse"]>>;
@@ -148,6 +151,9 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    getAccountClosurePreview: () => transport.request({ path: "/me/account-closure", retry: false }),
+    closeAccount: (input, options) => transport.request({ path: "/me/account-closure", method: "POST", body: input, headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key, csrf: "required", retry: false }),
+    sendAccountClosureEmailCode: (options = {}) => transport.request({ path: "/me/account-closure/email-code", method: "POST", headers: csrf(options.csrf_token), csrf: "required", retry: false }),
     preRegister: (input, options = {}) => mutation<Schemas["PendingRegistration"]>("/auth/pre-register", input, options),
     getPreRegistrationCampaign: () => transport.request({ path: "/campaigns/pre-registration", retry: false }),
     getPreRegistrationBonus: () => transport.request({ path: "/me/pre-registration-bonus", retry: false }),

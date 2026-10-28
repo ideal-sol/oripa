@@ -273,6 +273,7 @@ final class V2AdminUserReadService
                     : $this->timestamp($row->phone_verified_at),
                 'status' => (string) $row->state,
                 'state_revision' => (int) $row->state_revision,
+                'account_closure' => $this->closureDetail((int) $row->id),
                 'point_balance' => $this->pointBalance($row),
                 'tag_assignment_revision' => (int) $row->tag_assignment_revision,
                 'tags' => $this->userTags((int) $row->id),
@@ -597,6 +598,19 @@ final class V2AdminUserReadService
     private function timestamp(mixed $value): string
     {
         return CarbonImmutable::parse($value)->utc()->toIso8601String();
+    }
+
+    private function closureDetail(int $userId): ?array
+    {
+        $row = DB::table('account_closures')->where('user_id', $userId)->first();
+        if ($row === null) return null;
+
+        return [
+            'completed_at' => $this->timestamp($row->completed_at), 'closed_by' => $row->closed_by,
+            'closure_kind' => $row->closure_kind,
+            'financial_suspended_at' => $row->financial_suspended_at === null ? null : $this->timestamp($row->financial_suspended_at),
+            'forfeited_points' => (int) $row->forfeited_points, 'forfeited_prizes' => (int) $row->forfeited_prizes,
+        ];
     }
 
     private function auditView(

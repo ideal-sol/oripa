@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.43",
+    "version": "2.0.0-alpha.44",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -17,6 +17,159 @@
     }
   ],
   "paths": {
+    "/me/account-closure": {
+      "get": {
+        "operationId": "getAccountClosurePreview",
+        "x-sms-verification": "required",
+        "summary": "本人の退会確認情報を取得する",
+        "description": "メールとSMS認証済みのactive/restricted本人のみ。予約ポイントは残高に含めず、決済processingのみ一時拒否する。",
+        "x-idempotency": "safe",
+        "x-rate-limit": "authenticated-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "現在の失効予定数と本人確認方式。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountClosurePreviewResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "closeAccount",
+        "x-sms-verification": "required",
+        "summary": "本人の退会手続きを完了する",
+        "description": "同意、方式に対応する本人確認と確認時の数量が必須。INVALID_PASSWORD/INVALID_EMAIL_CODEは422、STALE/BLOCKEDは409、制限超過は429。成功時にセッションCookieを失効する。",
+        "x-idempotency": "required",
+        "x-rate-limit": "account-closure",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountClosureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "本人手続完了。closed_atは手続完了時刻を表す。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountClosureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "419": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      }
+    },
+    "/me/account-closure/email-code": {
+      "post": {
+        "operationId": "sendAccountClosureEmailCode",
+        "x-sms-verification": "required",
+        "summary": "パスワードログイン無効の本人に退会専用コードを送る",
+        "description": "メールとSMS認証済み本人のみ。6桁、10分有効、再送60秒、1時間5回、誤入力5回で失効。パスワード方式は409。本文なし。",
+        "x-idempotency": "not-supported",
+        "x-rate-limit": "account-closure-email-code",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "認証コードの送信結果。コード自体は返さない。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountClosureEmailCodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "403": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "409": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "419": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "422": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "429": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          },
+          "default": {
+            "$ref": "#/components/responses/PublicAuthProblem"
+          }
+        }
+      }
+    },
     "/auth/pre-register": {
       "post": {
         "operationId": "preRegisterUser",
@@ -4114,6 +4267,177 @@
       }
     },
     "schemas": {
+      "AccountClosurePreviewResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "point_balance",
+              "unclaimed_prize_count",
+              "shipping_in_progress_count",
+              "can_close",
+              "blocked_reason",
+              "verification_method",
+              "masked_email"
+            ],
+            "properties": {
+              "point_balance": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unclaimed_prize_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "shipping_in_progress_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "can_close": {
+                "type": "boolean"
+              },
+              "blocked_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "payment_processing",
+                  null
+                ]
+              },
+              "verification_method": {
+                "type": "string",
+                "enum": [
+                  "password",
+                  "email_code"
+                ]
+              },
+              "masked_email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "AccountClosureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirmed",
+          "expected_point_balance",
+          "expected_unclaimed_prize_count"
+        ],
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          },
+          "expected_point_balance": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expected_unclaimed_prize_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "email_code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "writeOnly": true
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "password"
+            ],
+            "not": {
+              "required": [
+                "email_code"
+              ]
+            }
+          },
+          {
+            "required": [
+              "email_code"
+            ],
+            "not": {
+              "required": [
+                "password"
+              ]
+            }
+          }
+        ]
+      },
+      "AccountClosureResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "closed_at"
+            ],
+            "properties": {
+              "closed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "AccountClosureEmailCodeResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "masked_email",
+              "expires_at",
+              "resend_available_at"
+            ],
+            "properties": {
+              "masked_email": {
+                "type": "string"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "resend_available_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
       "MemberRankPurchaseBenefit": {
         "type": "object",
         "additionalProperties": false,

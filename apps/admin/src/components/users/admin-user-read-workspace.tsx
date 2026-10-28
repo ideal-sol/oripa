@@ -642,6 +642,7 @@ function statusLabel(value: string): string {
     delivered: "配送完了",
     exchange_processing: "交換処理中",
     expired: "期限切れ",
+    forfeited: "退会による失効",
     hold: "保留",
     pending: "未確定",
     packing: "梱包中",

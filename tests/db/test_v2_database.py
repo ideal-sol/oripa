@@ -20,6 +20,15 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_account_closure_marker_is_exact_and_inventory_remains_closed(self):
+        self.assertEqual(v2_database.task_marker('ACCOUNT-CLOSURE-20261028'), 'accountclosure')
+        for task in ['ACCOUNT-CLOSURE-20261029', 'ACCOUNT-CLOSURE-20261028-extra', 'account-closure-20261028']:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.task_marker(task)
+        for table in ['account_closures', 'account_closure_codes', 'account_closure_phone_bans', 'account_closure_late_payments']:
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory([item for item in v2_database.EXPECTED_V2_SCHEMA_INVENTORY if item != 'public.' + table])
+
     def test_prelaunch_inventory_and_forward_only_guard_are_exact(self):
         filename = "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php"
         message = "Prelaunch activation authority requires a forward-only migration."

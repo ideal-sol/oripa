@@ -1035,14 +1035,15 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつPAY4承認確定を含むOperation 90件である", () => {
+test("Public OpenAPIは3.1.1かつ退会を含むOperation 93件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 90);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 93);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "cancelPaymentCardRegistration",
     "changeUserPassword",
+    "closeAccount",
     "completeEmailChange",
     "completeGoogleOidc",
     "completeLineLogin",
@@ -1059,6 +1060,7 @@ test("Public OpenAPIは3.1.1かつPAY4承認確定を含むOperation 90件であ
     "deletePaymentCard",
     "deleteShippingAddress",
     "exchangeUserPrizes",
+    "getAccountClosurePreview",
     "getCanonicalPresentationAssetContent",
     "getContentNotice",
     "getContentStaticPage",
@@ -1117,6 +1119,7 @@ test("Public OpenAPIは3.1.1かつPAY4承認確定を含むOperation 90件であ
     "resendSmsVerification",
     "resendUserEmailVerification",
     "resumeUnpaidPayment",
+    "sendAccountClosureEmailCode",
     "sendSmsVerification",
     "startGoogleIdentityLink",
     "startGoogleLogin",
@@ -1283,6 +1286,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "MINIMAL_SITE_MANIFEST_FIXTURE",
     "PAYMENT_FOUNDATION_FIXTURES",
     "PLATFORM_COMPATIBILITY_FIXTURE",
+    "PUBLIC_ACCOUNT_CLOSURE_FIXTURES",
     "PUBLIC_ACCOUNT_SECURITY_FIXTURE",
     "PUBLIC_ACCOUNT_SECURITY_PROBLEM_FIXTURES",
     "PUBLIC_ADVERTISING_ATTRIBUTION_FIXTURES",

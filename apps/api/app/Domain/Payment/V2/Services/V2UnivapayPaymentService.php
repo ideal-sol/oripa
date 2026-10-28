@@ -118,13 +118,14 @@ final class V2UnivapayPaymentService
             }
             // An already granted identical charge is a replay, including after the deadline.
             if ($status === 'successful' && $payment->status === 'succeeded') return;
-            if (in_array($payment->status, ['succeeded','failed','canceled','expired'], true)) {
+            $closureSuccess = $status === 'successful' && DB::table('account_closures')->where('user_id', $payment->user_id)->exists();
+            if (! $closureSuccess && in_array($payment->status, ['succeeded','failed','canceled','expired'], true)) {
                 if ($status === 'successful' || ($status === 'canceled' && $payment->status === 'succeeded')) {
                     $this->review($payment, $status === 'successful' ? 'expired' : 'ok', $chargeId, $status === 'canceled' ? 'provider_reversed' : 'reconciliation_failed');
                 }
                 return;
             }
-            if ($status === 'successful' && ($payment->expires_at === null || CarbonImmutable::parse($payment->expires_at)->lessThanOrEqualTo(now()))) {
+            if (! $closureSuccess && $status === 'successful' && ($payment->expires_at === null || CarbonImmutable::parse($payment->expires_at)->lessThanOrEqualTo(now()))) {
                 $this->review($payment, 'expired', $chargeId); return;
             }
             $occurred = $this->occurred($charge['created_on'] ?? null);

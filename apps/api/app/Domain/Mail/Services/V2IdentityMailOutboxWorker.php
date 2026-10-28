@@ -43,6 +43,13 @@ final class V2IdentityMailOutboxWorker
     {
         try {
             [$template, $recipient, $values] = $this->delivery($message);
+            if (DB::table('users as u')->join('account_closures as c', 'c.user_id', '=', 'u.id')
+                ->where('u.public_id', $message->aggregate_public_id)->exists()) {
+                $this->outbox->markDelivered($message->public_id, $worker);
+                $this->safeAudit($message, 'success', 'account_closed_suppressed');
+
+                return;
+            }
             $this->mail->sendSecurity($template, $recipient, $values);
             $this->outbox->markDelivered($message->public_id, $worker);
             $this->safeAudit($message, 'success');

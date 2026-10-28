@@ -40,6 +40,10 @@ REQUIRED_ENV_KEYS = {
     "V2_REDIS_PASSWORD",
 }
 EXPECTED_V2_SCHEMA_INVENTORY = [
+    "public.account_closure_codes",
+    "public.account_closure_late_payments",
+    "public.account_closure_phone_bans",
+    "public.account_closures",
     "public.admin_authentication_policy",
     "public.admin_invitations",
     "public.admin_recovery_codes",
@@ -572,6 +576,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_10_28_000101_add_v2_account_closure.php": "Account closure history is retained; use a forward correction.",
         "2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php": "Prelaunch classification authority requires a forward-only migration.",
         "2026_10_26_000099_add_v2_payment_common_foundation.php": "Payment classifications, progress and receipts require a forward-only migration.",
         "2026_10_22_000097_add_v2_member_rank_prelaunch_activation.php": "Prelaunch activation authority requires a forward-only migration.",
@@ -680,6 +685,8 @@ def migration_rows(base: list[str], repository: Path) -> bytes:
 
 
 def task_marker(task_id: str) -> str:
+    if task_id == "ACCOUNT-CLOSURE-20261028":
+        return "accountclosure"
     if task_id == "SHIPPINGMIN-20261023":
         return "shippingmin20261023"
     marker = re.sub(r"[^a-z0-9]+", "", task_id.lower())

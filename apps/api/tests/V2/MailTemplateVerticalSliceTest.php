@@ -45,12 +45,12 @@ final class MailTemplateVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_fixed_seventeen_templates_expose_all_variables_and_no_create_or_delete_routes(): void
+    public function test_fixed_nineteen_templates_expose_all_variables_and_no_create_or_delete_routes(): void
     {
         $service = app(V2MailTemplateService::class);
         $result = $service->templates($this->context(V2AdminRole::Admin));
 
-        self::assertCount(17, $result['items']);
+        self::assertCount(19, $result['items']);
         self::assertSame([
             'email_verification',
             'registration_completed',
@@ -58,6 +58,8 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'shipping_requested',
             'shipping_completed',
             'user_closed',
+            'account_closure_code',
+            'account_closure_payment',
             'contact_received',
             'contact_reply',
             'password_reset',
@@ -71,7 +73,7 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'agency_login_information_reissued',
         ], array_column($result['items'], 'key'));
         foreach ($result['items'] as $template) {
-            self::assertCount(25, $template['variables']);
+            self::assertCount(26, $template['variables']);
         }
         self::assertSame([
             'メールアドレス認証のお願い',
@@ -80,6 +82,8 @@ final class MailTemplateVerticalSliceTest extends TestCase
             '発送依頼を受け付けました',
             '景品の発送が完了しました',
             '退会手続きが完了しました',
+            '【オリポケ】退会の認証コード',
+            '【オリポケ】退会後に確認された決済について',
             'お問い合わせを受け付けました',
             'お問い合わせへのご返信',
             'パスワード再設定のご案内',

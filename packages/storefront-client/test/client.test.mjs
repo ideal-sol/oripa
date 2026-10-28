@@ -46,6 +46,22 @@ const jsonResponse = (body, init = {}) =>
     ...init,
   });
 
+test("account closure forwards explicit idempotency and CSRF with automatic retry disabled", async () => {
+  const calls = [];
+  const client = createStorefrontIdentityClient({ request: async input => { calls.push(input); return { data: {} }; } });
+  await client.getAccountClosurePreview();
+  await client.sendAccountClosureEmailCode({ csrf_token: "c".repeat(64) });
+  const input = { confirmed: true, expected_point_balance: 12500, expected_unclaimed_prize_count: 3, password: "synthetic password" };
+  await client.closeAccount(input, { csrf_token: "c".repeat(64), idempotency_key: "closure-synthetic-key" });
+  assert.deepEqual(calls.map(call => call.path), ["/me/account-closure", "/me/account-closure/email-code", "/me/account-closure"]);
+  assert.equal(calls[2].idempotency_key, "closure-synthetic-key");
+  assert.equal(calls[2].headers["X-XSRF-TOKEN"], "c".repeat(64));
+  assert.deepEqual(calls[2].body, input);
+  assert.equal(calls[1].csrf, "required");
+  assert.equal(calls[2].csrf, "required");
+  assert.ok(calls.every(call => call.retry === false));
+});
+
 test("Paidy authorization uses CSRF, exact idempotency and no transport replay", async () => {
   const calls = [];
   const client = createStorefrontPaymentClient({request: async request => {calls.push(request); return {data: {status: "processing"}};}});

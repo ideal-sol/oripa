@@ -200,6 +200,7 @@ final class V2DrawEligibilityService
         $qualified = $gacha->gacha_type === 'login_daily'
             || ($gacha->gacha_type === 'signup_once' && $qualifiedAt !== null
                 && $qualifiedAt->greaterThanOrEqualTo(CarbonImmutable::parse($version->publish_start_at)));
+        if ($gacha->gacha_type === 'signup_once' && app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id)) $qualified = false;
 
         $rankEligible = V2MemberRankGachaCondition::matches($version, $memberRank);
         $audienceEligible = $gacha->gacha_type !== 'login_daily'
