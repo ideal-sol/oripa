@@ -1562,6 +1562,22 @@ test("Card Registration state machineとtyped Problemsを公開する", () => {
   assert.equal(isCardRegistrationProblemError(error, "CARD_REGISTRATION_FAILED"), false);
 });
 
+test("UnivaPay charge reporting is an owned CSRF mutation without automatic retry", async () => {
+  const calls = [];
+  const client = createStorefrontPaymentClient({request: async (request) => { calls.push(request); return {data: {status: "requires_action"}}; }});
+  const charge = {charge_id: "0198a001-0000-7000-8000-000000000099"};
+  const csrf = "a".repeat(64);
+  const result = await client.reportUnivapayCharge("payment-id", charge, {csrf_token: csrf});
+  assert.equal(result.data.status, "requires_action");
+  assert.equal(calls[0].path, "/payments/payment-id/univapay-charges");
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].body, charge);
+  assert.equal(calls[0].headers["X-XSRF-TOKEN"], csrf);
+  assert.equal(calls[0].csrf, "required");
+  assert.equal(calls[0].retry, false);
+  assert.throws(() => client.reportUnivapayCharge("../other", charge, {csrf_token: csrf}), TypeError);
+});
+
 test("shipping policy reads and minimum errors retain exact decimal details", async () => {
   const { isShippingMinimumPointsProblemError } = await import("../dist/index.js");
   const calls = [];

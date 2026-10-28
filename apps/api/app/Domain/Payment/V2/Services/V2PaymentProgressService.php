@@ -48,7 +48,8 @@ final class V2PaymentProgressService
     public function append(int $paymentId, string $type, array $detail = [], string $source = 'server'): void
     {
         // Only bounded enums and numeric money are accepted; never arbitrary provider/browser text.
-        if (array_diff(array_keys($detail), ['result', 'amount', 'method', 'provider', 'charge_id', 'match', 'operation', 'http_status', 'reason'])
+        if (array_diff(array_keys($detail), ['result', 'amount', 'method', 'provider', 'charge_id', 'match', 'operation', 'http_status', 'reason', 'error_code'])
+            || (isset($detail['error_code']) && (! is_int($detail['error_code']) || $detail['error_code'] < 0 || $detail['error_code'] > 999999))
             || (isset($detail['result']) && ! in_array($detail['result'], ['success','error','authorized','rejected','closed','complete','cancel','failure'], true))
             || (isset($detail['amount']) && (! is_int($detail['amount']) || $detail['amount'] < 0))
             || (isset($detail['method']) && ! isset(V2PaymentMethodPolicy::LABELS[$detail['method']]))

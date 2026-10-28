@@ -8,8 +8,15 @@ export const PAYMENT_FOUNDATION_FIXTURES = Object.freeze({
   ]},
   form_post: {type: "form_post", url: "https://provider.example.test/checkout", fields: [{name: "sendid", value: "synthetic-order"}, {name: "amount", value: "1000"}]},
   client_event: {type: "inline_result", detail: {result: "success", charge_id: "0198a001-0000-7000-8000-000000000099"}},
+  univapay_action: {
+    type: "univapay_inline", amount: 1000,
+    update: {metadata: {"oripa-payment-id": "0198a001-0000-7000-8000-000000000098", "oripa-member": "0198a001-0000-7000-8000-000000000097"}, email: "synthetic@example.test",
+      phoneNumber: {countryCode: "+81", localNumber: "09000000000"}},
+    success_url: "https://example.test/points/purchase/thanks?pid=0198a001-0000-7000-8000-000000000098",
+  },
 } as const satisfies {
   methods: {data: readonly PublicComponents["schemas"]["PaymentMethodOption"][]};
   form_post: PublicComponents["schemas"]["PaymentFormPostAction"];
   client_event: PublicComponents["schemas"]["PaymentClientEvent"];
+  univapay_action: PublicComponents["schemas"]["PaymentUnivapayInlineAction"];
 });

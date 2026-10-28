@@ -589,6 +589,33 @@ def is_authorized_m9_payment_provider_break(
             and breaking_changes(previous, current) == ["components.schemas.AdminPayment.provider: type changed"])
 
 
+def is_authorized_univapay_inline_extension(
+    surface: str, previous: dict[str, Any], current: dict[str, Any]
+) -> bool:
+    # PAY2 specification v2.2 explicitly authorizes this formerly null placeholder.
+    # Keep the generic type-change rule strict and reject any additional break.
+    if surface != "public" or any(document.get("info", {}).get("version") != "2.0.0-alpha.43"
+                                   for document in (previous, current)):
+        return False
+    before = previous.get("components", {}).get("schemas", {}).get("PaymentMethodOption", {}).get("properties", {}).get("inline_form")
+    after = current.get("components", {}).get("schemas", {}).get("PaymentMethodOption", {}).get("properties", {}).get("inline_form")
+    if not isinstance(before, dict) or before.get("type") != "null" or set(before) - {"type", "description"}:
+        return False
+    if after != {"oneOf": [{"type": "null"}, {"$ref": "#/components/schemas/PaymentUnivapayInlineForm"}]}:
+        return False
+    form = current.get("components", {}).get("schemas", {}).get("PaymentUnivapayInlineForm", {})
+    options = form.get("properties", {}).get("options", {})
+    properties = options.get("properties", {})
+    if (form.get("additionalProperties") is not False or options.get("additionalProperties") is not False
+            or properties.get("tokenType") != {"const": "one_time"}
+            or properties.get("inline") != {"const": True}
+            or properties.get("amount") != {"type": "integer", "minimum": 1, "maximum": 100000}):
+        return False
+    normalized = copy.deepcopy(current)
+    normalized["components"]["schemas"]["PaymentMethodOption"]["properties"]["inline_form"] = before
+    return not breaking_changes(previous, normalized)
+
+
 def is_authorized_notion_cache_break(
     surface: str, previous: dict[str, Any], current: dict[str, Any]
 ) -> bool:
@@ -745,7 +772,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document) and not is_authorized_univapay_inline_extension(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )
