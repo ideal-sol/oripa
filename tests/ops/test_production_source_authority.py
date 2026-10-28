@@ -183,18 +183,58 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(authority["change_id"], SOURCE_CHANGE)
         self.assertEqual(authority["pr_number"], SOURCE_PR)
         self.assertIs(authority["activation_authorized"], False)
-        self.assertTrue(authority["authority"].startswith("Draft candidate exact Runtime Source:"))
+        # Simulate explicit future Human promotion, never permit the real Draft.
+        authority["authority"] = "Human-approved exact Runtime Source: synthetic promotion fixture"
         real_git = MODULE["git"]
+        self.source = APPROVED
+        self.workflow = PROTECTED
+        self.tree = real_git(ROOT, "rev-parse", f"{APPROVED}^{{tree}}")
+        self.pull["merge_commit_sha"] = APPROVED
         def candidate_authority(repository, *arguments):
             if arguments == ("rev-parse", "HEAD"):
                 return PROTECTED
             if arguments == ("show", f"{PROTECTED}:{MODULE['AUTHORITY_PATH']}"):
                 return json.dumps(authority)
             return real_git(repository, *arguments)
-        self.workflow = PROTECTED
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
-            with self.assertRaisesRegex(ValueError, "Human-approved source authority mismatch"):
-                AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+            result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+            for unapproved in [
+                "3592fcdc8e43467c3dd67d2677ec52b7d328eb77",
+                "b5c28015ef94cb80f6702a61b1237cacd91d9863",
+                "c802ff91cf3d5a96b695f70e3d91194c3bed7567",
+                "aef1759d072dab48be4b052d53e2ef969feddd9f",
+                "cba63981e443992d7b4f9ebcd0ee219dce38c0f9",
+                "77723309fdd9f27039f7b5cbe804fa3e2a50fbc1",
+                "4b7d00e8e31223136cd0b70134916d091dfea6cb",
+                "04acd7de03ba6832ad94b90e68b4b0fbef5ecc4f",
+                "51a4598ccb5fc7b6748d57b2f8d550bef426d6be",
+                "538a208c025fcc5a7d6f9914d3c428b9ef702dbe",
+                "75395ded58c0924d39441f51fd351c03ad12e908",
+                "0ce41ab473fd5a4fb44773041ae097ffb40b14ce",
+                "62c3c813081cf0ea526c66e7e4131c6816de2449",
+                "60da22cf83c8f65242fb5c0b121a73fa96b396c8",
+                "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
+                "3b07a157a8c8ff7d466984dea6c7a5ae1a4d3254",
+                "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
+                "706849a57b9919bb3f01cc630ac90a3efdf5a61c",
+                "be1a8f3f822d23f3251d32e616fb0b2fe422714e",
+                "69d58449c9524a018b372e39a6a4efbe0cace48d",
+            ]:
+                with self.subTest(unapproved=unapproved), self.assertRaisesRegex(
+                    ValueError, "Human-approved source authority mismatch"
+                ):
+                    AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+            with self.assertRaisesRegex(ValueError, "source commit missing or not protected-main ancestor"):
+                AUTHORIZE(ROOT, "2c8e360b978273803b9f1ac478132530835f32ad",
+                          PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
+        self.assertEqual(result["source_sha"], APPROVED)
+        self.assertEqual(result["workflow_sha"], PROTECTED)
+
+    def test_draft_proposal_requires_future_human_source_go(self):
+        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        self.assertIn("DRAFT CANDIDATE ONLY", authority["authority"])
+        self.assertIn("Human Source GO remain pending", authority["authority"])
+        self.assertIs(authority["activation_authorized"], False)
 
     def test_security_remediated_target_dependency_pins(self):
         lock = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:apps/api/composer.lock"))
@@ -289,7 +329,13 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         for boundary in ["NEW Production Rank first initialization OFF / not performed",
                          "feature enabled flag is separate", "OLD Test Rank ON / initialized",
                          "NEW Rank live readback remains pending", "no Ready, merge, auto-merge, Artifact Build",
-                         "OLD Test formal Acceptance and Human Source GO remain pending"]:
+                         "OLD Test formal Acceptance and Human Source GO remain pending",
+                         "NEW F2-B already ON and Production Accepted",
+                         "F6 and general Scheduler remain OFF", "Agency Runtime remains unchanged",
+                         "Preserve current preregistration受付/deadline/Basic state",
+                         "Human alone configures Basic/public scope and Admin deadline/受付ON",
+                         "actual500pt grants and batch execution require separate approval and Acceptance",
+                         "authority Draft PR preparation only"]:
             self.assertIn(boundary, authority["authority"])
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
