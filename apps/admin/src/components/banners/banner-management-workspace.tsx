@@ -149,7 +149,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
   }
 
   async function publishBanner(banner: AdminManagedBanner) {
-    if (publishingRef.current !== null || banner.status !== "draft") return;
+    if (!canPublish || publishingRef.current !== null) return;
     publishingRef.current = banner.id;
     setPublishingId(banner.id);
     setPublishError(null);
@@ -242,8 +242,8 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
                   <td><strong>{item.title}</strong></td><td>{item.external_id ?? "—"}</td><td>{item.category.name}</td><td><StatusBadge status={item.status} /></td><td><span>v{item.version_number}</span><br /><code className="table-compact-id" title={item.version_id}>{`${item.version_id.slice(0, 8)}…${item.version_id.slice(-8)}`}</code></td><td>{item.show_on_top ? <span>ON<br /><small className="table-truncated-url" title={item.link_url ?? undefined}>{item.link_url}</small></span> : "OFF"}</td>
                   <td><div className="banner-url-actions"><code className="table-truncated-url" title={item.asset.public_url}>{item.asset.public_url}</code><button aria-label={`${item.title}の画像URLをコピー`} className="icon-button" onClick={() => void navigator.clipboard.writeText(item.asset.public_url)} title="URLをコピー" type="button"><Clipboard aria-hidden="true" size={16} /></button><a aria-label={`${item.title}の画像を新しいタブで開く`} className="icon-button" href={item.asset.public_url} rel="noreferrer" target="_blank" title="画像を開く"><ExternalLink aria-hidden="true" size={16} /></a></div></td>
                   <td>{formatJst(item.created_at)}</td>
-                  <td>{canPublish && item.status === "draft" ? <button className="primary-button" disabled={publishingId !== null} onClick={() => void publishBanner(item)} type="button">{publishingId === item.id ? <LoaderCircle className="spin" aria-hidden="true" size={16} /> : <Send aria-hidden="true" size={16} />}{publishingId === item.id ? "公開中" : "公開する"}</button> : item.status === "published" ? <span className="muted-text">公開済み</span> : <span className="muted-text">参照のみ</span>}</td>
-                  <td>{canManage ? <button aria-label={`${item.title}を編集`} className="icon-button" onClick={() => setEditing(item)} title="編集" type="button"><Pencil aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
+                  <td>{canPublish ? <button className="primary-button" disabled={publishingId !== null} onClick={() => void publishBanner(item)} type="button">{publishingId === item.id ? <LoaderCircle className="spin" aria-hidden="true" size={16} /> : <Send aria-hidden="true" size={16} />}{publishingId === item.id ? "公開中" : item.status === "published" ? "最新内容を公開に反映" : "公開する"}</button> : item.status === "published" ? <span className="muted-text">公開済み</span> : <span className="muted-text">参照のみ</span>}</td>
+                  <td>{canManage && (item.status !== "published" || canPublish) ? <button aria-label={`${item.title}を編集`} className="icon-button" onClick={() => setEditing(item)} title="編集" type="button"><Pencil aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
                   <td>{canManage ? <button aria-label={`${item.title}を削除`} className="icon-button" onClick={() => setDeleting(item)} title="削除" type="button"><Trash2 aria-hidden="true" size={16} /></button> : <span className="muted-text">参照のみ</span>}</td>
                 </tr>
               ))}</tbody>
@@ -257,7 +257,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
       </section>
 
       {categoryDialog ? <CategoryDialog onClose={() => setCategoryDialog(false)} onCreated={(category) => { setCategories((current) => [...current, category].sort((a, b) => a.name.localeCompare(b.name, "ja"))); setDraft((current) => ({ ...current, categoryId: category.id })); setCategoryDialog(false); }} /> : null}
-      {editing ? <EditDialog banner={editing} categories={categories} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setLoading(true); setReload((value) => value + 1); }} /> : null}
+      {editing && canManage && (editing.status !== "published" || canPublish) ? <EditDialog banner={editing} categories={categories} onVersionSaved={(updated) => setItems((current) => current.map((item) => item.id === updated.id ? updated : item))} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setLoading(true); setReload((value) => value + 1); }} /> : null}
       {deleting ? <DeleteDialog banner={deleting} onClose={() => setDeleting(null)} onDeleted={() => { setDeleting(null); setLoading(true); setReload((value) => value + 1); }} /> : null}
     </main>
   );
@@ -269,10 +269,51 @@ function CategoryDialog({ onClose, onCreated }: { onClose: () => void; onCreated
   return <Dialog closeRef={close} id="banner-category-title" onClose={onClose} title="カテゴリ追加"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<label>カテゴリ名<input autoFocus maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} /></label><div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "登録中" : "登録"}</button></div></form></Dialog>;
 }
 
-function EditDialog({ banner, categories, onClose, onSaved }: { banner: AdminManagedBanner; categories: AdminBannerCategory[]; onClose: () => void; onSaved: () => void }) {
-  const [draft, setDraft] = useState<BannerDraft>({ externalId: banner.external_id ?? "", categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(onClose); const preview = useLocalImagePreview(draft.file) ?? banner.asset.public_url;
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (draft.showOnTop && !draft.linkUrl.trim()) { setError("トップ表示時はクリック先URLを入力してください。"); return; } setBusy(true); setError(null); try { const client = new AdminApiClient(); const assetId = draft.file ? (await client.uploadBannerAsset(await fileInput(draft.file), crypto.randomUUID())).id : null; await client.updateManagedBanner(banner.id, { asset_id: assetId, category_id: draft.categoryId, link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null, show_on_top: draft.showOnTop, external_id: draft.externalId.trim() || null, title: draft.title.normalize("NFC").trim() }, crypto.randomUUID()); onSaved(); } catch (reason) { setError(bannerError(reason)); setBusy(false); } }
-  return <Dialog closeRef={close} id="banner-edit-title" onClose={onClose} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><ExternalIdField disabled={busy} value={draft.externalId} onChange={(externalId) => setDraft({ ...draft, externalId })} /><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}<div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={onClose} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : "更新"}</button></div></form></Dialog>;
+function EditDialog({ banner, categories, onClose, onSaved, onVersionSaved }: { banner: AdminManagedBanner; categories: AdminBannerCategory[]; onClose: () => void; onSaved: () => void; onVersionSaved: (banner: AdminManagedBanner) => void }) {
+  const { permissions } = usePermissions();
+  const [savedVersionId, setSavedVersionId] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const closeDialog = () => { if (!submittingRef.current) onClose(); };
+  const [draft, setDraft] = useState<BannerDraft>({ externalId: banner.external_id ?? "", categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(closeDialog); const preview = useLocalImagePreview(draft.file) ?? banner.asset.public_url;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submittingRef.current || !permissions.has("content.manage") || (banner.status === "published" && !permissions.has("content.publish"))) return;
+    if (!savedVersionId && draft.showOnTop && !draft.linkUrl.trim()) {
+      setError("トップ表示時はクリック先URLを入力してください。");
+      return;
+    }
+    submittingRef.current = true;
+    setBusy(true);
+    setError(null);
+    let versionId = savedVersionId;
+    try {
+      const client = new AdminApiClient();
+      if (!versionId) {
+        const assetId = draft.file ? (await client.uploadBannerAsset(await fileInput(draft.file), crypto.randomUUID())).id : null;
+        const updated = await client.updateManagedBanner(banner.id, {
+          asset_id: assetId,
+          category_id: draft.categoryId,
+          link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null,
+          show_on_top: draft.showOnTop,
+          external_id: draft.externalId.trim() || null,
+          title: draft.title.normalize("NFC").trim(),
+        }, crypto.randomUUID());
+        versionId = updated.version_id;
+        setSavedVersionId(versionId);
+        onVersionSaved(updated);
+      }
+      if (banner.status === "published") {
+        await client.publishContentBanner(banner.id, versionId);
+      }
+      onSaved();
+    } catch (reason) {
+      setError(versionId ? "更新内容は保存されましたが、公開反映に失敗しました" : bannerError(reason));
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
+    }
+  }
+  return <Dialog closeRef={close} id="banner-edit-title" onClose={closeDialog} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<fieldset disabled={busy || savedVersionId !== null} style={{ border: 0, display: "grid", gap: 16, margin: 0, minWidth: 0, padding: 0 }}><label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><ExternalIdField disabled={busy} value={draft.externalId} onChange={(externalId) => setDraft({ ...draft, externalId })} /><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}</fieldset><div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={closeDialog} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : savedVersionId ? "公開反映を再試行" : "更新"}</button></div></form></Dialog>;
 }
 
 function DeleteDialog({ banner, onClose, onDeleted }: { banner: AdminManagedBanner; onClose: () => void; onDeleted: () => void }) {
