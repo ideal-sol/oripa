@@ -327,8 +327,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertIs(authority["activation_authorized"], False)
         for boundary in ["NEW Production Rank first initialization OFF / not performed",
-                         "feature enabled flag is separate", "OLD Test Rank ON / initialized",
-                         "NEW Rank live readback remains pending", "no Ready, merge, auto-merge, Artifact Build",
+                         "feature enabled flag is separate", "Preserve existing FINCODE enabled=true",
+                         "Ledger98 and migrations099/100/101 unapplied", "OLD Test Rank ON / initialized",
+                         "NEW Rank readback received from NEW担当", "no Ready, merge, auto-merge, Artifact Build",
                          "OLD Test formal Acceptance and Human Source GO remain pending",
                          "NEW F2-B already ON and Production Accepted",
                          "F6 and general Scheduler remain OFF", "Agency Runtime remains unchanged",
