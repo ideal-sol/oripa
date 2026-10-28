@@ -1,3 +1,44 @@
+## PAY234-INTEGRATION-20261028 — final three-provider Source integration
+
+Latest Human GO on2026-10-28 authorizes existing PR622 → PR623 → PR624 Source
+integration and canonical squash merges only. Historical Draft/Source Merge HOLD
+statements below are superseded within that scope. R3 / Strict Change;
+Application Runtime Activation remains deferred. Provider acceptance, real DB,
+ENV/Worker/Scheduler/Runtime, Production Authority, formal Artifact/package
+publication, tag/release/registry and Storefront PR192 remain excluded.
+
+PAY2 reviewed `dc269f0361424edcd87162f39335e41e82bd2966` / tree `2752d1d14491c38eb0061daf8dbdaafa504013e6` merged as
+`ccb5887cf80d7edfe2fc715e3b731b5f60825ffa`. PAY4 reviewed `6972abb0256e10918b9e3749f22aae3ae504fcab` / tree
+`7c233a59ecaff345543d25f8b3c47493471bdba9` merged as `80e8f7448eafd70d88f7a457f067e461ee88f5e5`. Both canonical merge actors:
+`ideal-sol-oripa-codex[bot]`. Each reviewed tree equals its squash tree, content diff0;
+Required5 and fresh Strict review passed. Exact CI/review/merge evidence is in
+the respective PR records and the batch closeout.
+
+PAY3 retains original `4352ae7be5cf84a4e5517d0750fed8fe80da24fe` and imports PAY2+PAY4 main by an ordinary
+merge. The final candidate retains all three provider operations plus existing
+fincode/LINE and PAY1 financial/mail/rank authority. Canonical generation produces
+Public90 and Webhook5 operations. Unpublished Client/Testkit alpha47,
+Public/Admin alpha43 and Webhook alpha41 form one combined candidate; published
+alpha46/history and Site-schema alpha23 remain immutable. No formal publication
+or Runtime use is authorized by validation-only CI Candidates.
+
+Paidy specification6.4.3(2) Capture retry deviation remains SEV-2 / Human-provider
+decision OPEN before acceptance/Activation. Retain permanent Capture claims,
+Retrieve-only uncertainty recovery, foreign-order Close protection and review;
+never infer permission to release claims or resend Capture. U/P/T merchant,
+real SDK/3DS/Webhook/browser/mail acceptance remain pending. A separate task must
+publish integrated alpha47, connect/merge Storefront PR192 and obtain OLD Test /
+Production Activation GO. Source rollback uses a separately reviewed forward fix;
+never alter financial histories or automatically refund.
+
+Final PR624 head/tree, Required5, fresh review, canonical squash, protected main
+and exact tree/content verification are recorded externally in PR624/batch
+closeout to avoid self-referential commit hashes. No new migration or allocation;
+operational migration application0, formal publication0, Runtime Activation0.
+
+- PAY4 local OpenAPI72 / release34 / policy341 / Client44 / Testkit55 / Admin13 and typechecks PASS. Initial shared-host Admin2 timeouts resolved on unchanged rerun; first CI wording regression fixed without changing tests. Provider combined62/498 had failures0/errors0/exit0 with35 known handler risky warnings, not clean62 PASS; separate final-head coexistence1/12 clean PASS. Final-head formal CI supplements local evidence. Earlier-head CI/Candidates remain historical only.
+- Final PAY3 focused cross-provider/financial/contracts/generated/Admin checks and new-head formal CI/review are recorded at closeout. Provider code, routes, review mechanisms and inventory are integrated function by function; no whole-side overwrite. Main/merge tree equality and immutable/forbidden-path assertions are required. Existing primary dirty records and unrelated worktrees remain untouched.
+
 ## PAY4-20261027 / PDY-20261027 — Paidy Source (Draft / Production Merge HOLD)
 
 - Final PR623 supplement is limited to uncertain-Capture retry safety and foreign-order Close. Rechecked fixed HEAD a546cd85731fa371fcec6f81c0c1fd3c23734463, clean dedicated worktree, unchanged protected main/base and v2.2 hash. Strict/R3/deferred, existing Draft and all runtime/Source Merge prohibitions retained. Close now independently requires verified target order_ref, including when amount mismatch masks ownership; add same/different-amount foreign unbound-ID negatives and preserve same-order mismatch Close. Capture retry is deliberately unchanged: spec6.4.3(2) remains an explicit OPEN Human/provider decision because Retrieve AUTHORIZED does not establish termination/fencing of an earlier timed-out request. Handoff records interleaving, risks, provider guarantee/idempotency/spec-amendment alternatives; no unconditional resend. Supplement test/CI/review results are recorded in PR623 after execution.
@@ -12054,6 +12095,18 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - CI40428244515 on3eb9a81c passed V2 functional/draw/QA load, unchanged100k reporting performance and content performance, then failed the final backup/restore schema checksum; other jobs and ARM64 Candidate12700333354 passed. Isolated reproduction identified only the099 payment-method CHECK: its implicit varchar-array/text-array cast changed pg_dump representation after restore. Reacquire canonical Migration Allocation Lock before changing the unreleased099 comparison to payment_method::text. Retain the exact six methods/NULL and unknown-method rejection, all existing data and the strict checksum Gate; no workflow/normalizer changes. Historical migration/allowlist regression1 test/18 assertions PASS; isolated full backup/restore exact canonical schema SHA375d085ef42cd427918903790107bc8225daddd3b265a50861c951a808ac41d4 matches on both sides, while pre-fix mismatch is preserved. Hold the lock through final CI and Draft handoff, then release; no operational application. Renew all final-head checks/review in existing Draft620.
 
 
+## 2026-10-27 PAY3-20261027 / TEC-20261027 — Techcoin Source Draft / Production Merge Hold
+
+- Draft PR https://github.com/ideal-sol/oripa/pull/624 is open and remains Draft. Initial formal CI40481921141 stopped on missing Scope/Specification sources headings; PR body corrected and exact42-path metadata validation PASS. Supplemental approved task-check CI40482355143 passes Policy/Security/support but its existing PR-event-only Candidate job is not applicable to workflow_dispatch. Push this Handoff/Worklog evidence update to start normal PR synchronize CI with validation-only Candidate; no workflow/gate changes. Earlier source d22b747e623f5ae821f1ea33d9d3e347fdaa8038 / tree d71f1a89059727281be0d3666bda09c41280a06a is historical; final exact tuple belongs to the PR/self-review. Actual process races1/45 PASS; corrected historical retention1/7 PASS; Client43/Testkit54/immutable release34/policy255 and Admin typecheck PASS. Local Admin unchanged5000ms render/worker timeouts on a host observed at load63/swap7.3GiB remain FAIL evidence, not visual/E2E PASS. Final-head formal CI must cover those cases. No Ready/Merge/auto-merge/Runtime or operational changes.
+
+- Issue none / Risk R3 / Lane Strict Change / Application Runtime Activation deferred. Human authorizes Source investigation/implementation, synthetic isolated tests, formal PR CI, exact-head review and one Draft only. Ready, Merge, auto-merge, operational DB/ENV/Worker, Runtime, Production Authority and independent artifact dispatch are prohibited. Dedicated feat/TEC-20261027 worktree from latest protected main/PAY1 merge85c2b72c3595b68dda60388ff584cefff775c181; primary checkout dirty worklog and active worktrees preserved. PAY2 PR622/head dc269f0361424edcd87162f39335e41e82bd2966 and PAY4 PR623/remote head a546cd85731fa371fcec6f81c0c1fd3c23734463 are read-only independent Draft references. No changes or Git operations on either Change.
+- Supplied instruction and formal v2.2 specification read; SHA25670d47974a5287b9916a0c8467bd8d1352a71eaf074c7d3a21d37f62bc8d5b58d matches. Root/nested AGENTS and canonical authorities reviewed. Input/provider files remain outside this public repository. Issue/source lock none; transient exact-path GitHub App transport policy allows Draft/check/review only. No migration reserved/created;000099 and applied history unchanged; allocation lock none. Existing migrations applied only to task-owned network-none Unix-socket synthetic PostgreSQL, without operational ENV/credentials.
+- Reuse PAY1 common creation/eligibility/idempotency, frozen plan/bonus data, immutable classification, financial/rank/wallet/lot settlement, Provider Event, retained progress, receipt and unique purchase-mail reservation. Dedicated Techcoin config/identity/payment/kickback/return adapters; exactly6 ordered hidden form fields, server price,24-hour expiry, stable injective26-character member sendid and32-hex Payment cookie. New V2_TECHCOIN_MODE defaults empty for explicit test/live accounting classification; no Production inference. Empty IP allowlist remains usable; configured IPv4/IPv6/CIDR restriction only. Form endpoint fixed HTTPS; cookie/sendid/code/DB amount/order checks precede financial mutation.
+- Token404/IP403; malformed encoding422/body limit16KiB; mismatches and late/terminal success200 with no grant and bounded review. Immutable payment.review.* events retain review beyond progress purge. DB failure rolls back reference/state/event/points/receipt/mail and returns500; bounded review attempted separately. Unique reference/advisory/user/payment locks and shared grant uniqueness prevent duplicate settlement. Provider occurrence stays NULL for Techcoin, server received_at is its explicit settlement time; other providers retain occurrence-time requirement. Return GET303 uses canonical Storefront destination and original ref, writes no financial/event/rank/mail data. Existing fincode/data retained; manual adjustments only; no automatic refund or balance repair.
+- Additive unpublished candidates: Public/Admin alpha.43, Client/Testkit alpha.47, independent PAY3 Webhook alpha.41; public operation inventory86→88. Bundles/types/Testkit/candidate digest regenerated; exact inventory checks and negative mutation88→87 retained. Immutable alpha.46 and all historical artifacts unchanged. Admin shows provider reference/review and includes unpaid states on selecting review. Storefront repository untouched; no package/release publication. Formal CI automatic validation Candidate only, never runtime authority.
+- Executed local: corrected Techcoin47 tests/577 assertions PASS; accounting/manual refund and authenticated HTTP2 cases PASS from3-case run, remaining review-purge fixture corrected and rerun1/7 PASS; Client generation/typecheck/lint/build43 PASS; OpenAPI68 had67 PASS and stale operation-count failure, corrected affected6 PASS; immutable release34 and policy255 PASS. Initial47 had46 setup errors from synthetic password not meeting existing Argon2id constraint; corrected fixture uses PasswordPolicy. Review-purge fixture originally advanced PHP clock without PostgreSQL time; corrected to historical app-created progress, preserving immutable/retention protections. An accidentally overbroad Admin invocation was interrupted after unrelated timing failures; targeted execution and final CI are separate evidence. No assertions/timeouts/protections weakened.
+- Final actual-process races, fincode/PAY1/M9 regression, packages/Admin checks, security, all5 Required Checks, exact HEAD/Tree, validation-only Candidate ID and fresh machine self-review are recorded in the Draft PR. Failed/earlier-head results are not final-head PASS. Real Provider, T3/T4, Browser/E2E/visual, actual mail and OLD Test/Production acceptance NOT RUN. Handoff records T1–T9, fixed registration URLs, Basic-auth/proxy/access-log operational ownership, Storefront work and PAY2→PAY4→PAY3 integration collision sites.
+- Completion target PAY3_SOURCE_DRAFT_READY_PRODUCTION_MERGE_HOLD requires exact-head5/5 CI and review. Retain Draft/branch/worktree; no Ready/Merge/auto-merge or main sync/merge cleanup. Runtime Activation0, operational migration0. Separate Human GO after Production reflection is mandatory. Rollback before activation is Source withdrawal; after future activation stop new starts only, retain pending notifications/history/financial records and use reviewed forward fixes.
 ## 2026-10-27 PAY2-20261027 — UnivaPay Source Draft / Production Merge Hold
 
 - Human authorizes Source, isolated mocked tests, formal CI, self-review and one Draft PR only. R3 / Strict Change / Application Runtime Activation deferred; Issue none. Latest protected main and PAY1 formal merge are85c2b72c3595b68dda60388ff584cefff775c181. Dedicated feat/PAY2-20261027 worktree preserves the unrelated primary checkout and Production reflection work. CI-compatible PAY-20261027 is the same Change. Root/nested AGENTS and canonical authorities read; supplied v2.2 SHA25670d47974a5287b9916a0c8467bd8d1352a71eaf074c7d3a21d37f62bc8d5b58d verified. Provider input documents are not committed.

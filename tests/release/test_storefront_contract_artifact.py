@@ -55,7 +55,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         candidate = artifact.pending_candidate(ROOT)
         self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.47')
         self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.46')
-        self.assertEqual(candidate['public_api_operation_count'], 88)
+        self.assertEqual(candidate['public_api_operation_count'], 90)
         self.assertEqual(candidate['release_state'], 'pending')
         self.assertEqual(candidate['release_mode'], 'contract-additive')
         self.assertFalse(candidate['breaking_change'])

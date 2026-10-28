@@ -113,6 +113,9 @@ final class V2PaymentMethodPolicy
 
     private function available(?string $provider): bool
     {
+        if ($provider === 'techcoin') {
+            return app(V2TechcoinConfiguration::class)->available();
+        }
         if ($provider === 'paidy') {
             try {
                 app(V2PaidyConfiguration::class)->validate();
@@ -121,7 +124,6 @@ final class V2PaymentMethodPolicy
                 return false;
             }
         }
-        // Other provider adapters are separate Changes.
         if ($provider === 'univapay') return app(V2UnivapayConfiguration::class)->available();
         if ($provider !== 'fincode') {
             return false;

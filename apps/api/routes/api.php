@@ -38,6 +38,10 @@ use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/payment-returns/techcoin/complete', [\App\Http\Controllers\V2\V2TechcoinReturnController::class, 'complete'])
+        ->name('v2.public.payment-returns.techcoin.complete');
+    Route::get('/payment-returns/techcoin/failure', [\App\Http\Controllers\V2\V2TechcoinReturnController::class, 'failure'])
+        ->name('v2.public.payment-returns.techcoin.failure');
     Route::get('/member-ranks', [V2MemberRankController::class, 'index'])->name('v2.public.member-ranks.index');
     Route::get('/campaigns/pre-registration', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'campaign']);
     Route::get('/me/pre-registration-bonus', [\App\Http\Controllers\V2\V2PreRegistrationController::class, 'status'])

@@ -191,7 +191,7 @@ final class V2PaymentService
         ): object {
             $payment = DB::table('payments')->where('id', $paymentId)
                 ->lockForUpdate()->firstOrFail();
-            if (! in_array($payment->provider_code, ['fincode', 'univapay', 'paidy'], true)) {
+            if (! in_array($payment->provider_code, ['fincode', 'univapay', 'paidy', 'techcoin'], true)) {
                 throw new V2PaymentException('PAYMENT_PROVIDER_INVALID');
             }
             DB::table('payments')->where('id', $payment->id)->update([
@@ -226,7 +226,7 @@ final class V2PaymentService
         ?int $adjustmentId = null,
         ?\DateTimeInterface $providerOccurredAt = null
     ): object {
-        if ($eventType === 'payment.succeeded' && $providerOccurredAt === null) {
+        if ($eventType === 'payment.succeeded' && $providerOccurredAt === null && $providerCode !== 'techcoin') {
             throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
         }
         $payloadHash = hash('sha256', $rawPayload);
@@ -472,10 +472,12 @@ final class V2PaymentService
             ) {
                 throw new V2PaymentException('VERIFIED_SERVER_EVENT_REQUIRED');
             }
-            if ($event->provider_occurred_at === null) {
+            if ($event->provider_occurred_at === null && $event->provider_code !== 'techcoin') {
                 throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
             }
-            $succeededAt = CarbonImmutable::parse($event->provider_occurred_at);
+            // Techcoin supplies no occurrence timestamp. Keep provider_occurred_at NULL;
+            // settlement/bonus timing explicitly uses the verified server receipt time.
+            $succeededAt = CarbonImmutable::parse($event->provider_occurred_at ?? $event->received_at);
             $paymentView = DB::table('payments')->where('id', $event->payment_id)->firstOrFail();
             DB::table('users')->where('id', $paymentView->user_id)->lockForUpdate()->firstOrFail();
             $payment = DB::table('payments')

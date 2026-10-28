@@ -36,29 +36,38 @@ final class UnivapayPaymentTest extends TestCase
     public function test_integrated_provider_discovery_start_and_pending_presentation_are_independent(): void
     {
         config([
-            'v2_payment.methods_enabled' => 'credit_card,paidy',
+            'v2_payment.methods_enabled' => 'credit_card,paidy,netridecash',
             'v2_paidy.api_base_url' => 'https://api.paidy.com', 'v2_paidy.api_version' => '2018-04-10',
             'v2_paidy.public_key' => 'pk_synthetic_public_key', 'v2_paidy.secret_key' => 'sk_synthetic_server_key',
             'v2_paidy.store_name' => 'Synthetic store', 'v2_paidy.mode' => 'test',
             'v2_paidy.webhook_path_token' => str_repeat('p', 32), 'v2_paidy.worker_enabled' => false,
+            'v2_techcoin.client_ip' => '0123456789', 'v2_techcoin.endpoint' => 'https://secure.tc-site.com/access',
+            'v2_techcoin.payment_code' => '10055', 'v2_techcoin.mode' => 'test',
+            'v2_techcoin.kickback_path_token' => str_repeat('t', 32), 'v2_techcoin.kickback_allowed_ips' => '',
         ]);
         $user = $this->univapayUser(); $plan = $this->univapayPlan();
         $policy = app(V2PaymentMethodPolicy::class);
-        self::assertSame([true, true], array_column($policy->methods($plan->public_id, $user)['data'], 'available'));
+        self::assertSame([true, true, true], array_column($policy->methods($plan->public_id, $user)['data'], 'available'));
         $univapay = app(V2UnivapayPaymentService::class)->start($user, $plan->public_id, 'integrated-univapay');
         $paidy = app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)->start($user, $plan->public_id, 'integrated-paidy');
+        $techcoin = app(\App\Domain\Payment\V2\Services\V2TechcoinPaymentService::class)->start($user, $plan->public_id, 'integrated-techcoin');
         self::assertNotSame($univapay['id'], $paidy['id']);
         self::assertSame('univapay_inline', $univapay['next_action']['type']);
         self::assertSame('paidy_checkout', $paidy['next_action']['type']);
+        self::assertSame('form_post', $techcoin['next_action']['type']);
+        self::assertSame(['clientip', 'payment_code', 'cookie', 'price', 'sendid', 'email'], array_column($techcoin['next_action']['fields'], 'name'));
+        self::assertSame(86400, strtotime($techcoin['expires_at']) - strtotime($techcoin['created_at']));
         config(['v2_payment.methods_enabled' => '']);
         self::assertSame([], $policy->methods($plan->public_id, $user)['data']);
-        foreach ([$univapay, $paidy] as $result) {
+        foreach ([$univapay, $paidy, $techcoin] as $result) {
             $read = app(V2FincodePaymentService::class)->show($user, $result['id']);
             self::assertSame($result['next_action']['type'], $read['next_action']['type']);
             self::assertSame('requires_action', $read['status']);
             $payment = DB::table('payments')->where('public_id', $result['id'])->firstOrFail();
             self::assertSame('test', DB::table('payment_commercial_classifications')->where('payment_id', $payment->id)->value('classification'));
         }
+        self::assertSame(3, DB::table('payments')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('payment_point_grants')->whereIn('payment_id', DB::table('payments')->where('user_id', $user->id)->select('id'))->count());
         Http::assertNothingSent();
     }
 

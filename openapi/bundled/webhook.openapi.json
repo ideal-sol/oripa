@@ -283,10 +283,141 @@
           }
         }
       }
+    },
+    "/techcoin/{token}": {
+      "post": {
+        "operationId": "receiveTechcoinPaymentKickback",
+        "summary": "Techcoin NetRideCashの署名なしキックバックを照合する",
+        "description": "URL token、任意設定の送信元IP、保存済みPaymentのcookie・会員sendid・10055・整数JPY額・取引IDの未使用をすべて照合する。期限後・terminal・不一致成功は付与せず要確認。DB失敗はロールバックして500。Provider原時刻は提供されず、成立時刻はサーバー検証受信時刻。",
+        "x-idempotency": "payment-cookie-and-provider-reference",
+        "x-rate-limit": "provider-token-webhook",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 256
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TechcoinKickback"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TechcoinKickback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "コミット済み、同一再送、または付与せず要確認へ記録した。空本文。"
+          },
+          "403": {
+            "description": "設定済み送信元制限に一致しない。"
+          },
+          "404": {
+            "description": "URL token不一致。"
+          },
+          "413": {
+            "description": "通知サイズ超過。"
+          },
+          "422": {
+            "description": "通知の符号化形式が不正。"
+          },
+          "500": {
+            "description": "処理失敗。金融トランザクションはロールバック済み。再送条件T4は運用確認が必要。"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "TechcoinKickback": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cookie",
+          "sendid",
+          "price",
+          "rel",
+          "payment_code"
+        ],
+        "properties": {
+          "cookie": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "sendid": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{1,30}$"
+          },
+          "sendpoint": {
+            "type": "string",
+            "maxLength": 150,
+            "description": "Optional reference only. Never grants authority or selects a URL."
+          },
+          "price": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,5}$"
+              },
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999
+              }
+            ]
+          },
+          "rel": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "0",
+                  "1"
+                ]
+              },
+              {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            ]
+          },
+          "payment_code": {
+            "oneOf": [
+              {
+                "const": "10055"
+              },
+              {
+                "const": 10055
+              }
+            ]
+          },
+          "order_cpt": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,191}$",
+            "description": "Optional provider reference; absence uses the immutable cookie."
+          }
+        }
+      },
       "OpaqueId": {
         "type": "string",
         "minLength": 1,
