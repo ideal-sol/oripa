@@ -1504,12 +1504,23 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.47')
-        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.46')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertEqual(value['candidate']['public_api_operation_count'], 90)
-        # Continue checking the immutable historical ledger independently of the new candidate.
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 27)
+        released47 = value['latest_immutable']
+        self.assertEqual(released47, value['immutable_history'][-1])
+        self.assertEqual(released47['bundle_version'], '2.0.0-alpha.47')
+        self.assertEqual(released47['source_commit'], 'c15eea6887c9fd16f3096cfb27ed78b599262c7e')
+        self.assertEqual(released47['manifest_sha256'], 'e1d576f61611bfeea4011122736f443cbfd4320e198cb01a73aa5d714a947c5d')
+        self.assertEqual(released47['publication']['artifact_id'], 12788389958)
+        self.assertEqual(released47['public_openapi']['operation_count'], 90)
+        self.assertEqual(released47['handoff_status'], 'released')
+        self.assertFalse(released47['breaking_change'])
+        history_digest = hashlib.sha256(json.dumps(
+            value['immutable_history'][:-1], sort_keys=True, separators=(',', ':'),
+        ).encode()).hexdigest()
+        self.assertEqual(history_digest, 'da212052ce5b3692bc0de1ad77b2f37c7b75e42797e02029a3d4ffca34e0a0c7')
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 26)
         released46 = value['latest_immutable']
         self.assertEqual(released46, value['immutable_history'][-1])
