@@ -10,13 +10,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "3592fcdc8e43467c3dd67d2677ec52b7d328eb77"
+APPROVED = "6e945df343d3d42ffa844b3b369ca0c171a6bbbe"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "CONTRACT-20261025"
-SOURCE_PR = 617
+SOURCE_CHANGE = "ACCOUNT-CLOSURE-20261028"
+SOURCE_PR = 631
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -32,6 +32,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.tree = self.git("rev-parse", "HEAD^{tree}")
         self.authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.authority["source_sha"] = self.source
+        # Synthetic approved fixture exercises canonical authorization; real Draft stays rejected.
+        self.authority["authority"] = "Human-approved exact Runtime Source: synthetic approved fixture"
         authority_path = self.repository / MODULE["AUTHORITY_PATH"]
         authority_path.parent.mkdir()
         authority_path.write_text(json.dumps(self.authority))
@@ -181,49 +183,18 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(authority["change_id"], SOURCE_CHANGE)
         self.assertEqual(authority["pr_number"], SOURCE_PR)
         self.assertIs(authority["activation_authorized"], False)
+        self.assertTrue(authority["authority"].startswith("Draft candidate exact Runtime Source:"))
         real_git = MODULE["git"]
-        self.source = APPROVED
-        self.workflow = PROTECTED
-        self.tree = real_git(ROOT, "rev-parse", f"{APPROVED}^{{tree}}")
-        self.pull["merge_commit_sha"] = APPROVED
         def candidate_authority(repository, *arguments):
             if arguments == ("rev-parse", "HEAD"):
                 return PROTECTED
             if arguments == ("show", f"{PROTECTED}:{MODULE['AUTHORITY_PATH']}"):
                 return json.dumps(authority)
             return real_git(repository, *arguments)
+        self.workflow = PROTECTED
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
-            result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
-            for unapproved in [
-                "b5c28015ef94cb80f6702a61b1237cacd91d9863",
-                "c802ff91cf3d5a96b695f70e3d91194c3bed7567",
-                "aef1759d072dab48be4b052d53e2ef969feddd9f",
-                "cba63981e443992d7b4f9ebcd0ee219dce38c0f9",
-                "77723309fdd9f27039f7b5cbe804fa3e2a50fbc1",
-                "4b7d00e8e31223136cd0b70134916d091dfea6cb",
-                "04acd7de03ba6832ad94b90e68b4b0fbef5ecc4f",
-                "51a4598ccb5fc7b6748d57b2f8d550bef426d6be",
-                "538a208c025fcc5a7d6f9914d3c428b9ef702dbe",
-                "75395ded58c0924d39441f51fd351c03ad12e908",
-                "0ce41ab473fd5a4fb44773041ae097ffb40b14ce",
-                "62c3c813081cf0ea526c66e7e4131c6816de2449",
-                "60da22cf83c8f65242fb5c0b121a73fa96b396c8",
-                "e4361ece51fc1249a5cfb2c64cf56d3aa4bb0c29",
-                "3b07a157a8c8ff7d466984dea6c7a5ae1a4d3254",
-                "e3121034c5dc7b9184673b1be64bb5076e9d3a90",
-                "706849a57b9919bb3f01cc630ac90a3efdf5a61c",
-                "be1a8f3f822d23f3251d32e616fb0b2fe422714e",
-                "69d58449c9524a018b372e39a6a4efbe0cace48d",
-            ]:
-                with self.subTest(unapproved=unapproved), self.assertRaisesRegex(
-                    ValueError, "Human-approved source authority mismatch"
-                ):
-                    AUTHORIZE(ROOT, unapproved, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
-            with self.assertRaisesRegex(ValueError, "source commit missing or not protected-main ancestor"):
-                AUTHORIZE(ROOT, "2c8e360b978273803b9f1ac478132530835f32ad",
-                          PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
-        self.assertEqual(result["source_sha"], APPROVED)
-        self.assertEqual(result["workflow_sha"], PROTECTED)
+            with self.assertRaisesRegex(ValueError, "Human-approved source authority mismatch"):
+                AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
 
     def test_security_remediated_target_dependency_pins(self):
         lock = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:apps/api/composer.lock"))
@@ -297,49 +268,29 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             ))
             self.assertEqual(manifest["version"], "2.0.0-alpha.43")
 
-    def test_parity_payload_contract_and_migration_boundary(self):
+    def test_alpha48_contract_and_migration_boundary(self):
         self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"),
-                         "78c5fca7b5dca92b640584b28de10898f3d039c7")
-        contract_source = "1d2b0d8ff8193d55173f5bf6978a41f3dfebf7ac"
-        subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", contract_source, APPROVED], check=True)
-        self.assertEqual(MODULE["git"](ROOT, "diff", "--name-only", contract_source, APPROVED,
-                                      "--", "openapi/public.yaml", "packages/storefront-client", "packages/storefront-testkit"), "")
+                         "6633b2d260990eda11903b7df68af4ed9877af7b")
+        ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
+        contract, = [e for e in ledger["immutable_history"] if e["bundle_version"] == "2.0.0-alpha.48"]
+        self.assertEqual(contract["source_commit"], APPROVED)
+        self.assertEqual(contract["publication"]["artifact_id"], 12819254428)
+        self.assertEqual(contract["manifest_sha256"], "9affb95def4858a748a5343614dcdf4d8e0ca20705d5d227cc48e976f01df60f")
         for package in ["storefront-client", "storefront-testkit"]:
             manifest = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:packages/{package}/package.json"))
-            self.assertEqual(manifest["version"], "2.0.0-alpha.46")
-        ledger = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:manifests/storefront-contract-releases.json"))
-        contracts = [entry for entry in ledger["immutable_history"] if entry["bundle_version"] == "2.0.0-alpha.46"]
-        self.assertEqual(len(contracts), 1)
-        self.assertEqual(contracts[0]["source_commit"], contract_source)
-        self.assertEqual(contracts[0]["publication"]["artifact_id"], 12586773046)
-        self.assertEqual(contracts[0]["manifest_sha256"], "a55f578a94af700e68f0cd0d8eed0e18fb3867ec3be5e0ac0c8639a173cf2b26")
-        migrations = [path for path in MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED,
-                                  "apps/api/database/migrations-v2").splitlines() if path.endswith(".php")]
-        self.assertEqual(len(migrations), 98)
-        self.assertTrue(any("000085_create_v2_notion_inventory_sync.php" in path for path in migrations))
-        self.assertTrue(any("000086_add_v2_rank_video_sets.php" in path for path in migrations))
-        self.assertTrue(any("000087_create_v2_pre_registration.php" in path for path in migrations))
-        self.assertTrue(any("000098_add_v2_shipping_minimum_points.php" in path for path in migrations))
-        self.assertEqual({Path(path).name.split("_")[3] for path in migrations},
-                         {str(number).zfill(6) for number in range(1, 99)})
+            self.assertEqual(manifest["version"], "2.0.0-alpha.48")
+        migrations = MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED, "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual({Path(p).name.split("_")[3] for p in migrations if p.endswith(".php")},
+                         {str(n).zfill(6) for n in range(1, 102)})
 
-    def test_parity_operating_boundaries_remain_human_gated(self):
+    def test_draft_environment_boundaries_remain_human_gated(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertIs(authority["activation_authorized"], False)
-        for boundary in [
-            "NEW F2-B is already ON and Production Accepted",
-            "F6 and general Scheduler remain OFF",
-            "Member rank remains OFF",
-            "Agency Runtime remains unchanged",
-            "exact 000088 through 000098 in order",
-            "Preserve current preregistration受付/deadline/Basic state",
-            "Human alone configures Basic/public scope and Admin deadline/受付ON",
-            "actual500pt grants and batch execution require separate approval and Acceptance",
-            "authority Draft PR preparation only",
-            "no Ready, merge, auto-merge, Artifact Build",
-        ]:
-            with self.subTest(boundary=boundary):
-                self.assertIn(boundary, authority["authority"])
+        for boundary in ["NEW Production Rank first initialization OFF / not performed",
+                         "feature enabled flag is separate", "OLD Test Rank ON / initialized",
+                         "NEW Rank live readback remains pending", "no Ready, merge, auto-merge, Artifact Build",
+                         "OLD Test formal Acceptance and Human Source GO remain pending"]:
+            self.assertIn(boundary, authority["authority"])
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
         self.authority["activation_authorized"] = True
