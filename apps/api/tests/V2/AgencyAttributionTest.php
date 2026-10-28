@@ -140,11 +140,14 @@ final class AgencyAttributionTest extends TestCase
         self::assertSame(0, $aggregate('users')['temporary_users']);
         $user->update(['email_verified_at' => now(), 'state' => 'active']);
         self::assertSame(1, $aggregate('users')['temporary_users']);
-        DB::table('payments')->insert([
+        $paymentId = DB::table('payments')->insertGetId([
             'public_id' => (string) Str::uuid7(), 'user_id' => $user->id, 'provider_code' => 'test',
             'status' => 'succeeded', 'amount' => 3000, 'currency' => 'JPY', 'paid_point_amount' => 3000, 'free_point_amount' => 0,
             'plan_name_snapshot' => 'Synthetic Plan', 'plan_code_snapshot' => 'test-plan', 'succeeded_at' => now(),
             'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('payment_commercial_classifications')->insert([
+            'payment_id' => $paymentId, 'classification' => 'commercial', 'reason' => 'provider_live_mode',
         ]);
         self::assertSame(3000, $aggregate('sales')['temporary_amount']);
         DB::table('user_phone_numbers')->insert(['public_id' => (string) Str::uuid7(), 'user_id' => $user->id,

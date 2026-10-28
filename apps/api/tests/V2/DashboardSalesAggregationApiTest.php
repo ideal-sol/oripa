@@ -91,7 +91,7 @@ final class DashboardSalesAggregationApiTest extends TestCase
     public function test_public_response_excludes_internal_and_provider_identifiers(?string $method): void
     {
         $userId = $this->user();
-        DB::table('payments')->insert([
+        $paymentId = DB::table('payments')->insertGetId([
             'public_id' => (string) Str::uuid7(),
             'user_id' => $userId,
             'point_purchase_plan_id' => null,
@@ -110,6 +110,9 @@ final class DashboardSalesAggregationApiTest extends TestCase
             'metadata' => '{}',
             'created_at' => now(),
             'updated_at' => now(),
+        ]);
+        DB::table('payment_commercial_classifications')->insert([
+            'payment_id' => $paymentId, 'classification' => 'commercial', 'reason' => 'provider_live_mode',
         ]);
 
         $payload = $this->asAdmin($this->sessionToken(V2AdminRole::Owner))

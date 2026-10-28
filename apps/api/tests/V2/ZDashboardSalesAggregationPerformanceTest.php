@@ -39,7 +39,7 @@ final class ZDashboardSalesAggregationPerformanceTest extends TestCase
         }
         [$context, $userId, $walletId] = $this->fixture();
         for ($index = 1; $index <= 100; $index++) {
-            DB::table('payments')->insert([
+            $paymentId = DB::table('payments')->insertGetId([
                 'public_id' => (string) Str::uuid7(),
                 'user_id' => $userId,
                 'provider_code' => 'synthetic',
@@ -56,6 +56,9 @@ final class ZDashboardSalesAggregationPerformanceTest extends TestCase
                 'metadata' => '{}',
                 'created_at' => now(),
                 'updated_at' => now(),
+            ]);
+            DB::table('payment_commercial_classifications')->insert([
+                'payment_id' => $paymentId, 'classification' => 'commercial', 'reason' => 'provider_live_mode',
             ]);
             $operationId = DB::table('point_operations')->insertGetId([
                 'public_id' => (string) Str::uuid7(),

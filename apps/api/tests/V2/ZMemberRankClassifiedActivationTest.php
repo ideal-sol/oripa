@@ -183,6 +183,18 @@ final class ZMemberRankClassifiedActivationTest extends TestCase
             self::assertDatabaseHas('member_rank_payment_adjustments', ['payment_id' => $first->id,
                 'effect' => 'current_month', 'applied_points' => 10000]);
             self::assertSame(0, (int) DB::table('member_rank_month_totals')->where('user_id', $future->id)->value('points'));
+            $unknown = $payments->createPayment($future->id, $plan, 'unknown-provider', 'future-unknown', 'future-unknown');
+            $unknownEvent = $payments->recordVerifiedProviderEvent('unknown-provider', 'future-unknown-event',
+                'payment.succeeded', '{}', [], $unknown->id, providerOccurredAt: now());
+            $beforeUnknown = $this->history();
+            try {
+                $payments->confirmSucceeded($unknownEvent->id);
+                self::fail('Unclassified post-activation settlement must roll back.');
+            } catch (\LogicException $exception) {
+                self::assertSame('Rank payment requires an explicit commercial classification.', $exception->getMessage());
+            }
+            self::assertSame($beforeUnknown, $this->history());
+            self::assertFalse((bool) DB::selectOne('SELECT v2_payment_commercial(?) AS eligible', [$unknown->id])->eligible);
             self::assertSame(0, app(V2MemberRankPrelaunchInspection::class)->inspect()['counts']['financial_discrepancies']);
             Http::assertNothingSent();
         } finally {
