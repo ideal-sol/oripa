@@ -63,11 +63,11 @@ class MemberRankPublicContractTest(unittest.TestCase):
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
         self.assertEqual(len(operations), 90)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.47')
-        self.assertEqual(ledger['candidate']['release_state'], 'pending')
-        self.assertEqual(ledger['candidate']['public_api_operation_count'], len(operations))
-        self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], 84)
-        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.46')
-        self.assertEqual(len(ledger['immutable_history']), 26)
+        self.assertIsNone(ledger['candidate'])
+        self.assertEqual(ledger['latest_immutable'], ledger['immutable_history'][-1])
+        self.assertEqual(ledger['latest_immutable']['handoff_status'], 'released')
+        self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], len(operations))
+        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.47')
+        self.assertEqual(len(ledger['immutable_history']), 27)
         self.assertEqual(set(self.schemas['MemberRankPublicSetting']['properties']), {
             'code', 'name', 'level', 'reach_line', 'maintain_line', 'promotion_bonus', 'purchase_bonus'})

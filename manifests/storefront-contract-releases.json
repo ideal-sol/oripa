@@ -1365,12 +1365,75 @@
         "github_digest": "sha256:fb4bc9f64b0810e3efae8aaa85252b8fa86ec8c5fd03fb361459c5a627bca275",
         "sha256sums_sha256": "0377250f61bb15420fb58e0ab4b572289ded5a69407e48d43195fb4128c23372"
       }
+    },
+    {
+      "bundle_version": "2.0.0-alpha.47",
+      "manifest_sha256": "e1d576f61611bfeea4011122736f443cbfd4320e198cb01a73aa5d714a947c5d",
+      "source_commit": "c15eea6887c9fd16f3096cfb27ed78b599262c7e",
+      "handoff_status": "released",
+      "release_mode": "contract-additive",
+      "breaking_change": false,
+      "platform_version": "2.0.0-alpha.23",
+      "application_versions": {
+        "admin": "2.0.0-alpha.23",
+        "workspace": "2.0.0-alpha.23"
+      },
+      "contract_versions": {
+        "public": "2.0.0-alpha.43",
+        "admin": "2.0.0-alpha.43",
+        "webhook": "2.0.0-alpha.41"
+      },
+      "public_openapi": {
+        "version": "2.0.0-alpha.43",
+        "sha256": "0a8c6ee14b1be629c251b76d78e33b48f2fcf320941415aa23c81d4923db440d",
+        "operation_count": 90
+      },
+      "packages": {
+        "@oripa/storefront-client": {
+          "version": "2.0.0-alpha.47",
+          "minimum_public_api_contract": "2.0.0-alpha.43",
+          "required_capabilities": [
+            "draw.browser-mutation.v2",
+            "gacha.catalog-display.v2",
+            "gacha.presentation.v2",
+            "gacha.rank-master.v2",
+            "identity.sms-phone-ownership.v2",
+            "payment.fincode.v2",
+            "prize.fulfillment-browser-mutation.v2",
+            "user-draw-history.read.v2",
+            "user-point.read.v2",
+            "user-prize.presentation.v2"
+          ],
+          "sha256": "0e90f5089858cb7f7a1c059d2e2bae737f4f98053334ab0e2757e0c81e27c7c6"
+        },
+        "@oripa/site-schema": {
+          "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
+          "source_bundle_version": "2.0.0-alpha.23",
+          "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
+          "version": "2.0.0-alpha.23"
+        },
+        "@oripa/storefront-testkit": {
+          "public_api_operation_count": 90,
+          "site_schema_version": "2.0.0-alpha.23",
+          "storefront_client_version": "2.0.0-alpha.47",
+          "version": "2.0.0-alpha.47",
+          "sha256": "ae7819086c412f2540a52872b9ddf4d8ed02aedf7e7f98ec374585ca92909328"
+        }
+      },
+      "publication": {
+        "workflow_run_id": 40624953499,
+        "workflow_run_attempt": 1,
+        "artifact_id": 12788389958,
+        "artifact_name": "oripa-storefront-contract-2.0.0-alpha.47",
+        "github_digest": "sha256:e0e330e9f58750a78ea19bda73f9386af5e464b6400756f40cd62cb72830dd98",
+        "sha256sums_sha256": "a686c636d8ce0b44d5f2d98ff15fa6c0fa018ddbf8ba0f4a5634e5865107e905"
+      }
     }
   ],
   "latest_immutable": {
-    "bundle_version": "2.0.0-alpha.46",
-    "manifest_sha256": "a55f578a94af700e68f0cd0d8eed0e18fb3867ec3be5e0ac0c8639a173cf2b26",
-    "source_commit": "1d2b0d8ff8193d55173f5bf6978a41f3dfebf7ac",
+    "bundle_version": "2.0.0-alpha.47",
+    "manifest_sha256": "e1d576f61611bfeea4011122736f443cbfd4320e198cb01a73aa5d714a947c5d",
+    "source_commit": "c15eea6887c9fd16f3096cfb27ed78b599262c7e",
     "handoff_status": "released",
     "release_mode": "contract-additive",
     "breaking_change": false,
@@ -1380,74 +1443,15 @@
       "workspace": "2.0.0-alpha.23"
     },
     "contract_versions": {
-      "public": "2.0.0-alpha.42",
-      "admin": "2.0.0-alpha.42",
-      "webhook": "2.0.0-alpha.40"
-    },
-    "public_openapi": {
-      "version": "2.0.0-alpha.42",
-      "sha256": "81ee96478ee3d80539817b54321f9f6d181c2a78a3dae2062527dd81049dcec4",
-      "operation_count": 84
-    },
-    "packages": {
-      "@oripa/storefront-client": {
-        "version": "2.0.0-alpha.46",
-        "minimum_public_api_contract": "2.0.0-alpha.42",
-        "required_capabilities": [
-          "draw.browser-mutation.v2",
-          "gacha.catalog-display.v2",
-          "gacha.presentation.v2",
-          "gacha.rank-master.v2",
-          "identity.sms-phone-ownership.v2",
-          "payment.fincode.v2",
-          "prize.fulfillment-browser-mutation.v2",
-          "user-draw-history.read.v2",
-          "user-point.read.v2",
-          "user-prize.presentation.v2"
-        ],
-        "sha256": "08bbfe84dd8e57fb69ba4578cbd1d63e711a0a579996821ecbec6bd5a6133a3f"
-      },
-      "@oripa/site-schema": {
-        "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
-        "source_bundle_version": "2.0.0-alpha.23",
-        "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
-        "version": "2.0.0-alpha.23"
-      },
-      "@oripa/storefront-testkit": {
-        "public_api_operation_count": 84,
-        "site_schema_version": "2.0.0-alpha.23",
-        "storefront_client_version": "2.0.0-alpha.46",
-        "version": "2.0.0-alpha.46",
-        "sha256": "f4e324b859d1d96d66e78c9c1adf16616f132e4b114b10a2af4e9e5fe5a5de83"
-      }
-    },
-    "publication": {
-      "workflow_run_id": 40162277779,
-      "workflow_run_attempt": 1,
-      "artifact_id": 12586773046,
-      "artifact_name": "oripa-storefront-contract-2.0.0-alpha.46",
-      "github_digest": "sha256:fb4bc9f64b0810e3efae8aaa85252b8fa86ec8c5fd03fb361459c5a627bca275",
-      "sha256sums_sha256": "0377250f61bb15420fb58e0ab4b572289ded5a69407e48d43195fb4128c23372"
-    }
-  },
-  "candidate": {
-    "platform_version": "2.0.0-alpha.23",
-    "application_versions": {
-      "admin": "2.0.0-alpha.23",
-      "workspace": "2.0.0-alpha.23"
-    },
-    "bundle_version": "2.0.0-alpha.47",
-    "predecessor_bundle_version": "2.0.0-alpha.46",
-    "release_state": "pending",
-    "release_mode": "contract-additive",
-    "breaking_change": false,
-    "contract_versions": {
       "public": "2.0.0-alpha.43",
       "admin": "2.0.0-alpha.43",
       "webhook": "2.0.0-alpha.41"
     },
-    "public_openapi_sha256": "0a8c6ee14b1be629c251b76d78e33b48f2fcf320941415aa23c81d4923db440d",
-    "public_api_operation_count": 90,
+    "public_openapi": {
+      "version": "2.0.0-alpha.43",
+      "sha256": "0a8c6ee14b1be629c251b76d78e33b48f2fcf320941415aa23c81d4923db440d",
+      "operation_count": 90
+    },
     "packages": {
       "@oripa/storefront-client": {
         "version": "2.0.0-alpha.47",
@@ -1464,22 +1468,30 @@
           "user-point.read.v2",
           "user-prize.presentation.v2"
         ],
-        "disposition": "publish"
+        "sha256": "0e90f5089858cb7f7a1c059d2e2bae737f4f98053334ab0e2757e0c81e27c7c6"
       },
       "@oripa/site-schema": {
         "sha256": "b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2",
         "source_bundle_version": "2.0.0-alpha.23",
         "source_tree": "11f6bee77dd463c2f90352537f817404cf3042bd",
-        "version": "2.0.0-alpha.23",
-        "disposition": "reference"
+        "version": "2.0.0-alpha.23"
       },
       "@oripa/storefront-testkit": {
         "public_api_operation_count": 90,
         "site_schema_version": "2.0.0-alpha.23",
         "storefront_client_version": "2.0.0-alpha.47",
         "version": "2.0.0-alpha.47",
-        "disposition": "publish"
+        "sha256": "ae7819086c412f2540a52872b9ddf4d8ed02aedf7e7f98ec374585ca92909328"
       }
+    },
+    "publication": {
+      "workflow_run_id": 40624953499,
+      "workflow_run_attempt": 1,
+      "artifact_id": 12788389958,
+      "artifact_name": "oripa-storefront-contract-2.0.0-alpha.47",
+      "github_digest": "sha256:e0e330e9f58750a78ea19bda73f9386af5e464b6400756f40cd62cb72830dd98",
+      "sha256sums_sha256": "a686c636d8ce0b44d5f2d98ff15fa6c0fa018ddbf8ba0f4a5634e5865107e905"
     }
-  }
+  },
+  "candidate": null
 }
