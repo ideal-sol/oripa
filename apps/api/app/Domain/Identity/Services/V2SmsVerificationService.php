@@ -401,6 +401,7 @@ final class V2SmsVerificationService
     /** @param list<string> $phoneHashes */
     private function assertPhoneAvailableForChallenge(array $phoneHashes, int $userId): void
     {
+        if (app(V2PhoneBenefitEligibility::class)->banned($phoneHashes)) throw $this->phoneUnavailable();
         $holder = UserPhoneNumber::query()
             ->whereIn('phone_hmac', $phoneHashes)
             ->where('user_id', '<>', $userId)
@@ -453,6 +454,7 @@ final class V2SmsVerificationService
     /** @param list<string> $phoneHashes */
     private function releaseWithdrawnOwnerOrReject(array $phoneHashes, int $userId): void
     {
+        if (app(V2PhoneBenefitEligibility::class)->banned($phoneHashes)) throw $this->phoneUnavailable();
         $holder = UserPhoneNumber::query()
             ->whereIn('phone_hmac', $phoneHashes)
             ->where('user_id', '<>', $userId)

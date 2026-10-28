@@ -38,6 +38,12 @@ use App\Http\Controllers\V2\V2FincodeCardRegistrationReturnController;
 use App\Http\Controllers\V2\V2FincodeReturnController;
 
 Route::prefix('v2')->group(function (): void {
+    Route::get('/me/account-closure', [\App\Http\Controllers\V2\V2AccountClosureController::class, 'preview'])
+        ->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user,sms']);
+    Route::post('/me/account-closure', [\App\Http\Controllers\V2\V2AccountClosureController::class, 'close'])
+        ->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user,sms']);
+    Route::post('/me/account-closure/email-code', [\App\Http\Controllers\V2\V2AccountClosureController::class, 'emailCode'])
+        ->middleware(['v2.browser:user', 'auth:v2_user', 'v2.realm:user,sms']);
     Route::get('/payment-returns/techcoin/complete', [\App\Http\Controllers\V2\V2TechcoinReturnController::class, 'complete'])
         ->name('v2.public.payment-returns.techcoin.complete');
     Route::get('/payment-returns/techcoin/failure', [\App\Http\Controllers\V2\V2TechcoinReturnController::class, 'failure'])

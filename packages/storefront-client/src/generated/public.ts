@@ -4,6 +4,50 @@
  */
 
 export interface paths {
+    "/me/account-closure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 本人の退会確認情報を取得する
+         * @description メールとSMS認証済みのactive/restricted本人のみ。予約ポイントは残高に含めず、決済processingのみ一時拒否する。
+         */
+        get: operations["getAccountClosurePreview"];
+        put?: never;
+        /**
+         * 本人の退会手続きを完了する
+         * @description 同意、方式に対応する本人確認と確認時の数量が必須。INVALID_PASSWORD/INVALID_EMAIL_CODEは422、STALE/BLOCKEDは409、制限超過は429。成功時にセッションCookieを失効する。
+         */
+        post: operations["closeAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/account-closure/email-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * パスワードログイン無効の本人に退会専用コードを送る
+         * @description メールとSMS認証済み本人のみ。6桁、10分有効、再送60秒、1時間5回、誤入力5回で失効。パスワード方式は409。本文なし。
+         */
+        post: operations["sendAccountClosureEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/pre-register": {
         parameters: {
             query?: never;
@@ -1547,6 +1591,42 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountClosurePreviewResponse: {
+            data: {
+                point_balance: number;
+                unclaimed_prize_count: number;
+                shipping_in_progress_count: number;
+                can_close: boolean;
+                /** @enum {string|null} */
+                blocked_reason: "payment_processing" | null;
+                /** @enum {string} */
+                verification_method: "password" | "email_code";
+                masked_email: string | null;
+            };
+        };
+        AccountClosureRequest: {
+            /** @constant */
+            confirmed: true;
+            expected_point_balance: number;
+            expected_unclaimed_prize_count: number;
+            password?: string;
+            email_code?: string;
+        } & (unknown | unknown);
+        AccountClosureResponse: {
+            data: {
+                /** Format: date-time */
+                closed_at: string;
+            };
+        };
+        AccountClosureEmailCodeResponse: {
+            data: {
+                masked_email: string;
+                /** Format: date-time */
+                expires_at: string;
+                /** Format: date-time */
+                resend_available_at: string;
+            };
+        };
         MemberRankPurchaseBenefit: {
             /** @description 購入ボーナス（無償）。整数basis pointsを0.01%単位の文字列へ変換した値。 */
             rate_percent: string;
@@ -3247,6 +3327,90 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAccountClosurePreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 現在の失効予定数と本人確認方式。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountClosurePreviewResponse"];
+                };
+            };
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    closeAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountClosureRequest"];
+            };
+        };
+        responses: {
+            /** @description 本人手続完了。closed_atは手続完了時刻を表す。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountClosureResponse"];
+                };
+            };
+            401: components["responses"]["PublicAuthProblem"];
+            403: components["responses"]["PublicAuthProblem"];
+            409: components["responses"]["PublicAuthProblem"];
+            419: components["responses"]["PublicAuthProblem"];
+            422: components["responses"]["PublicAuthProblem"];
+            429: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
+    sendAccountClosureEmailCode: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 認証コードの送信結果。コード自体は返さない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountClosureEmailCodeResponse"];
+                };
+            };
+            401: components["responses"]["PublicAuthProblem"];
+            403: components["responses"]["PublicAuthProblem"];
+            409: components["responses"]["PublicAuthProblem"];
+            419: components["responses"]["PublicAuthProblem"];
+            422: components["responses"]["PublicAuthProblem"];
+            429: components["responses"]["PublicAuthProblem"];
+            default: components["responses"]["PublicAuthProblem"];
+        };
+    };
     preRegisterUser: {
         parameters: {
             query?: never;

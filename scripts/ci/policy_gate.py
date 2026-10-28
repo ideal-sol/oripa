@@ -35,7 +35,7 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(
-    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025)$"
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025|ACCOUNT-CLOSURE-20261028)$"
 )
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
@@ -302,6 +302,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_23_000098_add_v2_shipping_minimum_points.php",
     "apps/api/database/migrations-v2/2026_10_26_000099_add_v2_payment_common_foundation.php",
     "apps/api/database/migrations-v2/2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php",
+    "apps/api/database/migrations-v2/2026_10_28_000101_add_v2_account_closure.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -2790,7 +2791,7 @@ def validate_storefront_testkit(repository: Path, paths: Iterable[str]) -> None:
         "generated from openapi/bundled/public.openapi.json",
         'openapi: "3.1.1"',
         f"operation_count: {release['public_api_operation_count']}",
-        '"cancelPaymentCardRegistration","changeUserPassword","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPaidyAuthorization","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getMyMemberRank","getMyPreRegistrationBonus","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getPreRegistrationCampaign","getShippingAddress","getShippingPolicy","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMemberRanks","listMyPayments","listPaymentCards","listPaymentMethods","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","normalizeTechcoinPaymentFailureReturn","normalizeTechcoinPaymentReturn","preRegisterUser","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","recordPaymentClientEvent","registerUser","reportUnivapayCharge","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
+        '"cancelPaymentCardRegistration","changeUserPassword","closeAccount","completeEmailChange","completeGoogleOidc","completeLineLogin","completePaymentCardRegistration","confirmPaidyAuthorization","confirmPasswordReset","createContactInquiry","createDraw","createEmailChangeRequest","createPayment","createPaymentCardRegistrationIntent","createShippingAddress","createShippingRequest","deletePaymentCard","deleteShippingAddress","exchangeUserPrizes","getAccountClosurePreview","getCanonicalPresentationAssetContent","getContentNotice","getContentStaticPage","getDrawRequest","getGacha","getGachaBySlug","getGachaPresentation","getLineFriendState","getLoginGacha","getMyMemberRank","getMyPreRegistrationBonus","getPayment","getPaymentCardRegistration","getPaymentCardUiBootstrap","getPreRegistrationCampaign","getShippingAddress","getShippingPolicy","getShippingRequest","getSmsVerificationStatus","getUserPrize","getUserSession","getWallet","listContentBanners","listContentFooterPages","listContentNotices","listDrawHistory","listExternalIdentities","listGachaCategories","listGachaTags","listGachas","listLoginGachas","listMemberRanks","listMyPayments","listPaymentCards","listPaymentMethods","listPointLedgerEntries","listPointProducts","listShippingAddresses","listShippingRequests","listUserPrizes","loginUser","logoutUser","normalizeFincodePaymentFailureReturn","normalizeFincodePaymentReturn","normalizeTechcoinPaymentFailureReturn","normalizeTechcoinPaymentReturn","preRegisterUser","reauthenticateUserPassword","reconcileFincodeCardRegistrationFailureReturn","reconcileFincodeCardRegistrationReturn","reconcilePaymentCardRegistration","recordPaymentClientEvent","registerUser","reportUnivapayCharge","requestPasswordReset","resendSmsVerification","resendUserEmailVerification","resumeUnpaidPayment","sendAccountClosureEmailCode","sendSmsVerification","startGoogleIdentityLink","startGoogleLogin","startGoogleReauthentication","startLineIdentityLink","startLineLogin","startLineReauthentication","startPaymentCardRegistration","unlinkGoogleIdentity","unlinkLineIdentity","updateShippingAddress","validateAdvertisingCode","verifySmsCode","verifyUserEmail"',
         "bundle_sha256:",
     ):
         if required not in generated:
@@ -3216,6 +3217,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_23_000098_add_v2_shipping_minimum_points.php",
         "2026_10_26_000099_add_v2_payment_common_foundation.php",
         "2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php",
+        "2026_10_28_000101_add_v2_account_closure.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

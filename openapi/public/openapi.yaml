@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.43
+  version: 2.0.0-alpha.44
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -22,6 +22,81 @@ x-oripa-breaking-change:
 servers:
   - url: /api/v2
 paths:
+  /me/account-closure:
+    get:
+      operationId: getAccountClosurePreview
+      x-sms-verification: required
+      summary: 本人の退会確認情報を取得する
+      description: メールとSMS認証済みのactive/restricted本人のみ。予約ポイントは残高に含めず、決済processingのみ一時拒否する。
+      x-idempotency: safe
+      x-rate-limit: authenticated-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security: [{userSession: []}]
+      responses:
+        '200':
+          description: 現在の失効予定数と本人確認方式。
+          content:
+            application/json:
+              schema: {$ref: 'account-closure-schemas.yaml#/AccountClosurePreviewResponse'}
+        default: {$ref: '#/components/responses/PublicAuthProblem'}
+    post:
+      operationId: closeAccount
+      x-sms-verification: required
+      summary: 本人の退会手続きを完了する
+      description: 同意、方式に対応する本人確認と確認時の数量が必須。INVALID_PASSWORD/INVALID_EMAIL_CODEは422、STALE/BLOCKEDは409、制限超過は429。成功時にセッションCookieを失効する。
+      x-idempotency: required
+      x-rate-limit: account-closure
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security: [{userSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/XsrfToken'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: 'account-closure-schemas.yaml#/AccountClosureRequest'}
+      responses:
+        '200':
+          description: 本人手続完了。closed_atは手続完了時刻を表す。
+          content:
+            application/json:
+              schema: {$ref: 'account-closure-schemas.yaml#/AccountClosureResponse'}
+        '401': {$ref: '#/components/responses/PublicAuthProblem'}
+        '403': {$ref: '#/components/responses/PublicAuthProblem'}
+        '409': {$ref: '#/components/responses/PublicAuthProblem'}
+        '419': {$ref: '#/components/responses/PublicAuthProblem'}
+        '422': {$ref: '#/components/responses/PublicAuthProblem'}
+        '429': {$ref: '#/components/responses/PublicAuthProblem'}
+        default: {$ref: '#/components/responses/PublicAuthProblem'}
+  /me/account-closure/email-code:
+    post:
+      operationId: sendAccountClosureEmailCode
+      x-sms-verification: required
+      summary: パスワードログイン無効の本人に退会専用コードを送る
+      description: メールとSMS認証済み本人のみ。6桁、10分有効、再送60秒、1時間5回、誤入力5回で失効。パスワード方式は409。本文なし。
+      x-idempotency: not-supported
+      x-rate-limit: account-closure-email-code
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security: [{userSession: []}]
+      parameters:
+        - {$ref: '#/components/parameters/XsrfToken'}
+      responses:
+        '200':
+          description: 認証コードの送信結果。コード自体は返さない。
+          content:
+            application/json:
+              schema: {$ref: 'account-closure-schemas.yaml#/AccountClosureEmailCodeResponse'}
+        '401': {$ref: '#/components/responses/PublicAuthProblem'}
+        '403': {$ref: '#/components/responses/PublicAuthProblem'}
+        '409': {$ref: '#/components/responses/PublicAuthProblem'}
+        '419': {$ref: '#/components/responses/PublicAuthProblem'}
+        '422': {$ref: '#/components/responses/PublicAuthProblem'}
+        '429': {$ref: '#/components/responses/PublicAuthProblem'}
+        default: {$ref: '#/components/responses/PublicAuthProblem'}
   /auth/pre-register:
     post:
       operationId: preRegisterUser
@@ -2563,6 +2638,10 @@ components:
       name: __Host-oripa_user_session
       description: Secure、HttpOnly、SameSite=Lax、Host-only、Path=/ のUser Session Cookie。
   schemas:
+    AccountClosurePreviewResponse: {$ref: 'account-closure-schemas.yaml#/AccountClosurePreviewResponse'}
+    AccountClosureRequest: {$ref: 'account-closure-schemas.yaml#/AccountClosureRequest'}
+    AccountClosureResponse: {$ref: 'account-closure-schemas.yaml#/AccountClosureResponse'}
+    AccountClosureEmailCodeResponse: {$ref: 'account-closure-schemas.yaml#/AccountClosureEmailCodeResponse'}
     MemberRankPurchaseBenefit:
       type: object
       additionalProperties: false

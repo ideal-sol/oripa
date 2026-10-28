@@ -9,6 +9,15 @@ export {
   PUBLIC_CONTRACT_FIXTURE,
 } from "./generated/public-contract.js";
 
+export const PUBLIC_ACCOUNT_CLOSURE_FIXTURES = Object.freeze({
+  password: { data: { point_balance: 12500, unclaimed_prize_count: 3, shipping_in_progress_count: 1,
+    can_close: true, blocked_reason: null, verification_method: "password", masked_email: null } },
+  email_code: { data: { point_balance: 0, unclaimed_prize_count: 0, shipping_in_progress_count: 0,
+    can_close: true, blocked_reason: null, verification_method: "email_code", masked_email: "t***@example.test" } },
+  processing: { data: { point_balance: 0, unclaimed_prize_count: 0, shipping_in_progress_count: 0,
+    can_close: false, blocked_reason: "payment_processing", verification_method: "password", masked_email: null } },
+} as const satisfies Record<string, PublicComponents["schemas"]["AccountClosurePreviewResponse"]>);
+
 export const PUBLIC_LOGIN_GACHA_ELIGIBILITY_FIXTURES = Object.freeze({
   anonymous: { eligible: false, used: false, reason: "authentication_required", resets_at: "2026-11-01T15:00:00Z", purchase_progress: null },
   purchase_required: { eligible: false, used: false, reason: "purchase_count_not_eligible", resets_at: "2026-11-01T15:00:00Z",

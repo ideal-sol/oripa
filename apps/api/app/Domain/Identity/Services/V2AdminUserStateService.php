@@ -10,7 +10,6 @@ use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Exceptions\V2AdminUserStateException;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
-use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use App\Models\V2\User;
 use Illuminate\Support\Facades\DB;
 use Normalizer;
@@ -20,14 +19,14 @@ final class V2AdminUserStateService
     /** @var array<string, list<string>> */
     private const TRANSITIONS = [
         'active' => ['suspended', 'closed'],
+        'restricted' => ['suspended', 'closed'],
         'suspended' => ['active', 'closed'],
     ];
 
     public function __construct(
         private readonly V2AdminFreshMfaAuthorizer $authorization,
         private readonly V2PointIdempotencyService $idempotency,
-        private readonly V2AuditLogService $audit,
-        private readonly V2TemplateMailDeliveryService $templateMail
+        private readonly V2AuditLogService $audit
     ) {
     }
 
@@ -88,6 +87,9 @@ final class V2AdminUserStateService
                 }
 
                 $before = $user->state;
+                if (DB::table('account_closures')->where('user_id', $user->id)->whereIn('closure_kind', ['forced', 'financial'])->exists()) {
+                    throw new V2AdminUserStateException('ADMIN_USER_STATE_TRANSITION_INVALID', 409, 'Permanent closure cannot be reversed.');
+                }
                 $allowed = self::TRANSITIONS[$before->value] ?? [];
                 if (! in_array($request['status'], $allowed, true)) {
                     throw new V2AdminUserStateException(
@@ -100,8 +102,18 @@ final class V2AdminUserStateService
                 $after = V2UserState::from($request['status']);
                 $now = now()->startOfSecond();
                 if ($after === V2UserState::Closed) {
-                    app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)
-                        ->freeze((int) $user->getKey(), \Carbon\CarbonImmutable::instance($now));
+                    app(V2UserClosureService::class)->closeLocked($user, 'admin', $request['closure_kind'], $context->requestId);
+                    $data = ['user_id' => $user->public_id, 'status' => 'closed', 'state_revision' => (int) $user->state_revision, 'updated_at' => $now->toIso8601String()];
+                    $this->audit->record('user.state.updated', [
+                        'request_id' => $context->requestId, 'actor_type' => 'admin', 'actor_public_id' => $admin->public_id,
+                        'actor_role' => $admin->role->value, 'auth_realm' => 'admin', 'target_type' => 'user',
+                        'target_public_id' => $user->public_id, 'reason_text' => $request['reason'],
+                        'before' => ['status' => $before->value, 'state_revision' => $request['expected_revision']],
+                        'after' => ['status' => 'closed', 'state_revision' => (int) $user->state_revision],
+                    ]);
+                    $this->idempotency->complete($claim->record, 'user', $user->public_id, ['data' => $data]);
+
+                    return ['data' => $data, 'idempotent_replay' => false];
                 }
                 $updated = User::query()
                     ->whereKey($user->getKey())
@@ -131,16 +143,6 @@ final class V2AdminUserStateService
                         ->where('user_id', $user->getKey())
                         ->whereNull('revoked_at')
                         ->update(['revoked_at' => app(V2SessionPolicy::class)->canonicalTime($now)]);
-                }
-                if ($after === V2UserState::Closed) {
-                    $releasedVerifiedPhones = DB::table('user_phone_numbers')
-                        ->where('user_id', $user->getKey())
-                        ->whereNotNull('verified_at')
-                        ->whereNull('revoked_at')
-                        ->update([
-                            'revoked_at' => V2DatabaseTimestamp::format($now),
-                            'updated_at' => V2DatabaseTimestamp::format($now),
-                        ]);
                 }
 
                 $data = [
@@ -174,17 +176,11 @@ final class V2AdminUserStateService
                     $user->public_id,
                     ['data' => $data]
                 );
-                if ($after === V2UserState::Closed) {
-                    $this->templateMail->schedule(
-                        'user_closed',
-                        'user.closed:'.$user->public_id,
-                        'user',
-                        $user->public_id
-                    );
-                }
 
                 return ['data' => $data, 'idempotent_replay' => false];
             }, 3);
+        } catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $exception) {
+            throw new V2AdminUserStateException($exception->errorCode, $exception->status, $exception->getMessage());
         } catch (V2PointException $exception) {
             throw match ($exception->getMessage()) {
                 'IDEMPOTENCY_KEY_REUSED' => new V2AdminUserStateException(
@@ -206,7 +202,7 @@ final class V2AdminUserStateService
     /** @param array<string, mixed> $input @return array{status: string, expected_revision: int, reason: string} */
     private function validate(array $input): array
     {
-        if (array_diff(array_keys($input), ['status', 'expected_revision', 'reason']) !== []) {
+        if (array_diff(array_keys($input), ['status', 'expected_revision', 'reason', 'closure_kind']) !== []) {
             throw $this->invalid();
         }
         $status = $input['status'] ?? null;
@@ -234,7 +230,10 @@ final class V2AdminUserStateService
             throw $this->invalid();
         }
 
-        return ['status' => $status, 'expected_revision' => $revision, 'reason' => $normalized];
+        $kind = $input['closure_kind'] ?? 'normal';
+        if (! in_array($kind, ['normal', 'forced'], true) || (isset($input['closure_kind']) && $status !== 'closed')) throw $this->invalid();
+
+        return ['status' => $status, 'expected_revision' => $revision, 'reason' => $normalized, 'closure_kind' => $kind];
     }
 
     private function invalid(): V2AdminUserStateException

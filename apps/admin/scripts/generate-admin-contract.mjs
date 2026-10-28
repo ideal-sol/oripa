@@ -961,6 +961,7 @@ export interface AdminUserCollection {
 }
 
 export interface AdminUserDetail extends AdminUserSummary {
+  account_closure?: { completed_at: string; closed_by: "self" | "admin"; closure_kind: "normal" | "forced" | "financial"; financial_suspended_at: string | null; forfeited_points: number; forfeited_prizes: number } | null;
   member_rank_detail?: AdminMemberRankDetail;
   email: string;
   email_verified_at: string | null;
@@ -979,6 +980,7 @@ export interface AdminUserDetailResponse {
 }
 
 export interface AdminUserStateUpdate {
+  closure_kind?: "normal" | "forced";
   status: "active" | "suspended" | "closed";
   expected_revision: number;
   reason: string;
@@ -1209,6 +1211,7 @@ export interface AdminShippingTransition {
 }
 
 export type AdminUserPrizeStatus =
+  | "forfeited"
   | "stored"
   | "exchange_processing"
   | "converted"
@@ -3302,6 +3305,8 @@ export type MailTemplateKey =
   | "shipping_requested"
   | "shipping_completed"
   | "user_closed"
+  | "account_closure_code"
+  | "account_closure_payment"
   | "contact_received"
   | "contact_reply"
   | "password_reset"

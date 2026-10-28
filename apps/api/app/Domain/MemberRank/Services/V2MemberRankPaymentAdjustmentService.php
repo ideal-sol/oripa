@@ -33,8 +33,9 @@ final class V2MemberRankPaymentAdjustmentService
             || DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->exists())) {
             throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
         }
-        if ($entry !== null && (! $setting->enabled || $state === null || $state->frozen_at !== null
-            || in_array($user->state, ['closed', 'anonymized'], true))) {
+        $closedAccount = DB::table('account_closures')->where('user_id', $payment->user_id)->exists();
+        if ($entry !== null && (! $setting->enabled || $state === null
+            || (! $closedAccount && ($state->frozen_at !== null || in_array($user->state, ['closed', 'anonymized'], true))))) {
             throw new V2PaymentException('PAYMENT_RANK_ADJUSTMENT_NOT_READY');
         }
         if ($entry === null && (($setting->enabled && $setting->activated_at !== null && ($eligible === true
@@ -89,7 +90,9 @@ final class V2MemberRankPaymentAdjustmentService
         }
         $version = $this->settings->effectiveAt($instant->setTimezone('Asia/Tokyo')->startOfMonth());
         $after = $total - $applied;
-        $result['after_rank'] = $this->code(min($level, max($projection['baseline_level'], $this->corrections->reachedLevel($after, $version))));
+        if ($context['state']->frozen_at === null) {
+            $result['after_rank'] = $this->code(min($level, max($projection['baseline_level'], $this->corrections->reachedLevel($after, $version))));
+        }
         $available = max(0, $this->corrections->spendableFree((int) $payment->user_id, $instant) - $freeDebit);
         foreach ($this->corrections->recoverable((int) $payment->user_id, $context['month'], $after) as $achievement) {
             $amount = (int) $achievement->bonus_amount;
@@ -129,9 +132,11 @@ final class V2MemberRankPaymentAdjustmentService
             if ($current && $plan['applied_points'] > 0) {
                 $this->corrections->applyDecrease((int) $payment->user_id, $entryId,
                     $this->settings->effectiveAt($instant->setTimezone('Asia/Tokyo')->startOfMonth()), $instant);
-                DB::table('member_rank_states')->where('user_id', $payment->user_id)->update([
-                    'revision' => $revision + 1, 'updated_at' => V2DatabaseTimestamp::format($instant),
-                ]);
+                if ($context['state']->frozen_at === null) {
+                    DB::table('member_rank_states')->where('user_id', $payment->user_id)->update([
+                        'revision' => $revision + 1, 'updated_at' => V2DatabaseTimestamp::format($instant),
+                    ]);
+                }
             }
         }
         DB::table('member_rank_payment_adjustments')->insert([

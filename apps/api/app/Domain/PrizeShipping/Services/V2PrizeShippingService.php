@@ -738,6 +738,9 @@ final class V2PrizeShippingService
             $reason,
             $requestId
         ): array {
+            $ownerId = ShippingRequest::query()->where('public_id', $publicId)->value('user_id');
+            if ($ownerId === null) throw $this->notFound('SHIPPING_REQUEST_NOT_FOUND');
+            DB::table('users')->where('id', $ownerId)->lockForUpdate()->firstOrFail();
             $shipping = ShippingRequest::query()
                 ->where('public_id', $publicId)
                 ->lockForUpdate()
@@ -781,6 +784,9 @@ final class V2PrizeShippingService
                 ->lockForUpdate()
                 ->get(['prize.*']);
             $targetPrizeStatus = $this->prizeStatusForShipping($toStatus);
+            if ($toStatus === 'canceled' && DB::table('account_closures')->where('user_id', $shipping->user_id)->exists()) {
+                $targetPrizeStatus = 'forfeited';
+            }
             foreach ($items as $prize) {
                 if ($prize->status === $targetPrizeStatus) {
                     continue;
@@ -796,7 +802,7 @@ final class V2PrizeShippingService
                     $now,
                     ['terminal_at' => in_array(
                         $targetPrizeStatus,
-                        ['delivered', 'returned', 'canceled'],
+                        ['delivered', 'returned', 'canceled', 'forfeited'],
                         true
                     ) ? $now : null]
                 );
@@ -1348,7 +1354,9 @@ final class V2PrizeShippingService
             $extra['terminal_at'] = V2DatabaseTimestamp::format($extra['terminal_at']);
         }
         $from = $prize->status;
-        if (! in_array($to, self::USER_PRIZE_TRANSITIONS[$from] ?? [], true)) {
+        $closureForfeit = $to === 'forfeited' && in_array($from, ['shipping_requested', 'packing', 'hold'], true)
+            && DB::table('account_closures')->where('user_id', $prize->user_id)->exists();
+        if (! $closureForfeit && ! in_array($to, self::USER_PRIZE_TRANSITIONS[$from] ?? [], true)) {
             throw new V2PrizeShippingException(
                 'PRIZE_TRANSITION_NOT_ALLOWED',
                 409,

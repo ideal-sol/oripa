@@ -72,6 +72,7 @@ final class V2ReferralRewardService
             $now = now()->startOfSecond();
             if (
                 ! $referral->reward_enabled
+                || app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $referredUser->id)
                 || ((int) $referral->referrer_point_amount === 0
                     && (int) $referral->referred_user_point_amount === 0)
             ) {
@@ -102,6 +103,7 @@ final class V2ReferralRewardService
                 if ($grant['amount'] === 0) {
                     continue;
                 }
+                User::query()->whereKey($grant['user_id'])->lockForUpdate()->firstOrFail();
                 $operation = $this->points->grantReferralReward(
                     $grant['user_id'],
                     (int) $referral->getKey(),
@@ -111,6 +113,9 @@ final class V2ReferralRewardService
                     $now
                 );
                 $operations[$grant['column']] = $operation->getKey();
+                if (DB::table('account_closures')->where('user_id', $grant['user_id'])->exists()) {
+                    app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->forfeit($grant['user_id']);
+                }
             }
             $referral->forceFill([
                 ...$operations,

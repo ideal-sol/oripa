@@ -42,11 +42,12 @@ final class V2TechcoinKickbackService
             if (DB::table('payment_provider_events')->where('provider_code', 'techcoin')->where('external_event_id', $eventId)->exists()) {
                 return;
             }
-            if (in_array($payment->status, ['succeeded', 'failed', 'canceled', 'expired'], true)) {
+            $closureSuccess = $success && DB::table('account_closures')->where('user_id', $payment->user_id)->exists();
+            if (! $closureSuccess && in_array($payment->status, ['succeeded', 'failed', 'canceled', 'expired'], true)) {
                 if ($success) $this->review((int) $payment->id, 'expired');
                 return;
             }
-            if ($payment->expires_at === null || CarbonImmutable::parse($payment->expires_at)->lessThanOrEqualTo(now())) {
+            if (! $closureSuccess && ($payment->expires_at === null || CarbonImmutable::parse($payment->expires_at)->lessThanOrEqualTo(now()))) {
                 if ($success) $this->review((int) $payment->id, 'expired');
                 return;
             }

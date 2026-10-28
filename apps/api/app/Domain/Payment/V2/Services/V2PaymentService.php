@@ -492,6 +492,25 @@ final class V2PaymentService
             if (DB::table('member_rank_prelaunch_excluded_origins')->where('payment_id', $payment->id)->exists()) {
                 throw new V2PaymentException('PAYMENT_PRELAUNCH_ORIGIN_EXCLUDED');
             }
+            $closure = DB::table('account_closures')->where('user_id', $payment->user_id)->first();
+            if ($closure !== null) {
+                $sameDay = CarbonImmutable::parse($event->received_at)->timezone('Asia/Tokyo')->toDateString()
+                    === CarbonImmutable::parse($closure->completed_at)->timezone('Asia/Tokyo')->toDateString();
+                $inserted = DB::table('account_closure_late_payments')->insertOrIgnore([
+                    'payment_id' => $payment->id, 'provider_event_id' => $event->id,
+                    'received_at' => $event->received_at, 'same_jst_day' => $sameDay,
+                ]);
+                $this->completeProviderReplay((int) $event->id);
+                if ($inserted === 1) {
+                    $this->audit->record('payment.review.account_closed', [
+                        'target_type' => 'payment', 'target_public_id' => $payment->public_id,
+                        'metadata' => ['provider_event_id' => $event->id, 'refund_review_required' => true],
+                    ]);
+                    if ($sameDay) $this->templateMail->schedule('account_closure_payment', 'account.closure.payment:'.$payment->public_id, 'payment', $payment->public_id);
+                }
+
+                return $payment;
+            }
             if (in_array($payment->status, self::TERMINAL_PAYMENT_STATUSES, true)) {
                 throw new V2PaymentException('PAYMENT_TERMINAL_STATE');
             }
@@ -598,6 +617,8 @@ final class V2PaymentService
             $this->rankAdjustments->lock($payment);
             $wallet = $this->lockWallet($payment->user_id);
             $lots = $this->assertRefundEligible($payment, true);
+            app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->restoreForAdjustment((int) $payment->user_id, $lots);
+            $wallet = $this->lockWallet($payment->user_id);
             $reservedAt = now()->startOfSecond();
             $adjustment = $this->createAdjustment(
                 $payment,
@@ -659,6 +680,7 @@ final class V2PaymentService
                 );
             }
             $this->auditAdjustment($payment, $adjustment, 'payment.refund_reserved', $requestedByAdminId, $manualReason);
+            app(\App\Domain\Identity\Services\V2UserClosureService::class)->financialStop((int) $payment->user_id);
 
             return DB::table('payment_adjustments')->where('id', $adjustment->id)->firstOrFail();
         });
@@ -707,6 +729,9 @@ final class V2PaymentService
             }
             if (in_array($result, ['failed', 'canceled'], true)) {
                 $this->releaseReservations($wallet, $reservations);
+                if (DB::table('account_closures')->where('user_id', $payment->user_id)->exists()) {
+                    app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->forfeit((int) $payment->user_id);
+                }
                 $failed = $this->transitionAdjustment($adjustment, $result, $source, $adminId);
                 $this->auditAdjustment($payment, $failed, 'payment.refund_'.$result, $adminId, $reason);
 
@@ -779,7 +804,14 @@ final class V2PaymentService
                 'completed_at' => V2DatabaseTimestamp::format($instant),
                 'created_at' => V2DatabaseTimestamp::format(now()),
             ]);
+            $closurePoints = app(\App\Domain\Identity\Services\V2AccountClosurePoints::class);
+            $closedAccount = DB::table('account_closures')->where('user_id', $payment->user_id)->exists();
+            if ($closedAccount) {
+                $closurePoints->restoreForAdjustment((int) $payment->user_id,
+                    DB::table('point_lots')->where('user_id', $payment->user_id)->orderBy('id')->lockForUpdate()->get());
+            }
             $this->rankAdjustments->apply($payment, $adjustment, $this->adjustmentLots->bonusImpact($related, $free), $instant, $adminId);
+            if ($closedAccount) $closurePoints->forfeit((int) $payment->user_id);
             $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId, $instant);
             $this->auditAdjustment($payment, $resolved, 'payment.refund_succeeded', $adminId, $reason);
             $this->outbox->enqueue(
@@ -839,7 +871,9 @@ final class V2PaymentService
         $adjustment = $this->createAdjustment($payment, 'chargeback', 'processing', $adminId, $eventId, null, $reason);
         $this->adjustmentHistory($adjustment->id, null, 'processing', $source, $eventId, $adminId);
         $wallet = $this->lockWallet($payment->user_id);
-        DB::table('point_lots')->where('user_id', $payment->user_id)->orderBy('id')->lockForUpdate()->get();
+        $allLots = DB::table('point_lots')->where('user_id', $payment->user_id)->orderBy('id')->lockForUpdate()->get();
+        app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->restoreForAdjustment((int) $payment->user_id, $allLots);
+        $wallet = $this->lockWallet($payment->user_id);
         $instant = CarbonImmutable::now('UTC')->startOfSecond();
         $operation = $this->newPointOperation(
             $payment,
@@ -884,6 +918,10 @@ final class V2PaymentService
         $this->rankAdjustments->apply($payment, $adjustment, $plan['impact']['purchase_bonus'], $instant, $adminId);
         $resolved = $this->transitionAdjustment($adjustment, 'succeeded', $source, $adminId, $instant);
         $this->auditAdjustment($payment, $resolved, 'payment.chargeback_processed', $adminId, $reason);
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->financialStop((int) $payment->user_id);
+        if (DB::table('account_closures')->where('user_id', $payment->user_id)->exists()) {
+            app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->forfeit((int) $payment->user_id);
+        }
         $this->outbox->enqueue(
             'payment.lifecycle',
             'payment_adjustment',
@@ -980,7 +1018,9 @@ final class V2PaymentService
             throw new V2PaymentException('REFUND_POINT_GRANT_NOT_FOUND');
         }
         foreach ($lots as $lot) {
-            if ((int) $lot->remaining_amount !== (int) $lot->granted_amount || (int) $lot->reserved_amount !== 0
+            $forfeited = DB::table('account_closures')->where('user_id', $payment->user_id)->exists()
+                ? app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->outstanding((int) $lot->id) : 0;
+            if ((int) $lot->remaining_amount + $forfeited !== (int) $lot->granted_amount || (int) $lot->reserved_amount !== 0
                 || ($lot->expire_at !== null && ! now()->lessThan(CarbonImmutable::parse($lot->expire_at)))) {
                 throw new V2PaymentException('REFUND_POINTS_NOT_FULLY_UNUSED');
             }
@@ -1078,14 +1118,21 @@ final class V2PaymentService
         $related = $this->adjustmentLots->inspect($payment);
         $originLots = $related['lots']->keyBy('id');
         $allLots = DB::table('point_lots')->where('user_id', $payment->user_id)
-            ->whereColumn('remaining_amount', '>', 'reserved_amount')
             ->where(fn ($query) => $query->whereNull('expire_at')->orWhere('expire_at', '>', V2DatabaseTimestamp::format($instant)))
             ->orderByRaw('expire_at ASC NULLS LAST')->orderBy('granted_at')->orderBy('id')->get();
+        $closureAmounts = ['paid' => 0, 'free' => 0];
+        if (DB::table('account_closures')->where('user_id', $payment->user_id)->exists()) {
+            foreach ($allLots as $lot) {
+                $forfeited = app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->outstanding((int) $lot->id);
+                $lot->remaining_amount = (int) $lot->remaining_amount + $forfeited;
+                $closureAmounts[$lot->point_type] += $forfeited;
+            }
+        }
         $allPaid = $allLots->where('point_type', 'paid')->sortBy([['granted_at', 'asc'], ['id', 'asc']])->values();
         $allFree = $allLots->where('point_type', 'free')->values();
         $wallet = DB::table('wallets')->where('user_id', $payment->user_id)->firstOrFail();
-        $available = ['paid' => max(0, (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance),
-            'free' => max(0, (int) $wallet->free_balance - (int) $wallet->free_reserved_balance)];
+        $available = ['paid' => max(0, (int) $wallet->paid_balance - (int) $wallet->paid_reserved_balance + $closureAmounts['paid']),
+            'free' => max(0, (int) $wallet->free_balance - (int) $wallet->free_reserved_balance + $closureAmounts['free'])];
         $paidNeed = (int) $payment->paid_point_amount;
         $freeNeed = $related['free'];
         $debits = [];

@@ -129,6 +129,17 @@ final class UnivapayPaymentTest extends TestCase
         app(V2UnivapayPaymentService::class)->start($user, $plan->public_id, 'no-sms');
     }
 
+    public function test_account_closure_late_univapay_success_is_reviewed_once_without_points(): void
+    {
+        [$user, $payment] = $this->univapayPayment();
+        $charge = $this->charge($payment); $this->fakeCharge($charge);
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($user, 'admin', 'normal', (string) Str::uuid7());
+        foreach ([1, 2] as $attempt) app(V2UnivapayPaymentService::class)->reconcile($charge['id']);
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('account_closure_late_payments')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('mail_deliveries')->where('event_key', 'account.closure.payment:'.$payment->public_id)->count());
+    }
+
     public function test_success_replays_share_one_grant_receipt_and_mail_and_survive_method_switch(): void
     {
         [$user, $payment] = $this->univapayPayment(); $charge = $this->charge($payment); $this->fakeCharge($charge);

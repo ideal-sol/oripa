@@ -90,10 +90,10 @@ final class V2PointSnapshotService
                         WHERE point_type = 'free' AND entry_type = 'spend'
                     ), 0) AS consumed_free,
                     COALESCE(-SUM(amount_delta) FILTER (
-                        WHERE point_type = 'paid' AND entry_type = 'expire'
+                        WHERE point_type = 'paid' AND entry_type IN ('expire', 'forfeit')
                     ), 0) AS expired_paid,
                     COALESCE(-SUM(amount_delta) FILTER (
-                        WHERE point_type = 'free' AND entry_type = 'expire'
+                        WHERE point_type = 'free' AND entry_type IN ('expire', 'forfeit')
                     ), 0) AS expired_free,
                     COALESCE(-SUM(amount_delta) FILTER (
                         WHERE point_type = 'paid' AND entry_type = 'reverse'

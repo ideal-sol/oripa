@@ -1103,6 +1103,37 @@ final class PrizeShippingVerticalSliceTest extends TestCase
     }
 
     /** @return array{User, list<string>} */
+    public function test_closure_forfeits_only_unrequested_prizes_and_preserves_shipping_hold(): void
+    {
+        [$user, $prizes] = $this->fixture(5);
+        $shipping = app(V2PrizeShippingService::class);
+        $exchangeKey = 'closure-exchange:'.Str::uuid7();
+        $shipping->exchange($user, [$prizes[4]], $exchangeKey, (string) Str::uuid7());
+        self::assertTrue($shipping->exchange($user, [$prizes[4]], $exchangeKey, (string) Str::uuid7())['idempotent_replay']);
+        $balance = (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance');
+        app(V2PointService::class)->consume($user->id, $balance - 12500, 'closure-preview-balance:'.Str::uuid7());
+        $address = $shipping->createAddress($user, $this->address(), (string) Str::uuid7());
+        $request = $shipping->createShippingRequest($user, $address['id'], [$prizes[0]], 'closure-shipping:'.Str::uuid7(), (string) Str::uuid7());
+        DB::table('user_prizes')->whereIn('public_id', [$prizes[0], $prizes[1]])->update(['status' => 'hold']);
+        $inventory = DB::table('prize_inventories')->sum('available_quantity');
+        $closure = app(\App\Domain\Identity\Services\V2UserClosureService::class);
+        self::assertSame(1, $closure->preview($user)['shipping_in_progress_count']);
+        self::assertSame(3, $closure->preview($user)['unclaimed_prize_count']);
+        self::assertSame(12500, $closure->preview($user)['point_balance']);
+        self::assertTrue($closure->preview($user)['can_close']);
+        $closure->closeLocked($user, 'admin', 'normal', (string) Str::uuid7());
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[0], 'status' => 'hold']);
+        self::assertSame(3, DB::table('user_prizes')->where('user_id', $user->id)->where('status', 'forfeited')->count());
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[4], 'status' => 'converted']);
+        self::assertSame(0, DB::table('user_prizes')->where('user_id', $user->id)->where('status', 'exchange_processing')->count());
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 0]);
+        self::assertSame($inventory, DB::table('prize_inventories')->sum('available_quantity'));
+        self::assertDatabaseHas('shipping_requests', ['public_id' => $request['id'], 'status' => 'requested']);
+        $shipping->transitionShipping($this->admin(), $request['id'], 'canceled', null, null, 'closure_cancellation', (string) Str::uuid7());
+        self::assertDatabaseHas('user_prizes', ['public_id' => $prizes[0], 'status' => 'forfeited']);
+        self::assertSame($inventory, DB::table('prize_inventories')->sum('available_quantity'));
+    }
+
     private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false): array
     {
         $fixture = json_decode(

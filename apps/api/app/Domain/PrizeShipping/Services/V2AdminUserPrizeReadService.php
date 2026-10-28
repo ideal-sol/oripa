@@ -32,6 +32,7 @@ final class V2AdminUserPrizeReadService
         'returned',
         'expired',
         'canceled',
+        'forfeited',
     ];
 
     public function __construct(

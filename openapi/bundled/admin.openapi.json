@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.43",
+    "version": "2.0.0-alpha.44",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -21427,7 +21427,8 @@
               "return_requested",
               "returned",
               "expired",
-              "canceled"
+              "canceled",
+              "forfeited"
             ]
           },
           "status_updated_at": {
@@ -24728,6 +24729,8 @@
           "shipping_requested",
           "shipping_completed",
           "user_closed",
+          "account_closure_code",
+          "account_closure_payment",
           "contact_received",
           "contact_reply",
           "password_reset",
@@ -27821,7 +27824,8 @@
           "return_requested",
           "returned",
           "expired",
-          "canceled"
+          "canceled",
+          "forfeited"
         ]
       },
       "AdminUserPrizeUser": {
@@ -29305,6 +29309,57 @@
           "updated_at"
         ],
         "properties": {
+          "account_closure": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "completed_at",
+              "closed_by",
+              "closure_kind",
+              "financial_suspended_at",
+              "forfeited_points",
+              "forfeited_prizes"
+            ],
+            "properties": {
+              "completed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "closed_by": {
+                "type": "string",
+                "enum": [
+                  "self",
+                  "admin"
+                ]
+              },
+              "closure_kind": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "forced",
+                  "financial"
+                ]
+              },
+              "financial_suspended_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "forfeited_points": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "forfeited_prizes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -29405,6 +29460,13 @@
           "reason"
         ],
         "properties": {
+          "closure_kind": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "forced"
+            ]
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -31088,7 +31150,8 @@
               "spend",
               "expire",
               "reverse",
-              "restore"
+              "restore",
+              "forfeit"
             ]
           },
           "source_type": {

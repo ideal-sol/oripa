@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: ab81f01a77d6c0d5fe518fc695985073c3c18a3b08afbc7db87e8b4bc18871f1
+// Contract SHA-256: 7768307829d7f40a02e79a813320e8f61097d7dd691fd19d6aa3d4f93b10d3a1
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -198,6 +198,7 @@ export interface AdminUserCollection {
 }
 
 export interface AdminUserDetail extends AdminUserSummary {
+  account_closure?: { completed_at: string; closed_by: "self" | "admin"; closure_kind: "normal" | "forced" | "financial"; financial_suspended_at: string | null; forfeited_points: number; forfeited_prizes: number } | null;
   member_rank_detail?: AdminMemberRankDetail;
   email: string;
   email_verified_at: string | null;
@@ -216,6 +217,7 @@ export interface AdminUserDetailResponse {
 }
 
 export interface AdminUserStateUpdate {
+  closure_kind?: "normal" | "forced";
   status: "active" | "suspended" | "closed";
   expected_revision: number;
   reason: string;
@@ -463,6 +465,7 @@ export interface AdminShippingTransition {
 }
 
 export type AdminUserPrizeStatus =
+  | "forfeited"
   | "stored"
   | "exchange_processing"
   | "converted"
@@ -2590,6 +2593,8 @@ export type MailTemplateKey =
   | "shipping_requested"
   | "shipping_completed"
   | "user_closed"
+  | "account_closure_code"
+  | "account_closure_payment"
   | "contact_received"
   | "contact_reply"
   | "password_reset"

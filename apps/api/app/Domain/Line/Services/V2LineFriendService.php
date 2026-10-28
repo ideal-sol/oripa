@@ -297,8 +297,14 @@ final class V2LineFriendService
     ): LineFriendship {
         $friendship = LineFriendship::query()
             ->where('subject_hash', $subjectHash)
+            ->whereNull('superseded_at')
             ->lockForUpdate()
             ->first();
+        if ($friendship !== null && (int) $friendship->user_id !== (int) $user->id
+            && DB::table('account_closures')->where('user_id', $friendship->user_id)->where('closure_kind', 'normal')->exists()) {
+            $friendship->forceFill(['superseded_at' => now()->startOfSecond()])->save();
+            $friendship = null;
+        }
         if (
             $friendship instanceof LineFriendship
             && (int) $friendship->user_id !== (int) $user->getKey()
@@ -343,6 +349,9 @@ final class V2LineFriendService
         if ($friendship->point_operation_id !== null) {
             return;
         }
+        if (DB::table('account_closures')->where('user_id', $user->id)->exists()
+            || DB::table('line_friendships')->where('subject_hash', $friendship->subject_hash)->where('user_id', '<>', $user->id)->exists()
+            || app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id)) return;
         if (! $setting->reward_enabled) {
             $this->audit->record('line.friend.reward.skipped', [
                 'request_id' => $requestId,
@@ -386,6 +395,7 @@ final class V2LineFriendService
     ): void {
         $friendship = LineFriendship::query()
             ->where('subject_hash', $subjectHash)
+            ->whereNull('superseded_at')
             ->lockForUpdate()
             ->first();
         $pending = LinePendingFollow::query()
@@ -436,6 +446,14 @@ final class V2LineFriendService
                 ->lockForUpdate()
                 ->first();
             if (! $event instanceof LineWebhookEvent) {
+                return false;
+            }
+            $closed = DB::table('external_identity_accounts as e')->join('account_closures as c', 'c.user_id', '=', 'e.user_id')
+                ->where('e.provider', 'line')->where('e.subject_hash', $event->subject_hash)
+                ->where('e.created_at', '<=', $event->created_at)
+                ->where(fn ($q) => $q->whereNull('e.superseded_at')->orWhere('e.superseded_at', '>=', $event->created_at))->exists();
+            if ($closed) {
+                $event->forceFill(['reply_status' => 'skipped'])->save();
                 return false;
             }
             $event->forceFill([

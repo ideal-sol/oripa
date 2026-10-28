@@ -557,6 +557,7 @@ final class V2ExternalIdentityService
                 ->where('provider', $provider->code())
                 ->where('issuer', $provider->issuer())
                 ->where('subject_hash', $subjectHash)
+                ->whereNull('superseded_at')
                 ->lockForUpdate()
                 ->first();
 
@@ -614,6 +615,18 @@ final class V2ExternalIdentityService
         V2VerifiedExternalIdentity $identity,
         ?ExternalIdentityAccount $account
     ): array {
+        if ($account !== null) {
+            $old = User::query()->whereKey($account->user_id)->lockForUpdate()->firstOrFail();
+            if ($old->state === V2UserState::Closed && DB::table('account_closures')->where('user_id', $old->id)->where('closure_kind', 'normal')->exists()) {
+                $blockedHistory = DB::table('external_identity_accounts as e')->join('account_closures as c', 'c.user_id', '=', 'e.user_id')
+                    ->where('e.provider', $account->provider)->where('e.issuer', $account->issuer)->where('e.subject_hash', $account->subject_hash)
+                    ->whereIn('c.closure_kind', ['forced', 'financial'])->exists();
+                if ($blockedHistory) throw $this->invalidExternalIdentity();
+                $account->forceFill(['revoked_at' => now()->startOfSecond(), 'superseded_at' => now()->startOfSecond()])->save();
+                $this->history($account, 'unlinked', $transaction->request_id);
+                $account = null;
+            }
+        }
         if ($account !== null && $account->revoked_at === null) {
             $user = User::query()->whereKey($account->user_id)->lockForUpdate()->firstOrFail();
             $this->assertLoginState($user, $provider->code());
@@ -646,6 +659,7 @@ final class V2ExternalIdentityService
         $collision = User::query()
             ->where('email_normalized', $identity->emailNormalized)
             ->whereNotNull('email_verified_at')
+            ->where('state', '<>', V2UserState::Closed->value)
             ->lockForUpdate()
             ->exists();
         if ($collision) {

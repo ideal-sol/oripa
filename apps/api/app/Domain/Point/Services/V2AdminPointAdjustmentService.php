@@ -127,6 +127,12 @@ final class V2AdminPointAdjustmentService
                     'requested_at' => $result['occurred_at'],
                     'executed_at' => $result['occurred_at'],
                 ])->save();
+                if (\Illuminate\Support\Facades\DB::table('account_closures')->where('user_id', $user->id)->exists()) {
+                    app(\App\Domain\Identity\Services\V2AccountClosurePoints::class)->forfeit((int) $user->id);
+                    $wallet = \Illuminate\Support\Facades\DB::table('wallets')->where('user_id', $user->id)->firstOrFail();
+                    $result['paid_after'] = (int) $wallet->paid_balance;
+                    $result['free_after'] = (int) $wallet->free_balance;
+                }
                 $data = $this->serialize($adjustment, $user, $operation->public_id, $result);
                 $this->audit->record('point.admin_adjusted', [
                     'request_id' => $context->requestId,

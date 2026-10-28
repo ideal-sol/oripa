@@ -22,6 +22,11 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_account_closure_human_task_id_exception_is_exact(self):
+        self.assertIsNotNone(policy_gate.TASK_ID.fullmatch('ACCOUNT-CLOSURE-20261028'))
+        for value in ('ACCOUNT-CLOSURE-20261029', 'ACCOUNT-CLOSURE-20261028-extra', 'account-closure-20261028'):
+            self.assertIsNone(policy_gate.TASK_ID.fullmatch(value))
+
     def test_shipping_minimum_admin_inventory_is_exact(self):
         expected = {
             "apps/admin/e2e/admin-shipping-minimum-points.spec.ts",
@@ -1504,7 +1509,9 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.48')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        value['candidate'] = None  # The remaining assertions inspect immutable historical releases.
         self.assertEqual(len(value['immutable_history']), 27)
         released47 = value['latest_immutable']
         self.assertEqual(released47, value['immutable_history'][-1])
@@ -4035,7 +4042,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.47",
+                    "version": "2.0.0-alpha.48",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -4073,7 +4080,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.43",
+                        "minimumPublicApiContract": "2.0.0-alpha.44",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -4433,10 +4440,10 @@ services:
                 root
                 / "packages/storefront-testkit/src/generated/public-contract.ts"
             )
-            self.assertIn("operation_count: 90", generated.read_text(encoding="utf-8"))
+            self.assertIn("operation_count: 93", generated.read_text(encoding="utf-8"))
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 90",
+                    "operation_count: 93",
                     "operation_count: 87",
                 ),
                 encoding="utf-8",

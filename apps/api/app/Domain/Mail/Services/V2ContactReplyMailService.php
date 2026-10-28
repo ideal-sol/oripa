@@ -48,6 +48,7 @@ final class V2ContactReplyMailService
         $template = MailTemplate::query()->where('template_key', 'contact_reply')->firstOrFail();
         $outer = ['full_name' => $variables['full_name'], 'reply_content' => $replyContent];
         return [
+            'user_id' => (int) $row->user_id,
             'recipient' => (string) $row->email_display,
             'subject' => $this->renderer->subject($template->subject_template, $outer),
             'body_html' => $this->renderer->html($template->body_html, $outer, ['reply_content']),
@@ -56,6 +57,7 @@ final class V2ContactReplyMailService
 
     public function send(#[\SensitiveParameter] array $mail): void
     {
+        if (isset($mail['user_id']) && DB::table('account_closures')->where('user_id', $mail['user_id'])->exists()) return;
         Mail::html($mail['body_html'], static function ($message) use ($mail): void {
             $message->to($mail['recipient'])->subject($mail['subject']);
         });

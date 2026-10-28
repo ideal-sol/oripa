@@ -82,7 +82,9 @@ final class V2AdminPaymentReadService
                         ->whereRaw("(event.detail->>'match' IN ('amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge') OR event.detail->>'reason' IN ('capture_grant_failed','provider_reversed','reconciliation_failed'))"))
                     ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('mail_deliveries as delivery')
                         ->whereColumn('delivery.source_public_id', 'payments.public_id')->where('delivery.source_type', 'payment')
-                        ->whereIn('delivery.status', ['sending', 'failed']));
+                        ->whereIn('delivery.status', ['sending', 'failed']))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('account_closure_late_payments as late')
+                        ->whereColumn('late.payment_id', 'payments.id'));
             });
         } elseif ($progress !== null) {
             throw new V2AdminPaymentReadException('PAYMENT_PROGRESS_FILTER_INVALID', 422, 'The progress filter is invalid.');
@@ -228,7 +230,8 @@ final class V2AdminPaymentReadService
             'refund_pending' => $adjustments->contains(fn ($row) => $row->type === 'refund' && in_array($row->status, ['requested', 'points_reserved', 'submitted', 'processing'], true)),
             'refunded' => $adjustments->contains(fn ($row) => $row->type === 'refund' && $row->status === 'succeeded'),
             'chargeback' => $adjustments->contains(fn ($row) => $row->type === 'chargeback' && $row->status === 'succeeded'),
-            'review_required' => DB::table('payment_progress_events')->where('payment_id', $payment->id)
+            'review_required' => DB::table('account_closure_late_payments')->where('payment_id', $payment->id)->exists()
+                || DB::table('payment_progress_events')->where('payment_id', $payment->id)
                 ->where('source', 'server')
                 ->whereRaw("(detail->>'match' IN ('amount_mismatch','member_mismatch','source_mismatch','mode_mismatch','expired','duplicate_charge') OR detail->>'reason' IN ('capture_grant_failed','provider_reversed','reconciliation_failed'))")->exists()
                 || ($payment->status === 'succeeded' && DB::table('payment_provider_events')

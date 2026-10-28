@@ -180,6 +180,8 @@ final class V2CurrentUserPointReadService
     private function reason(string $sourceType, string $operationType): array
     {
         $label = match (true) {
+            $operationType === 'account_closed' => '退会によるポイント失効',
+            $operationType === 'closure_adjustment_restore' => '退会後の金融調整',
             in_array($operationType, ['free_expire', 'point_expire'], true) => 'ポイント失効',
             $sourceType === 'payment' => 'ポイント購入',
             $sourceType === 'draw' && $operationType === 'free_grant' => 'ガチャポイント還元',

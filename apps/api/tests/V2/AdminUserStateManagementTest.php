@@ -21,6 +21,7 @@ use Tests\TestCase;
 
 final class AdminUserStateManagementTest extends TestCase
 {
+    use \Tests\Support\MemberRankAccountingFixture;
     private const USER_PASSWORD = 'valid user state password';
 
     protected function setUp(): void
@@ -50,6 +51,7 @@ final class AdminUserStateManagementTest extends TestCase
     public function test_owner_and_admin_apply_only_canonical_transitions_and_revoke_access(): void
     {
         $user = $this->user(V2UserState::Active);
+        $this->settleRankPayment($user, 200, 300);
         $userSession = $this->userSession($user);
         $this->rememberDevice($user);
         DB::table('user_phone_numbers')->insert([
@@ -99,8 +101,8 @@ final class AdminUserStateManagementTest extends TestCase
         self::assertSame(3, DB::table('audit_logs')->where('action_code', 'user.state.updated')->count());
         self::assertDatabaseHas('wallets', [
             'user_id' => $user->id,
-            'paid_balance' => 200,
-            'free_balance' => 300,
+            'paid_balance' => 0,
+            'free_balance' => 0,
         ]);
         self::assertSame(1, DB::table('mail_deliveries')
             ->where('event_key', 'user.closed:'.$user->public_id)->count());
@@ -203,16 +205,7 @@ final class AdminUserStateManagementTest extends TestCase
             'password_hash' => app(V2PasswordPolicy::class)->hash(self::USER_PASSWORD),
             'state' => $state,
         ]);
-        DB::table('wallets')->insert([
-            'user_id' => $user->id,
-            'paid_balance' => 200,
-            'free_balance' => 300,
-            'paid_reserved_balance' => 0,
-            'free_reserved_balance' => 0,
-            'lock_version' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        app(\App\Domain\Point\Services\V2PointService::class)->initializeWallet($user->id);
 
         return $user;
     }

@@ -308,6 +308,7 @@ final class V2PreRegistrationService
 
     private function reason(User $user, object $setting, ?UserPhoneNumber $phone, bool $checkReward): ?string
     {
+        if ($phone !== null && app(V2PhoneBenefitEligibility::class)->reused((int) $user->id)) return 'phone_already_rewarded';
         if ($user->pre_registered_at === null) return 'not_pre_registration_entry';
         if ($setting->cutoff_at === null) return 'qualification_unavailable';
         $cutoff = CarbonImmutable::parse($setting->cutoff_at);

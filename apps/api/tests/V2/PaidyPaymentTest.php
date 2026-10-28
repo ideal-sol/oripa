@@ -161,6 +161,23 @@ final class PaidyPaymentTest extends TestCase
 
     public static function closedStates(): array { return [['empty', 'failed'], ['refund', 'requires_action'], ['mismatch', 'processing'], ['rejected', 'failed']]; }
 
+    public function test_account_closure_late_paidy_capture_is_reviewed_once_without_points(): void
+    {
+        [$user, $payment] = $this->paidyPayment();
+        DB::transaction(fn () => app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($user, 'admin', 'normal', (string) Str::uuid7()));
+        $body = $this->paidyObject($payment, 'CLOSED');
+        Http::fake(['https://api.paidy.com/*' => Http::response($body)]);
+        $service = app(V2PaidyReconciliationService::class);
+        foreach ([1, 2] as $attempt) {
+            DB::transaction(fn () => $service->enqueueLookup($body['id'], $payment->public_id));
+            $service->runLookup($body['id'], $payment->public_id);
+        }
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('account_closure_late_payments')->where('payment_id', $payment->id)->count());
+        self::assertSame(1, DB::table('mail_deliveries')->where('event_key', 'account.closure.payment:'.$payment->public_id)->count());
+        Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
+    }
+
     public function test_late_capture_for_terminal_payment_is_review_only_and_no_close(): void
     {
         foreach (['expired', 'failed', 'canceled'] as $terminal) {

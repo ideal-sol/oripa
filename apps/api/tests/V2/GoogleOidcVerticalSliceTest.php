@@ -56,6 +56,24 @@ final class GoogleOidcVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_normal_closure_allows_new_google_account_with_retained_identity_history(): void
+    {
+        $login = function (): User {
+            $started = $this->start('login');
+            $this->provider->issue($started['nonce'], 'closure-google-subject', 'closure-google@example.test');
+            return app(V2ExternalIdentityService::class)->callback($started['state'], 'closure-google-code',
+                $started['binding'], $this->callbackUrl, '192.0.2.10', $this->callbackRequest($started['binding']))['user'];
+        };
+        $old = $login();
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($old, 'admin', 'normal', (string) Str::uuid7());
+        $new = $login();
+        self::assertNotSame($old->id, $new->id);
+        self::assertSame(2, ExternalIdentityAccount::query()->where('provider', 'google')->count());
+        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $old->id)->value('superseded_at'));
+        self::assertSame(V2UserState::Closed, $old->refresh()->state);
+        self::assertSame($new->id, $login()->id);
+    }
+
     public function test_google_login_creates_passwordless_user_and_never_persists_protocol_secrets(): void
     {
         $started = $this->start('login');

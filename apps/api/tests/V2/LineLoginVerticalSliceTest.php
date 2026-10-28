@@ -472,6 +472,30 @@ final class LineLoginVerticalSliceTest extends TestCase
      *   query: array<string, string>
      * }
      */
+    public function test_normal_closure_allows_new_line_identity_and_later_financial_stop_keeps_new_login(): void
+    {
+        config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
+        $first = $this->start('login');
+        $this->provider->claims($first['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');
+        $old = $this->completeLine($first, 'closure-first-code')['user'];
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($old, 'admin', 'normal', (string) Str::uuid7());
+        $second = $this->start('login');
+        $this->provider->claims($second['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');
+        $new = $this->completeLine($second, 'closure-second-code')['user'];
+        self::assertNotSame($old->id, $new->id);
+        self::assertSame(2, ExternalIdentityAccount::query()->where('provider', 'line')->count());
+        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $old->id)->value('superseded_at'));
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->financialStop($old->id);
+        $third = $this->start('login');
+        $this->provider->claims($third['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');
+        self::assertSame($new->id, $this->completeLine($third, 'closure-third-code')['user']->id);
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($new, 'admin', 'normal', (string) Str::uuid7());
+        $fourth = $this->start('login');
+        $this->provider->claims($fourth['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');
+        $this->expectException(V2AuthenticationException::class);
+        $this->completeLine($fourth, 'closure-fourth-code');
+    }
+
     private function start(
         string $purpose,
         ?User $user = null,

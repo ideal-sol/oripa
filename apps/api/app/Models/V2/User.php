@@ -31,6 +31,7 @@ final class User extends Authenticatable
     ];
 
     protected $hidden = [
+        'closure_email_released_at',
         'full_name',
         'birth_date',
         'email_display',

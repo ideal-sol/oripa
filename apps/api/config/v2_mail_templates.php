@@ -8,6 +8,8 @@ return [
         'shipping_requested' => '発送依頼時',
         'shipping_completed' => '発送完了時',
         'user_closed' => '退会時',
+        'account_closure_code' => '退会認証コード',
+        'account_closure_payment' => '退会当日の後着決済確認',
         'contact_received' => 'お問い合わせ完了時',
         'contact_reply' => 'お問い合わせ返信',
         'password_reset' => 'パスワード再設定時',
@@ -21,6 +23,7 @@ return [
         'agency_login_information_reissued' => '代理店ログイン情報再発行通知',
     ],
     'variables' => [
+        'closure_code' => '退会専用認証コード',
         'agency_company_name' => '代理店会社名',
         'agency_contact_name' => '代理店担当者名',
         'agency_login_id' => '代理店Login ID',
@@ -48,6 +51,7 @@ return [
         'reply_content' => 'お問い合わせ返信内容',
     ],
     'preview_values' => [
+        'closure_code' => '123456',
         'agency_company_name' => 'サンプル代理店株式会社',
         'agency_contact_name' => 'サンプル担当者',
         'agency_login_id' => '012345',

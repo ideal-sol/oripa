@@ -176,9 +176,9 @@ final class V2PaidyReconciliationService
                     // Keep the common user -> payment money lock order.
                     DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
                     $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
-                    if (in_array($fresh->status, ['expired', 'failed', 'canceled'], true)
+                    if (! DB::table('account_closures')->where('user_id', $fresh->user_id)->exists() && (in_array($fresh->status, ['expired', 'failed', 'canceled'], true)
                         || ($fresh->status !== 'succeeded' && ($result['occurred_at']->greaterThanOrEqualTo(CarbonImmutable::parse($fresh->expires_at))
-                            || ($fresh->status !== 'processing' && CarbonImmutable::parse($fresh->expires_at)->isPast())))) {
+                            || ($fresh->status !== 'processing' && CarbonImmutable::parse($fresh->expires_at)->isPast()))))) {
                         $this->review($fresh, 'expired'); return true;
                     }
                     $event = app(V2PaymentService::class)->recordVerifiedProviderEvent('paidy', 'captured:'.$fresh->public_id,
