@@ -12242,3 +12242,13 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - Tests retain historical47 and earlier assertions; add measured48 authority/history/duplicate/reissue rejection before package commands. validate-source and formal bundle verify PASS; release101 PASS after correcting the historical47 fixture to retain its original predecessor. Initial OpenAPI76 had2 missing-Ajv setup errors; frozen offline dependency setup and rerun are separately recorded. Local policy/OpenAPI and final-head Required5/Self-review results are recorded in the PR.
 - Scope only Ledger/tests/worklog. No application/API/auth/point/payment/draw/provider behavior, Storefront or PR196, OLD Test/NEW Production/shared Preview, DB/ENV/Docker/Secrets, or migration operation. Runtime Activation0, migration creation/application0. Real provider, actual notification and Browser/E2E not run; no such PASS claimed.
 - Rollback is a reviewed metadata correction or new immutable version; never overwrite/delete/reissue48 or alter prior history. Exact final HEAD, CI, evidence, squash/main SHA and post-merge readback follow in the PR/Artifact handoff.
+
+
+## OLDTEST-ALPHA48-20261028 — exact OLD Test source authority
+
+- Issue: none; Risk R3; Lane Strict Change; Application Runtime Activation deferred; dedicated worktree; base 7a28936be4cbd89b070c5565a20a3fe678b7916b.
+- Human authorizes this limited Authority PR through gated squash merge and one subsequent formal AMD64 artifact; Runtime requires separate exact Candidate/Envelope GO.
+- Select PR631 merge 6e945df343d3d42ffa844b3b369ca0c171a6bbbe (includes PR630), Storefront PR196 merge cc398cc4d943f4a426fa9540cc6258edf9bc5208 and immutable Client/Testkit alpha.48 Artifact12819254428. OpenAPI remains alpha.44.
+- Authority and focused regression only; all 100 prior migration blobs unchanged and only 000101 pending. No application or migration source changes, no DB writes/Backup, Runtime Activation, Production or feature enablement.
+- Focused authority suite: 41 PASS after correcting mandatory authority prefix. Exact diff reviewed, no secrets/PII. All four source PRs merged, reviewed/merge trees equal and five checks PASS. Fresh self-review and all Required Checks are required before merge.
+- Keep payload and post-merge protected-main Build Control distinct. Preserve Canonical guards, Rank/Provider/GTM OFF, and forward-only HOLD after a Migration101 attempt. No099/100 reapply.
