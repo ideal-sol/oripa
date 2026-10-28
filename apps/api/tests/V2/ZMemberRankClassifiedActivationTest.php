@@ -57,6 +57,16 @@ final class ZMemberRankClassifiedActivationTest extends TestCase
             self::assertSame($beforeClassification, DB::table('payments')->orderBy('id')->get()->toJson());
             self::assertSame(29, DB::table('payment_commercial_classifications')
                 ->where('classification', 'test')->where('reason', 'pay1_existing_fincode')->count());
+            // Current payment/mail services require closure support. Install this
+            // independent schema in the synthetic fixture while deliberately
+            // leaving 000100 pending: the later financial-history/backfill
+            // assertions must still exercise that migration on historical rows.
+            // Ordinary ordered 000100 -> 000101 upgrades have separate coverage.
+            $beforeClosureSupport = $this->history();
+            Artisan::call('migrate', ['--path' => 'database/migrations-v2/2026_10_28_000101_add_v2_account_closure.php', '--force' => true]);
+            self::assertSame($beforeClosureSupport, $this->history());
+            self::assertSame(0, DB::table('account_closures')->count());
+            self::assertFalse(DB::table('migrations')->where('migration', '2026_10_28_000100_bind_v2_prelaunch_payment_classifications')->exists());
             $payments = app(V2PaymentService::class);
             foreach (array_slice($origins, 0, 13) as $id) {
                 $event = $payments->recordVerifiedProviderEvent('fincode', 'settled-'.$id,
