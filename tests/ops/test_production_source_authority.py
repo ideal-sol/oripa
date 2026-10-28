@@ -183,8 +183,6 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(authority["change_id"], SOURCE_CHANGE)
         self.assertEqual(authority["pr_number"], SOURCE_PR)
         self.assertIs(authority["activation_authorized"], False)
-        # Simulate explicit future Human promotion, never permit the real Draft.
-        authority["authority"] = "Human-approved exact Runtime Source: synthetic promotion fixture"
         real_git = MODULE["git"]
         self.source = APPROVED
         self.workflow = PROTECTED
@@ -230,10 +228,13 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
-    def test_draft_proposal_requires_future_human_source_go(self):
+    def test_human_source_go_promotes_authority_without_runtime_permission(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
-        self.assertIn("DRAFT CANDIDATE ONLY", authority["authority"])
-        self.assertIn("Human Source GO remain pending", authority["authority"])
+        self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
+        self.assertIn("Formal Human Source GO received", authority["authority"])
+        self.assertIn("individual Browser items, operations and timestamps were not provided", authority["authority"])
+        for obsolete in ["DRAFT CANDIDATE ONLY", "Human Source GO remain pending", "authority Draft PR preparation only"]:
+            self.assertNotIn(obsolete, authority["authority"])
         self.assertIs(authority["activation_authorized"], False)
 
     def test_security_remediated_target_dependency_pins(self):
@@ -323,20 +324,22 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual({Path(p).name.split("_")[3] for p in migrations if p.endswith(".php")},
                          {str(n).zfill(6) for n in range(1, 102)})
 
-    def test_draft_environment_boundaries_remain_human_gated(self):
+    def test_approved_source_preserves_deferred_environment_boundaries(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertIs(authority["activation_authorized"], False)
         for boundary in ["NEW Production Rank first initialization OFF / not performed",
                          "feature enabled flag is separate", "Preserve existing FINCODE enabled=true",
                          "Ledger98 and migrations099/100/101 unapplied", "OLD Test Rank ON / initialized",
-                         "NEW Rank readback received from NEW担当", "no Ready, merge, auto-merge, Artifact Build",
-                         "OLD Test formal Acceptance and Human Source GO remain pending",
+                         "NEW Rank readback received from NEW担当", "Formal Human Source GO received",
+                         "Artifact Build or Dispatch, Stage, Runtime, ENV, Migration, database or AWS operations",
+                         "existing F2-B Timer remains running", "Agency and Redis remain unchanged",
+                         "GTM-5DQRPNN2",
                          "NEW F2-B already ON and Production Accepted",
-                         "F6 and general Scheduler remain OFF", "Agency Runtime remains unchanged",
+                         "F6 and general Scheduler remain OFF",
                          "Preserve current preregistration受付/deadline/Basic state",
                          "Human alone configures Basic/public scope and Admin deadline/受付ON",
                          "actual500pt grants and batch execution require separate approval and Acceptance",
-                         "authority Draft PR preparation only"]:
+                         "Separate Artifact/Migration/Runtime GO is mandatory"]:
             self.assertIn(boundary, authority["authority"])
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
