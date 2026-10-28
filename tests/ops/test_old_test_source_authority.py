@@ -27,7 +27,7 @@ TASK_ID = "PRIZECSV-20261007"
 class Alpha47ApprovalInventoryTest(unittest.TestCase):
     def test_exact_payload_keeps_applied_migrations_and_only_adds_099_100(self):
         approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
-        self.assertEqual(approval["task_id"], "OLDTEST-PAY-RANK-ALPHA47")
+        self.assertEqual(approval["task_id"], "OLDTEST-20261028")
         self.assertEqual(approval["source_pr"], 625)
         self.assertEqual(approval["source_sha"], "b5e18969db9ec01323127eef05936ca53b370870")
         self.assertEqual(approval["image_mode"], "normal")
