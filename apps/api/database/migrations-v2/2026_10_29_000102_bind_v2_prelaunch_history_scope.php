@@ -22,7 +22,7 @@ return new class extends Migration
 
             -- Only identifiers and hashes leave this function. Full rows and their
             -- ordered children bind references, state and immutable history.
-            CREATE FUNCTION v2_prelaunch_history_scope() RETURNS jsonb LANGUAGE sql STABLE SET timezone='UTC' AS $$
+            CREATE OR REPLACE FUNCTION v2_prelaunch_history_scope() RETURNS jsonb LANGUAGE sql STABLE SET timezone='UTC' AS $$
                 WITH records AS (
                     SELECT 'draws' AS kind, d.id, jsonb_build_array(to_jsonb(d),
                         (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM draw_results r WHERE r.draw_request_id=d.id)) AS body
@@ -48,7 +48,7 @@ return new class extends Migration
                 FROM grouped;
             $$;
 
-            CREATE FUNCTION v2_prelaunch_history_approved(authority_key uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+            CREATE OR REPLACE FUNCTION v2_prelaunch_history_approved(authority_key uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
                 SELECT EXISTS (SELECT 1 FROM member_rank_prelaunch_authorizations a
                     JOIN member_rank_settings s ON s.public_id=a.setting_public_id AND s.id=1
                     WHERE a.public_id=authority_key AND a.expected_revision=s.revision
@@ -67,18 +67,18 @@ return new class extends Migration
                         AND (SELECT count(DISTINCT payment_id) FROM fincode_payment_attempts WHERE status='pending')=6);
             $$;
 
-            CREATE FUNCTION v2_member_rank_prelaunch_manifest(history_approval text) RETURNS text LANGUAGE sql STABLE AS $$
+            CREATE OR REPLACE FUNCTION v2_member_rank_prelaunch_manifest(history_approval text) RETURNS text LANGUAGE sql STABLE AS $$
                 SELECT CASE WHEN history_approval IS NULL THEN v2_member_rank_prelaunch_manifest()
                     ELSE encode(sha256(convert_to(v2_member_rank_prelaunch_manifest() || '|' || history_approval, 'UTF8')), 'hex') END;
             $$;
-            CREATE FUNCTION v2_prelaunch_test_attempt(attempt_key bigint, history_approved boolean) RETURNS boolean LANGUAGE sql STABLE AS $$
+            CREATE OR REPLACE FUNCTION v2_prelaunch_test_attempt(attempt_key bigint, history_approved boolean) RETURNS boolean LANGUAGE sql STABLE AS $$
                 SELECT v2_prelaunch_test_attempt(attempt_key) OR
                     (history_approved AND EXISTS (
                         SELECT 1 FROM fincode_payment_attempts a JOIN payments p ON p.id=a.payment_id
                         WHERE a.id=attempt_key AND a.status='pending' AND p.status='processing'
                             AND v2_prelaunch_legacy_test_origin(p.id)));
             $$;
-            CREATE FUNCTION v2_prelaunch_pending_payment_allowed(payment_key bigint, history_approved boolean) RETURNS boolean LANGUAGE sql STABLE AS $$
+            CREATE OR REPLACE FUNCTION v2_prelaunch_pending_payment_allowed(payment_key bigint, history_approved boolean) RETURNS boolean LANGUAGE sql STABLE AS $$
                 SELECT EXISTS (SELECT 1 FROM payments p WHERE p.id=payment_key AND v2_prelaunch_legacy_test_origin(p.id)
                     AND (p.status='requires_action' OR (p.status='processing' AND history_approved)));
             $$;
