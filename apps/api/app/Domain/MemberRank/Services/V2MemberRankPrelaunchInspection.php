@@ -21,13 +21,13 @@ final class V2MemberRankPrelaunchInspection
         'member_rank_payment_adjustments', 'member_rank_monthly_jobs',
     ];
 
-    public function inspect(): array
+    public function inspect(?string $authorizationId = null): array
     {
         $connection = $this->connection();
-        return $connection->transaction(function () use ($connection): array {
+        return $connection->transaction(function () use ($connection, $authorizationId): array {
             $connection->statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
 
-            return $this->observe($connection);
+            return $this->observe($connection, $authorizationId);
         }, 1);
     }
 
@@ -52,7 +52,7 @@ final class V2MemberRankPrelaunchInspection
         }
     }
 
-    public function inspectClosedAdmission(): array
+    public function inspectClosedAdmission(?string $authorizationId = null): array
     {
         $connection = DB::connection();
         if ($connection->transactionLevel() !== 1 || ! $connection->selectOne(
@@ -63,7 +63,7 @@ final class V2MemberRankPrelaunchInspection
             throw new \LogicException('Final inspection requires exclusive financial admission.');
         }
 
-        return $this->observe($connection);
+        return $this->observe($connection, $authorizationId);
     }
 
     private function connection(): Connection
@@ -76,10 +76,13 @@ final class V2MemberRankPrelaunchInspection
         return $connection;
     }
 
-    private function observe(Connection $connection): array
+    private function observe(Connection $connection, ?string $authorizationId = null): array
     {
         $setting = $connection->table('member_rank_settings')->where('id', 1)->sole();
         $protected = $this->protectedUsers($connection);
+        $historyApproved = (bool) $connection->selectOne(
+            'SELECT v2_prelaunch_history_approved(?::uuid) AS approved', [$authorizationId]
+        )->approved;
         $counts = [
             'users' => $connection->table('users')->count(),
             'protected_applicants' => (clone $protected)->count(),
@@ -99,7 +102,7 @@ final class V2MemberRankPrelaunchInspection
                 ->whereIn('user_id', clone $protected)->count(),
             'pending_payments' => $connection->table('payments')
                 ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'expired'])
-                ->whereRaw("NOT (v2_prelaunch_legacy_test_origin(id) AND status = 'requires_action')")->count(),
+                ->whereRaw('NOT v2_prelaunch_pending_payment_allowed(id, ?::boolean)', [$historyApproved])->count(),
             'pending_provider_events' => $connection->table('payment_provider_events')
                 ->whereNotIn('processing_status', ['processed', 'ignored'])
                 ->whereRaw('NOT v2_prelaunch_test_event(id)')
@@ -119,7 +122,7 @@ final class V2MemberRankPrelaunchInspection
                 ->whereNotIn('status', ['succeeded', 'failed'])->count(),
             'pending_fincode_attempts' => $connection->table('fincode_payment_attempts')
                 ->whereNotIn('status', ['completed', 'failed'])
-                ->whereRaw('NOT v2_prelaunch_test_attempt(id)')->count(),
+                ->whereRaw('NOT v2_prelaunch_test_attempt(id, ?::boolean)', [$historyApproved])->count(),
             'pending_adjustments' => $connection->table('payment_adjustments')
                 ->whereNotIn('status', ['succeeded', 'failed', 'canceled'])->count(),
             'paid_grants' => $connection->table('payment_point_grants')->count(),
@@ -140,6 +143,12 @@ final class V2MemberRankPrelaunchInspection
         $allowedZeroAdjustments = $connection->table('member_rank_payment_adjustments')
             ->whereRaw('v2_prelaunch_zero_adjustment(id)')->count();
         $holds = [];
+        if ($authorizationId !== null && ! $historyApproved && $connection->table('member_rank_prelaunch_authorizations')
+            ->where('public_id', $authorizationId)->whereNotNull('history_scope')->exists()) {
+            $holds[] = 'APPROVED_HISTORY_SCOPE_CHANGED';
+        }
+        // Preserve raw activity counts in the observation. A complete immutable
+        // approval, rather than user identity or a count alone, removes a HOLD.
         if ($setting->enabled || $setting->activated_at !== null) {
             $holds[] = 'ALREADY_ACTIVATED';
         }
@@ -148,6 +157,9 @@ final class V2MemberRankPrelaunchInspection
             'unassociated_provider_events', 'pending_provider_operations', 'pending_fincode_attempts', 'pending_adjustments',
             'succeeded_without_grant', 'invalid_paid_origins', 'financial_discrepancies', 'unresolved_reconciliations'] as $name) {
             if ($counts[$name] > 0) {
+                if ($historyApproved && in_array($name, ['protected_draw_requests', 'protected_other_point_operations'], true)) {
+                    continue;
+                }
                 $holds[] = strtoupper($name);
             }
         }
@@ -162,7 +174,8 @@ final class V2MemberRankPrelaunchInspection
             'read_only' => $connection->selectOne('SHOW transaction_read_only')->transaction_read_only === 'on',
             'revision' => (int) $setting->revision, 'enabled' => (bool) $setting->enabled,
             'protection_basis' => 'pre_registered_at_or_preregistration_history_without_date_filter',
-            'counts' => $counts, 'allowed_zero_rank_adjustments' => $allowedZeroAdjustments, 'rank_rows' => $rankRows, 'data_holds' => $holds,
+            'counts' => $counts, 'history_scope_approved' => $historyApproved,
+            'allowed_zero_rank_adjustments' => $allowedZeroAdjustments, 'rank_rows' => $rankRows, 'data_holds' => $holds,
             'unproven_gates' => ['SITE_BOUND_HUMAN_AUTHORITY', 'EXACT_CUTOVER',
                 'FINANCIAL_ADMISSION_AND_DRAIN', 'NEW_PROVIDER_INTEGRATION', 'HUMAN_ACTIVATION_GO'],
         ];

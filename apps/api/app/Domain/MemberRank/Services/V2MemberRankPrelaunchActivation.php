@@ -65,11 +65,11 @@ final class V2MemberRankPrelaunchActivation
                 if ($authority === null) {
                     throw $this->hold('SITE_BOUND_AUTHORITY_REQUIRED');
                 }
-                $observation = $this->inspection->inspectClosedAdmission();
+                $observation = $this->inspection->inspectClosedAdmission($authority->public_id);
                 if ($observation['data_holds'] !== []) {
                     throw $this->hold(implode(',', $observation['data_holds']));
                 }
-                $digest = DB::selectOne('SELECT v2_member_rank_prelaunch_manifest() AS digest')->digest;
+                $digest = DB::selectOne('SELECT v2_member_rank_prelaunch_manifest(?::text) AS digest', [$authority->history_approval_digest])->digest;
                 if (! hash_equals($authority->origin_digest, $digest)) {
                     throw $this->hold('APPROVED_ORIGIN_MANIFEST_CHANGED');
                 }
@@ -101,7 +101,9 @@ final class V2MemberRankPrelaunchActivation
                     'before' => ['enabled' => false],
                     'after' => ['enabled' => true, 'activated_at' => $data['activated_at'],
                         'revision' => $data['revision'], 'excluded_origin_count' => $count, 'run_id' => $authority->public_id],
-                    'metadata' => ['authority_sha256' => $authority->authority_sha256, 'origin_digest' => $digest],
+                    'metadata' => ['authority_sha256' => $authority->authority_sha256, 'origin_digest' => $digest,
+                        'history_evidence_sha256' => $authority->history_evidence_sha256,
+                        'history_approval_digest' => $authority->history_approval_digest],
                 ]);
                 $this->idempotency->complete($claim->record, 'member_rank_setting', $setting->public_id, ['data' => $data]);
 
