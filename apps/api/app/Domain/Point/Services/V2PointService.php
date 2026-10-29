@@ -498,7 +498,8 @@ final class V2PointService
         int $exchangeRequestId,
         string $exchangeRequestPublicId,
         int $amount,
-        CarbonInterface $occurredAt
+        CarbonInterface $occurredAt,
+        bool $system = false
     ): array {
         if (
             DB::transactionLevel() < 1
@@ -520,8 +521,8 @@ final class V2PointService
             'prize_exchange',
             'prize.exchange:'.$exchangeRequestPublicId,
             $occurred,
-            'user',
-            $userId,
+            $system ? 'system' : 'user',
+            $system ? null : $userId,
             $exchangeRequestId
         );
         $lot = new PointLot();
@@ -552,8 +553,8 @@ final class V2PointService
             $occurred
         );
         $this->audit->record('point.prize_exchange_granted', [
-            'actor_type' => 'user',
-            'auth_realm' => 'user',
+            'actor_type' => $system ? 'system' : 'user',
+            'auth_realm' => $system ? 'system' : 'user',
             'target_type' => 'prize_exchange_request',
             'target_public_id' => $exchangeRequestPublicId,
             'before' => ['free_balance' => $before],

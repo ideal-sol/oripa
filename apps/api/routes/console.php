@@ -98,3 +98,14 @@ Schedule::command('admin:daily-sales-report')
     ->dailyAt('10:00')
     ->timezone(config('services.discord.daily_report_timezone', config('app.timezone', 'Asia/Tokyo')))
     ->withoutOverlapping();
+
+Artisan::command('v2:prizes:auto-exchange-expired {--limit=1000}', function (): int {
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 1000]]);
+    if ($limit === false) return 2;
+    $result = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class)->autoExchangeExpired($limit);
+    $this->info(sprintf('Processed %d; failed %d.', $result['processed'], $result['failed']));
+    return $result['failed'] === 0 ? 0 : 1;
+});
+if (config('v2_prize_shipping.seven_day_auto_convert_enabled') === true) {
+    Schedule::command('v2:prizes:auto-exchange-expired')->everyFiveMinutes()->withoutOverlapping();
+}

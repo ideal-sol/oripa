@@ -12283,6 +12283,42 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - Promotion local verification: final23 Source Authority focused tests PASS, local policy-gate PASS. Initial obsolete-text test list mistakenly included the still-required separate Runtime GO phrase; corrected list to reject only superseded Draft wording, then23PASS. No security/authority condition relaxed. Final scope/secret-PII/whitespace review performed before commit; Required Checks/review/merge results recorded in PR without mutating reviewed head.
 
 
+## PRIZE-AUTOEXCHANGE-7D-20261029 — source draft, runtime deferred
+
+- Human scope: implement, test, self-review, commit, push, Draft PR; no ready/merge/runtime.
+- Issue none; R3; Strict Change; Application Runtime Activation deferred.
+- Dedicated branch `feat/PRIZE-AUTOEXCHANGE-7D-20261029`; base `1086d776cb2ca20f20883b3e8fa5578510bdce67`.
+- Reuse point grant, exchange history, idempotency and transaction runner; default OFF.
+- No migrations, contracts, dependencies, Storefront, runtime, timer or ENV changes.
+- PHP syntax checks and diff whitespace checks PASS. Focused PHPUnit attempted but
+  unavailable: isolated checkout has no vendor; host PHP 8.3 is below required 8.4.
+  No database tests are claimed PASS. Added boundary/replay/batch/zero/inactive and
+  worker/worker/manual/shipping concurrency coverage for normal PR CI execution.
+- Closure/Hold race and injected-failure validation remain unverified; required CI
+  must pass before any later ready/merge decision. Build 0, runtime activation 0,
+  migration creation/application 0. No formal artifact workflow dispatched.
+- Source review: user lock serializes closure; wallet/prize locks and stored status
+  prevent duplicate credits. Shared grant retains 180-day expiry. Handoff is in
+  docs/operations/prize-shipping/README.md. Draft does not authorize activation.
+
+### PR #636 CI and financial follow-up
+
+Human authorized same-PR repairs and GitHub isolated DB verification, Draft only.
+Added UI Verification NOT_APPLICABLE to PR metadata without changing CI policy.
+Added privacy-safe structured failure logs and bounded ID cursor rotation, with
+rollback/retry/fairness tests. Restricted members follow existing realm/manual
+exchange eligibility; financial holds and closures remain excluded. Added real
+closure-versus-worker forked race coverage. PHP lint and diff checks PASS.
+Financial execution and required check results are recorded on the final-head PR
+self-review; previous unexecuted-test statements describe the initial draft only.
+No runtime, migration application, worker activation or artifact dispatch.
+
+### PRIZE-20261029 canonical metadata
+
+Human approved Canonical Task ID PRIZE-20261029; Human Task ID remains
+PRIZE-AUTOEXCHANGE-7D-20261029. PR #636, branch, worktree and transport policy
+identity are unchanged. This record commit triggers a new synchronize PR event
+with corrected metadata; CI/Governance source is unchanged. Draft only.
 ## MEMBERRANK-INITIAL-ON-FASTPATH — scoped initial activation (2026-10-29)
 
 - Full scoped PR CI exposed a real migration re-entry defect: migrate:fresh drops tables while PostgreSQL functions can remain, so new CREATE FUNCTION declarations conflicted on the next fresh cycle. Corrected only those declarations to CREATE OR REPLACE FUNCTION, matching the existing migration convention. No predicates, financial guards or assertions relaxed. Repeated isolated fresh migration, already-ON compatibility, exact-head Commit and all Required CI must pass again on the corrected head before Draft completion. The earlier failed CI remains recorded; no PASS is substituted for it.
@@ -12331,3 +12367,12 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - Existing chore/PRODAUTH-20261029 / PR638 retained; integrate exact newly approved protected basebbf61feccacf6a0333705ae6eefdf15a012a5475 without force or rewriting shared history. Preserve both existing Worklog additions. Net Authority diff remains exactly manifest, Authority regression and this Worklog; every other file equals approved Source639. Root-owned transport temporarily permits only the exact union of approved639 base-carry paths and the three authorized Authority paths for the one fast-forward push, with independent full-tree/base/parent/net-three-path validation. Afterwards restore the exact three-path envelope and new protected base. No Source/Guard/Workflow change is introduced by Authority promotion.
 - Manifest now formally approves fixed Runtime payload Sourcebbf61feccacf6a0333705ae6eefdf15a012a5475 / source PR639 / change RANKSCOPE-20261029, never this Authority HEAD/merge/latest main; activation_authorized=false. Contractalpha.48/publication unchanged, future Platform API only, Ledger101→102→103, UI/Agency/Storefront/Worker/Timer actual Runtime unchanged. F2-B Marker/pin/Recovery unchanged and separately owned. Fresh local Authority tests, final-head Required5 and canonical Strict review precede638 merge; exact final evidence lives in PR638.
 - Formal Production Artifact Dispatch/Build0, operational Migration/DB/Runtime0, Authorization0, initial ON0. Initial-ON-only extra-history exclusion needs exact private Scope/child-hash/Evidence approval; after that separate operational GO remains. Received actual NEW Shadow is Human-routed, not an OLD-side NEW connection. Source/Authority promotion is distinct from deployment, historical exclusion and Activation.
+
+### PRIZE-20261029 approved Source merge
+
+Human authorized conflict resolution, Ready and Squash Merge, runtime deferred.
+Merged protected main a6fe6a143168e99fd7d1afa3be9fb1ad518d87ac into the existing
+branch. Worklog append conflict preserves both complete histories. Incoming member
+rank source, migrations 000102/000103 and authority files are unchanged from main.
+Seven-day auto exchange remains default OFF. No runtime, ENV, timer, activation,
+backfill or deployed database operations. Final-head CI and review recorded in PR.

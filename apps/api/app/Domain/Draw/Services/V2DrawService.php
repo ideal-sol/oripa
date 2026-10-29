@@ -1620,7 +1620,7 @@ final class V2DrawService
                 'exchanged_point_amount' => null,
                 'acquired_at' => V2DatabaseTimestamp::format($occurredAt),
                 'storage_expires_at' => V2DatabaseTimestamp::format($occurredAt->copy()->addDays(
-                    (int) config('v2_prize_shipping.storage_days', 60)
+                    config('v2_prize_shipping.seven_day_auto_convert_enabled') === true ? 7 : (int) config('v2_prize_shipping.storage_days', 60)
                 )),
                 'terminal_at' => null,
                 'created_at' => V2DatabaseTimestamp::format($occurredAt),

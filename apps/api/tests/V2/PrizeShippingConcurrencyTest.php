@@ -25,6 +25,10 @@ final class PrizeShippingConcurrencyTest extends TestCase
     public static function competingOperations(): array
     {
         return [
+            'automatic exchange and closure' => [['auto', 'closure'], false],
+            'two automatic exchanges' => [['auto', 'auto'], false],
+            'automatic exchange and manual exchange' => [['auto', 'exchange'], false],
+            'automatic exchange and shipping' => [['auto', 'shipping'], false],
             'two shipping requests' => [['shipping', 'shipping-second'], false],
             'normal writer and shipping' => [['grant', 'shipping'], false],
             'normal exchange and shipping' => [['exchange', 'shipping'], false],
@@ -50,7 +54,8 @@ final class PrizeShippingConcurrencyTest extends TestCase
         [$userId, $prizeId, $addressId] = $this->fixture($shippingOnly);
         $inventory = DB::table('prize_inventories')->orderBy('id')->get()->toJson();
         $balance = DB::table('wallets')->where('user_id', $userId)->value('free_balance');
-        if ($shippingOnly) {
+        if ($shippingOnly || in_array('auto', $operations, true)) {
+            config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
             CarbonImmutable::setTestNow(CarbonImmutable::parse(DB::table('user_prizes')->where('public_id', $prizeId)->value('storage_expires_at')));
         }
         $token = (string) Str::uuid();
@@ -95,7 +100,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 ),
                 $resultPaths
             );
-            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping']], true) ? 2 : 1;
+            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping'], ['auto', 'auto'], ['auto', 'closure']], true) ? 2 : 1;
             self::assertCount($successCount, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
@@ -110,6 +115,14 @@ final class PrizeShippingConcurrencyTest extends TestCase
             }
 
             DB::reconnect();
+            if (in_array('closure', $operations, true)) {
+                self::assertSame(0, (int) DB::table('wallets')->where('user_id', $userId)->value('free_balance'));
+                self::assertSame(1, DB::table('account_closures')->where('user_id', $userId)->count());
+                self::assertContains(DB::table('user_prizes')->where('public_id', $prizeId)->value('status'), ['forfeited', 'converted']);
+                self::assertLessThanOrEqual(1, DB::table('prize_exchange_requests')->count());
+                self::assertSame(0, app(V2PrizeShippingService::class)->autoExchangeExpired()['processed']);
+                return;
+            }
             self::assertSame(
                 $shippingOnly ? 0 : 1,
                 DB::table('prize_exchange_requests')->count()
@@ -193,7 +206,15 @@ final class PrizeShippingConcurrencyTest extends TestCase
         try {
             $user = User::query()->findOrFail($userId);
             $service = app(V2PrizeShippingService::class);
-            if ($operation === 'expiration') {
+            if ($operation === 'closure') {
+                app(\App\Domain\Point\Services\V2PointTransactionRunner::class)->run(function () use ($userId): void {
+                    $locked = User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+                    app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($locked, 'admin', 'normal', (string) Str::uuid7());
+                });
+            } elseif ($operation === 'auto') {
+                $result = $service->autoExchangeExpired();
+                if ($result['failed'] !== 0) throw new \RuntimeException('Automatic exchange failed');
+            } elseif ($operation === 'expiration') {
                 $service->expireShippingOnly();
             } elseif ($operation === 'grant') {
                 app(V2PointService::class)->grantFree($userId, 1, 'shipping-writer-concurrency');
