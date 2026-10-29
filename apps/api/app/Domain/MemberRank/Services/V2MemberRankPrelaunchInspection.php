@@ -183,11 +183,7 @@ final class V2MemberRankPrelaunchInspection
 
     private function protectedUsers(Connection $connection): Builder
     {
-        return $connection->table('users')->select('id')->where(function (Builder $query) use ($connection): void {
-            $query->whereNotNull('pre_registered_at')
-                ->orWhereIn('id', $connection->table('pre_registration_targets')->select('user_id'))
-                ->orWhereIn('id', $connection->table('pre_registration_grants')->select('user_id'));
-        });
+        return $connection->table('users')->select('id')->whereRaw('v2_prelaunch_protected_user(id)');
     }
 
     private function invalidPaidOrigins(Connection $connection): int

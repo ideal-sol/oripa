@@ -49,11 +49,11 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         $admin = $this->rankAdmin();
         $token = $this->httpSession($admin);
         $protected = [];
-        for ($i = 0; $i < 73; $i++) {
+        for ($i = 0; $i < 74; $i++) {
             if ($i < 2) {
                 $protected[] = $this->rankUser(true);
             } else {
-                // Reuse a synthetic password hash; hashing 73 identical test
+                // Reuse a synthetic password hash; hashing identical synthetic
                 // passwords adds no activation coverage.
                 $user = $protected[0]->replicate(['referral_code']);
                 $user->created_at = $protected[0]->created_at;
@@ -72,14 +72,14 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         $this->importRankGachas();
         $gacha = $this->rankGacha(overrides: ['price_points' => 4321, 'allowed_draw_counts' => [1, 5, 10, 100]]);
         $special = $this->rankGacha(overrides: ['price_points' => 4366]);
-        foreach ([100, 10, 10, 10, 5, 5, 5, 5, 1, 1, 1, 1] as $i => $count) {
+        foreach ([100, 10, 10, 10, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1] as $i => $count) {
             app(\App\Domain\Draw\Services\V2DrawService::class)->create(
                 $protected[$i % 2], ($i === 11 ? $special : $gacha)->public_id, $count,
                 (string) Str::uuid7(), (string) Str::uuid7()
             );
         }
-        self::assertSame(634521, (int) DB::table('wallets')->whereIn('user_id', [$protected[0]->id, $protected[1]->id])->sum('paid_balance'));
-        self::assertSame(154, DB::table('user_prizes')->count());
+        self::assertSame(625879, (int) DB::table('wallets')->whereIn('user_id', [$protected[0]->id, $protected[1]->id])->sum('paid_balance'));
+        self::assertSame(156, DB::table('user_prizes')->count());
         $shipping = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class);
         foreach (array_slice($protected, 0, 2) as $user) {
             $address = $shipping->createAddress($user, [
@@ -94,6 +94,11 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         }
         self::assertSame(2, DB::table('shipping_requests')->where('status', 'packing')->count());
         $payer = $this->rankUser();
+        $phone = '+8190'.str_pad((string) $payer->id, 8, '0', STR_PAD_LEFT);
+        UserPhoneNumber::query()->create([
+            'user_id' => $payer->id, 'phone_ciphertext' => Crypt::encryptString($phone),
+            'phone_hmac' => app(V2IdentityCorrelation::class)->hash($phone), 'verified_at' => now(),
+        ]);
         $payments = app(V2PaymentService::class);
         $planId = DB::table('point_purchase_plans')->insertGetId([
             'public_id' => (string) Str::uuid7(), 'code' => 'synthetic-history', 'version_no' => 1,
@@ -118,19 +123,60 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
             if ($i < 6) {
                 $event = $payments->recordVerifiedProviderEvent('fincode', 'synthetic-history-'.Str::uuid7(), 'payment.succeeded', '{}', [], $id, null, now());
                 $payments->confirmSucceeded($event->id);
-            } elseif ($status === 'processing') {
-                $pending[] = $id;
-                DB::table('fincode_payment_attempts')->insert([
-                    'public_id' => (string) Str::uuid7(), 'payment_id' => $id,
-                    'provider_idempotency_key' => (string) Str::uuid7(), 'status' => 'pending',
-                    'created_at' => now(), 'updated_at' => now(),
-                ]);
             }
+            if ($status === 'processing') {
+                $pending[] = $id;
+            }
+            DB::table('fincode_payment_attempts')->insert([
+                'public_id' => (string) Str::uuid7(), 'payment_id' => $id,
+                'provider_idempotency_key' => (string) Str::uuid7(),
+                'status' => $i < 6 ? 'completed' : ($status === 'processing' ? 'pending' : $status),
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
         }
+        self::assertSame(19, DB::table('fincode_payment_attempts')->count());
+        // Ordinary history is real synthetic financial activity, not approved
+        // protected history:92 draws +46 grants +2 exchanges +6 paid grants =146 operations.
+        $ordinaryGacha = $this->rankGacha();
+        $points = app(\App\Domain\Point\Services\V2PointService::class);
+        $points->grantFree($payer->id, 1000, 'synthetic-ordinary-fund');
+        for ($i = 0; $i < 92; $i++) {
+            $this->rankDraw($payer, $ordinaryGacha);
+        }
+        for ($i = 0; $i < 45; $i++) {
+            $points->grantFree($payer->id, 1, 'synthetic-ordinary-history-'.$i);
+        }
+        foreach (DB::table('user_prizes')->where('user_id', $payer->id)->orderBy('id')->limit(2)->pluck('public_id') as $prizeId) {
+            $shipping->exchange($payer, [$prizeId], (string) Str::uuid7(), (string) Str::uuid7());
+        }
+        self::assertSame(2, DB::table('point_operations')->where('source_type', 'prize_exchange')->count());
+        self::assertSame(106, DB::table('draw_requests')->count());
+        self::assertSame(162, DB::table('point_operations')->count());
         $paths = array_map(fn ($path) => 'database/migrations-v2/'.basename($path), glob(database_path('migrations-v2/*_00010*.php')));
+        $ledger101 = array_values(array_filter($paths, fn ($path) => str_contains($path, '_000100_') || str_contains($path, '_000101_')));
+        $this->artisan('migrate', ['--path' => $ledger101, '--force' => true])->assertExitCode(0);
+        self::assertSame(101, DB::table('migrations')->count());
+        $shadowFile = file_get_contents(base_path('../../docs/operations/deployment/member-rank-history-scope-shadow.sql'));
+        $shadowSql = explode('-- SHADOW_SELECT_END', explode('-- SHADOW_SELECT_BEGIN', $shadowFile)[1])[0];
+        $shadow = DB::transaction(function () use ($shadowSql): array {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+            DB::statement("SET LOCAL TIME ZONE 'UTC'");
+
+            return json_decode(DB::selectOne($shadowSql)->report, true, flags: JSON_THROW_ON_ERROR);
+        });
+        self::assertSame('on', $shadow['transaction_read_only']);
+        self::assertSame([106, 162, 74, 14, 16, 6, 6], array_map(fn ($key) => $shadow[$key],
+            ['global_draws', 'global_operations', 'protected_users', 'protected_draws', 'protected_operations', 'processing_payments', 'pending_attempts']));
+        self::assertTrue($shadow['processing_pending_integrity']);
+        self::assertSame(0, $shadow['unknown_attempts']);
+        self::assertFalse($shadow['scope_and_evidence_match']);
+        self::assertFalse($shadow['activation_authorized']);
         $this->artisan('migrate', ['--path' => $paths, '--force' => true])->assertExitCode(0);
         $inspection = app(V2MemberRankPrelaunchInspection::class);
         self::assertSame(['PROTECTED_DRAW_REQUESTS', 'PROTECTED_OTHER_POINT_OPERATIONS', 'PENDING_PAYMENTS', 'PENDING_FINCODE_ATTEMPTS'], $inspection->inspect()['data_holds']);
+        self::assertSame(74, $inspection->inspect()['counts']['protected_applicants']);
+        self::assertSame(14, $inspection->inspect()['counts']['protected_draw_requests']);
+        self::assertSame(16, $inspection->inspect()['counts']['protected_other_point_operations']);
         $authority = [
             'public_id' => (string) Str::uuid7(), 'site_code' => 'oripoke-prelaunch',
             'setting_public_id' => DB::table('member_rank_settings')->value('public_id'),
@@ -142,6 +188,42 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
         self::assertFalse($inspection->inspect($authority['public_id'])['history_scope_approved']);
         $this->httpActivation($token, ['authorization_id' => $authority['public_id'], 'expected_revision' => 1])->assertStatus(409);
         $scope = DB::selectOne('SELECT v2_prelaunch_history_scope()::text AS scope')->scope;
+        $scopeItems = json_decode($scope, true, flags: JSON_THROW_ON_ERROR);
+        self::assertCount(14, $scopeItems['draws']);
+        self::assertSame($shadow['history_scope'], $scopeItems);
+        self::assertSame($shadow['history_scope_sha256'], hash('sha256', $scope));
+        self::assertCount(16, $scopeItems['operations']);
+        self::assertCount(6, $scopeItems['payments']);
+        self::assertCount(6, $scopeItems['attempts']);
+        self::assertSame(DB::table('draw_requests')->whereIn('user_id', [$protected[0]->id, $protected[1]->id])->orderBy('id')->pluck('id')->all(), array_column($scopeItems['draws'], 'id'));
+        self::assertSame(DB::table('point_operations')->whereIn('user_id', [$protected[0]->id, $protected[1]->id])->orderBy('id')->pluck('id')->all(), array_column($scopeItems['operations'], 'id'));
+        // Prior approval of12/14 never approves the additional2 draws/2 operations.
+        $oldScope = [...$scopeItems, 'draws' => array_slice($scopeItems['draws'], 0, 12),
+            'operations' => array_slice($scopeItems['operations'], 0, 14)];
+        $oldScope = DB::selectOne('SELECT ?::jsonb::text AS scope', [json_encode($oldScope, JSON_THROW_ON_ERROR)])->scope;
+        $deltaSql = str_replace('NULL::jsonb AS approved_scope', '?::jsonb AS approved_scope', $shadowSql);
+        $delta = DB::transaction(function () use ($deltaSql, $oldScope): array {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+            DB::statement("SET LOCAL TIME ZONE 'UTC'");
+
+            return json_decode(DB::selectOne($deltaSql, [$oldScope])->report, true, flags: JSON_THROW_ON_ERROR);
+        });
+        self::assertFalse($delta['scope_and_evidence_match']);
+        self::assertCount(4, $delta['history_delta']);
+        self::assertSame(['ADDED'], array_values(array_unique(array_column($delta['history_delta'], 'change'))));
+        $oldEvidence = hash('sha256', 'Synthetic prior Human evidence for12 draws and14 operations only');
+        $oldDigest = DB::selectOne("SELECT encode(sha256(convert_to(? || '|' || ?, 'UTF8')), 'hex') AS digest", [$oldScope, $oldEvidence])->digest;
+        $oldId = (string) Str::uuid7();
+        DB::table('member_rank_prelaunch_authorizations')->insert([
+            ...$authority, 'public_id' => $oldId, 'history_scope' => $oldScope,
+            'history_evidence_sha256' => $oldEvidence, 'history_approval_digest' => $oldDigest,
+            'origin_digest' => DB::selectOne('SELECT v2_member_rank_prelaunch_manifest(?::text) AS digest', [$oldDigest])->digest,
+        ]);
+        self::assertFalse($inspection->inspect($oldId)['history_scope_approved']);
+        $this->httpActivation($token, ['authorization_id' => $oldId, 'expected_revision' => 1])->assertStatus(409);
+        self::assertSame(0, DB::table('member_rank_prelaunch_runs')->count());
+        self::assertSame(0, (int) DB::table('financial_admission_generations')->value('generation'));
+        // This explicit approval is synthetic only; Production's extra4 rows remain unapproved.
         $evidence = hash('sha256', 'Synthetic Human approval for exact historical test scope; no real site data');
         $approval = DB::selectOne("SELECT encode(sha256(convert_to(? || '|' || ?, 'UTF8')), 'hex') AS digest", [$scope, $evidence])->digest;
         $authority = [...$authority, 'public_id' => (string) Str::uuid7(), 'history_scope' => $scope,
@@ -158,12 +240,19 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
             self::assertSame('23514', $error->errorInfo[0]);
         }
         $input = ['authorization_id' => $authority['public_id'], 'expected_revision' => 1];
-        foreach (['draw', 'operation', 'payment', 'attempt', 'commercial'] as $mutation) {
+        foreach (['draw', 'draw_child', 'draw_prize', 'new_draw', 'operation', 'payment', 'attempt', 'attempt_identity', 'attempt_reference', 'commercial'] as $mutation) {
             try {
-                DB::transaction(function () use ($mutation, $pending, $payer, $protected, $admin, $inspection, $authority): void {
+                DB::transaction(function () use ($mutation, $pending, $payer, $protected, $admin, $inspection, $authority, $gacha): void {
                     app(\App\Domain\Point\Services\V2FinancialAdmission::class)->close();
                     match ($mutation) {
                         'draw' => DB::table('draw_requests')->where('id', DB::table('draw_requests')->min('id'))->update(['request_id' => (string) Str::uuid7()]),
+                        'draw_child' => DB::table('draw_results')->where('id', DB::table('draw_results')->min('id'))->update(['display_snapshot_sha256' => str_repeat('f', 64)]),
+                        'draw_prize' => DB::table('user_prizes')->where('id', DB::table('user_prizes')->min('id'))->update(['updated_at' => now()->addSecond()]),
+                        'new_draw' => app(\App\Domain\Draw\Services\V2DrawService::class)->create(
+                            $protected[0], $gacha->public_id, 1,
+                            (string) Str::uuid7(), (string) Str::uuid7()),
+                        'attempt_reference' => DB::table('fincode_payment_attempts')->where('payment_id', $pending[0])->update(['payment_id' => $pending[1]]),
+                        'attempt_identity' => DB::table('fincode_payment_attempts')->where('payment_id', $pending[0])->update(['public_id' => (string) Str::uuid7()]),
                         'operation' => app(\App\Domain\Point\Services\V2AdminPointAdjustmentService::class)->execute(
                             $admin, $protected[0]->public_id, (string) Str::uuid7(),
                             ['point_type' => 'paid', 'direction' => 'grant', 'amount' => 1, 'reason' => 'Synthetic unapproved operation']),
@@ -174,6 +263,13 @@ final class ZMemberRankPrelaunchActivationTest extends TestCase
                     self::assertNotSame([], $inspection->inspectClosedAdmission($authority['public_id'])['data_holds']);
                     throw new \RuntimeException('synthetic mutation rollback');
                 });
+            } catch (\PDOException $error) {
+                if (! in_array($mutation, ['draw_child', 'attempt_reference'], true)) {
+                    throw $error;
+                }
+                self::assertSame($mutation === 'draw_child' ? 'P0001' : '23505', $error->errorInfo[0]);
+                self::assertStringContainsString($mutation === 'draw_child'
+                    ? 'draw ownership history is append-only' : 'fincode_payment_attempts_payment_id_unique', $error->getMessage());
             } catch (\RuntimeException $error) {
                 self::assertSame('synthetic mutation rollback', $error->getMessage());
             }
