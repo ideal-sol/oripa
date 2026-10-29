@@ -115,6 +115,48 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(0, app(V2PrizeShippingService::class)->autoExchangeExpired()['processed']);
     }
 
+    public function test_auto_exchange_failure_rolls_back_and_rotates_then_retries(): void
+    {
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
+        [$user, $ids] = $this->fixture(5);
+        $deadline = DB::table('user_prizes')->where('public_id', $ids[0])->value('storage_expires_at');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($deadline));
+        $before = DB::table('wallets')->where('user_id', $user->id)->value('free_balance');
+        $operations = DB::table('point_operations')->count();
+        $key = config('v2_audit.hmac_keys.v1');
+        config(['v2_audit.hmac_keys.v1' => 'base64:invalid']);
+        $service = app(V2PrizeShippingService::class);
+        self::assertSame(['processed' => 0, 'failed' => 1], $service->autoExchangeExpired(1));
+        self::assertSame($before, DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame($operations, DB::table('point_operations')->count());
+        self::assertSame(0, DB::table('prize_exchange_requests')->count());
+        self::assertSame(0, DB::table('prize_exchange_request_items')->count());
+        self::assertSame(5, DB::table('user_prizes')->where('user_id', $user->id)->where('status', 'stored')->count());
+        $failedId = (int) DB::table('user_prizes')->where('user_id', $user->id)->min('id');
+        config(['v2_audit.hmac_keys.v1' => $key]);
+        self::assertSame(1, $service->autoExchangeExpired(1)['processed']);
+        self::assertSame('stored', DB::table('user_prizes')->where('id', $failedId)->value('status'));
+        self::assertSame(3, $service->autoExchangeExpired()['processed']);
+        self::assertSame(1, $service->autoExchangeExpired()['processed']);
+        self::assertSame(0, $service->autoExchangeExpired()['processed']);
+        self::assertSame(5, DB::table('prize_exchange_requests')->count());
+    }
+
+    public function test_auto_exchange_restricted_hold_and_closed_member_boundaries(): void
+    {
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
+        [$user, $ids] = $this->fixture(5);
+        $this->placePaymentHold($user, $ids[0]);
+        DB::table('users')->where('id', $user->id)->update(['state' => 'restricted']);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse(DB::table('user_prizes')->where('public_id', $ids[0])->value('storage_expires_at')));
+        $service = app(V2PrizeShippingService::class);
+        self::assertSame(4, $service->autoExchangeExpired()['processed']);
+        self::assertSame('stored', DB::table('user_prizes')->where('public_id', $ids[0])->value('status'));
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($user->refresh(), 'admin', 'normal', (string) Str::uuid7());
+        self::assertSame(0, $service->autoExchangeExpired()['processed']);
+        self::assertSame(0, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+    }
+
     public function test_schema_uses_snapshots_encrypted_pii_and_immutable_histories(): void
     {
         foreach ([

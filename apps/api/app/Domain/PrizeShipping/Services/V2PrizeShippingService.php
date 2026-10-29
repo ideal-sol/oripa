@@ -61,17 +61,23 @@ final class V2PrizeShippingService
         if ($limit < 1 || $limit > 1000) throw new \InvalidArgumentException('Limit must be between 1 and 1000.');
         $result = ['processed' => 0, 'failed' => 0];
         if (config('v2_prize_shipping.seven_day_auto_convert_enabled') !== true) return $result;
-        $candidates = DB::table('user_prizes as p')->join('users as u', 'u.id', '=', 'p.user_id')
-            ->where('u.state', 'active')->where('p.status', 'stored')->where('p.shipping_only_snapshot', false)
+        $query = DB::table('user_prizes as p')->join('users as u', 'u.id', '=', 'p.user_id')
+            ->whereIn('u.state', ['active', 'restricted'])->where('p.status', 'stored')->where('p.shipping_only_snapshot', false)
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('account_closures as c')->whereColumn('c.user_id', 'u.id'))
             ->whereNotIn('p.id', $this->activePaymentHoldQuery())
             ->where('p.storage_expires_at', '<=', V2DatabaseTimestamp::format(now()->startOfSecond()))
-            ->orderBy('p.storage_expires_at')->orderBy('p.id')->limit($limit)->get(['p.id', 'p.user_id']);
+            ->orderBy('p.id');
+        $cursorKey = 'v2:prizes:auto-exchange:cursor';
+        $cursor = (int) \Illuminate\Support\Facades\Cache::get($cursorKey, 0);
+        $candidates = (clone $query)->where('p.id', '>', $cursor)->limit($limit)->get(['p.id', 'p.user_id']);
+        if ($candidates->isEmpty() && $cursor > 0) {
+            $candidates = $query->limit($limit)->get(['p.id', 'p.user_id']);
+        }
         foreach ($candidates as $candidate) {
             try {
                 $result['processed'] += $this->transaction(function () use ($candidate): int {
                     $user = User::query()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
-                    if ($user->getRawOriginal('state') !== 'active'
+                    if (! in_array($user->getRawOriginal('state'), ['active', 'restricted'], true)
                         || DB::table('account_closures')->where('user_id', $user->id)->exists()) return 0;
                     DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->firstOrFail();
                     $prize = DB::table('user_prizes')->where('id', $candidate->id)->lockForUpdate()->firstOrFail();
@@ -96,6 +102,15 @@ final class V2PrizeShippingService
             } catch (Throwable $exception) {
                 // Owning transaction rolled back. Preserve the candidate for retry.
                 $result['failed']++;
+                \Illuminate\Support\Facades\Log::warning('prize.auto_exchange_failed', [
+                    'exception_type' => $exception::class,
+                    'phase' => 'candidate_transaction',
+                    'retryable' => true,
+                ]);
+            } finally {
+                // Rotate bounded batches so one failing candidate cannot starve later IDs.
+                // Cache is only a fairness hint; DB locks and constraints own correctness.
+                \Illuminate\Support\Facades\Cache::put($cursorKey, (int) $candidate->id, 86400);
             }
         }
         return $result;
