@@ -10,13 +10,15 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "6e945df343d3d42ffa844b3b369ca0c171a6bbbe"
+APPROVED = "bbf61feccacf6a0333705ae6eefdf15a012a5475"
+PREVIOUS_SOURCE = "6e945df343d3d42ffa844b3b369ca0c171a6bbbe"
+SOURCE_TREE = "ebdb4ec3c4f5892090f538e51ac125c08a75f18b"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "ACCOUNT-CLOSURE-20261028"
-SOURCE_PR = 631
+SOURCE_CHANGE = "RANKSCOPE-20261029"
+SOURCE_PR = 639
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -127,6 +129,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             ("SECINT-20260930", 523), ("OTSEC-20261006", 544),
             ("SMSOTP-20261014", 566), ("CONTRACT-20261016A", 574),
             ("OLDTEST-ALPHA46-20261025", 618),
+            ("ACCOUNT-CLOSURE-20261028", 631), ("PRODAUTH-20261028", 635),
+            ("MEMBERRANK-INITIAL-ON-FASTPATH", 637), ("PRODAUTH-20261029", 638),
         ]:
             with self.subTest(pr_number=pr_number), self.assertRaisesRegex(
                 ValueError, "Human-approved source authority mismatch"
@@ -176,7 +180,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "protected main moved"):
             AUTHORIZE(self.repository, self.source, self.workflow, SOURCE_CHANGE, SOURCE_PR, get)
 
-    def test_human_approved_real_source_and_base_lineage(self):
+    def test_formal_approved_source_lineage_and_exact_authority(self):
         subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", APPROVED, PROTECTED], check=True)
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertEqual(authority["source_sha"], APPROVED)
@@ -197,6 +201,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with patch.dict(AUTHORIZE.__globals__, git=candidate_authority):
             result = AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
             for unapproved in [
+                PREVIOUS_SOURCE,
+                "167e831c6035f0a0816f622aaada6ecc22c7db44",
                 "3592fcdc8e43467c3dd67d2677ec52b7d328eb77",
                 "b5c28015ef94cb80f6702a61b1237cacd91d9863",
                 "c802ff91cf3d5a96b695f70e3d91194c3bed7567",
@@ -228,14 +234,32 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(result["source_sha"], APPROVED)
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
-    def test_human_source_go_promotes_authority_without_runtime_permission(self):
+    def test_formal_source_go_is_separate_from_runtime_and_history_exclusion(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
-        self.assertIn("Formal Human Source GO received", authority["authority"])
-        self.assertIn("individual Browser items, operations and timestamps were not provided", authority["authority"])
-        for obsolete in ["DRAFT CANDIDATE ONLY", "Human Source GO remain pending", "authority Draft PR preparation only"]:
+        for evidence in ["Formal Human Source GO received", "MEMBERRANK_NEWPROD_SOURCE_SQL_SHADOW_PASS",
+                         "Platform API only", "Migration102 then103", "initial-ON-only exclusion remains UNAPPROVED"]:
+            self.assertIn(evidence, authority["authority"])
+        for obsolete in ["DRAFT CANDIDATE ONLY", "Source Authority update is pending", "formal Source GO is pending"]:
             self.assertNotIn(obsolete, authority["authority"])
         self.assertIs(authority["activation_authorized"], False)
+
+    def test_current_protected_base_retains_previous_authority(self):
+        current = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:{MODULE['AUTHORITY_PATH']}"))
+        self.assertEqual(current["source_sha"], PREVIOUS_SOURCE)
+        self.assertEqual(current["pr_number"], 631)
+        self.assertEqual(current["change_id"], "ACCOUNT-CLOSURE-20261028")
+        self.assertIs(current["activation_authorized"], False)
+        real_git = MODULE["git"]
+        self.workflow = PROTECTED
+        # A candidate in a local worktree never replaces protected-main Authority.
+        def protected_authority(repository, *arguments):
+            if arguments == ("show", f"{PROTECTED}:{MODULE['AUTHORITY_PATH']}"):
+                return json.dumps(current)
+            return real_git(repository, *arguments)
+        with patch.dict(AUTHORIZE.__globals__, git=protected_authority):
+            with self.assertRaisesRegex(ValueError, "Human-approved source authority mismatch"):
+                AUTHORIZE(ROOT, APPROVED, PROTECTED, SOURCE_CHANGE, SOURCE_PR, self.get)
 
     def test_security_remediated_target_dependency_pins(self):
         lock = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:apps/api/composer.lock"))
@@ -311,10 +335,10 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_alpha48_contract_and_migration_boundary(self):
         self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"),
-                         "6633b2d260990eda11903b7df68af4ed9877af7b")
+                         SOURCE_TREE)
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
         contract, = [e for e in ledger["immutable_history"] if e["bundle_version"] == "2.0.0-alpha.48"]
-        self.assertEqual(contract["source_commit"], APPROVED)
+        self.assertEqual(contract["source_commit"], PREVIOUS_SOURCE)
         self.assertEqual(contract["publication"]["artifact_id"], 12819254428)
         self.assertEqual(contract["manifest_sha256"], "9affb95def4858a748a5343614dcdf4d8e0ca20705d5d227cc48e976f01df60f")
         for package in ["storefront-client", "storefront-testkit"]:
@@ -322,24 +346,38 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(manifest["version"], "2.0.0-alpha.48")
         migrations = MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED, "apps/api/database/migrations-v2").splitlines()
         self.assertEqual({Path(p).name.split("_")[3] for p in migrations if p.endswith(".php")},
-                         {str(n).zfill(6) for n in range(1, 102)})
+                         {str(n).zfill(6) for n in range(1, 104)})
 
-    def test_approved_source_preserves_deferred_environment_boundaries(self):
+    def test_migrations102_103_preserve_prior_history_and_canonical_guards(self):
+        migration = "apps/api/database/migrations-v2/2026_10_29_000102_bind_v2_prelaunch_history_scope.php"
+        delta = MODULE["git"](ROOT, "diff", "--name-status", PREVIOUS_SOURCE, APPROVED,
+                              "--", "apps/api/database/migrations-v2").splitlines()
+        correction = "apps/api/database/migrations-v2/2026_10_29_000103_scope_v2_prelaunch_protected_history.php"
+        self.assertEqual(delta, ["A\t" + migration, "A\t" + correction])
+        previous = "167e831c6035f0a0816f622aaada6ecc22c7db44"
+        self.assertEqual(MODULE["git"](ROOT, "diff", "--name-status", previous, APPROVED,
+                                      "--", "apps/api/database/migrations-v2").splitlines(), ["A\t" + correction])
+        self.assertEqual(MODULE["git"](ROOT, "diff", "--name-only", PREVIOUS_SOURCE, APPROVED,
+                                      "--", ".github/workflows", "infrastructure/github-app",
+                                      "scripts/ops/production_source_authority.py", "openapi", "packages"), "")
+        self.assertEqual(set(MODULE["git"](ROOT, "diff", "--name-only", PREVIOUS_SOURCE, APPROVED,
+                                          "--", "apps").splitlines()), {
+            "apps/api/app/Domain/MemberRank/Services/V2MemberRankPrelaunchActivation.php",
+            "apps/api/app/Domain/MemberRank/Services/V2MemberRankPrelaunchInspection.php",
+            "apps/api/tests/V2/ZMemberRankPrelaunchActivationTest.php", migration, correction,
+        })
+
+    def test_candidate_preserves_deferred_environment_boundaries(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertIs(authority["activation_authorized"], False)
-        for boundary in ["NEW Production Rank first initialization OFF / not performed",
-                         "feature enabled flag is separate", "Preserve existing FINCODE enabled=true",
-                         "Ledger98 and migrations099/100/101 unapplied", "OLD Test Rank ON / initialized",
-                         "NEW Rank readback received from NEW担当", "Formal Human Source GO received",
-                         "Artifact Build or Dispatch, Stage, Runtime, ENV, Migration, database or AWS operations",
-                         "existing F2-B Timer remains running", "Agency and Redis remain unchanged",
-                         "GTM-5DQRPNN2",
-                         "NEW F2-B already ON and Production Accepted",
-                         "F6 and general Scheduler remain OFF",
-                         "Preserve current preregistration受付/deadline/Basic state",
-                         "Human alone configures Basic/public scope and Admin deadline/受付ON",
-                         "actual500pt grants and batch execution require separate approval and Acceptance",
-                         "Separate Artifact/Migration/Runtime GO is mandatory"]:
+        for boundary in ["PR #636 is excluded", "Contract 2.0.0-alpha.48 remains unchanged",
+                         "Human-reported NEW Ledger101", "Migration102 then103",
+                         "existing001–102 byte-identical", "Generation0, Revision1, Run0",
+                         "no reactivation", "OLD Test redeployment omission approved by Human",
+                         "formal linux/arm64 build path", "no API-only Workflow redesign",
+                         "Canonical Deployment Lock", "No maintenance-free PASS",
+                         "Separate Artifact/Migration/Runtime GO", "Authorization INSERT GO",
+                         "initial Activation GO", "Security Guard and Authority Validation conditions remain unchanged"]:
             self.assertIn(boundary, authority["authority"])
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
