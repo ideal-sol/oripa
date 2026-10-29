@@ -35,7 +35,7 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(
-    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025|ACCOUNT-CLOSURE-20261028)$"
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025|ACCOUNT-CLOSURE-20261028|MEMBERRANK-INITIAL-ON-FASTPATH)$"
 )
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
@@ -303,6 +303,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_10_26_000099_add_v2_payment_common_foundation.php",
     "apps/api/database/migrations-v2/2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php",
     "apps/api/database/migrations-v2/2026_10_28_000101_add_v2_account_closure.php",
+    "apps/api/database/migrations-v2/2026_10_29_000102_bind_v2_prelaunch_history_scope.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -3218,6 +3219,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_10_26_000099_add_v2_payment_common_foundation.php",
         "2026_10_28_000100_bind_v2_prelaunch_payment_classifications.php",
         "2026_10_28_000101_add_v2_account_closure.php",
+        "2026_10_29_000102_bind_v2_prelaunch_history_scope.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")
