@@ -103,8 +103,7 @@ Shipping-only expiration remains the existing independent command.
 The automatic command is `php artisan v2:prizes:auto-exchange-expired --limit=1000`
 (valid limit 1–1000). Each candidate has one owning financial transaction; failures
 roll back and increment the failed count, returning command exit 1. Retry after
-investigation. Repeated failures must be resolved before backlog exhaustion can be
-claimed. The command skips inactive/closed members and active payment holds.
+investigation. Failures emit only exception class, phase and retryable status, never exception messages, IDs, SQL or PII. A shared cache cursor rotates bounded batches by prize ID and wraps after the end, so failing early rows do not monopolize subsequent runs. Cache loss can repeat a batch but cannot duplicate credits. Persistent failures still require investigation. The command allows active/restricted members, matching the existing realm/session and manual exchange rules; suspended/closed members, closure records and active payment holds are excluded.
 The flag is shared by draw and command configuration. Laravel registers the command
 every five minutes with overlap prevention only when enabled. The existing runbook
 uses targeted commands; do not start the entire Scheduler as an activation shortcut.

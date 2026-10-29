@@ -25,6 +25,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
     public static function competingOperations(): array
     {
         return [
+            'automatic exchange and closure' => [['auto', 'closure'], false],
             'two automatic exchanges' => [['auto', 'auto'], false],
             'automatic exchange and manual exchange' => [['auto', 'exchange'], false],
             'automatic exchange and shipping' => [['auto', 'shipping'], false],
@@ -99,7 +100,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 ),
                 $resultPaths
             );
-            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping'], ['auto', 'auto']], true) ? 2 : 1;
+            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping'], ['auto', 'auto'], ['auto', 'closure']], true) ? 2 : 1;
             self::assertCount($successCount, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
@@ -114,6 +115,14 @@ final class PrizeShippingConcurrencyTest extends TestCase
             }
 
             DB::reconnect();
+            if (in_array('closure', $operations, true)) {
+                self::assertSame(0, (int) DB::table('wallets')->where('user_id', $userId)->value('free_balance'));
+                self::assertSame(1, DB::table('account_closures')->where('user_id', $userId)->count());
+                self::assertContains(DB::table('user_prizes')->where('public_id', $prizeId)->value('status'), ['forfeited', 'converted']);
+                self::assertLessThanOrEqual(1, DB::table('prize_exchange_requests')->count());
+                self::assertSame(0, app(V2PrizeShippingService::class)->autoExchangeExpired()['processed']);
+                return;
+            }
             self::assertSame(
                 $shippingOnly ? 0 : 1,
                 DB::table('prize_exchange_requests')->count()
@@ -197,7 +206,12 @@ final class PrizeShippingConcurrencyTest extends TestCase
         try {
             $user = User::query()->findOrFail($userId);
             $service = app(V2PrizeShippingService::class);
-            if ($operation === 'auto') {
+            if ($operation === 'closure') {
+                app(\App\Domain\Point\Services\V2PointTransactionRunner::class)->run(function () use ($userId): void {
+                    $locked = User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+                    app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($locked, 'admin', 'normal', (string) Str::uuid7());
+                });
+            } elseif ($operation === 'auto') {
                 $result = $service->autoExchangeExpired();
                 if ($result['failed'] !== 0) throw new \RuntimeException('Automatic exchange failed');
             } elseif ($operation === 'expiration') {

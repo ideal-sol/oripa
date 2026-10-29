@@ -12300,3 +12300,15 @@ are rerun on the resulting final Source; the failed407/408 run is retained.
 - Source review: user lock serializes closure; wallet/prize locks and stored status
   prevent duplicate credits. Shared grant retains 180-day expiry. Handoff is in
   docs/operations/prize-shipping/README.md. Draft does not authorize activation.
+
+### PR #636 CI and financial follow-up
+
+Human authorized same-PR repairs and GitHub isolated DB verification, Draft only.
+Added UI Verification NOT_APPLICABLE to PR metadata without changing CI policy.
+Added privacy-safe structured failure logs and bounded ID cursor rotation, with
+rollback/retry/fairness tests. Restricted members follow existing realm/manual
+exchange eligibility; financial holds and closures remain excluded. Added real
+closure-versus-worker forked race coverage. PHP lint and diff checks PASS.
+Financial execution and required check results are recorded on the final-head PR
+self-review; previous unexecuted-test statements describe the initial draft only.
+No runtime, migration application, worker activation or artifact dispatch.
