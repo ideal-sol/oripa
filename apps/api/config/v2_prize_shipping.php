@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'seven_day_auto_convert_enabled' => env('V2_PRIZE_SEVEN_DAY_AUTO_CONVERT_ENABLED', false),
     'storage_days' => 60,
     'exchange_point_expiry_days' => 180,
     'cursor_page_size' => 20,

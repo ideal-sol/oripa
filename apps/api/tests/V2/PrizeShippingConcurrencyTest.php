@@ -25,6 +25,9 @@ final class PrizeShippingConcurrencyTest extends TestCase
     public static function competingOperations(): array
     {
         return [
+            'two automatic exchanges' => [['auto', 'auto'], false],
+            'automatic exchange and manual exchange' => [['auto', 'exchange'], false],
+            'automatic exchange and shipping' => [['auto', 'shipping'], false],
             'two shipping requests' => [['shipping', 'shipping-second'], false],
             'normal writer and shipping' => [['grant', 'shipping'], false],
             'normal exchange and shipping' => [['exchange', 'shipping'], false],
@@ -50,7 +53,8 @@ final class PrizeShippingConcurrencyTest extends TestCase
         [$userId, $prizeId, $addressId] = $this->fixture($shippingOnly);
         $inventory = DB::table('prize_inventories')->orderBy('id')->get()->toJson();
         $balance = DB::table('wallets')->where('user_id', $userId)->value('free_balance');
-        if ($shippingOnly) {
+        if ($shippingOnly || in_array('auto', $operations, true)) {
+            config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
             CarbonImmutable::setTestNow(CarbonImmutable::parse(DB::table('user_prizes')->where('public_id', $prizeId)->value('storage_expires_at')));
         }
         $token = (string) Str::uuid();
@@ -95,7 +99,7 @@ final class PrizeShippingConcurrencyTest extends TestCase
                 ),
                 $resultPaths
             );
-            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping']], true) ? 2 : 1;
+            $successCount = in_array($operations, [['expiration', 'expiration'], ['grant', 'shipping'], ['auto', 'auto']], true) ? 2 : 1;
             self::assertCount($successCount, array_filter(
                 $results,
                 static fn (array $result): bool => $result['result'] === 'success'
@@ -193,7 +197,10 @@ final class PrizeShippingConcurrencyTest extends TestCase
         try {
             $user = User::query()->findOrFail($userId);
             $service = app(V2PrizeShippingService::class);
-            if ($operation === 'expiration') {
+            if ($operation === 'auto') {
+                $result = $service->autoExchangeExpired();
+                if ($result['failed'] !== 0) throw new \RuntimeException('Automatic exchange failed');
+            } elseif ($operation === 'expiration') {
                 $service->expireShippingOnly();
             } elseif ($operation === 'grant') {
                 app(V2PointService::class)->grantFree($userId, 1, 'shipping-writer-concurrency');

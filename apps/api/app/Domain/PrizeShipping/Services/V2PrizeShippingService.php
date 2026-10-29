@@ -55,6 +55,59 @@ final class V2PrizeShippingService
     ) {
     }
 
+    /** @return array{processed: int, failed: int} */
+    public function autoExchangeExpired(int $limit = 1000): array
+    {
+        if ($limit < 1 || $limit > 1000) throw new \InvalidArgumentException('Limit must be between 1 and 1000.');
+        $result = ['processed' => 0, 'failed' => 0];
+        if (config('v2_prize_shipping.seven_day_auto_convert_enabled') !== true) return $result;
+        $candidates = DB::table('user_prizes as p')->join('users as u', 'u.id', '=', 'p.user_id')
+            ->where('u.state', 'active')->where('p.status', 'stored')->where('p.shipping_only_snapshot', false)
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('account_closures as c')->whereColumn('c.user_id', 'u.id'))
+            ->whereNotIn('p.id', $this->activePaymentHoldQuery())
+            ->where('p.storage_expires_at', '<=', V2DatabaseTimestamp::format(now()->startOfSecond()))
+            ->orderBy('p.storage_expires_at')->orderBy('p.id')->limit($limit)->get(['p.id', 'p.user_id']);
+        foreach ($candidates as $candidate) {
+            try {
+                $result['processed'] += $this->transaction(function () use ($candidate): int {
+                    $user = User::query()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+                    if ($user->getRawOriginal('state') !== 'active'
+                        || DB::table('account_closures')->where('user_id', $user->id)->exists()) return 0;
+                    DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+                    $prize = DB::table('user_prizes')->where('id', $candidate->id)->lockForUpdate()->firstOrFail();
+                    $now = CarbonImmutable::parse(now())->startOfSecond();
+                    if (! $this->autoExchangeEligible($prize, $now, true)) return 0;
+                    $this->assertNoActiveHold([(int) $prize->id]);
+                    $requestId = (string) Str::uuid();
+                    if ((int) $prize->exchange_point_snapshot === 0) {
+                        $this->changePrizeStatus($prize, 'expired', 'system', null, null,
+                            'zero_value_storage_expired', $requestId, $now, ['terminal_at' => $now]);
+                        $this->audit->record('prize.zero_value_expired', [
+                            'actor_type' => 'system', 'auth_realm' => 'system', 'request_id' => $requestId,
+                            'target_type' => 'user_prize', 'target_public_id' => $prize->public_id,
+                            'before' => ['status' => 'stored'], 'after' => ['status' => 'expired'],
+                        ]);
+                    } else {
+                        $this->exchangePrizes($user, [$prize->public_id],
+                            'auto-exchange:'.$prize->public_id, $requestId, true);
+                    }
+                    return 1;
+                });
+            } catch (Throwable $exception) {
+                // Owning transaction rolled back. Preserve the candidate for retry.
+                $result['failed']++;
+            }
+        }
+        return $result;
+    }
+
+    private function autoExchangeEligible(object $prize, CarbonImmutable $now, bool $allowZero = false): bool
+    {
+        return $prize->status === 'stored' && ! $prize->shipping_only_snapshot
+            && CarbonImmutable::parse($prize->storage_expires_at)->lessThanOrEqualTo($now)
+            && (int) $prize->exchange_point_snapshot >= ($allowZero ? 0 : 1);
+    }
+
     public function expireShippingOnly(int $limit = 1000): int
     {
         if ($limit < 1 || $limit > 1000) {
@@ -172,13 +225,19 @@ final class V2PrizeShippingService
         string $idempotencyKey,
         string $requestId
     ): array {
-        $this->assertSmsVerified($user);
+        return $this->exchangePrizes($user, $publicIds, $idempotencyKey, $requestId, false);
+    }
+
+    /** @param list<string> $publicIds @return array<string, mixed> */
+    private function exchangePrizes(User $user, array $publicIds, string $idempotencyKey, string $requestId, bool $system): array
+    {
+        if (! $system) $this->assertSmsVerified($user);
         $ids = $this->publicIds($publicIds);
         $this->idempotencyKey($idempotencyKey);
 
         return $this->transactionWithHoldAudit(
-            function () use ($user, $ids, $idempotencyKey, $requestId): array {
-            $claim = $this->claim('prize.exchange', $user, $idempotencyKey, ['prize_ids' => $ids]);
+            function () use ($user, $ids, $idempotencyKey, $requestId, $system): array {
+            $claim = $this->claim($system ? 'prize.auto_exchange' : 'prize.exchange', $user, $idempotencyKey, ['prize_ids' => $ids]);
             if ($claim->replay) {
                 $request = PrizeExchangeRequest::query()
                     ->where('public_id', $claim->record->resource_public_id)
@@ -196,7 +255,7 @@ final class V2PrizeShippingService
             }
 
             DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
-            $this->assertSmsVerified($user);
+            if (! $system) $this->assertSmsVerified($user);
             DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->first();
             $prizes = DB::table('user_prizes')
                 ->where('user_id', $user->id)
@@ -210,7 +269,7 @@ final class V2PrizeShippingService
             $this->assertNoActiveHold($prizes->pluck('id')->map(fn ($id): int => (int) $id)->all());
             $now = CarbonImmutable::parse(now())->startOfSecond();
             foreach ($prizes as $prize) {
-                if (! $this->prizeAllowedActions($prize, $now, false)['point_exchange']['allowed']) {
+                if ($system ? ! $this->autoExchangeEligible($prize, $now) : ! $this->prizeAllowedActions($prize, $now, false)['point_exchange']['allowed']) {
                     throw new V2PrizeShippingException(
                         'PRIZE_NOT_EXCHANGEABLE',
                         409,
@@ -235,8 +294,8 @@ final class V2PrizeShippingService
                 $this->changePrizeStatus(
                     $prize,
                     'exchange_processing',
-                    'user',
-                    $user->public_id,
+                    $system ? 'system' : 'user',
+                    $system ? null : $user->public_id,
                     null,
                     'exchange_requested',
                     $requestId,
@@ -254,15 +313,16 @@ final class V2PrizeShippingService
                 $request->id,
                 $request->public_id,
                 $total,
-                $now
+                $now,
+                $system
             );
             foreach ($prizes as $prize) {
                 $prize->status = 'exchange_processing';
                 $this->changePrizeStatus(
                     $prize,
                     'converted',
-                    'user',
-                    $user->public_id,
+                    $system ? 'system' : 'user',
+                    $system ? null : $user->public_id,
                     null,
                     'exchange_completed',
                     $requestId,
@@ -292,13 +352,13 @@ final class V2PrizeShippingService
                 $request->public_id,
                 $response
             );
-            $this->audit->record('prize.exchanged', $this->auditAttributes(
+            $this->audit->record($system ? 'prize.auto_exchanged' : 'prize.exchanged', array_replace($this->auditAttributes(
                 $user,
                 'prize_exchange_request',
                 $request->public_id,
                 $requestId,
                 ['prize_count' => count($ids), 'point_total' => $total]
-            ));
+            ), $system ? ['actor_type' => 'system', 'actor_public_id' => null, 'auth_realm' => 'system'] : []));
             $this->outbox->enqueue(
                 'prize.exchange',
                 'prize_exchange_request',

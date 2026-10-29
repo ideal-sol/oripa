@@ -61,7 +61,7 @@ Public `GachaDetail.prizes[].shipping_only`はPublished Version、
 shipping/selectionは既存配送条件を維持する。個別・一括交換とも同一Guardを使い、
 混在requestは全件rollbackする。DB CHECKも配送専用のexchange_processing/convertedを拒否する。
 
-期限は既存`acquired_at`から60日の`storage_expires_at`のみを使用する。
+期限は保存済み`storage_expires_at`のみを使用する。新規獲得時の期限は下記フラグに従う。
 `php artisan v2:prizes:expire-shipping-only --limit=1000`は、配送専用・stored・
 期限到達済みだけを選び、users → wallets → user_prizesをlockして条件を再確認する。
 expired/terminal_at、append-only状態履歴、system Auditを同一Transactionで記録する。
@@ -88,3 +88,55 @@ Storefrontは正式immutable Artifactのexact version/digest確定後に導入�
 ## Production Scope
 
 このAlpha Vertical SliceはProduction Deployment対象外である。Frontend UI、Admin UI、Carrier連携、QA Modeは後続Taskに残す。
+
+
+## PRIZE-AUTOEXCHANGE-7D-20261029: deferred activation
+
+Risk R3 / Lane Strict Change / Application Runtime Activation deferred.
+Default `V2_PRIZE_SEVEN_DAY_AUTO_CONVERT_ENABLED=false` preserves 60 days for new
+draws and disables ordinary-prize automatic conversion. When true, new draws
+snapshot exactly seven days; existing deadlines are never rewritten. Positive
+ordinary snapshots convert to free coins at the stored deadline; zero snapshots
+expire without a point operation. Coin expiry remains grant time plus 180 days.
+Shipping-only expiration remains the existing independent command.
+
+The automatic command is `php artisan v2:prizes:auto-exchange-expired --limit=1000`
+(valid limit 1–1000). Each candidate has one owning financial transaction; failures
+roll back and increment the failed count, returning command exit 1. Retry after
+investigation. Repeated failures must be resolved before backlog exhaustion can be
+claimed. The command skips inactive/closed members and active payment holds.
+The flag is shared by draw and command configuration. Laravel registers the command
+every five minutes with overlap prevention only when enabled. The existing runbook
+uses targeted commands; do not start the entire Scheduler as an activation shortcut.
+
+Before a separate Human GO, execute only aggregate read-only queries in the approved
+environment. No identifiers or personal data should be exported:
+
+```sql
+BEGIN READ ONLY;
+SELECT p.shipping_only_snapshot, (p.exchange_point_snapshot = 0) AS zero_value,
+       u.state, count(*) AS prizes, sum(p.exchange_point_snapshot) AS snapshot_points
+FROM user_prizes p JOIN users u ON u.id = p.user_id
+WHERE p.status = 'stored' AND p.storage_expires_at <= CURRENT_TIMESTAMP
+GROUP BY p.shipping_only_snapshot, (p.exchange_point_snapshot = 0), u.state;
+ROLLBACK;
+```
+
+This is a conservative backlog inventory, not an exact payable total: review active
+payment holds and account closures using the service eligibility predicates before GO.
+Also run the same aggregate for future deadlines to estimate the next batches.
+
+OLD Test acceptance requires flag OFF/ON draw deadlines, stored 60-day preservation,
+deadline equality, zero/shipping-only outcomes, 180-day lots, ledger/audit reconciliation,
+retries, parallel workers, payment holds and closure races. Production requires those
+results, required CI and separate Human approval of backlog counts/amounts and runtime
+release authority. Configure the same flag in every API and approved command execution
+environment, refresh their configuration using the approved deployment procedure, and
+verify agreement before enabling the targeted five-minute timer. Do not change existing
+shipping-only or coin-expiration execution. No runtime activation occurred in this task.
+
+Rollback: disable the flag consistently for API and command execution. Future draws
+return to 60 days; already stored seven-day deadlines, conversions, ledger entries and
+180-day coin expirations remain authoritative. Never reverse credits or extend stored
+deadlines as an automatic rollback. An in-flight transaction may finish; verify its
+result before reporting the worker stopped.
