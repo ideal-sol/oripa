@@ -20,6 +20,22 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_protected_history103_is_forward_only_and_preserves_merged102(self):
+        import hashlib
+        filename = "2026_10_29_000103_scope_v2_prelaunch_protected_history.php"
+        root = MODULE_PATH.parents[2]
+        original = root / v2_database.MIGRATION_PATH / "2026_10_29_000102_bind_v2_prelaunch_history_scope.php"
+        self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(),
+                         "eb387608c5c99c500c45c17568be4e72e85e52075b2bce72248b0c2aa75e60e2")
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"103") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as command:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            self.assertIn("Protected prelaunch history scope requires a forward-only migration.", command.call_args.args[0][-1])
+
     def test_account_closure_marker_is_exact_and_inventory_remains_closed(self):
         self.assertEqual(v2_database.task_marker('ACCOUNT-CLOSURE-20261028'), 'accountclosure')
         for task in ['ACCOUNT-CLOSURE-20261029', 'ACCOUNT-CLOSURE-20261028-extra', 'account-closure-20261028']:
