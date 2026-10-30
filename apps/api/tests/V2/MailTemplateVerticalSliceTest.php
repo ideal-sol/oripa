@@ -73,7 +73,9 @@ final class MailTemplateVerticalSliceTest extends TestCase
             'agency_login_information_reissued',
         ], array_column($result['items'], 'key'));
         foreach ($result['items'] as $template) {
-            self::assertCount(26, $template['variables']);
+            self::assertCount(28, $template['variables']);
+            self::assertContains(['key' => 'carrier_name', 'label' => '配送会社', 'token' => '{{carrier_name}}'], $template['variables']);
+            self::assertContains(['key' => 'tracking_number', 'label' => '追跡番号', 'token' => '{{tracking_number}}'], $template['variables']);
         }
         self::assertSame([
             'メールアドレス認証のお願い',
@@ -108,6 +110,25 @@ final class MailTemplateVerticalSliceTest extends TestCase
         self::assertContains('POST admin/api/v2/mail-templates/{templateKey}/preview', $methods);
         self::assertFalse($methods->contains(fn (string $route): bool => str_starts_with($route, 'DELETE ')));
         self::assertFalse($methods->contains(fn (string $route): bool => $route === 'POST admin/api/v2/mail-templates'));
+    }
+
+    public function test_shipping_variables_preview_and_subject_rendering(): void
+    {
+        Mail::fake();
+        $service = app(V2MailTemplateService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $current = $service->template($context, 'shipping_completed');
+        $updated = $service->update($context, 'shipping_completed', [
+            'subject' => '発送 {{carrier_name}} / {{tracking_number}}',
+            'body_html' => '<p>{{carrier_name}} / {{tracking_number}}</p>',
+            'expected_revision' => $current['revision'],
+        ], 'shipping-variables-'.Str::uuid7());
+        self::assertSame('発送 {{carrier_name}} / {{tracking_number}}', $updated['subject']);
+        $preview = $service->preview($context, 'shipping_completed', ['body_html' => $updated['body_html']]);
+        self::assertSame('<p>ヤマト運輸 / 1234-5678-9012</p>', $preview['body_html']);
+        self::assertSame('発送 ヤマト運輸 / 1234-5678-9012', app(\App\Domain\Mail\Services\V2TemplateVariableRenderer::class)
+            ->subject($updated['subject'], config('v2_mail_templates.preview_values')));
+        Mail::assertNothingSent();
     }
 
     public function test_contact_reply_defaults_edit_and_preview_keep_multiline_plain_reply_content(): void
@@ -220,9 +241,9 @@ final class MailTemplateVerticalSliceTest extends TestCase
         DB::table('point_purchase_plans')->where('id', $planId)->update(['name' => '変更後プラン']);
         DB::table('mail_templates')->where('template_key', 'coin_purchase_completed')->update([
             'subject_template' => '{{purchase_date}} {{acquired_coins}}',
-            'body_html' => '<p>{{full_name}}|{{user_name}}|{{purchase_plan}}|{{purchase_amount}}|{{purchase_date}}|{{payment_method}}|{{acquired_coins}}|{{unknown}}</p>',
+            'body_html' => '<p>{{full_name}}|{{user_name}}|{{purchase_plan}}|{{purchase_amount}}|{{purchase_date}}|{{payment_method}}|{{acquired_coins}}|{{unknown}}|{{carrier_name}}|{{tracking_number}}</p>',
         ]);
-        $expected = '<p>登録氏名|購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|</p>';
+        $expected = '<p>登録氏名|購入テスト|購入時プラン|8,000円|'.$date.'|'.$label.'|10,000 コイン|||</p>';
         Mail::shouldReceive('html')->once()->withArgs(
             static fn (string $html, callable $callback): bool => $html === $expected
         )->andReturn(\Mockery::mock(\Illuminate\Mail\SentMessage::class));
@@ -271,23 +292,29 @@ final class MailTemplateVerticalSliceTest extends TestCase
         );
     }
 
-    public function test_user_notifications_use_registration_name_or_empty_without_changing_display_name(): void
+    #[DataProvider('userMailKeys')]
+    public function test_user_notifications_use_registration_name_or_empty_without_changing_display_name(string $templateKey): void
     {
-        DB::table('mail_templates')->where('template_key', 'phone_changed')->update(['body_html' => '<p>{{full_name}}|{{user_name}}</p>']);
+        DB::table('mail_templates')->where('template_key', $templateKey)->update(['body_html' => '<p>{{full_name}}|{{user_name}}|{{carrier_name}}|{{tracking_number}}</p>']);
         foreach (['Registered Name', null] as $name) {
             $user = User::query()->create(['email_display' => Str::uuid7().'@example.test',
                 'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic password'),
                 'email_normalized' => Str::uuid7().'@example.test', 'state' => V2UserState::Active,
                 'full_name' => $name, 'display_name' => 'Public Alias']);
             $mail = app(V2TemplateMailDeliveryService::class);
-            $event = 'user.phone_changed:'.$user->public_id;
-            $mail->schedule('phone_changed', $event, 'user', $user->public_id);
-            $expected = '<p>'.($name ?? '').'|Public Alias</p>';
+            $event = 'user.'.$templateKey.':'.$user->public_id;
+            $mail->schedule($templateKey, $event, 'user', $user->public_id);
+            $expected = '<p>'.($name ?? '').'|Public Alias||</p>';
             Mail::shouldReceive('html')->once()->withArgs(static fn (string $body, callable $callback): bool => $body === $expected);
             $delivery = DB::table('mail_deliveries')->where('event_key', $event)->firstOrFail();
             $mail->deliver($delivery->public_id);
             self::assertDatabaseHas('mail_deliveries', ['id' => $delivery->id, 'status' => 'sent']);
         }
+    }
+
+    public static function userMailKeys(): array
+    {
+        return [['phone_changed'], ['registration_completed']];
     }
 
     public function test_preview_uses_unsaved_body_dummy_values_and_has_no_side_effects(): void

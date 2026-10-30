@@ -19,6 +19,8 @@ const variables: AdminMailTemplateVariable[] = [
   ["full_name", "氏名"],
   ["address", "住所"],
   ["phone_number", "電話番号"],
+  ["carrier_name", "配送会社"],
+  ["tracking_number", "追跡番号"],
   ["gacha_names", "ガチャ名"],
   ["prize_names", "景品名"],
   ["purchase_plan", "コイン購入プラン"],
@@ -130,6 +132,23 @@ describe("Mail Template management", () => {
       subject: "{{user_name}}発送依頼を受け付けました",
     });
     expect(update.mock.calls[0]?.[2]).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it("exposes shipping variables from the API in both pickers and inserts their exact tokens", async () => {
+    render(<MailTemplateWorkspace templateKey="shipping_completed" />);
+    const subject = await screen.findByLabelText("件名");
+    const editor = screen.getByLabelText("メール本文");
+    for (const [key, label] of [["carrier_name", "配送会社"], ["tracking_number", "追跡番号"]]) {
+      for (const pickerLabel of ["件名へ変数を挿入", "本文へ変数を挿入"]) {
+        expect(within(screen.getByLabelText(pickerLabel)).getByRole("option", { name: label })).toHaveValue(`{{${key}}}`);
+      }
+      subject.focus();
+      fireEvent.change(screen.getByLabelText("件名へ変数を挿入"), { target: { value: `{{${key}}}` } });
+      expect((subject as HTMLInputElement).value).toContain(`{{${key}}}`);
+      editor.focus();
+      fireEvent.change(screen.getByLabelText("本文へ変数を挿入"), { target: { value: `{{${key}}}` } });
+      await waitFor(() => expect(editor.innerHTML).toContain(`{{${key}}}`));
+    }
   });
 
   it("edits the Contact reply template and inserts reply_content through the shared picker", async () => {
