@@ -194,9 +194,12 @@ final class PaymentCommonFoundationTest extends TestCase
         $secondEvent = $service->recordVerifiedProviderEvent('techcoin', 'receipt-second', 'payment.succeeded', '{}', [], (int) $second->id, providerOccurredAt: now());
         $service->confirmSucceeded((int) $secondEvent->id);
         self::assertSame(3000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
-        \Illuminate\Support\Facades\Mail::shouldReceive('html')->once()->withArgs(function (string $body, callable $callback): bool {
+        $grant = DB::table('payment_point_grants')->where('payment_id', $payment->id)->sole();
+        $expiry = DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)->where('point_type', 'paid')->sole()->expire_at;
+        $expiryLabel = \Carbon\CarbonImmutable::parse($expiry, 'UTC')->setTimezone('Asia/Tokyo')->format('Y年n月j日 H:i:s').'（日本時間）';
+        \Illuminate\Support\Facades\Mail::shouldReceive('html')->once()->withArgs(function (string $body, callable $callback) use ($expiryLabel): bool {
             self::assertStringContainsString('購入後のコイン残高：1,000', $body);
-            self::assertStringContainsString('有償コインの有効期限：なし', $body);
+            self::assertStringContainsString('有償コインの有効期限：'.$expiryLabel, $body);
             self::assertStringNotContainsString('商品ボーナス', $body);
             self::assertStringNotContainsString('還元', $body);
             return true;
@@ -206,6 +209,31 @@ final class PaymentCommonFoundationTest extends TestCase
         $mail->deliver($delivery->public_id);
         $mail->deliver($delivery->public_id);
         $this->assertDatabaseHas('mail_deliveries', ['id'=>$delivery->id, 'status'=>'sent', 'attempts'=>1]);
+    }
+
+    public function test_receipt_uses_the_paid_lot_expiry_in_jst_and_keeps_the_snapshot_frozen(): void
+    {
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-30T15:59:47Z'));
+        try {
+            [$user, $payment] = $this->payment('techcoin', 'netridecash');
+            $service = app(V2PaymentService::class);
+            $event = $service->recordVerifiedProviderEvent('techcoin', 'receipt-expiry-jst', 'payment.succeeded', '{}', [], (int) $payment->id, providerOccurredAt: now());
+            $service->confirmSucceeded((int) $event->id);
+            $grant = DB::table('payment_point_grants')->where('payment_id', $payment->id)->sole();
+            $lot = DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)->where('point_type', 'paid')->sole();
+            self::assertSame('2027-04-28T15:59:47+00:00', \Carbon\CarbonImmutable::parse($lot->expire_at)->utc()->toIso8601String());
+            $before = DB::table('payment_receipt_snapshots')->where('payment_id', $payment->id)->value('snapshot');
+            $receipt = json_decode($before, true, flags: JSON_THROW_ON_ERROR)['purchase_receipt'];
+            self::assertContains('有償コインの有効期限：2027年4月29日 00:59:47（日本時間）', $receipt);
+            self::assertNotContains('有償コインの有効期限：なし', $receipt);
+            $this->travel(3)->days();
+            $service->confirmSucceeded((int) $event->id);
+            self::assertSame($before, DB::table('payment_receipt_snapshots')->where('payment_id', $payment->id)->value('snapshot'));
+            self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
+            self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
+        } finally {
+            $this->travelBack();
+        }
     }
 
     public function test_missing_mail_acceptance_result_requires_review_without_resending(): void

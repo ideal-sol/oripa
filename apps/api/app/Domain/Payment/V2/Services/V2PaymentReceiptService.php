@@ -27,7 +27,10 @@ final class V2PaymentReceiptService
             }
         }
         $lines[] = '付与コイン合計：'.number_format($paid + $product + $limited + $rankAmount);
-        $lines[] = '有償コインの有効期限：なし';
+        $paidExpiry = DB::table('point_lots')->where('grant_operation_id', $grant->point_operation_id)
+            ->where('point_type', 'paid')->value('expire_at');
+        $lines[] = '有償コインの有効期限：'.($paidExpiry === null ? 'なし'
+            : CarbonImmutable::parse($paidExpiry, 'UTC')->setTimezone('Asia/Tokyo')->format('Y年n月j日 H:i:s').'（日本時間）');
         $lots = DB::table('point_lots')->whereIn('grant_operation_id', array_filter([$grant->point_operation_id, $rank?->point_operation_id]))
             ->where('point_type', 'free')->orderBy('expire_at')->get();
         foreach ($lots as $lot) {
