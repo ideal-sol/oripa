@@ -337,6 +337,7 @@ final class V2TemplateMailDeliveryService
             ->where('shipping.public_id', $publicId)
             ->first([
                 'shipping.id', 'shipping.recipient_name_ciphertext',
+                'shipping.carrier_code', 'shipping.tracking_number_ciphertext',
                 'shipping.postal_code_ciphertext', 'shipping.prefecture_ciphertext',
                 'shipping.city_ciphertext', 'shipping.street_ciphertext',
                 'shipping.building_ciphertext', 'shipping.phone_number_ciphertext',
@@ -375,6 +376,9 @@ final class V2TemplateMailDeliveryService
             'full_name' => $this->decrypt($shipping->recipient_name_ciphertext),
             'address' => $address,
             'phone_number' => $this->decrypt($shipping->phone_number_ciphertext),
+            'carrier_name' => trim((string) ($shipping->carrier_code ?? '')),
+            'tracking_number' => $shipping->tracking_number_ciphertext === null
+                ? '' : $this->decrypt($shipping->tracking_number_ciphertext),
             'gacha_names' => $gachas,
             'prize_names' => $prizes,
         ])];

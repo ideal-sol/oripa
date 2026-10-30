@@ -22,6 +22,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -761,6 +765,88 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             0,
             DB::table('shipping_addresses')->whereNotNull('deleted_at')->count()
         );
+    }
+
+    #[DataProvider('shippingMailCases')]
+    public function test_shipping_mail_reads_latest_values_without_persisting_plaintext_or_resending(
+        ?string $carrier, ?string $tracking, string $expectedCarrier, string $expectedTracking, bool $fail
+    ): void {
+        [$user, $prizes] = $this->fixture(1);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $request = $service->createShippingRequest($user, $address['id'], $prizes,
+            'shipping-mail-'.Str::uuid7(), (string) Str::uuid7());
+        $admin = $this->admin();
+        $service->transitionShipping($admin, $request['id'], 'packing', null, null, null, (string) Str::uuid7());
+        $service->transitionShipping($admin, $request['id'], 'shipped', 'original carrier',
+            'original-tracking', null, (string) Str::uuid7());
+        $delivery = DB::table('mail_deliveries')->where('event_key', 'shipping.completed:'.$request['id'])->sole();
+        self::assertSame('pending', $delivery->status);
+        if ($carrier === null || $tracking === null) {
+            // Shipped rows require tracking. A pending mail can outlive a correction to packing.
+            $service->transitionShipping($admin, $request['id'], 'packing', null, null, null, (string) Str::uuid7());
+        }
+        // The outer test transaction holds afterCommit callbacks: edit after scheduling, before deliver.
+        DB::table('shipping_requests')->where('public_id', $request['id'])->update([
+            'carrier_code' => $carrier,
+            'tracking_number_ciphertext' => $tracking === null ? null : Crypt::encryptString($tracking),
+        ]);
+        DB::table('mail_templates')->where('template_key', 'shipping_completed')->update([
+            'subject_template' => '発送|{{carrier_name}}|{{tracking_number}}|',
+            'body_html' => '<p>{{carrier_name}}|{{tracking_number}}|{{user_name}}</p>',
+        ]);
+        Log::spy();
+        $mailer = Mail::getFacadeRoot();
+        $mailer->purge();
+        config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array']]);
+        $transport = $mailer->mailer()->getSymfonyTransport();
+        if ($fail) {
+            Mail::shouldReceive('html')->once()->andThrow(new \RuntimeException('Synthetic transport failure '.$tracking));
+        }
+        $mail = app(V2TemplateMailDeliveryService::class);
+        $mail->deliver($delivery->public_id);
+        $mail->deliver($delivery->public_id);
+        self::assertDatabaseHas('mail_deliveries', ['id' => $delivery->id,
+            'status' => $fail ? 'failed' : 'sent', 'attempts' => 1]);
+        if (! $fail) {
+            self::assertCount(1, $transport->messages());
+            $message = $transport->messages()->first()->getOriginalMessage();
+            self::assertSame('発送|'.$expectedCarrier.'|'.$expectedTracking.'|', $message->getSubject());
+            self::assertStringContainsString('<p>'.$expectedCarrier.'|'.$expectedTracking.'|', $message->getHtmlBody());
+        }
+        if ($carrier !== null && $tracking !== null) {
+            $service->transitionShipping($admin, $request['id'], 'packing', null, null, null, (string) Str::uuid7());
+        }
+        $service->transitionShipping($admin, $request['id'], 'shipped', 'changed after delivery',
+            'after-delivery-tracking', null, (string) Str::uuid7());
+        self::assertSame(1, DB::table('mail_deliveries')->where('event_key', $delivery->event_key)->count());
+        $mail->deliver($delivery->public_id);
+        if (! $fail) {
+            self::assertCount(1, $transport->messages());
+        }
+        $persisted = json_encode([
+            DB::table('mail_deliveries')->get(), DB::table('audit_logs')->get(),
+            DB::table('shipping_requests')->where('public_id', $request['id'])->get(),
+            DB::table('shipping_request_status_histories')->get(), DB::table('outbox_messages')->get(),
+        ], JSON_THROW_ON_ERROR);
+        foreach (['original-tracking', '4567-8901-2345', 'after-delivery-tracking', $tracking] as $plaintext) {
+            if ($plaintext !== null && $plaintext !== '') {
+                self::assertStringNotContainsString($plaintext, $persisted);
+            }
+        }
+        foreach (['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency', 'log'] as $level) {
+            Log::shouldNotHaveReceived($level);
+        }
+    }
+
+    public static function shippingMailCases(): array
+    {
+        return [
+            'latest values' => ['  ヤマト運輸  ', '4567-8901-2345', 'ヤマト運輸', '4567-8901-2345', false],
+            'null values' => [null, null, '', '', false],
+            'preserve spelling and tracking whitespace' => ['  クロネコ  ', ' 0045-6789-0123 ', 'クロネコ', ' 0045-6789-0123 ', false],
+            'transport failure redacted without retry' => ['ヤマト運輸', '4567-8901-2345', 'ヤマト運輸', '4567-8901-2345', true],
+        ];
     }
 
     public function test_shipping_request_is_atomic_replay_safe_and_tracks_admin_transitions(): void
