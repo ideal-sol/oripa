@@ -10,15 +10,15 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20"
-PREVIOUS_SOURCE = "bbf61feccacf6a0333705ae6eefdf15a012a5475"
-SOURCE_TREE = "f98276f2e27f48f6ce50d94a1f55bef9598abd45"
+APPROVED = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
+PREVIOUS_SOURCE = "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20"
+SOURCE_TREE = "689053e45289e7518aa5798e699589cf8a0757fb"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "SHIP-B2CSV-20261031"
-SOURCE_PR = 642
+SOURCE_CHANGE = "FIRSTBUY-20261031"
+SOURCE_PR = 646
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -237,7 +237,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_formal_source_go_is_separate_from_runtime_and_history_exclusion(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
-        for evidence in ["preparation only", "API plus Admin", "B2_OFFICIAL_HEADER_PENDING",
+        for evidence in ["preparation only", "API only", "B2_OFFICIAL_HEADER_PENDING",
                          "Issue #643 stays open", "AUTO_CONVERT_ENABLED=false", "Rank ON/Generation1", "Ledger103"]:
             self.assertIn(evidence, authority["authority"])
         for obsolete in ["DRAFT CANDIDATE ONLY", "Source Authority update is pending", "formal Source GO is pending"]:
@@ -247,8 +247,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_current_protected_base_retains_previous_authority(self):
         current = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:{MODULE['AUTHORITY_PATH']}"))
         self.assertEqual(current["source_sha"], PREVIOUS_SOURCE)
-        self.assertEqual(current["pr_number"], 639)
-        self.assertEqual(current["change_id"], "RANKSCOPE-20261029")
+        self.assertEqual(current["pr_number"], 642)
+        self.assertEqual(current["change_id"], "SHIP-B2CSV-20261031")
         self.assertIs(current["activation_authorized"], False)
         real_git = MODULE["git"]
         self.workflow = PROTECTED
@@ -386,7 +386,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
                          "no new B2 ENV settings", "Admin button remains visible",
                          "B2_OFFICIAL_HEADER_PENDING", "Issue #643 stays open",
                          "Source Merge only", "pre-Runtime postal prerequisite is unresolved",
-                         "Rank ON/Generation1", "Ledger103", "API plus Admin",
+                         "Rank ON/Generation1", "Ledger103", "API only",
                          "Canonical Deployment Lock", "writer fencing", "backups",
                          "formal Authority merge requires separate Human approval",
                          "No formal Production Artifact Dispatch/Build/Stage or Runtime GO"]:
