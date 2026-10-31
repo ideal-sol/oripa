@@ -25,24 +25,25 @@ TASK_ID = "PRIZECSV-20261007"
 
 
 class Alpha48ApprovalInventoryTest(unittest.TestCase):
-    def test_exact_payload_keeps_applied_migrations_and_only_adds_101(self):
+    def test_exact_payload_keeps_applied_migrations_and_only_adds_102_103(self):
         approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
-        self.assertEqual(approval["task_id"], "OLDTEST-20261028A")
-        self.assertEqual(approval["source_pr"], 631)
-        self.assertEqual(approval["source_sha"], "6e945df343d3d42ffa844b3b369ca0c171a6bbbe")
+        self.assertEqual(approval["task_id"], "OLDTEST-20261031")
+        self.assertEqual(approval["source_pr"], 642)
+        self.assertEqual(approval["source_sha"], "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20")
         self.assertEqual(approval["image_mode"], "normal")
         self.assertIs(approval["activation_authorized"], False)
-        baseline = "b5e18969db9ec01323127eef05936ca53b370870"
+        baseline = "6e945df343d3d42ffa844b3b369ca0c171a6bbbe"
         target = approval["source_sha"]
         directory = "apps/api/database/migrations-v2"
         def inventory(ref):
             output = subprocess.check_output(["git", "ls-tree", "-r", ref, "--", directory], cwd=ROOT, text=True)
             return {line.split("\t", 1)[1]: line.split()[2] for line in output.splitlines() if line.endswith(".php")}
         before, after = inventory(baseline), inventory(target)
-        self.assertEqual(len(before), 100)
+        self.assertEqual(len(before), 101)
         self.assertEqual({path: after[path] for path in before}, before)
         self.assertEqual(sorted(set(after) - set(before)), [
-            directory + "/2026_10_28_000101_add_v2_account_closure.php",
+            directory + "/2026_10_29_000102_bind_v2_prelaunch_history_scope.php",
+            directory + "/2026_10_29_000103_scope_v2_prelaunch_protected_history.php",
         ])
 
 
