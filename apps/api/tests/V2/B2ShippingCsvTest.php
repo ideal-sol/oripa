@@ -87,10 +87,16 @@ final class B2ShippingCsvTest extends TestCase
             'building long' => [['building' => str_repeat('あ', 17)], 13, str_repeat('あ', 17), ['BUILDING_TOO_LONG']],
             'address long' => [['prefecture' => '', 'city' => '', 'street' => str_repeat('あ', 33)], 12, str_repeat('あ', 33), ['ADDRESS_TOO_LONG']],
             'international phone' => [['phone_number' => '+819012345678'], 9, '09012345678', []],
+            'international phone with hyphens' => [['phone_number' => '+81-90-1234-5678'], 9, '090-1234-5678', []],
+            'international phone repeated separator' => [['phone_number' => '+81--90-1234-5678'], 9, '+81--90-1234-5678', ['PHONE_INVALID']],
+            'international phone missing subscriber' => [['phone_number' => '+81'], 9, '+81', ['PHONE_INVALID']],
+            'international phone empty subscriber' => [['phone_number' => '+81-'], 9, '+81-', ['PHONE_INVALID']],
+            'international phone invalid subscriber' => [['phone_number' => '+81-abc'], 9, '+81-abc', ['PHONE_INVALID']],
             'phone unchanged' => [['phone_number' => '090-1234-5678'], 9, '090-1234-5678', []],
             'phone empty' => [['phone_number' => ''], 9, '', ['PHONE_INVALID']],
             'phone invalid' => [['phone_number' => 'abc'], 9, 'abc', ['PHONE_INVALID']],
             'phone too long' => [['phone_number' => str_repeat('1', 16)], 9, str_repeat('1', 16), ['PHONE_INVALID']],
+            'postal already formatted' => [['postal_code' => '123-4567'], 11, '123-4567', []],
             'digit space preserved' => [['street' => '町 １　２ 号'], 12, '架空県架空市町１　２号', []],
             'all warnings retained' => [['recipient_name' => str_repeat('髙', 17), 'street' => str_repeat('あ', 33), 'building' => str_repeat('あ', 17), 'phone_number' => ''], 16, str_repeat('髙', 17), ['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER']],
         ];
@@ -109,6 +115,15 @@ final class B2ShippingCsvTest extends TestCase
             $result = $this->row($address);
             self::assertContains('ADDRESS_TOO_LONG', $result['codes']);
             self::assertSame($address['building'], $result['row'][12]);
+        }
+    }
+
+    public function test_sender_phone_uses_the_same_country_prefix_conversion(): void
+    {
+        foreach (['+819012345678' => '09012345678', '+81-90-1234-5678' => '090-1234-5678',
+            '090-1234-5678' => '090-1234-5678'] as $input => $expected) {
+            config(['v2_b2_shipping.sender_phone' => $input]);
+            self::assertSame($expected, $this->row()['row'][19]);
         }
     }
 

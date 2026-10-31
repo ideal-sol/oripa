@@ -160,7 +160,7 @@ final class V2B2ShippingCsv
 
     private function phone(string $value): string
     {
-        return str_starts_with($value, '+81') ? '0'.substr($value, 3) : $value;
+        return preg_replace('/\A\+81-?(?=[0-9])/', '0', $value) ?? $value;
     }
 
     private function validPhone(string $value): bool
