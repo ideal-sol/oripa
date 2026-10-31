@@ -40,7 +40,7 @@ final class V2B2ShippingCsv
         foreach (['sender_name' => 32, 'sender_address' => 64, 'sender_building' => 32, 'item_name' => 50] as $key => $limit) {
             $unsupported = false;
             $settings[$key] = $this->outputText($this->freeText($settings[$key]), $unsupported);
-            if ($unsupported || mb_strwidth($settings[$key], 'UTF-8') > $limit
+            if ($unsupported || $this->width($settings[$key]) > $limit
                 || ($key !== 'sender_building' && $settings[$key] === '')) {
                 throw $this->notConfigured();
             }
@@ -64,11 +64,11 @@ final class V2B2ShippingCsv
         $building = $this->outputText($text($address['building']), $unsupported);
         $fullAddress = $this->outputText($this->addressSpaces($prefix.$street), $unsupported);
         // Split using the original street's last space, before whitespace removal.
-        if (mb_strwidth($fullAddress, 'UTF-8') > 64 && $building === ''
+        if ($this->width($fullAddress) > 64 && $building === ''
             && preg_match('/\A(.*\S)[\s\x{3000}]+([^\s\x{3000}]+)\z/us', $street, $parts)) {
             $candidateAddress = $this->outputText($this->addressSpaces($prefix.$parts[1]), $unsupported);
             $candidateBuilding = $this->outputText($this->freeText($parts[2]), $unsupported);
-            if (mb_strwidth($candidateAddress, 'UTF-8') <= 64 && mb_strwidth($candidateBuilding, 'UTF-8') <= 32) {
+            if ($this->width($candidateAddress) <= 64 && $this->width($candidateBuilding) <= 32) {
                 $fullAddress = $candidateAddress;
                 $building = $candidateBuilding;
             }
@@ -78,7 +78,7 @@ final class V2B2ShippingCsv
         $codes = [];
         foreach ([[$fullAddress, 64, 'ADDRESS_TOO_LONG'], [$building, 32, 'BUILDING_TOO_LONG'],
             [$name, 32, 'NAME_TOO_LONG']] as [$value, $limit, $code]) {
-            if (mb_strwidth($value, 'UTF-8') > $limit) {
+            if ($this->width($value) > $limit) {
                 $codes[] = $code;
             }
         }
@@ -131,6 +131,13 @@ final class V2B2ShippingCsv
         } finally {
             fclose($stream);
         }
+    }
+
+    private function width(string $value): int
+    {
+        // In CP932, fullwidth characters occupy two bytes and ASCII/halfwidth
+        // kana one. Unicode display width miscounts ambiguous characters (α, ①).
+        return strlen(mb_convert_encoding($value, 'CP932', 'UTF-8'));
     }
 
     private function freeText(string $value): string

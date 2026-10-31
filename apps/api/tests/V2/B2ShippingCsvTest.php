@@ -82,6 +82,8 @@ final class B2ShippingCsvTest extends TestCase
             'name too long' => [['recipient_name' => str_repeat('あ', 17)], 16, str_repeat('あ', 17), ['NAME_TOO_LONG']],
             'mixed name width' => [['recipient_name' => str_repeat('あ', 15).'abc'], 16, str_repeat('あ', 15).'abc', ['NAME_TOO_LONG']],
             'halfwidth kana' => [['recipient_name' => str_repeat('ｱ', 32)], 16, str_repeat('ｱ', 32), []],
+            'JIS Greek fullwidth' => [['recipient_name' => str_repeat('α', 17)], 16, str_repeat('α', 17), ['NAME_TOO_LONG']],
+            'CP932 circled fullwidth' => [['recipient_name' => str_repeat('①', 17)], 16, str_repeat('①', 17), ['NAME_TOO_LONG', 'UNSUPPORTED_CHARACTER']],
             'building long' => [['building' => str_repeat('あ', 17)], 13, str_repeat('あ', 17), ['BUILDING_TOO_LONG']],
             'address long' => [['prefecture' => '', 'city' => '', 'street' => str_repeat('あ', 33)], 12, str_repeat('あ', 33), ['ADDRESS_TOO_LONG']],
             'international phone' => [['phone_number' => '+819012345678'], 9, '09012345678', []],
@@ -131,7 +133,8 @@ final class B2ShippingCsvTest extends TestCase
             ['billing_customer_code', '12345678'], ['billing_customer_code', '1234567890123'],
             ['billing_class_code', '12'], ['billing_class_code', 'abc'], ['freight_number', '1'],
             ['sender_phone', 'invalid'], ['sender_postal_code', '123'], ['invoice_type', 'invalid'],
-            ['item_name', str_repeat('あ', 26)], ['item_name', '😀'], ['sender_name', null]];
+            ['item_name', str_repeat('あ', 26)], ['item_name', str_repeat('α', 26)],
+            ['item_name', '😀'], ['sender_name', null]];
     }
 
     private function row(array $address = []): array
