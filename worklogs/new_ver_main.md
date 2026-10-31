@@ -12462,3 +12462,79 @@ Lane: Strict Change. Risk: R3. Application Runtime Activation: deferred. Issue: 
 Human approved exact merged PR646 payload a35468d259c99dda7e64ce6f0c7fccda2ee9e665 for API-only AMD64 preparation, coordinated with Storefront PR211 including PR209. Authority-only change; all103 migration blobs and Admin/OpenAPI trees remain unchanged from PR642. Contract alpha.48 and Ledger103 are retained. Verify API any_product configuration before Storefront wording publication. Preserve Rank ON, existing TEST payment/Worker/F2-B settings, independent SMS/Mail and Admin; no new timer or seven-day activation. No feature source, workflow, migration, contract, ENV or Runtime changes. Required Checks and fresh exact-head self-review remain mandatory before Canonical squash merge. Runtime requires a separate Exact Identity GO.
 
 Authority Source Change ID: FIRSTBUY-1031; Canonical Runtime/Artifact Task: OLDTEST-FIRSTBUY-1031. Initial PR CI rejected the Runtime identifier as source PR metadata. Corrected metadata to the existing source CI grammar without validator or gate changes; exact manifest Task and payload unchanged. Initial local fixture/prefix mismatches corrected before PR publication; all41 focused tests PASS. New final head requires all five checks and fresh Strict self-review.
+
+
+## PRODSOURCE-646-20261031 — Production PR646 source preparation
+
+## Task
+
+- Task ID: PRODSOURCE-646
+- Issue: none; existing #643 out of scope
+- Risk: R3
+- Lane: Strict Change
+- Application Runtime Activation: deferred
+- UI Verification: NOT_APPLICABLE
+- Codex role: Platform Codex
+- Base SHA: 613c97feab46beca3e772a9a6aac2901f87877e1
+- Head branch: chore/PRODSOURCE-646-20261031
+- Base branch: main
+- Worktree mode: dedicated
+- Task Policy: transient exact paths; no merge operation permitted
+- Source Lock: none
+- Migration Allocation Lock: not applicable
+
+## Summary
+
+Update existing Production Source Authority to PR #646 / FIRSTBUY-20261031,
+Runtime Source a35468d259c99dda7e64ce6f0c7fccda2ee9e665,
+tree 689053e45289e7518aa5798e699589cf8a0757fb.
+Future reflection API only; Admin/Agency/Storefront unchanged.
+Latest Human approval permits Ready only; formal merge requires separate approval.
+No Artifact Dispatch, deployable Build, Runtime, ENV or DB changes.
+Canonical Required CI verification is separate from deployable artifact builds.
+
+## Specification sources
+
+Latest Human PR646 preparation instruction; Governance REV3, Release Gates REV2,
+GitHub Operations ADR REV1 (2026-08-30), existing Production Source Authority.
+
+## Scope
+
+### Changed files
+
+- manifests/platform-production-approved-source.json
+- tests/ops/test_production_source_authority.py
+- docs/operations/deployment/production-source-pr646-handoff.md
+- worklogs/new_ver_main.md
+
+### Explicitly not changed
+
+Application code, workflows, helpers, contracts, dependencies, migrations, ENV,
+runtime, Admin/Agency/Storefront and original worktree changes.
+
+## Technical impact
+
+Metadata only; no API/database/auth/payment/point/draw implementation change.
+Future V2_FIRST_PURCHASE_LIMIT_SCOPE=any_product considers existing historical
+first-user payments across products, including retired plan versions. Existing
+test purchases may block test accounts. No data exclusion, rewrite, reset or delete.
+Preserve Ledger103, seven-day auto conversion OFF, UnivaPay TEST/Webhook/Worker,
+F2-B and Rank ON. No OLD Test ON copied. Issue #643 unresolved and out of scope.
+
+## Verification
+
+Local authority regression 25 tests PASS. Final-head CI and self-review to be
+recorded below. No Browser/E2E or live Production checks; metadata-only task.
+Migration created/applied: 0/0. Formal Build/Runtime Activation: 0/0.
+No secrets/PII; exact changed-path and generated/dependency review required.
+
+## Deployment and rollback
+
+activation_authorized=false. Merge and every later operational action need
+separate Human approval. Withdraw before merge or use reviewed metadata rollback.
+Strict self-review expires after 30 minutes; refresh before later merge.
+Branches/worktree retained for open PR; original worktree is not synchronized.
+Inherited B2 postal/header/import limitations remain tracked by #643; no runtime
+gate waived. SEV-0/1 findings: 0; inherited #643 SEV-2 remains outside this change.
+
+Final exact-head CI/review and timing are recorded on the PR after commit.
