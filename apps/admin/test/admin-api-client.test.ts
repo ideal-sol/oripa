@@ -1,4 +1,5 @@
-import contract from "../../../openapi/bundled/admin.openapi.json";
+import { readFileSync } from "node:fs";
+import { URL as NodeURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -825,6 +826,8 @@ const b2Id = "01910191-0191-7191-8191-019101910191";
 
 describe("B2 shipping export contract and transport", () => {
   it("declares both complete CSV and JSON warning responses with private Admin authentication", () => {
+    // Contract fixtures are test inputs, not modules required by the Admin image.
+    const contract = JSON.parse(readFileSync(new NodeURL("../../../openapi/bundled/admin.openapi.json", import.meta.url), "utf8"));
     const operation = contract.paths["/shipping-requests/export-b2"].post;
     expect(operation.operationId).toBe("exportSelectedAdminShippingRequestsB2");
     expect(operation.security).toEqual([{ adminSession: [] }]);
