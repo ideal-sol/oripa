@@ -12468,7 +12468,7 @@ Authority Source Change ID: FIRSTBUY-1031; Canonical Runtime/Artifact Task: OLDT
 
 ## Task
 
-- Task ID: PRODSOURCE-646-20261031
+- Task ID: PRODSOURCE-646
 - Issue: none; existing #643 out of scope
 - Risk: R3
 - Lane: Strict Change
