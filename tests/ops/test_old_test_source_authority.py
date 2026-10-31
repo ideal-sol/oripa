@@ -24,27 +24,24 @@ TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
 
 
-class Alpha48ApprovalInventoryTest(unittest.TestCase):
-    def test_exact_payload_keeps_applied_migrations_and_only_adds_102_103(self):
+class FirstBuyApprovalInventoryTest(unittest.TestCase):
+    def test_exact_api_payload_retains_all_103_migrations_and_admin(self):
         approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
-        self.assertEqual(approval["task_id"], "OLDTEST-20261031")
-        self.assertEqual(approval["source_pr"], 642)
-        self.assertEqual(approval["source_sha"], "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20")
-        self.assertEqual(approval["image_mode"], "normal")
+        self.assertEqual(approval["task_id"], "OLDTEST-FIRSTBUY-1031")
+        self.assertEqual(approval["source_pr"], 646)
+        self.assertEqual(approval["source_sha"], "a35468d259c99dda7e64ce6f0c7fccda2ee9e665")
+        self.assertEqual(approval["image_mode"], "api-only")
         self.assertIs(approval["activation_authorized"], False)
-        baseline = "6e945df343d3d42ffa844b3b369ca0c171a6bbbe"
+        baseline = "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20"
         target = approval["source_sha"]
-        directory = "apps/api/database/migrations-v2"
-        def inventory(ref):
+        def inventory(ref, directory):
             output = subprocess.check_output(["git", "ls-tree", "-r", ref, "--", directory], cwd=ROOT, text=True)
-            return {line.split("\t", 1)[1]: line.split()[2] for line in output.splitlines() if line.endswith(".php")}
-        before, after = inventory(baseline), inventory(target)
-        self.assertEqual(len(before), 101)
-        self.assertEqual({path: after[path] for path in before}, before)
-        self.assertEqual(sorted(set(after) - set(before)), [
-            directory + "/2026_10_29_000102_bind_v2_prelaunch_history_scope.php",
-            directory + "/2026_10_29_000103_scope_v2_prelaunch_protected_history.php",
-        ])
+            return {line.split("\t", 1)[1]: line.split()[2] for line in output.splitlines()}
+        before = inventory(baseline, "apps/api/database/migrations-v2")
+        self.assertEqual(sum(path.endswith(".php") for path in before), 103)
+        self.assertEqual(inventory(target, "apps/api/database/migrations-v2"), before)
+        self.assertEqual(inventory(target, "apps/admin"), inventory(baseline, "apps/admin"))
+        self.assertEqual(inventory(target, "openapi"), inventory(baseline, "openapi"))
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
@@ -317,7 +314,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "normal")
+            self.assertEqual(result["image_mode"], "api-only")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
