@@ -116,6 +116,40 @@ final class V2AdminShippingController
         }
     }
 
+    public function exportB2(Request $request): JsonResponse|\Illuminate\Http\Response
+    {
+        $requestId = $this->requestId($request);
+        try {
+            $result = $this->service->adminB2ShippingExport(
+                $this->admin(),
+                is_array($request->input('shipping_ids')) ? $request->input('shipping_ids') : [],
+                $requestId
+            );
+            $headers = [
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Request-Id' => $requestId,
+                'X-Oripa-Api-Version' => '2',
+                'Vary' => 'Accept',
+            ];
+            if ($request->prefers(['text/csv', 'application/json']) === 'application/json') {
+                return response()->json([
+                    'filename' => $result['filename'],
+                    'csv_base64' => base64_encode($result['csv']),
+                    'warning_count' => $result['warning_count'],
+                    'warnings' => $result['warnings'],
+                ], 200, $headers);
+            }
+
+            return response($result['csv'], 200, $headers + [
+                'Content-Type' => 'text/csv; charset=Windows-31J',
+                'Content-Disposition' => 'attachment; filename="'.$result['filename'].'"',
+            ]);
+        } catch (V2PrizeShippingException $exception) {
+            return $this->problem($exception, $requestId);
+        }
+    }
+
     private function admin(): Admin
     {
         $admin = Auth::guard('v2_admin')->user();

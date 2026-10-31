@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 7768307829d7f40a02e79a813320e8f61097d7dd691fd19d6aa3d4f93b10d3a1
+// Contract SHA-256: e7bb80f2e333863ff102cfd951620353c81309373248461a4cb33b11e56671ba
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -393,6 +393,9 @@ export type AdminPaymentDetailResponse = { data: AdminPaymentDetail; request_id:
 export type AdminPaymentAdjustmentResponse = { data: AdminPaymentAdjustment; rank_adjustment_pending: boolean; idempotent_replay: boolean; request_id: string; };
 export type AdminPaymentChargebackPreview = { impact: AdminPaymentPointImpact; rank_adjustment_pending: boolean; };
 export type AdminPaymentChargebackPreviewResponse = { data: AdminPaymentChargebackPreview; request_id: string; };
+
+export type AdminB2ShippingExport = { filename: string; csv_base64: string; warning_count: number; warnings: Array<AdminB2ShippingWarning>; };
+export type AdminB2ShippingWarning = { shipping_id: string; codes: Array<"ADDRESS_TOO_LONG" | "BUILDING_TOO_LONG" | "NAME_TOO_LONG" | "PHONE_INVALID" | "UNSUPPORTED_CHARACTER">; };
 
 export interface AdminPaymentCollection {
   data: AdminPayment[];

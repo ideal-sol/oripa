@@ -21,6 +21,7 @@ import {
   type AdminShippingStatusFilter,
 } from "@/lib/admin-api/client";
 import type {
+  AdminB2ShippingWarning,
   AdminShippingRequestDetail,
   AdminShippingRequestSummary,
   AdminShippingStatus,
@@ -75,6 +76,8 @@ export function AdminShippingList({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingB2, setExportingB2] = useState(false);
+  const [b2Warnings, setB2Warnings] = useState<AdminB2ShippingWarning[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
@@ -138,6 +141,30 @@ export function AdminShippingList({
   }
 
   const allVisibleSelected = items.length > 0 && items.every((item) => selected.has(item.id));
+
+  async function exportSelectedB2() {
+    if (selected.size === 0 || selected.size > 500) return;
+    setExportingB2(true);
+    setError(null);
+    setB2Warnings([]);
+    try {
+      const result = await client.exportAdminShippingRequestsB2([...selected]);
+      const url = URL.createObjectURL(result.blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = result.filename;
+        anchor.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      setB2Warnings(result.warnings);
+    } catch (reason) {
+      setError(shippingError(reason));
+    } finally {
+      setExportingB2(false);
+    }
+  }
 
   return (
     <main className="workspace admin-user-prize-workspace">
@@ -213,7 +240,26 @@ export function AdminShippingList({
         >
           <Download aria-hidden="true" size={16} />{exporting ? "出力中" : "選択した配送をCSV出力"}
         </button>
+        <button
+          className="primary-button"
+          disabled={selected.size === 0 || selected.size > 500 || exportingB2}
+          onClick={() => void exportSelectedB2()}
+          type="button"
+        >
+          <Download aria-hidden="true" size={16} />{exportingB2 ? "B2出力中" : "B2クラウド形式でCSV出力"}
+        </button>
       </div>
+
+      {b2Warnings.length > 0 && (
+        <section aria-label="B2出力の警告" aria-live="polite" className="module-state">
+          <p>B2クラウドで修正が必要な配送が{new Set(b2Warnings.map((warning) => warning.shipping_id)).size}件あります</p>
+          <ul>
+            {b2Warnings.map((warning) => (
+              <li key={warning.shipping_id}>{warning.shipping_id}：{warning.codes.join(" / ")}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {error ? (
         <section className="module-state is-error" role="alert">
@@ -470,6 +516,9 @@ function formatJst(value: string | null | undefined): string {
 }
 
 function shippingError(reason: unknown): string {
+  if (reason instanceof AdminApiError && reason.code === "B2_EXPORT_NOT_CONFIGURED") {
+    return "B2クラウドの出力設定が未設定です";
+  }
   if (reason instanceof AdminApiError) {
     if (reason.status === 404) return "配送依頼が見つかりません。";
     if (reason.status === 409) return "現在状態との整合性を確認して再実行してください。";

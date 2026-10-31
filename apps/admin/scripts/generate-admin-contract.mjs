@@ -86,6 +86,7 @@ const operations = {
   listAdminShippingRequests: ["get", "/shipping-requests"],
   getAdminShippingRequest: ["get", "/shipping-requests/{shipping_request_id}"],
   updateAdminShippingRequest: ["put", "/shipping-requests/{shipping_request_id}"],
+  exportSelectedAdminShippingRequestsB2: ["post", "/shipping-requests/export-b2"],
   exportSelectedAdminShippingRequests: ["post", "/shipping-requests/export"],
   updateAdminUserState: ["put", "/users/{user_id}/state"],
   listAdminUserTags: ["get", "/user-tags"],
@@ -524,6 +525,8 @@ const requiredSchemas = [
   "AdminUserPrizeCollection",
   "AdminUserPrizeDetailResponse",
   "AdminUserPrizeStatus",
+  "AdminB2ShippingExport",
+  "AdminB2ShippingWarning",
   "AdminShippingSelection",
   "AdminShippingRequestCollection",
   "AdminShippingRequestDetail",
@@ -800,6 +803,8 @@ function paymentSchemaType(schema) {
   throw new Error("Unsupported Payment adjustment schema");
 }
 const paymentDeclarations = paymentSchemaNames.map(name => "export type " + name + " = " + paymentSchemaType(schemas[name]) + ";").join("\n");
+
+const b2Declarations = ["AdminB2ShippingExport", "AdminB2ShippingWarning"].map(name => "export type " + name + " = " + paymentSchemaType(schemas[name]) + ";").join("\n");
 
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}
@@ -1139,6 +1144,8 @@ export interface AdminPayment {
 }
 
 ${paymentDeclarations}
+
+${b2Declarations}
 
 export interface AdminPaymentCollection {
   data: AdminPayment[];

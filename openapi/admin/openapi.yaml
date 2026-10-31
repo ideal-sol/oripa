@@ -4503,6 +4503,60 @@ paths:
                 $ref: '#/components/schemas/AdminShippingRequestCollection'
         default:
           $ref: '#/components/responses/Problem'
+  /shipping-requests/export-b2:
+    post:
+      operationId: exportSelectedAdminShippingRequestsB2
+      summary: 選択配送のB2クラウド用97列CSVと警告を生成する
+      description: >-
+        ManageShippingRequest権限が必要。全件検証・生成後に応答し配送状態は変更しない。
+        Accept application/jsonではCP932 CSVのBase64と同一生成結果の全警告を返す。
+        text/csvではCSVのみ返す。警告詳細をレスポンスヘッダーに載せない。
+        公式ヘッダー完全一致および実取込はHuman Acceptance待ち。
+      x-idempotency: not-supported
+      x-rate-limit: admin-mutation
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminShippingSelection'
+      responses:
+        '200':
+          description: CP932、BOMなし、CRLF、ヘッダー付き97列。配送ID重複排除後1配送1行。
+          content:
+            text/csv:
+              schema: {type: string, format: binary}
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminB2ShippingExport'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          description: SHIPPING_REQUEST_NOT_FOUND。選択IDが存在しない。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../components/common.yaml#/schemas/ProblemDetails'
+        '422':
+          description: ADMIN_SHIPPING_REQUEST_INVALID。UUID配列、重複排除後1〜500件。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../components/common.yaml#/schemas/ProblemDetails'
+        '503':
+          description: B2_EXPORT_NOT_CONFIGURED。設定不足・形式不正。実設定値は返さない。
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../components/common.yaml#/schemas/ProblemDetails'
+        default:
+          $ref: '#/components/responses/Problem'
   /shipping-requests/export:
     post:
       operationId: exportSelectedAdminShippingRequests
@@ -9902,6 +9956,41 @@ components:
         reason:
           type: [string, 'null']
           maxLength: 191
+    AdminB2ShippingWarning:
+      type: object
+      additionalProperties: false
+      required: [shipping_id, codes]
+      properties:
+        shipping_id: {$ref: '#/components/schemas/OpaqueId'}
+        codes:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items:
+            type: string
+            enum: [ADDRESS_TOO_LONG, BUILDING_TOO_LONG, NAME_TOO_LONG, PHONE_INVALID, UNSUPPORTED_CHARACTER]
+    AdminB2ShippingExport:
+      type: object
+      additionalProperties: false
+      required: [filename, csv_base64, warning_count, warnings]
+      properties:
+        filename:
+          type: string
+          pattern: '^b2cloud-shipping-[0-9]{8}-[0-9]{4}\.csv$'
+        csv_base64:
+          type: string
+          contentEncoding: base64
+          description: CP932 CSV bytes。配送情報を含むため保存・ログ出力しない。
+        warning_count:
+          type: integer
+          minimum: 0
+          maximum: 500
+          description: 警告があるユニークな配送ID件数。
+        warnings:
+          type: array
+          maxItems: 500
+          items: {$ref: '#/components/schemas/AdminB2ShippingWarning'}
     AdminShippingSelection:
       type: object
       additionalProperties: false

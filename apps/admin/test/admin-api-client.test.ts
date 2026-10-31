@@ -1,3 +1,4 @@
+import contract from "../../../openapi/bundled/admin.openapi.json";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -819,3 +820,65 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
   });
 }
+
+const b2Id = "01910191-0191-7191-8191-019101910191";
+
+describe("B2 shipping export contract and transport", () => {
+  it("declares both complete CSV and JSON warning responses with private Admin authentication", () => {
+    const operation = contract.paths["/shipping-requests/export-b2"].post;
+    expect(operation.operationId).toBe("exportSelectedAdminShippingRequestsB2");
+    expect(operation.security).toEqual([{ adminSession: [] }]);
+    expect(operation["x-cache-policy"]).toBe("private-no-store");
+    expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(["200", "403", "404", "422", "503"]));
+    expect(Object.keys(operation.responses["200"].content)).toEqual(["text/csv", "application/json"]);
+    expect(contract.components.schemas.AdminB2ShippingExport.properties.warnings.maxItems).toBe(500);
+    expect(contract.components.schemas.AdminB2ShippingWarning.properties.codes.maxItems).toBe(5);
+  });
+
+  it("decodes binary CP932 bytes and retains all 500 warnings without headers or a second request", async () => {
+    const warnings = Array.from({ length: 500 }, (_, index) => ({
+      shipping_id: `01910191-0191-7191-8191-${index.toString().padStart(12, "0")}`,
+      codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER"],
+    }));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      filename: "b2cloud-shipping-20261101-0001.csv",
+      csv_base64: btoa(String.fromCharCode(0x82, 0xa0, 0x2c, 0x0d, 0x0a)),
+      warning_count: 500, warnings,
+    }), { headers: { "Content-Type": "application/json" } }));
+    const result = await new AdminApiClient(fetcher, () => csrf).exportAdminShippingRequestsB2([b2Id, b2Id]);
+    expect(result.filename).toBe("b2cloud-shipping-20261101-0001.csv");
+    expect(result.blob.size).toBe(5);
+    expect(result.blob.type).toBe("text/csv;charset=windows-31j");
+    expect(result.warnings).toEqual(warnings);
+    expect(result.warningCount).toBe(500);
+    expect(fetcher).toHaveBeenCalledOnce();
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe("/admin/api/v2/shipping-requests/export-b2");
+    expect(JSON.parse(request?.body as string)).toEqual({ shipping_ids: [b2Id] });
+    expect(request?.credentials).toBe("include");
+    expect(request?.cache).toBe("no-store");
+    expect(new Headers(request?.headers).get("X-XSRF-TOKEN")).toBe(csrf);
+    expect(new Headers(request?.headers).get("Accept")).toContain("application/json");
+  });
+
+  it("rejects zero, invalid or more than 500 distinct selections before sending", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const client = new AdminApiClient(fetcher, () => csrf);
+    for (const ids of [[], ["bad"], Array.from({ length: 501 }, (_, index) => `01910191-0191-7191-8191-${index.toString().padStart(12, "0")}`)]) {
+      await expect(client.exportAdminShippingRequestsB2(ids)).rejects.toMatchObject({ status: 422 });
+    }
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("propagates safe 503 problems and preserves the existing CSV filename", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: "B2_EXPORT_NOT_CONFIGURED" }), {
+        status: 503, headers: { "Content-Type": "application/problem+json" },
+      }))
+      .mockResolvedValueOnce(new Response("existing csv"));
+    const client = new AdminApiClient(fetcher, () => csrf);
+    await expect(client.exportAdminShippingRequestsB2([b2Id])).rejects.toMatchObject({ code: "B2_EXPORT_NOT_CONFIGURED", status: 503 });
+    await expect(client.exportAdminShippingRequests([b2Id])).resolves.toMatchObject({ filename: "oripa-v2-selected-shipping.csv" });
+    expect(fetcher.mock.calls[1][0]).toBe("/admin/api/v2/shipping-requests/export");
+  });
+});

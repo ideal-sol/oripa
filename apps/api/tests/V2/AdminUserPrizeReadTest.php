@@ -264,6 +264,148 @@ final class AdminUserPrizeReadTest extends TestCase
         )->assertNotFound();
     }
 
+    public function test_b2_export_is_atomic_preserves_shipping_state_and_audits_counts_only(): void
+    {
+        $this->configureB2();
+        CarbonImmutable::setTestNow('2026-10-31T15:01:00Z');
+        $ids = $this->b2Requests();
+        $session = $this->adminSession(V2AdminRole::Operator);
+        $before = DB::table('shipping_requests')->whereIn('public_id', $ids)->orderBy('id')->get()->toJson();
+        $histories = DB::table('shipping_request_status_histories')->count();
+        $mail = DB::table('mail_deliveries')->count();
+        \Illuminate\Support\Facades\Log::spy();
+        $response = $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
+            ['shipping_ids' => [$ids[0], $ids[0], $ids[1]]])->assertOk()
+            ->assertJsonPath('filename', 'b2cloud-shipping-20261101-0001.csv')
+            ->assertJsonPath('warning_count', 0)->assertJsonPath('warnings', []);
+        $this->assertPrivate($response);
+        $csv = base64_decode($response->json('csv_base64'), true);
+        self::assertIsString($csv);
+        $rows = array_map(fn ($line) => str_getcsv($line, escape: ''),
+            explode("\r\n", rtrim(mb_convert_encoding($csv, 'UTF-8', 'CP932'), "\r\n")));
+        self::assertCount(3, $rows);
+        foreach ($rows as $row) {
+            self::assertCount(97, $row);
+        }
+        self::assertSame(str_replace('-', '', $ids[0]), $rows[1][0]);
+        self::assertSame('計2点', $rows[1][29]);
+        self::assertSame('計1点', $rows[2][29]);
+        self::assertSame('トレーディングカード(置き配禁止)', $rows[1][27]);
+        self::assertStringNotContainsString('Fixture', $csv);
+        self::assertSame($before, DB::table('shipping_requests')->whereIn('public_id', $ids)->orderBy('id')->get()->toJson());
+        self::assertSame($histories, DB::table('shipping_request_status_histories')->count());
+        self::assertSame($mail, DB::table('mail_deliveries')->count());
+        $audit = DB::table('audit_logs')->where('action_code', 'shipping.b2_csv_exported')->first();
+        self::assertNotNull($audit);
+        $metadata = json_decode($audit->metadata_redacted, true, flags: JSON_THROW_ON_ERROR);
+        ksort($metadata);
+        self::assertSame(['permission' => 'shipping.request.manage', 'shipping_count' => 2, 'warning_count' => 0], $metadata);
+        $encodedAudit = json_encode($audit, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        foreach (['検証用受取人', '検証町', '000-0000-0000', '架空発送元', '000000000001', 'csv_base64'] as $plain) {
+            self::assertStringNotContainsString($plain, $encodedAudit);
+        }
+        foreach (['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency', 'log'] as $level) {
+            \Illuminate\Support\Facades\Log::shouldNotHaveReceived($level);
+        }
+        Auth::forgetGuards();
+        // Same endpoint can return a direct CSV; neither mode streams before validation.
+        $csrf = str_repeat('a', 64);
+        $direct = $this->asAdmin($session['token'])->withServerVariables(['HTTPS' => 'on'])
+            ->withUnencryptedCookie('__Host-oripa_admin_xsrf', $csrf)
+            ->withHeaders(['Origin' => 'https://admin.example.test', 'Sec-Fetch-Site' => 'same-origin', 'X-XSRF-TOKEN' => $csrf])
+            ->json('POST', '/admin/api/v2/shipping-requests/export-b2', ['shipping_ids' => $ids], ['Accept' => 'text/csv'])
+            ->assertOk()->assertHeader('Content-Type', 'text/csv; charset=Windows-31J');
+        self::assertSame($csv, $direct->getContent());
+    }
+
+    public function test_b2_invalid_selection_config_and_auth_fail_before_download(): void
+    {
+        $this->configureB2();
+        $ids = $this->b2Requests();
+        $session = $this->adminSession(V2AdminRole::Operator);
+        foreach ([[], ['not-a-uuid'], array_map(fn () => (string) Str::uuid7(), range(1, 501))] as $selection) {
+            Auth::forgetGuards();
+            $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
+                ['shipping_ids' => $selection])->assertUnprocessable()->assertJsonPath('code', 'ADMIN_SHIPPING_REQUEST_INVALID');
+        }
+        Auth::forgetGuards();
+        $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
+            ['shipping_ids' => [(string) Str::uuid7()]])->assertNotFound();
+        foreach (['', 'invalid-setting-value'] as $value) {
+            config(['v2_b2_shipping.billing_customer_code' => $value]);
+            Auth::forgetGuards();
+            $response = $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
+                ['shipping_ids' => $ids])->assertStatus(503)->assertJsonPath('code', 'B2_EXPORT_NOT_CONFIGURED');
+            self::assertFalse($response->headers->has('Content-Disposition'));
+            self::assertStringNotContainsString('invalid-setting-value', $response->getContent());
+        }
+        self::assertSame(0, DB::table('audit_logs')->where('action_code', 'shipping.b2_csv_exported')->count());
+        Auth::forgetGuards();
+        DB::table('admin_sessions')->where('admin_id', $session['context']->adminId)->update(['mfa_verified_at' => null]);
+        $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
+            ['shipping_ids' => $ids])->assertUnauthorized();
+        Auth::forgetGuards();
+        Auth::guard('v2_admin')->setUser($this->user);
+        $denied = app(\App\Http\Controllers\V2\V2AdminShippingController::class)
+            ->exportB2(\Illuminate\Http\Request::create('/shipping-requests/export-b2', 'POST', ['shipping_ids' => $ids]));
+        self::assertSame(403, $denied->getStatusCode());
+        self::assertSame('AUTHORIZATION_DENIED', $denied->getData(true)['code']);
+    }
+
+    public function test_b2_returns_every_warning_for_500_unique_shipping_ids_in_body(): void
+    {
+        $this->configureB2();
+        $ids = $this->b2Requests();
+        $source = (array) DB::table('shipping_requests')->where('public_id', $ids[0])->first();
+        $idempotency = (array) DB::table('idempotency_records')->where('id', $source['idempotency_record_id'])->first();
+        unset($idempotency['id']);
+        unset($source['id']);
+        $source['recipient_name_ciphertext'] = Crypt::encryptString(str_repeat('髙', 17));
+        $source['street_ciphertext'] = Crypt::encryptString(str_repeat('あ', 33));
+        $source['building_ciphertext'] = Crypt::encryptString(str_repeat('あ', 17));
+        $source['phone_number_ciphertext'] = Crypt::encryptString('');
+        $selection = [];
+        foreach (range(1, 500) as $unused) {
+            $source['public_id'] = (string) Str::uuid7();
+            $idempotency['public_id'] = (string) Str::uuid7();
+            $idempotency['key_hash'] = hash('sha256', $source['public_id']);
+            $idempotency['resource_public_id'] = $source['public_id'];
+            $source['idempotency_record_id'] = DB::table('idempotency_records')->insertGetId($idempotency);
+            DB::table('shipping_requests')->insert($source);
+            $selection[] = $source['public_id'];
+        }
+        $response = $this->mutatingShippingRequest($this->adminSession(V2AdminRole::Operator)['token'],
+            '/admin/api/v2/shipping-requests/export-b2', ['shipping_ids' => $selection])->assertOk()
+            ->assertJsonPath('warning_count', 500)->assertJsonCount(500, 'warnings');
+        self::assertSame($selection, array_column($response->json('warnings'), 'shipping_id'));
+        foreach ($response->json('warnings') as $warning) {
+            self::assertSame(['shipping_id', 'codes'], array_keys($warning));
+            self::assertSame(['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER'], $warning['codes']);
+        }
+        self::assertLessThan(2000, strlen((string) $response->headers));
+        self::assertStringNotContainsString('髙', json_encode($response->json('warnings'), JSON_UNESCAPED_UNICODE));
+    }
+
+    private function configureB2(): void
+    {
+        config(['v2_b2_shipping.sender_name' => '架空発送元', 'v2_b2_shipping.sender_phone' => '000-0000-0000',
+            'v2_b2_shipping.sender_postal_code' => '0000000', 'v2_b2_shipping.sender_address' => '架空県架空市1-2-3',
+            'v2_b2_shipping.billing_customer_code' => '000000000001', 'v2_b2_shipping.freight_number' => '01']);
+    }
+
+    private function b2Requests(): array
+    {
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($this->user, $this->address(), (string) Str::uuid7());
+        $ids = [];
+        foreach ([[$this->prizeIds[0], $this->prizeIds[1]], [$this->prizeIds[2]]] as $prizes) {
+            $ids[] = $service->createShippingRequest($this->user, $address['id'], $prizes,
+                'b2-synthetic-'.Str::uuid(), (string) Str::uuid7())['id'];
+        }
+
+        return $ids;
+    }
+
     private function createFixture(): void
     {
         $fixture = json_decode(
