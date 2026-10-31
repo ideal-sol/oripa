@@ -90,7 +90,10 @@ its Payload Authority, Build Control, architecture, Artifact and OCI identities
 remain separate from Production Authority. Local OLDTEST-20261031 worktree was
 observed at this same exact Source. No OLD Test files or Runtime are changed here.
 This handoff is the shared identity record, not a claim of owner acknowledgement
-or OLD acceptance. Formal merge timing and acceptance evidence remain pending.
+or OLD acceptance. Formal merge timing and acceptance evidence remain pending. OLD Test Authority
+PR [#644](https://github.com/ideal-sol/oripa/pull/644) has since merged at
+`5459de9f6dc6b292d165a16155451488497ecfe7`, selecting this same PR642 payload.
+This metadata merge is Build Control authority, not a replacement Runtime Source.
 
 Parallel preparation can complete Authority CI/review, static inventory and
 release gate/rollback planning. After OLD acceptance, coordinate timing, obtain
