@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-20261031",
-  "source_pr": 642,
-  "source_sha": "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20",
+  "task_id": "OLDTEST-FIRSTBUY-1031",
+  "source_pr": 646,
+  "source_sha": "a35468d259c99dda7e64ce6f0c7fccda2ee9e665",
   "target": "old-test",
   "platform": "linux/amd64",
-  "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR642 merged source including PR636, PR640 and PR641. Normal linux/amd64 API and Admin. Freeze separate Build Control after this Authority merge. Contract alpha.48 unchanged. Preserve existing101 migration blobs; only102 then103 pending, once each after separate Exact Runtime GO with writer fencing, DB Guard and verified Backup. Migration attempts are forward-only HOLD, no down or automatic restore. Preserve current Rank ON and activation/revision/generation; no activation/backfill. Preserve measured UnivaPay TEST/credit_card and existing worker configuration, SMS/Mail/F2-B/Storefront/ENV. Seven-day auto conversion remains disabled; no new timer. B2_OFFICIAL_HEADER_PENDING and Issue643 postal-code SEV2 are Human-accepted nonblocking OLD Test source-verification exceptions only; no formal B2 import acceptance, real-data export or B2 ENV configuration. No Runtime authorization in this manifest. Reuse Canonical Security Gates and exact Artifact/Image identities; separate Human Exact Runtime GO required.",
+  "image_mode": "api-only",
+  "authority": "Human-approved exact OLD Test payload: PR646 merged source for OLD Test linux/amd64 API-only preparation. Build Control is separately fixed after this authority merge. No migration or contract changes; preserve Ledger103 and alpha.48. Admin runtime is retained. One coordinated API and Storefront PR211 release includes PR209. Verify actual API first_purchase_limit_scope=any_product before publishing the corresponding Storefront wording. Preserve Rank ON and activation/revision/generation, UnivaPay TEST and existing Worker/F2-B settings, SMS/Mail/Redis/S3/GTM and seven-day conversion OFF. No payment mutation, activation/backfill, DB backup or migration in this no-schema release. No Runtime authorization in this manifest; separate Human Exact Runtime GO required. Existing Canonical Security Gates, Source/Image bindings and coordinated Recovery remain mandatory. B2 existing limitations unchanged. No Production operation.",
   "activation_authorized": false
 }
