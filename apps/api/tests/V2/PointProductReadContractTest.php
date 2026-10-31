@@ -127,17 +127,24 @@ final class PointProductReadContractTest extends TestCase
             ->assertJsonPath('data.1.cta.action', 'purchase');
     }
 
-    public function test_offer_metadata_tracks_partial_and_all_consumption_and_unknown_qualification(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockingStatuses')]
+    public function test_any_product_offer_becomes_unavailable_after_one_purchase(string $status): void
     {
         $first = $this->plan('A', 'first_purchase_users', 1);
         $second = $this->plan('B', 'first_purchase_users', 2);
+        $this->plan('C', 'first_purchase_users', 3);
         $user = $this->user();
         Auth::guard('v2_user')->setUser($user);
-        $this->payment($user, $first, 'succeeded');
+        $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('data.0.eligible', true)
+            ->assertJsonPath('data.1.eligible', true)
+            ->assertJsonPath('data.2.eligible', true);
+        $this->payment($user, $first, $status);
         $response = $this->getJson('/api/v2/point-products')->assertOk()
-            ->assertJsonPath('first_user_offer.state', 'active')
+            ->assertJsonPath('first_user_offer.state', 'unavailable')
             ->assertJsonPath('data.0.eligible', false)
-            ->assertJsonPath('data.1.eligible', true);
+            ->assertJsonPath('data.1.eligible', false)
+            ->assertJsonPath('data.2.eligible', false);
         foreach ($response->json('data') as $product) {
             self::assertSame($response->json('first_user_offer.as_of'), $product['limited_bonus']['as_of']);
         }
@@ -149,6 +156,62 @@ final class PointProductReadContractTest extends TestCase
         $this->getJson('/api/v2/point-products')->assertOk()
             ->assertJsonPath('first_user_offer.state', 'unavailable')
             ->assertJsonPath('first_user_offer.expires_at', null);
+    }
+
+    public static function blockingStatuses(): array
+    {
+        return [['created'], ['requires_action'], ['processing'], ['succeeded']];
+    }
+
+    public function test_history_scope_is_shared_by_listing_and_creation_and_uses_historical_audience(): void
+    {
+        $first = $this->plan('A', 'first_purchase_users', 1);
+        $second = $this->plan('B', 'first_purchase_users', 2);
+        $third = $this->plan('C', 'first_purchase_users', 3);
+        $normal = $this->plan('Normal', 'all_users', 4);
+        // A newer master version must not reclassify the plan attached to a payment.
+        $newVersion = (array) $first;
+        unset($newVersion['id']);
+        $newVersion['public_id'] = (string) Str::uuid7();
+        $newVersion['version_no'] = 2;
+        $newVersion['audience_code'] = 'all_users';
+        DB::table('point_purchase_plans')->insert($newVersion);
+        $eligibility = app(\App\Domain\Payment\V2\Services\V2PointPurchaseEligibilityService::class);
+        foreach (['any_product', 'per_product'] as $scope) {
+            config(['v2_payment.first_purchase_limit_scope' => $scope]);
+            foreach (['created', 'requires_action', 'processing', 'succeeded', 'failed', 'canceled', 'expired'] as $status) {
+                $user = $this->user();
+                $this->payment($user, $first, $status);
+                $blocked = $scope === 'any_product' && ! in_array($status, ['failed', 'canceled', 'expired'], true);
+                foreach ([$second, $third] as $candidate) {
+                    self::assertSame(! $blocked, $eligibility->evaluate($user, $candidate, CarbonImmutable::now())['eligible']);
+                    try {
+                        $eligibility->assertEligible($user, $candidate, CarbonImmutable::now());
+                        self::assertFalse($blocked);
+                    } catch (\App\Domain\Payment\V2\Exceptions\V2PaymentException $exception) {
+                        self::assertTrue($blocked);
+                        self::assertSame('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED', $exception->getMessage());
+                    }
+                }
+                $eligibility->assertEligible($user, $normal, CarbonImmutable::now());
+                self::assertTrue($eligibility->evaluate($user, $normal, CarbonImmutable::now())['eligible']);
+                self::assertSame(in_array($status, ['failed', 'canceled', 'expired'], true),
+                    $eligibility->evaluate($user, $first, CarbonImmutable::now())['eligible']);
+            }
+        }
+    }
+
+    public function test_per_product_listing_keeps_other_offers_active(): void
+    {
+        config(['v2_payment.first_purchase_limit_scope' => 'per_product']);
+        $first = $this->plan('A', 'first_purchase_users', 1);
+        $this->plan('B', 'first_purchase_users', 2);
+        Auth::guard('v2_user')->setUser($user = $this->user());
+        $this->payment($user, $first, 'succeeded');
+        $this->getJson('/api/v2/point-products')->assertOk()
+            ->assertJsonPath('first_user_offer.state', 'active')
+            ->assertJsonPath('data.0.eligible', false)
+            ->assertJsonPath('data.1.eligible', true);
     }
 
     public function test_sale_period_and_target_tag_are_backend_authoritative(): void

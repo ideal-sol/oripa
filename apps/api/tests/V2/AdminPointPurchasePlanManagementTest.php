@@ -390,8 +390,9 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
     }
 
-    public function test_success_confirmation_allows_different_first_user_products(): void
+    public function test_existing_per_product_payments_settle_after_any_product_activation(): void
     {
+        config(['v2_payment.first_purchase_limit_scope' => 'per_product']);
         $user = $this->user('completion');
         $plan = $this->plan('first_purchase_users');
         $service = app(V2PaymentService::class);
@@ -402,6 +403,7 @@ final class AdminPointPurchasePlanManagementTest extends TestCase
         $second = $service->createPayment(
             $user->id, $this->plan('first_purchase_users')->id, 'mock', 'second-'.Str::uuid7(), (string) Str::uuid7()
         );
+        config(['v2_payment.first_purchase_limit_scope' => 'any_product']);
         $firstEvent = $service->recordVerifiedProviderEvent(
             'mock', 'event-first-'.Str::uuid7(), 'payment.succeeded', '{}', [],
             $first->id, null, now()
