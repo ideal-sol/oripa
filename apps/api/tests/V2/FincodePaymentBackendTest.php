@@ -1726,8 +1726,9 @@ final class FincodePaymentBackendTest extends TestCase
         self::assertSame($before, $this->paymentMutationCounts());
     }
 
-    public function test_first_user_different_successful_konbini_products_inside_24_hours_are_allowed(): void
+    public function test_per_product_allows_different_successful_konbini_products_inside_24_hours(): void
     {
+        config(['v2_payment.first_purchase_limit_scope' => 'per_product']);
         $this->fakeFincode('CAPTURED');
         $this->travelTo(Carbon::parse('2026-08-24T00:00:00Z'));
         $user = $this->user('first-user-repeat');
@@ -1792,7 +1793,7 @@ final class FincodePaymentBackendTest extends TestCase
         DB::table('point_purchase_plans')->insert($version);
         $this->assertFirstUserStartBlocked($user, $version['public_id']);
         $other = $this->plan(audience: 'first_purchase_users');
-        self::assertSame('requires_action', $service->start($user, $other->public_id, 'paypay', 'other-'.$method)['status']);
+        $this->assertFirstUserStartBlocked($user, $other->public_id);
     }
 
     #[DataProvider('firstUserFailureCases')]
@@ -1810,10 +1811,12 @@ final class FincodePaymentBackendTest extends TestCase
         $event = $payments->recordVerifiedProviderEvent('fincode', 'failure-event',
             'payment.status_changed', '{}', [], $paymentId);
         $payments->applyVerifiedStatus($event->id, $terminal, strtoupper($terminal));
+        $other = $this->plan(audience: 'first_purchase_users');
         if (in_array($method, ['konbini', 'virtual_account'], true)) {
             $this->assertFirstUserStartBlocked($user, $plan->public_id);
+            $this->assertFirstUserStartBlocked($user, $other->public_id);
         } else {
-            self::assertSame('requires_action', $service->start($user, $plan->public_id, 'virtual_account', 'failure-retry')['status']);
+            self::assertSame('requires_action', $service->start($user, $other->public_id, 'virtual_account', 'failure-retry')['status']);
         }
     }
 
@@ -1874,7 +1877,7 @@ final class FincodePaymentBackendTest extends TestCase
     {
         $cases = [];
         foreach (self::firstUserMethods() as [$method]) {
-            foreach (['failed', 'canceled'] as $terminal) {
+            foreach (['failed', 'canceled', 'expired'] as $terminal) {
                 $cases[$method.'-'.$terminal] = [$method, $terminal];
             }
         }

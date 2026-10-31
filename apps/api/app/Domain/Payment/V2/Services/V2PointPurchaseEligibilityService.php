@@ -18,7 +18,7 @@ final class V2PointPurchaseEligibilityService
         $this->assertSettlementEligible($user, $plan);
         if ($plan->audience_code === self::AUDIENCE_FIRST_PURCHASE
             && (! $this->isWithinFirstUserWindow($user, $asOf)
-                || $this->hasUsedOrPendingProduct($user->id, $plan->code))) {
+                || $this->hasUsedOrPendingFirstPurchase($user->id, $plan->code))) {
             throw new V2PaymentException('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED');
         }
     }
@@ -63,7 +63,7 @@ final class V2PointPurchaseEligibilityService
         }
         if ($plan->audience_code === self::AUDIENCE_FIRST_PURCHASE
             && (! $this->isWithinFirstUserWindow($user, $asOf)
-                || $this->hasUsedOrPendingProduct($user->id, $plan->code))) {
+                || $this->hasUsedOrPendingFirstPurchase($user->id, $plan->code))) {
             return ['eligible' => false, 'reason' => 'first_purchase_required'];
         }
 
@@ -83,12 +83,17 @@ final class V2PointPurchaseEligibilityService
             ->exists();
     }
 
-    private function hasUsedOrPendingProduct(int $userId, string $planCode): bool
+    private function hasUsedOrPendingFirstPurchase(int $userId, string $planCode): bool
     {
         return DB::table('payments as payment')
             ->join('point_purchase_plans as plan', 'plan.id', '=', 'payment.point_purchase_plan_id')
             ->where('payment.user_id', $userId)
-            ->where('plan.code', $planCode)
+            // Read the historical plan attached to the payment, including retired versions.
+            ->when(
+                config('v2_payment.first_purchase_limit_scope') === 'per_product',
+                fn (Builder $query) => $query->where('plan.code', $planCode),
+                fn (Builder $query) => $query->where('plan.audience_code', self::AUDIENCE_FIRST_PURCHASE),
+            )
             ->where(function (Builder $blocked): void {
                 $blocked->whereNotIn('payment.status', ['failed', 'canceled', 'expired'])
                     ->orWhereExists(function (Builder $history): void {

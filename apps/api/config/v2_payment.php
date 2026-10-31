@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'first_purchase_limit_scope' => env('V2_FIRST_PURCHASE_LIMIT_SCOPE', 'any_product'),
     'methods_enabled' => env('V2_PAYMENT_METHODS_ENABLED', 'credit_card,paypay,konbini,virtual_account'),
     'credit_card_provider' => env('V2_PAYMENT_CREDIT_CARD_PROVIDER', 'fincode'),
     'saved_cards_enabled' => env('V2_PAYMENT_SAVED_CARDS_ENABLED', true),

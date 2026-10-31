@@ -319,17 +319,57 @@ final class PaymentModelFoundationTest extends TestCase
         }
     }
 
-    public function test_first_user_concurrent_different_products_remain_independent(): void
+    public function test_first_user_concurrent_different_products_obey_limit_scope(): void
     {
-        $user = $this->user('once-concurrent-independent');
-        $user->forceFill(['first_sms_verified_at' => now()])->save();
-        $first = $this->plan(1000, 100, 'first_purchase_users');
-        $second = $this->plan(2000, 200, 'first_purchase_users');
-        self::assertSame([0, 0], $this->parallelProcesses($this->firstUserStartScript(), [
-            [(string) $user->id, (string) $first->id, 'paypay'],
-            [(string) $user->id, (string) $second->id, 'paypay'],
-        ]));
-        self::assertSame(2, DB::table('payments')->where('user_id', $user->id)->count());
+        foreach (['any_product', 'per_product'] as $scope) {
+            foreach (['credit_card', 'paypay', 'konbini', 'virtual_account'] as $method) {
+                $user = $this->user('once-concurrent-independent');
+                $user->forceFill(['first_sms_verified_at' => now()])->save();
+                $first = $this->plan(1000, 100, 'first_purchase_users');
+                $second = $this->plan(2000, 200, 'first_purchase_users');
+                $statuses = $this->parallelProcesses($this->firstUserStartScript(), [
+                    [(string) $user->id, (string) $first->id, $method, $scope],
+                    [(string) $user->id, (string) $second->id, $method, $scope],
+                ]);
+                sort($statuses);
+                // The existing konbini unpaid limit remains independent of offer scope.
+                $onlyOne = $scope === 'any_product' || $method === 'konbini';
+                self::assertSame($onlyOne ? [0, 3] : [0, 0], $statuses);
+                self::assertSame($onlyOne ? 1 : 2,
+                    DB::table('payments')->where('user_id', $user->id)->count());
+            }
+        }
+    }
+
+    public function test_refund_and_chargeback_do_not_restore_first_purchase_benefit(): void
+    {
+        $service = app(V2PaymentService::class);
+        foreach (['refund', 'chargeback'] as $adjustment) {
+            $user = $this->user('first-'.$adjustment);
+            $user->forceFill(['first_sms_verified_at' => now()])->save();
+            $first = $this->plan(1000, 100, 'first_purchase_users');
+            $payment = $this->payment($user, $first, 'first-'.$adjustment);
+            $event = $service->recordVerifiedProviderEvent('fixture', 'first-success-'.$adjustment,
+                'payment.succeeded', '{}', [], $payment->id, null, now());
+            $service->confirmSucceeded($event->id);
+            if ($adjustment === 'refund') {
+                $refund = $service->reserveFullRefund($payment->id, 'first-refund');
+                $service->resolveRefund($refund->id, 'succeeded');
+            } else {
+                $event = $service->recordVerifiedProviderEvent('fixture', 'first-chargeback',
+                    'payment.chargeback', '{}', [], $payment->id);
+                $service->processChargeback($event->id);
+            }
+            foreach ([$this->plan(2000, 200, 'first_purchase_users'), $this->plan(3000, 300, 'first_purchase_users')] as $other) {
+                try {
+                    $this->payment($user, $other, (string) Str::uuid());
+                    self::fail('A successful first purchase permanently consumes the benefit.');
+                } catch (V2PaymentException $exception) {
+                    self::assertSame('POINT_PURCHASE_FIRST_PURCHASE_REQUIRED', $exception->getMessage());
+                }
+            }
+            self::assertNotNull($this->payment($user, $this->plan(1000, 0), 'normal-'.$adjustment));
+        }
     }
 
     private function firstUserStartScript(): string
@@ -338,6 +378,7 @@ final class PaymentModelFoundationTest extends TestCase
             require 'vendor/autoload.php';
             $app = require 'bootstrap/app.php';
             $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            config(['v2_payment.first_purchase_limit_scope' => $argv[4] ?? 'any_product']);
             try {
                 app(App\Domain\Payment\V2\Services\V2PaymentService::class)->createPayment(
                     (int) $argv[1], (int) $argv[2], 'fincode',
