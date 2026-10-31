@@ -21,6 +21,8 @@ describe("Admin Shipping management", () => {
       .mockResolvedValue({ ...detail(), status: "packing" });
     vi.spyOn(AdminApiClient.prototype, "exportAdminShippingRequests")
       .mockResolvedValue({ blob: new Blob(["csv"]), filename: "selected.csv" });
+    vi.spyOn(AdminApiClient.prototype, "exportAdminShippingRequestsB2")
+      .mockResolvedValue({ blob: new Blob(["b2"]), filename: "b2cloud-shipping-20261101-0001.csv", warnings: [], warningCount: 0 });
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:shipping");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
@@ -73,6 +75,56 @@ describe("Admin Shipping management", () => {
 
     await waitFor(() => expect(exportSelected).toHaveBeenCalledWith([uuid("1")]));
     expect(exportSelected).not.toHaveBeenCalledWith(expect.arrayContaining([uuid("2")]));
+  });
+
+  it("places B2 immediately after the existing CSV button and disables it without selection", async () => {
+    render(<AdminShippingList />);
+    await screen.findByRole("link", { name: `配送 ${uuid("1")} の詳細` });
+    const old = screen.getByRole("button", { name: "選択した配送をCSV出力" });
+    const b2 = screen.getByRole("button", { name: "B2クラウド形式でCSV出力" });
+    expect(old.nextElementSibling).toBe(b2);
+    expect(b2).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: `配送 ${uuid("1")} を選択` }));
+    expect(b2).toBeEnabled();
+  });
+
+  it("downloads B2 with its own filename, retains selection and filters, and shows unique warning IDs and codes", async () => {
+    vi.mocked(AdminApiClient.prototype.exportAdminShippingRequestsB2).mockResolvedValue({
+      blob: new Blob(["b2"]), filename: "b2cloud-shipping-20261101-0001.csv", warningCount: 1,
+      warnings: [{ shipping_id: uuid("1"), codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER"] }],
+    });
+    let filename = "";
+    vi.mocked(HTMLAnchorElement.prototype.click).mockImplementation(function (this: HTMLAnchorElement) { filename = this.download; });
+    render(<AdminShippingList initialStatus="packing" />);
+    await screen.findByRole("link", { name: `配送 ${uuid("1")} の詳細` });
+    const checkbox = screen.getByRole("checkbox", { name: `配送 ${uuid("1")} を選択` });
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "B2クラウド形式でCSV出力" }));
+    const warnings = await screen.findByRole("region", { name: "B2出力の警告" });
+    expect(warnings).toHaveTextContent("B2クラウドで修正が必要な配送が1件あります");
+    expect(warnings).toHaveTextContent(uuid("1"));
+    expect(warnings).toHaveTextContent("NAME_TOO_LONG / UNSUPPORTED_CHARACTER");
+    expect(warnings).not.toHaveTextContent("合成テスト受取人");
+    expect(filename).toBe("b2cloud-shipping-20261101-0001.csv");
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:shipping");
+    expect(checkbox).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "状態" })).toHaveValue("packing");
+    expect(AdminApiClient.prototype.updateAdminShippingRequest).not.toHaveBeenCalled();
+    expect(AdminApiClient.prototype.exportAdminShippingRequests).not.toHaveBeenCalled();
+  });
+
+  it("disables B2 while generating and renders the configuration error in Japanese", async () => {
+    let reject!: (reason: unknown) => void;
+    vi.mocked(AdminApiClient.prototype.exportAdminShippingRequestsB2).mockReturnValue(new Promise((_, fail) => { reject = fail; }));
+    render(<AdminShippingList />);
+    await screen.findByRole("link", { name: `配送 ${uuid("1")} の詳細` });
+    fireEvent.click(screen.getByRole("checkbox", { name: `配送 ${uuid("1")} を選択` }));
+    fireEvent.click(screen.getByRole("button", { name: "B2クラウド形式でCSV出力" }));
+    expect(screen.getByRole("button", { name: "B2出力中" })).toBeDisabled();
+    reject(new AdminApiError(503, "B2_EXPORT_NOT_CONFIGURED", null, null, false));
+    expect(await screen.findByRole("alert")).toHaveTextContent("B2クラウドの出力設定が未設定です");
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "B2クラウド形式でCSV出力" })).toBeEnabled();
   });
 
   it("renders detail and updates carrier, tracking, and a reverse status transition", async () => {

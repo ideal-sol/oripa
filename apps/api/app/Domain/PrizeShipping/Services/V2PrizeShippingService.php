@@ -947,29 +947,7 @@ final class V2PrizeShippingService
         array $publicIds,
         string $requestId
     ): array {
-        $ids = [];
-        foreach ($publicIds as $publicId) {
-            if (! is_string($publicId) || ! Str::isUuid($publicId)) {
-                throw $this->invalidShippingQuery();
-            }
-            $ids[$publicId] = true;
-        }
-        $ids = array_keys($ids);
-        if ($ids === [] || count($ids) > 500) {
-            throw $this->invalidShippingQuery();
-        }
-
-        $requests = DB::table('shipping_requests as shipping')
-            ->join('users as user', 'user.id', '=', 'shipping.user_id')
-            ->whereIn('shipping.public_id', $ids)
-            ->orderBy('shipping.id')
-            ->get([
-                'shipping.*',
-                'user.public_id as user_public_id',
-            ]);
-        if ($requests->count() !== count($ids)) {
-            throw $this->notFound('SHIPPING_REQUEST_NOT_FOUND');
-        }
+        $requests = $this->selectedShippingRequests($publicIds);
 
         $itemGroups = $this->adminShippingItems(
             $requests->pluck('id')->map(fn ($id): int => (int) $id)->all()
@@ -1006,6 +984,71 @@ final class V2PrizeShippingService
         ));
 
         return $rows;
+    }
+
+    /** @param array<mixed> $publicIds */
+    private function selectedShippingRequests(array $publicIds): \Illuminate\Support\Collection
+    {
+        $ids = [];
+        foreach ($publicIds as $publicId) {
+            if (! is_string($publicId) || ! Str::isUuid($publicId)) {
+                throw $this->invalidShippingQuery();
+            }
+            $ids[$publicId] = true;
+        }
+        $ids = array_keys($ids);
+        if ($ids === [] || count($ids) > 500) {
+            throw $this->invalidShippingQuery();
+        }
+
+        $requests = DB::table('shipping_requests as shipping')
+            ->join('users as user', 'user.id', '=', 'shipping.user_id')
+            ->whereIn('shipping.public_id', $ids)
+            ->orderBy('shipping.id')
+            ->get([
+                'shipping.*',
+                'user.public_id as user_public_id',
+            ]);
+        if ($requests->count() !== count($ids)) {
+            throw $this->notFound('SHIPPING_REQUEST_NOT_FOUND');
+        }
+
+        return $requests;
+    }
+
+    /**
+     * @param array<mixed> $publicIds
+     * @return array{csv: string, filename: string, warning_count: int, warnings: list<array{shipping_id: string, codes: list<string>}>}
+     */
+    public function adminB2ShippingExport(Admin $admin, array $publicIds, string $requestId): array
+    {
+        $requests = $this->selectedShippingRequests($publicIds);
+        $writer = app(V2B2ShippingCsv::class);
+        $settings = $writer->settings();
+        $counts = DB::table('shipping_request_items')
+            ->whereIn('shipping_request_id', $requests->pluck('id'))
+            ->selectRaw('shipping_request_id, count(*) as item_count')
+            ->groupBy('shipping_request_id')->pluck('item_count', 'shipping_request_id');
+        $now = CarbonImmutable::now('Asia/Tokyo');
+        $rows = [];
+        $warnings = [];
+        foreach ($requests as $shipping) {
+            $result = $writer->row((string) $shipping->public_id, $this->decryptedAddress($shipping),
+                (int) ($counts[$shipping->id] ?? 0), $settings, $now);
+            $rows[] = $result['row'];
+            if ($result['codes'] !== []) {
+                $warnings[] = ['shipping_id' => (string) $shipping->public_id, 'codes' => $result['codes']];
+            }
+        }
+        $csv = $writer->encode($rows);
+        $this->audit->record('shipping.b2_csv_exported', $this->auditAttributes(
+            $admin, 'shipping_request_selection', null, $requestId,
+            ['shipping_count' => count($rows), 'warning_count' => count($warnings)],
+            'shipping.request.manage'
+        ));
+
+        return ['csv' => $csv, 'filename' => 'b2cloud-shipping-'.$now->format('Ymd-Hi').'.csv',
+            'warning_count' => count($warnings), 'warnings' => $warnings];
     }
 
     private function prizeQuery(int $userId): \Illuminate\Database\Query\Builder

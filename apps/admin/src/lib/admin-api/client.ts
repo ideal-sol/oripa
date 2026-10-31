@@ -183,6 +183,8 @@ import {
   type AdminReauthenticationResponse,
   type AdminSession,
   type AdminShippingRequestCollection,
+  type AdminB2ShippingExport,
+  type AdminB2ShippingWarning,
   type AdminShippingRequestDetail,
   type AdminShippingStatus,
   type AdminShippingTransition,
@@ -603,6 +605,29 @@ export class AdminApiClient {
       );
     }
     return this.requestCsv("/shipping-requests/export", { shipping_ids: shippingIds }, signal);
+  }
+
+  async exportAdminShippingRequestsB2(
+    shippingIds: string[],
+    signal?: AbortSignal,
+  ): Promise<{ blob: Blob; filename: string; warnings: AdminB2ShippingWarning[]; warningCount: number }> {
+    const ids = [...new Set(shippingIds)];
+    if (ids.length < 1 || ids.length > 500 || ids.some((id) => !isOpaqueId(id))) {
+      throw new AdminApiError(422, "ADMIN_SHIPPING_REQUEST_INVALID", null, null, false);
+    }
+    const result = await this.request<AdminB2ShippingExport>("POST", "/shipping-requests/export-b2", {
+      body: { shipping_ids: ids }, signal,
+    });
+    if (!/^b2cloud-shipping-[0-9]{8}-[0-9]{4}\.csv$/.test(result.filename)) {
+      throw new AdminApiError(0, "INVALID_RESPONSE", null, null, false);
+    }
+    const bytes = Uint8Array.from(atob(result.csv_base64), (character) => character.charCodeAt(0));
+    return {
+      blob: new Blob([bytes], { type: "text/csv;charset=Windows-31J" }),
+      filename: result.filename,
+      warnings: result.warnings,
+      warningCount: result.warning_count,
+    };
   }
 
   updateAdminUserState(
