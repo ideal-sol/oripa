@@ -98,8 +98,37 @@ final class B2ShippingCsvTest extends TestCase
             'phone too long' => [['phone_number' => str_repeat('1', 16)], 9, str_repeat('1', 16), ['PHONE_INVALID']],
             'postal already formatted' => [['postal_code' => '123-4567'], 11, '123-4567', []],
             'digit space preserved' => [['street' => '町 １　２ 号'], 12, '架空県架空市町１　２号', []],
-            'all warnings retained' => [['recipient_name' => str_repeat('髙', 17), 'street' => str_repeat('あ', 33), 'building' => str_repeat('あ', 17), 'phone_number' => ''], 16, str_repeat('髙', 17), ['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER']],
+            'all warnings retained' => [['recipient_name' => str_repeat('髙', 17), 'street' => str_repeat('あ', 33), 'building' => str_repeat('あ', 17), 'phone_number' => '', 'postal_code' => 'ABC'], 16, str_repeat('髙', 17), ['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER', 'POSTAL_INVALID']],
         ];
+    }
+
+    #[DataProvider('postalCases')]
+    public function test_postal_validation_preserves_other_columns_and_download(string $input, string $output, array $codes): void
+    {
+        $baseline = $this->row()['row'];
+        $result = $this->row(['postal_code' => $input]);
+        self::assertSame($codes, $result['codes']);
+        $baseline[10] = $output;
+        self::assertSame($baseline, $result['row']);
+        $csv = app(V2B2ShippingCsv::class)->encode([$result['row']]);
+        self::assertSame(0, preg_match('/(?<!\r)\n/', $csv));
+        $lines = explode("\r\n", mb_convert_encoding($csv, 'UTF-8', 'CP932'));
+        self::assertSame($baseline, str_getcsv($lines[1], escape: ''));
+    }
+
+    public static function postalCases(): array
+    {
+        $cases = [['1234567', '123-4567', []], ['123-4567', '123-4567', []]];
+        foreach (['ABC', '', '123', '123456', '12345678', '12A4567', '１２３４５６７', '123-4567 '] as $input) {
+            $cases[] = [$input, $input, ['POSTAL_INVALID']];
+        }
+        foreach (['=1+1', '+1234567', '-1+1', '@SUM(1)', "\t=1+1", " \r\n+1"] as $input) {
+            $cases[] = [$input, '', ['POSTAL_INVALID']];
+        }
+
+        $cases[] = ["\u{200B}=1", '', ['UNSUPPORTED_CHARACTER', 'POSTAL_INVALID']];
+
+        return $cases;
     }
 
     public function test_split_only_at_original_street_last_space_when_both_fields_fit(): void

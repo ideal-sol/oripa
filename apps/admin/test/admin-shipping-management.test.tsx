@@ -91,7 +91,7 @@ describe("Admin Shipping management", () => {
   it("downloads B2 with its own filename, retains selection and filters, and shows unique warning IDs and codes", async () => {
     vi.mocked(AdminApiClient.prototype.exportAdminShippingRequestsB2).mockResolvedValue({
       blob: new Blob(["b2"]), filename: "b2cloud-shipping-20261101-0001.csv", warningCount: 1,
-      warnings: [{ shipping_id: uuid("1"), codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER"] }],
+      warnings: [{ shipping_id: uuid("1"), codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER", "POSTAL_INVALID"] }],
     });
     let filename = "";
     vi.mocked(HTMLAnchorElement.prototype.click).mockImplementation(function (this: HTMLAnchorElement) { filename = this.download; });
@@ -103,7 +103,7 @@ describe("Admin Shipping management", () => {
     const warnings = await screen.findByRole("region", { name: "B2出力の警告" });
     expect(warnings).toHaveTextContent("B2クラウドで修正が必要な配送が1件あります");
     expect(warnings).toHaveTextContent(uuid("1"));
-    expect(warnings).toHaveTextContent("NAME_TOO_LONG / UNSUPPORTED_CHARACTER");
+    expect(warnings).toHaveTextContent("NAME_TOO_LONG / UNSUPPORTED_CHARACTER / POSTAL_INVALID");
     expect(warnings).not.toHaveTextContent("合成テスト受取人");
     expect(filename).toBe("b2cloud-shipping-20261101-0001.csv");
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:shipping");

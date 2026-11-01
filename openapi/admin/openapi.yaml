@@ -9965,11 +9965,11 @@ components:
         codes:
           type: array
           minItems: 1
-          maxItems: 5
+          maxItems: 6
           uniqueItems: true
           items:
             type: string
-            enum: [ADDRESS_TOO_LONG, BUILDING_TOO_LONG, NAME_TOO_LONG, PHONE_INVALID, UNSUPPORTED_CHARACTER]
+            enum: [ADDRESS_TOO_LONG, BUILDING_TOO_LONG, NAME_TOO_LONG, PHONE_INVALID, UNSUPPORTED_CHARACTER, POSTAL_INVALID]
     AdminB2ShippingExport:
       type: object
       additionalProperties: false

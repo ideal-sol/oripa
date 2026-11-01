@@ -27699,7 +27699,7 @@
           "codes": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 5,
+            "maxItems": 6,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -27708,7 +27708,8 @@
                 "BUILDING_TOO_LONG",
                 "NAME_TOO_LONG",
                 "PHONE_INVALID",
-                "UNSUPPORTED_CHARACTER"
+                "UNSUPPORTED_CHARACTER",
+                "POSTAL_INVALID"
               ]
             }
           }

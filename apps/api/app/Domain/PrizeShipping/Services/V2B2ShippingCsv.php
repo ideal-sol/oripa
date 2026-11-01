@@ -88,6 +88,13 @@ final class V2B2ShippingCsv
         if ($unsupported) {
             $codes[] = 'UNSUPPORTED_CHARACTER';
         }
+        if (! preg_match('/\A[0-9]{3}-[0-9]{4}\z/', $postal)) {
+            $codes[] = 'POSTAL_INVALID';
+            // B2 has no formula-escaping prefix: omit dangerous leading values.
+            if (preg_match('/\A[\s\p{Cc}\p{Cf}]*[=+@-]/u', (string) $address['postal_code'])) {
+                $postal = '';
+            }
+        }
         $row = array_fill(0, 97, '');
         foreach ([1 => str_replace('-', '', $id), 2 => $settings['invoice_type'], 3 => '0',
             5 => $now->setTimezone('Asia/Tokyo')->format('Y/m/d'), 9 => $phone, 11 => $postal,
