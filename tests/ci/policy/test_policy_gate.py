@@ -22,6 +22,18 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_b2_postal_human_task_id_is_accepted_exactly(self):
+        data = fixture("positive.json")
+        task = 'SHIP-B2POSTAL-20261101'
+        policy_gate.validate_pr_body(data['pr_body'].replace('GOV-008', task), task,
+                                    data['changed_paths'], data['base_sha'])
+        for invalid in ('SHIP-B2POSTAL-20261102', task + '-extra', task.lower()):
+            with self.subTest(task_id=invalid):
+                self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, 'Task ID'):
+                    policy_gate.validate_pr_body(data['pr_body'].replace('GOV-008', invalid), invalid,
+                                                data['changed_paths'], data['base_sha'])
+
     def test_account_closure_human_task_id_exception_is_exact(self):
         self.assertIsNotNone(policy_gate.TASK_ID.fullmatch('ACCOUNT-CLOSURE-20261028'))
         for value in ('ACCOUNT-CLOSURE-20261029', 'ACCOUNT-CLOSURE-20261028-extra', 'account-closure-20261028'):
