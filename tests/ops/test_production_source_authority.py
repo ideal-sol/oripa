@@ -10,15 +10,15 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
-PREVIOUS_SOURCE = "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20"
-SOURCE_TREE = "689053e45289e7518aa5798e699589cf8a0757fb"
+APPROVED = "e250937a2e6c6bc22b8b2a8af905ee04e780ada7"
+PREVIOUS_SOURCE = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
+SOURCE_TREE = "b1e334fd4b35d00cb77b028ea9ce23b2ed084523"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "FIRSTBUY-20261031"
-SOURCE_PR = 646
+SOURCE_CHANGE = "SHIP-B2POSTAL-20261101"
+SOURCE_PR = 649
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -237,8 +237,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_formal_source_go_is_separate_from_runtime_and_history_exclusion(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
-        for evidence in ["preparation only", "API only", "B2_OFFICIAL_HEADER_PENDING",
-                         "Issue #643 stays open", "AUTO_CONVERT_ENABLED=false", "Rank ON/Generation1", "Ledger103"]:
+        for evidence in ["Source Authority squash", "API/Admin", "POSTAL_INVALID",
+                         "Issue #643 stays open", "AUTO_CONVERT_ENABLED=true", "Rank ON/Generation1", "Ledger103"]:
             self.assertIn(evidence, authority["authority"])
         for obsolete in ["DRAFT CANDIDATE ONLY", "Source Authority update is pending", "formal Source GO is pending"]:
             self.assertNotIn(obsolete, authority["authority"])
@@ -247,8 +247,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_current_protected_base_retains_previous_authority(self):
         current = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:{MODULE['AUTHORITY_PATH']}"))
         self.assertEqual(current["source_sha"], PREVIOUS_SOURCE)
-        self.assertEqual(current["pr_number"], 642)
-        self.assertEqual(current["change_id"], "SHIP-B2CSV-20261031")
+        self.assertEqual(current["pr_number"], 646)
+        self.assertEqual(current["change_id"], "FIRSTBUY-20261031")
         self.assertIs(current["activation_authorized"], False)
         real_git = MODULE["git"]
         self.workflow = PROTECTED
@@ -382,14 +382,13 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_candidate_preserves_deferred_environment_boundaries(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertIs(authority["activation_authorized"], False)
-        for boundary in ["integrated PR #636/#640/#641/#642", "AUTO_CONVERT_ENABLED=false",
-                         "no new B2 ENV settings", "Admin button remains visible",
-                         "B2_OFFICIAL_HEADER_PENDING", "Issue #643 stays open",
-                         "Source Merge only", "pre-Runtime postal prerequisite is unresolved",
-                         "Rank ON/Generation1", "Ledger103", "API only",
+        for boundary in ["UnivaPay LIVE / credit_card only", "AUTO_CONVERT_ENABLED=true",
+                         "5-minute Timer", "FIRST_PURCHASE_LIMIT_SCOPE=any_product",
+                         "existing B2 ENV", "temporary non-use policy", "Storefront PR #218",
+                         "Issue #643 stays open until Production Runtime reflection",
+                         "Rank ON/Generation1", "Ledger103", "API/Admin",
                          "Canonical Deployment Lock", "writer fencing", "backups",
-                         "formal Authority merge requires separate Human approval",
-                         "No formal Production Artifact Dispatch/Build/Stage or Runtime GO"]:
+                         "No Production Artifact Dispatch/Build", "Runtime/ENV/DB/payment/Worker/Timer"]:
             self.assertIn(boundary, authority["authority"])
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
