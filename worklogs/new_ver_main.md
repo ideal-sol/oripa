@@ -12595,3 +12595,94 @@ acceptance remains pending and Issue643 stays open for Human Acceptance.
 Reuse merged source checks and focused feature evidence; run the authority suite,
 five Required Checks and fresh exact-head Strict self-review before squash merge.
 Source Authority does not authorize Runtime activation; separate Exact GO remains required.
+
+
+## PRODAUTH-20261102 — PR649 Production Source Authority
+
+## Task
+
+- Task ID: PRODAUTH-20261102
+- Issue: none; related #643 remains open until Production Runtime reflection
+- Risk: R3
+- Lane: Strict Change
+- Application Runtime Activation: deferred
+- UI Verification: NOT_APPLICABLE
+- Base SHA: 4b8d1f0817fd67a908eb7442ba0181ae4681144e
+- Head branch: chore/PRODAUTH-20261102
+- Base branch: main
+- Worktree mode: dedicated; primary existing work preserved
+- Task Policy: exact three paths, transient wrapper transport
+- Source Lock: none
+- Migration Allocation Lock: not applicable
+
+## Summary
+
+Approve PR649 exact Runtime Source e250937a2e6c6bc22b8b2a8af905ee04e780ada7,
+tree b1e334fd4b35d00cb77b028ea9ce23b2ed084523, change SHIP-B2POSTAL-20261101.
+Reviewed Source HEAD8b1d9b059a07e731a3d5914c7dcef3756f6a4e99 has the same tree.
+Human GO includes this Authority squash after all gates; no additional approval
+is required for that merge. activation_authorized=false; no dispatch/build/runtime.
+Latest main includes OLD Test authority and is never automatically Runtime Source.
+
+## Specification sources
+
+Latest Human Production Authority GO (2026-11-02), Governance REV3, Release Gates
+REV2, GitHub Operations ADR REV1, Canonical NEW Production Release Runbook and
+existing Production Source Authority helper/workflow. No new framework or gate.
+
+## Scope
+
+### Changed files
+
+- manifests/platform-production-approved-source.json
+- tests/ops/test_production_source_authority.py
+- worklogs/new_ver_main.md
+
+### Explicitly not changed
+
+Application, workflows/helpers, contracts/packages, dependencies, migrations,
+Runtime/ENV/DB/payment/Worker/Timer, Storefront and original worktree.
+
+## Verification performed
+
+- Authority25 regression tests PASS; exact merged/reviewed Source trees match.
+- Source CI5/5 PASS reused: https://github.com/ideal-sol/oripa/actions/runs/41274210898
+- Source review reused as historical Source evidence: https://github.com/ideal-sol/oripa/pull/649#issuecomment-6553793428
+- OLD Test Authority650 pins the same Source; OLD Test Technical PASS is supplied
+  by the latest Human instruction, not a newly executed test in this Change.
+- Final Authority head requires its own Required CI5/5 and fresh self-review.
+
+## Verification not performed
+
+No unnecessary application retest, Browser/E2E, live Production readback, B2
+header/import test, Artifact Dispatch/formal Build or Runtime operation.
+No new migration/application; Public Client/Testkit alpha.48 not republished.
+
+## Production handoff
+
+Reuse canonical platform-production-arm64-artifact workflow after separate artifact
+authorization: change_id=SHIP-B2POSTAL-20261101, pr_number=649, exact Source above.
+Workflow Authority is then-current protected main with its required checks; never
+use Authority merge SHA as payload. Future API/Admin reflection includes postal
+normalization, POSTAL_INVALID, formula-prefix blanking and six Admin warning codes;
+97 columns, CP932/CRLF and existing five warnings remain. Migration NONE/Ledger103.
+
+Preserve Human-reported UnivaPay LIVE/credit_card only, seven-day exchange ON with
+5-minute Timer, any_product, RankON/Generation1, F2-B/UnivaPay Worker/Timer,
+Storefront218, Basic/GTM/CloudFront/S3, B2 ENV and current non-use policy.
+Never restore historical TEST/OFF. No financial/history mutation or exclusion.
+Issue643 stays open through Production reflection. Header/import unknowns are
+recorded, not blockers for this Source Authority merge under latest Human GO.
+Runtime and formal Artifact Build remain outside this task.
+
+## Review and rollback
+
+Exact-path/secret/PII/contract/migration review and final CI evidence follow below.
+No application/API/database/auth/point/payment/draw/infrastructure implementation
+change. Source metadata rollback requires reviewed PR; Runtime rollback deferred.
+Strict review freshness30 minutes; zero SEV-0/1 required. No new Issue or locks.
+Initial metrics: CI reruns0, local/formal Production Build0, Runtime Activation0,
+Human wait0. CI verification work is distinct from deployable artifact dispatch.
+Primary active branch/HEAD/changes are preserved; no primary main checkout/sync.
+
+Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
