@@ -12576,3 +12576,22 @@ Final HEAD/Tree, Required CI 5/5, review URL and elapsed/CI timing are external 
 Local validation complete: OpenAPI check-bundles PASS; Admin generated check PASS; Admin typecheck PASS; focused ESLint PASS; diff whitespace and secret-candidate scan PASS (0). PII review: synthetic fixtures only; no recipient values added to audit/log behavior. Initial test expectation for unsupported Unicode was corrected to retain both warnings; pre-generation typecheck was rerun after generation. Optional Pint unavailable (not installed/dependency); no claim of Pint PASS. No added Build.
 
 CI blocker follow-up: first PR event failed mandatory PR headings; local validation also found Human-selected Change ID excluded by the historical CI parser. Corrected external PR template and added only this exact Task ID plus positive/negative regression tests in scripts/ci/policy_gate.py and tests/ci/policy/test_policy_gate.py. Security/permissions/Required Checks unchanged. A superseded workflow_dispatch was canceled before integration. Final head gets a fresh complete PR-event run; final timing/check/review evidence remains on PR #649. Earlier single-commit intent is superseded by this required bounded blocker.
+
+
+## POSTAL-20261102 — PR649 OLD Test Source Authority
+
+Lane: Strict Change. Risk: R3. Application Runtime Activation: deferred. Issue: none.
+Canonical Runtime/Artifact Task: OLDTEST-B2POSTAL-20261102. Pin merged PR649
+e250937a2e6c6bc22b8b2a8af905ee04e780ada7 (tree b1e334fd4b35d00cb77b028ea9ce23b2ed084523).
+Select normal AMD64 API+Admin because the installed Canonical Executor does not
+authorize this task as API-only. Admin changes are generated types/tests only;
+no new UI is implemented. No Executor bypass or modification is included.
+All103 migrations and Public Contract/Client/Testkit alpha.48 are unchanged.
+Storefront PR218 is retained. Preserve existing Rank ON, UnivaPay TEST/worker,
+F2-B and Human-enabled seven-day auto-exchange ON with its existing timer.
+No application, workflow, schema, dependency, ENV or Runtime change in this PR.
+No DB backup/write, Provider operation or Production change. B2 header/import
+acceptance remains pending and Issue643 stays open for Human Acceptance.
+Reuse merged source checks and focused feature evidence; run the authority suite,
+five Required Checks and fresh exact-head Strict self-review before squash merge.
+Source Authority does not authorize Runtime activation; separate Exact GO remains required.
