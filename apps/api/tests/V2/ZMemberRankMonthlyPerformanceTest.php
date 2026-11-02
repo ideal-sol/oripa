@@ -2,7 +2,7 @@
 
 namespace Tests\V2;
 
-use App\Domain\MemberRank\Services\V2MemberRankMonthlyWorker;
+use App\Domain\MemberRank\Services\V2MemberRankPromotionWorker;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +53,7 @@ final class ZMemberRankMonthlyPerformanceTest extends TestCase
         $started = hrtime(true);
         do {
             $batchStart = hrtime(true);
-            $worker = app(V2MemberRankMonthlyWorker::class);
+            $worker = app(V2MemberRankPromotionWorker::class);
             $count = $worker->run('synthetic-load-'.count($durations), 100);
             $durations[] = (hrtime(true) - $batchStart) / 1e6;
             $processed += $count;
@@ -63,8 +63,8 @@ final class ZMemberRankMonthlyPerformanceTest extends TestCase
         self::assertSame(10000, $processed);
         self::assertSame(0, $worker->progress()['remaining']);
         self::assertSame('completed', $worker->progress()['job']->status);
-        self::assertSame(10000, DB::table('member_rank_states')->where('last_judged_month', '2026-11-01')->count());
-        self::assertSame(0, DB::table('member_rank_states')->where('skip_count', '>', 0)->count());
+        self::assertSame(10000, DB::table('member_rank_cumulative_events')->where('kind', 'monthly')->where('month', '2026-11-01')->count());
+        self::assertSame(0, DB::table('member_rank_changes')->where('reason', 'demotion')->count());
         self::assertSame(0, DB::table('member_rank_point_entries')->count());
         self::assertSame(0, DB::table('member_rank_achievements')->count());
         sort($durations);

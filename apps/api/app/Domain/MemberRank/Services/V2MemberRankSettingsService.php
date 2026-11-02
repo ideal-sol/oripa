@@ -242,7 +242,7 @@ final class V2MemberRankSettingsService
             }
             if (! is_int($rank['reach_line']) || ! is_int($rank['maintain_line'])
                 || $rank['reach_line'] <= $previousReach || $rank['reach_line'] > 9_007_199_254_740_991
-                || $rank['maintain_line'] < $previousMaintain || $rank['maintain_line'] > $rank['reach_line']) {
+                || $rank['maintain_line'] < $previousMaintain || $rank['maintain_line'] > 9_007_199_254_740_991) {
                 throw $this->invalid();
             }
             $previousReach = $rank['reach_line'];

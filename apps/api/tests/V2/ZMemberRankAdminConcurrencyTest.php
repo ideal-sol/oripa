@@ -4,7 +4,7 @@ namespace Tests\V2;
 
 use App\Domain\MemberRank\Exceptions\V2MemberRankException;
 use App\Domain\MemberRank\Services\V2MemberRankAdminService;
-use App\Domain\MemberRank\Services\V2MemberRankMonthlyWorker;
+use App\Domain\MemberRank\Services\V2MemberRankPromotionWorker;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -61,7 +61,7 @@ final class ZMemberRankAdminConcurrencyTest extends TestCase
                     } elseif ($action === 'payment') {
                         app(V2PaymentService::class)->confirmSucceeded($event->id);
                     } elseif ($action === 'worker') {
-                        app(V2MemberRankMonthlyWorker::class)->run('m7-concurrent', 100);
+                        app(V2MemberRankPromotionWorker::class)->run('m7-concurrent', 100);
                     } else {
                         app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)->project($user->id);
                     }
@@ -97,13 +97,13 @@ final class ZMemberRankAdminConcurrencyTest extends TestCase
         }
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => 5000]);
         self::assertSame(1, DB::table('member_rank_point_entries')->where('user_id', $user->id)->where('applied_delta', -10000)->count());
-        self::assertSame(1, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         $purchase = DB::table('member_rank_purchase_bonuses')->where('payment_id', $payment->id)->sole();
-        self::assertContains((int) $purchase->rank_level, [1, 2]);
-        self::assertSame((int) $purchase->rank_level === 1 ? 0 : 25, (int) $purchase->bonus_amount);
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => (int) $purchase->bonus_amount]);
+        self::assertSame(2, (int) $purchase->rank_level);
+        self::assertSame(25, (int) $purchase->bonus_amount);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => 500 + (int) $purchase->bonus_amount]);
         self::assertSame(5000, (int) DB::table('member_rank_point_entries')->where('user_id', $user->id)->sum('applied_delta'));
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $other->id, 'level' => 6, 'baseline_month' => '2026-11-01']);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $other->id, 'level' => 7, 'baseline_month' => '2026-10-01']);
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
     }

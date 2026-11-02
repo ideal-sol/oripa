@@ -40,15 +40,15 @@ describe("Member rank settings", () => {
   it("keeps Operator read-only", async () => {
     permissionState.permissions = new Set(["member_rank.settings.read"]);
     render(<MemberRankSettings />);
-    expect(await screen.findByLabelText("VIP 到達ライン")).toBeDisabled();
+    expect(await screen.findByLabelText("VIP 到達ライン（累計）")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "変更内容を確認" })).toBeNull();
   });
 
   it("validates monotonic thresholds and bonus limits", async () => {
     render(<MemberRankSettings />);
-    fireEvent.change(await screen.findByLabelText("シルバー 到達ライン"), { target: { value: "10000" } });
+    fireEvent.change(await screen.findByLabelText("シルバー 到達ライン（累計）"), { target: { value: "10000" } });
     expect(screen.getByRole("button", { name: "変更内容を確認" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("シルバー 到達ライン"), { target: { value: "30000" } });
+    fireEvent.change(screen.getByLabelText("シルバー 到達ライン（累計）"), { target: { value: "30000" } });
     fireEvent.change(screen.getByLabelText("ブロンズ 昇格ボーナス（無償）"), { target: { value: "1000001" } });
     expect(screen.getByRole("button", { name: "変更内容を確認" })).toBeDisabled();
   });

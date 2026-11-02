@@ -8,6 +8,24 @@ final class V2MemberRankMonthlyEvaluator
 {
     public function evaluate(?array $state, array $totals, array $versions, CarbonImmutable $instant): array
     {
+        // Reads never materialize promotions or demotions. Settings changes are
+        // consumed by the separately scheduled promotion worker.
+        $points = (new V2MemberRankCumulativePoints)->sum($totals);
+
+        return [
+            'level' => (int) ($state['level'] ?? 1),
+            'skip_count' => 0,
+            'baseline_month' => $state['baseline_month'] ?? $instant->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString(),
+            'baseline_level' => (int) ($state['baseline_level'] ?? 1),
+            'last_judged_month' => $state['last_judged_month'] ?? null,
+            'rank_points' => max(0, $points),
+            'judgments' => [],
+        ];
+    }
+
+    /** Historical implementation retained for audit; never invoked by live paths. */
+    private function evaluateLegacyMonthly(?array $state, array $totals, array $versions, CarbonImmutable $instant): array
+    {
         $target = $instant->setTimezone('Asia/Tokyo')->startOfMonth();
         $result = [
             'level' => (int) ($state['level'] ?? 1),

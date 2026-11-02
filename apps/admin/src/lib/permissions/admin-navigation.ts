@@ -104,7 +104,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("users-list", "一覧", "/users", null, "users", "available", "none"),
   route("member-ranks", "会員ランク", "/users/member-ranks", "member_rank.settings.read", "users", "available"),
   route("users-tags", "会員タグ", "/users/tags", "user.tag.read", "users", "available"),
-  route("users-history", "履歴", "/users/history", null, "users", "scaffold", "none", true),
+  route("users-history", "ランク変動", "/users/history", null, "users", "available", "none", true),
   route("gachas", "一覧", "/catalog/gachas", "catalog.read", "gacha", "available"),
   route("gachas-create", "登録", "/catalog/gachas/new", "catalog.manage", "gacha", "scaffold"),
   route("gachas-simulation", "シミュレーション", "/catalog/gachas/simulation", null, "gacha", "scaffold", "none", true),

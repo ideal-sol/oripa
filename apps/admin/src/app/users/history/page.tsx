@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { ModuleRoutePage } from "@/components/shell/module-route-page";
+import { MemberRankDiscrepancies } from "@/components/member-ranks/member-rank-discrepancies";
 
-export const metadata: Metadata = { title: "ユーザー 履歴" };
+export const metadata: Metadata = { title: "ユーザー ランク変動" };
 
 export default function UserHistoryPage() {
-  return <ModuleRoutePage routeId="users-history" />;
+  return <MemberRankDiscrepancies />;
 }

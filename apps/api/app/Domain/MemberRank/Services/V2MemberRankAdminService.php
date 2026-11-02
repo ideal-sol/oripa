@@ -118,6 +118,15 @@ final class V2MemberRankAdminService
                         $this->accounting->consumeReachedEntitlements((int) $user->id, $this->level($request['rank']),
                             $difference['month'], $difference['after_points'], $version, 'manual_rank', $originId, null, $instant);
                     }
+                    if ($request['kind'] === 'transfer') {
+                        $level = $this->level($request['rank']);
+                        app(V2MemberRankTransferService::class)->save((int) $user->id, [
+                            'status' => 'transferred', 'equivalent_level' => $level,
+                            'points' => max(0, (int) $version['ranks'][$level - 1]['reach_line']
+                                - app(V2MemberRankCumulativePoints::class)->total((int) $user->id, false, false)),
+                            'reason' => $request['reason'],
+                        ], (int) $admin->id, $instant, context: $context);
+                    }
                 } else {
                     DB::table('member_rank_month_totals')->insertOrIgnore(['user_id' => $user->id, 'month' => $difference['month']]);
                     DB::table('member_rank_month_totals')->where('user_id', $user->id)->where('month', $difference['month'])
@@ -129,7 +138,7 @@ final class V2MemberRankAdminService
                         'granted_at' => V2DatabaseTimestamp::format($instant), 'recorded_at' => V2DatabaseTimestamp::format($instant),
                     ]);
                     DB::table('member_rank_month_totals')->where('user_id', $user->id)->where('month', $difference['month'])
-                        ->update(['points' => $difference['after_points']]);
+                        ->increment('points', $request['delta']);
                     if ($request['delta'] > 0) {
                         $this->corrections->applyIncrease((int) $user->id, $entryId, $version, $instant);
                     } else {
@@ -172,40 +181,38 @@ final class V2MemberRankAdminService
         $version = $this->settings->effectiveAt($month);
         $total = $projection['rank_points'];
         $after = $total;
+        if ($operation === 'rank' && $request['kind'] === 'transfer') {
+            $base = app(V2MemberRankCumulativePoints::class)->total($userId, false, false);
+            $after = max($base, (int) $version['ranks'][$this->level($request['rank']) - 1]['reach_line']);
+        }
         if ($operation === 'points') {
             if (($request['delta'] < 0 && $total < -$request['delta']) || ($request['delta'] > 0 && $total > PHP_INT_MAX - $request['delta'])) {
                 throw new V2MemberRankException('MEMBER_RANK_POINTS_OUT_OF_RANGE', 422, '調整後のランクポイントが範囲外です。');
             }
-            $after += $request['delta'];
+            $after = app(V2MemberRankCumulativePoints::class)->sum([
+                ...app(V2MemberRankCumulativePoints::class)->components($userId), $request['delta'],
+            ]);
         }
         $reached = $this->corrections->reachedLevel($after, $version);
         $afterLevel = $operation === 'rank' ? $this->level($request['rank'])
             : ($request['delta'] > 0 ? max($projection['level'], $reached)
-                : min($projection['level'], max($projection['baseline_level'], $reached)));
+                : $projection['level']);
         if ($operation === 'rank' && $afterLevel < $projection['level'] && $request['grant_bonus']) {
             throw $this->invalid();
         }
-        $slots = DB::table('member_rank_entitlements')->where('user_id', $userId)->whereNotNull('achievement_id')->pluck('achievement_id', 'level')->all();
+        $slots = DB::table('member_rank_achievements')->where('user_id', $userId)->pluck('id', 'level')->all();
         $grants = [];
         $excluded = [];
         $grantTo = $operation === 'rank' ? ($request['grant_bonus'] ? $afterLevel : 1) : ($request['delta'] > 0 ? $reached : 1);
+        $excludedThrough = $this->accounting->excludedBonusThrough($userId);
         for ($level = 2; $level <= $grantTo; $level++) {
-            if (isset($slots[$level])) {
+            if (isset($slots[$level]) || $level <= $excludedThrough) {
                 $excluded[] = V2MemberRankSettingsService::CODES[$level - 1];
             } else {
                 $grants[] = $this->effect($level, $version['ranks'][$level - 1]['promotion_bonus']);
             }
         }
         $recoveries = [];
-        $available = $this->corrections->spendableFree($userId, $instant);
-        if ($operation === 'points' && $request['delta'] < 0) {
-            foreach ($this->corrections->recoverable($userId, $month->toDateString(), $after) as $achievement) {
-                $recovered = min($available, (int) $achievement->bonus_amount);
-                $available -= $recovered;
-                $recoveries[] = $this->effect((int) $achievement->level, (int) $achievement->bonus_amount, $recovered,
-                    (int) $achievement->bonus_amount - $recovered);
-            }
-        }
         $difference = [
             'month' => $month->toDateString(), 'expected_revision' => (int) ($state?->revision ?? 0), 'setting_revision' => $version['revision'],
             'before_rank' => V2MemberRankSettingsService::CODES[$projection['level'] - 1],
@@ -243,6 +250,10 @@ final class V2MemberRankAdminService
                 || ! is_int($input['skip_count']) || $input['skip_count'] < 0 || $input['skip_count'] > 12 || ! is_bool($input['grant_bonus'])
                 || (isset($input['confirmed_transfer_id']) && (! is_string($input['confirmed_transfer_id']) || ! Str::isUuid($input['confirmed_transfer_id'])))) {
                 throw $this->invalid();
+            }
+            $input['skip_count'] = 0;
+            if ($input['kind'] === 'transfer') {
+                $input['grant_bonus'] = false;
             }
         } elseif (! is_int($input['delta']) || $input['delta'] === 0 || abs($input['delta']) > 9007199254740991) {
             throw $this->invalid();

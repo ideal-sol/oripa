@@ -1639,7 +1639,7 @@ export interface components {
             name: string;
             level: number;
             reach_line: number | null;
-            maintain_line: number | null;
+            maintain_line: null;
             promotion_bonus: {
                 points: number;
                 /** @constant */
@@ -1656,6 +1656,10 @@ export interface components {
         MyMemberRankDisabled: {
             /** @constant */
             enabled: false;
+            point_basis: null;
+            breakdown: null;
+            promotion_bonus: null;
+            transferred: null;
             rank: null;
             period: null;
             rank_points: null;
@@ -1668,12 +1672,27 @@ export interface components {
         MyMemberRankEnabled: {
             /** @constant */
             enabled: true;
-            rank: components["schemas"]["MemberRankSnapshot"];
-            period: {
-                month: string;
-                /** Format: date-time */
-                resets_at: string;
+            /** @constant */
+            point_basis: "cumulative";
+            transferred: boolean;
+            promotion_bonus: {
+                received: boolean;
             };
+            breakdown: {
+                /** @description 全計算要素を含む累計。rank_pointsと一致する。recentの合計とは一致する必要がない。 */
+                total: number;
+                /** @description ランクポイント計上済みの購入のみ、新しい順。返金・調整・移行・補填の詳細は公開しない。 */
+                recent: {
+                    /** Format: date-time */
+                    occurred_at: string;
+                    /** @constant */
+                    kind: "purchase";
+                    points: number;
+                    label: string;
+                }[];
+            };
+            rank: components["schemas"]["MemberRankSnapshot"];
+            period: null;
             rank_points: number;
             next_rank: {
                 /** @enum {string} */
@@ -1682,19 +1701,8 @@ export interface components {
                 reach_line: number;
                 remaining: number;
             } | null;
-            maintain: {
-                line: number;
-                remaining: number;
-                achieved: boolean;
-            } | null;
-            demotion_protection: {
-                remaining_judgments: number;
-                /**
-                 * Format: date-time
-                 * @description 残り見送りを消費した後の最初の判定直前、JST月末23時59分59秒。
-                 */
-                guaranteed_until: string;
-            } | null;
+            maintain: null;
+            demotion_protection: null;
             benefits: {
                 purchase_bonus: components["schemas"]["MemberRankPurchaseBenefit"];
             };

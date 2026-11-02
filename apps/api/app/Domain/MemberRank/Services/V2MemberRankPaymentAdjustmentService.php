@@ -85,23 +85,6 @@ final class V2MemberRankPaymentAdjustmentService
         $result = [...$result, 'effect' => $current ? 'current_month' : 'past_month',
             'requested_points' => (int) $payment->amount, 'applied_points' => $applied,
             'before_rank' => $this->code($level), 'after_rank' => $this->code($level)];
-        if (! $current || $applied === 0) {
-            return $result;
-        }
-        $version = $this->settings->effectiveAt($instant->setTimezone('Asia/Tokyo')->startOfMonth());
-        $after = $total - $applied;
-        if ($context['state']->frozen_at === null) {
-            $result['after_rank'] = $this->code(min($level, max($projection['baseline_level'], $this->corrections->reachedLevel($after, $version))));
-        }
-        $available = max(0, $this->corrections->spendableFree((int) $payment->user_id, $instant) - $freeDebit);
-        foreach ($this->corrections->recoverable((int) $payment->user_id, $context['month'], $after) as $achievement) {
-            $amount = (int) $achievement->bonus_amount;
-            $recovered = min($amount, $available);
-            $available -= $recovered;
-            $result['recoveries'][] = ['rank' => $this->code((int) $achievement->level), 'requested_amount' => $amount,
-                'recovered_amount' => $recovered, 'shortfall_amount' => $amount - $recovered];
-        }
-
         return $result;
     }
 

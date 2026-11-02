@@ -21,6 +21,10 @@ const operations = {
   previewAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks/preview"],
   recordAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks"],
   reverseAdminPaymentChargeback: ["post", "/payments/{paymentId}/chargebacks/{adjustmentId}/reversals"],
+  listAdminMemberRankDiscrepancies: ["get", "/member-ranks/discrepancies"],
+  updateAdminUserMemberRankTransfer: ["put", "/users/{user_id}/member-rank-transfer"],
+  listAdminUserMemberRankTransferHistory: ["get", "/users/{user_id}/member-rank-transfer"],
+  listAdminUserMemberRankCompensationHistory: ["get", "/users/{user_id}/member-rank-compensation-history"],
   getAdminMemberRankSummary: ["get", "/member-ranks/summary"],
   listAdminMemberRankManualChanges: ["get", "/member-ranks/manual-changes"],
   updateAdminUserMemberRank: ["put", "/users/{user_id}/member-rank"],
@@ -779,6 +783,7 @@ const memberRankTypes = Object.entries(contract.components.schemas)
 const paymentSchemaNames = [
   "PaymentProgressEvent", "PaymentProviderSales",
   "AdminPaymentPurchaseBonusImpact", "AdminPaymentRankRecovery", "AdminPaymentRankAdjustment",
+  "AdminPaymentRankChoice", "AdminPaymentChargebackInput",
   "AdminPaymentAdjustmentInput", "AdminPaymentRefundCompleteInput", "AdminPaymentAdjustmentStatus",
   "AdminPaymentPointImpact", "AdminPaymentAdjustmentHistory", "AdminPaymentAdjustment", "AdminPaymentLot",
   "AdminPaymentAdjustmentSummary", "AdminPaymentDetail", "AdminPaymentDetailResponse",

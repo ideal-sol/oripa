@@ -2,12 +2,16 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Admin API
-  version: 2.0.0-alpha.44
+  version: 2.0.0-alpha.45
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
   description: 共通管理画面向けAdmin API v2の認証Contract Alpha。
   x-status: alpha
+x-oripa-member-rank-cumulative:
+  authority: human_member_rank_cumulative_2026-11-02
+  change_id: MEMBERRANK-CUMULATIVE-20261102
+  point_basis: cumulative
 x-oripa-surface: admin
 x-oripa-breaking-change:
   authority: human_MEMBERRANK-M9-20261020
@@ -189,8 +193,8 @@ paths:
   /payments/{paymentId}/refunds: {"post":{"operationId":"prepareAdminPaymentRefund","summary":"返金の準備","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"返金の準備","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
   /payments/{paymentId}/refunds/{adjustmentId}/complete: {"post":{"operationId":"completeAdminPaymentRefund","summary":"返金済みにする","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"name":"adjustmentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"返金済みにする","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentRefundCompleteInput"}}}}}}
   /payments/{paymentId}/refunds/{adjustmentId}/cancel: {"post":{"operationId":"cancelAdminPaymentRefund","summary":"返金の準備を取りやめる","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"name":"adjustmentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"返金の準備を取りやめる","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
-  /payments/{paymentId}/chargebacks/preview: {"post":{"operationId":"previewAdminPaymentChargeback","summary":"チャージバックの取消予定額","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"safe","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}}],"responses":{"200":{"description":"チャージバックの取消予定額","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentChargebackPreviewResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
-  /payments/{paymentId}/chargebacks: {"post":{"operationId":"recordAdminPaymentChargeback","summary":"チャージバックを記録","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"チャージバックを記録","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
+  /payments/{paymentId}/chargebacks/preview: {"post":{"operationId":"previewAdminPaymentChargeback","summary":"チャージバックの取消予定額","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"safe","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}}],"responses":{"200":{"description":"チャージバックの取消予定額","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentChargebackPreviewResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentChargebackInput"}}}}}}
+  /payments/{paymentId}/chargebacks: {"post":{"operationId":"recordAdminPaymentChargeback","summary":"チャージバックを記録","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"チャージバックを記録","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentChargebackInput"}}}}}}
   /payments/{paymentId}/chargebacks/{adjustmentId}/reversals: {"post":{"operationId":"reverseAdminPaymentChargeback","summary":"チャージバック取消を記録","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"name":"adjustmentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"チャージバック取消を記録","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
   /settings/pre-registration:
     get:
@@ -592,6 +596,26 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/AdminGachaNoticeDefaultsMutationResult'}
         default: {$ref: '#/components/responses/Problem'}
+  /member-ranks/discrepancies:
+    get:
+      operationId: listAdminMemberRankDiscrepancies
+      security: [{adminSession: []}]
+      summary: Owner限定のactive会員ランク乖離一覧
+      x-required-permission: member_rank.settings.read
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+      responses:
+        '200':
+          description: 現到達ライン未達のactive会員。自動降格は行わない。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankDiscrepancies'}
+        default: {$ref: '#/components/responses/Problem'}
   /member-ranks/summary:
     get:
       operationId: getAdminMemberRankSummary
@@ -631,6 +655,69 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminMemberRankHistoryCollection'}
+        default: {$ref: '#/components/responses/Problem'}
+  /users/{user_id}/member-rank-compensation-history:
+    parameters:
+      - {$ref: '#/components/parameters/UserId'}
+    get:
+      operationId: listAdminUserMemberRankCompensationHistory
+      security: [{adminSession: []}]
+      summary: 月次ランクポイント補填と取消の履歴を表示する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: 月次補填の追記履歴
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankCompensationHistory'}
+        default: {$ref: '#/components/responses/Problem'}
+  /users/{user_id}/member-rank-transfer:
+    parameters:
+      - {$ref: '#/components/parameters/UserId'}
+    get:
+      operationId: listAdminUserMemberRankTransferHistory
+      security: [{adminSession: []}]
+      summary: 会員の他サイト移行欄の変更履歴を表示する
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      parameters:
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: 移行欄の追記履歴
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankTransferHistory'}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: updateAdminUserMemberRankTransfer
+      security: [{adminSession: []}]
+      summary: 他サイト移行欄を理由とrevision排他付きで編集する
+      x-required-permission: member_rank.user.manage
+      x-idempotency: required
+      x-rate-limit: admin-write
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminMemberRankTransferWrite'}
+      responses:
+        '200':
+          description: 移行欄の更新結果
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminMemberRankTransferResponse'}
         default: {$ref: '#/components/responses/Problem'}
   /users/{user_id}/member-rank:
     parameters:
@@ -5556,7 +5643,7 @@ components:
       name: __Host-oripa_admin_session
   schemas:
     AdminPaymentAdjustmentInput: {"type":"object","additionalProperties":false,"required":["reason"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_case_id":{"type":["string","null"],"maxLength":191}}}
-    AdminPaymentRefundCompleteInput: {"type":"object","additionalProperties":false,"required":["reason","provider_refund_confirmed"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_refund_confirmed":{"const":true},"provider_adjustment_id":{"type":["string","null"],"maxLength":191}}}
+    AdminPaymentRefundCompleteInput: {"type":"object","additionalProperties":false,"required":["reason","provider_refund_confirmed"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_refund_confirmed":{"const":true},"provider_adjustment_id":{"type":["string","null"],"maxLength":191},"rank_after":{"$ref":"#/components/schemas/AdminMemberRankCode"},"rank_preview_token":{"type":"string","pattern":"^[0-9a-f]{64}$"}}}
     AdminPaymentAdjustmentStatus: {"enum":["requested","points_reserved","submitted","processing","succeeded","failed","canceled","manual_review"]}
     AdminPaymentPointImpact: {"type":"object","additionalProperties":false,"required":["required_paid_amount","required_free_amount","reversed_paid_from_paid","reversed_free_from_free","reversed_paid_shortage_from_free","shortfall_paid_amount","shortfall_free_amount"],"properties":{"required_paid_amount":{"type":"integer","minimum":0},"required_free_amount":{"type":"integer","minimum":0},"reversed_paid_from_paid":{"type":"integer","minimum":0},"reversed_free_from_free":{"type":"integer","minimum":0},"reversed_paid_shortage_from_free":{"type":"integer","minimum":0},"shortfall_paid_amount":{"type":"integer","minimum":0},"shortfall_free_amount":{"type":"integer","minimum":0},"purchase_bonus":{"$ref":"#/components/schemas/AdminPaymentPurchaseBonusImpact"},"rank_adjustment":{"$ref":"#/components/schemas/AdminPaymentRankAdjustment"}}}
     AdminPaymentPurchaseBonusImpact:
@@ -5596,10 +5683,10 @@ components:
     AdminPaymentAdjustment: {"type":"object","additionalProperties":false,"required":["id","type","status","parent_id","amount","reason","requested_by_admin_id","provider_adjustment_id","provider_case_id","source","requested_at","succeeded_at","canceled_at","impact","history"],"properties":{"id":{"$ref":"#/components/schemas/OpaqueId"},"type":{"enum":["refund","chargeback","chargeback_reversal"]},"status":{"$ref":"#/components/schemas/AdminPaymentAdjustmentStatus"},"parent_id":{"type":["string","null"]},"amount":{"type":"integer","minimum":0},"reason":{"type":["string","null"]},"requested_by_admin_id":{"type":["string","null"]},"provider_adjustment_id":{"type":["string","null"]},"provider_case_id":{"type":["string","null"]},"source":{"enum":["admin","provider","system"]},"requested_at":{"type":["string","null"],"format":"date-time"},"succeeded_at":{"type":["string","null"],"format":"date-time"},"canceled_at":{"type":["string","null"],"format":"date-time"},"impact":{"anyOf":[{"$ref":"#/components/schemas/AdminPaymentPointImpact"},{"type":"null"}]},"history":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustmentHistory"}}}}
     AdminPaymentLot: {"type":"object","additionalProperties":false,"required":["operation_id","point_type","source","granted_amount","remaining_amount","reserved_amount","expire_at","member_rank_purchase_bonus"],"properties":{"operation_id":{"$ref":"#/components/schemas/OpaqueId"},"point_type":{"enum":["paid","free"]},"source":{"type":"string"},"granted_amount":{"type":"integer","minimum":0},"remaining_amount":{"type":"integer","minimum":0},"reserved_amount":{"type":"integer","minimum":0},"expire_at":{"type":["string","null"],"format":"date-time"},"member_rank_purchase_bonus":{"type":"boolean"}}}
     AdminPaymentAdjustmentSummary: {"type":"object","additionalProperties":false,"required":["refund_pending","refunded","chargeback","review_required"],"properties":{"refund_pending":{"type":"boolean"},"refunded":{"type":"boolean"},"chargeback":{"type":"boolean"},"review_required":{"type":"boolean"}}}
-    AdminPaymentDetail: {"type":"object","additionalProperties":false,"required":["payment","lots","adjustments","refund_eligibility","rank_adjustment_pending"],"properties":{"payment":{"$ref":"#/components/schemas/AdminPayment"},"lots":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentLot"}},"adjustments":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustment"}},"refund_eligibility":{"type":"object","additionalProperties":false,"required":["allowed","code","reason"],"properties":{"allowed":{"type":"boolean"},"code":{"type":["string","null"]},"reason":{"type":["string","null"]}}},"rank_adjustment_pending":{"type":"boolean"},"progress":{"type":"array","items":{"$ref":"#/components/schemas/PaymentProgressEvent"}}}}
+    AdminPaymentDetail: {"type":"object","additionalProperties":false,"required":["payment","lots","adjustments","refund_eligibility","rank_adjustment_pending"],"properties":{"payment":{"$ref":"#/components/schemas/AdminPayment"},"lots":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentLot"}},"adjustments":{"type":"array","items":{"$ref":"#/components/schemas/AdminPaymentAdjustment"}},"refund_eligibility":{"type":"object","additionalProperties":false,"required":["allowed","code","reason"],"properties":{"allowed":{"type":"boolean"},"code":{"type":["string","null"]},"reason":{"type":["string","null"]}}},"rank_adjustment_pending":{"type":"boolean"},"progress":{"type":"array","items":{"$ref":"#/components/schemas/PaymentProgressEvent"}},"rank_change":{"anyOf":[{"$ref":"#/components/schemas/AdminPaymentRankChoice"},{"type":"null"}]}}}
     AdminPaymentDetailResponse: {"type":"object","additionalProperties":false,"required":["data","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminPaymentDetail"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
     AdminPaymentAdjustmentResponse: {"type":"object","additionalProperties":false,"required":["data","rank_adjustment_pending","idempotent_replay","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminPaymentAdjustment"},"rank_adjustment_pending":{"type":"boolean"},"idempotent_replay":{"type":"boolean"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
-    AdminPaymentChargebackPreview: {"type":"object","additionalProperties":false,"required":["impact","rank_adjustment_pending"],"properties":{"impact":{"$ref":"#/components/schemas/AdminPaymentPointImpact"},"rank_adjustment_pending":{"type":"boolean"}}}
+    AdminPaymentChargebackPreview: {"type":"object","additionalProperties":false,"required":["impact","rank_adjustment_pending"],"properties":{"impact":{"$ref":"#/components/schemas/AdminPaymentPointImpact"},"rank_adjustment_pending":{"type":"boolean"},"rank_change":{"anyOf":[{"$ref":"#/components/schemas/AdminPaymentRankChoice"},{"type":"null"}]}}}
     AdminPaymentChargebackPreviewResponse: {"type":"object","additionalProperties":false,"required":["data","request_id"],"properties":{"data":{"$ref":"#/components/schemas/AdminPaymentChargebackPreview"},"request_id":{"$ref":"#/components/schemas/OpaqueId"}}}
     AdminGachaType:
       type: string
@@ -6173,6 +6260,102 @@ components:
             activated_at: {type: [string, 'null'], format: date-time}
             point_amount: {type: [integer, 'null'], minimum: 1}
             expires_at: {type: [string, 'null'], format: date-time}
+    AdminMemberRankDiscrepancies:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, request_id]
+      properties:
+        request_id: {type: string, format: uuid}
+        next_cursor: {type: [string, 'null']}
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [user_id, rank, rank_points, reach_line, shortfall]
+            properties:
+              user_id: {$ref: '#/components/schemas/OpaqueId'}
+              rank: {$ref: '#/components/schemas/AdminMemberRankCode'}
+              rank_points: {type: integer, minimum: 0}
+              reach_line: {type: integer, minimum: 0}
+              shortfall: {type: integer, minimum: 1}
+    AdminMemberRankCompensationHistory:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, request_id]
+      properties:
+        request_id: {type: string, format: uuid}
+        next_cursor: {type: [string, 'null']}
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, month, setting_revision, delta, remaining, occurred_at]
+            properties:
+              id: {type: string, format: uuid}
+              month: {type: string, format: date}
+              setting_revision: {type: integer, minimum: 1}
+              delta: {type: integer}
+              remaining: {type: integer, minimum: 0}
+              occurred_at: {type: string, format: date-time}
+    AdminMemberRankTransferHistory:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, request_id]
+      properties:
+        request_id: {type: string, format: uuid}
+        next_cursor: {type: [string, 'null']}
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, actor_id, reason, before, after, occurred_at]
+            properties:
+              id: {type: string, format: uuid}
+              actor_id: {type: [string, 'null'], format: uuid}
+              reason: {type: string}
+              before: {$ref: '#/components/schemas/AdminMemberRankTransfer'}
+              after: {$ref: '#/components/schemas/AdminMemberRankTransfer'}
+              occurred_at: {type: string, format: date-time}
+    AdminMemberRankTransfer:
+      type: object
+      additionalProperties: false
+      required: [status, equivalent_level, points, revision]
+      properties:
+        status: {type: string, enum: [none, transferred]}
+        equivalent_level: {type: [integer, 'null'], minimum: 1, maximum: 7}
+        points: {type: integer, minimum: 0, maximum: 9007199254740991}
+        revision: {type: integer, minimum: 0}
+    AdminMemberRankTransferWrite:
+      type: object
+      additionalProperties: false
+      required: [status, equivalent_level, points, expected_revision, reason]
+      properties:
+        status: {type: string, enum: [none, transferred]}
+        equivalent_level: {type: [integer, 'null'], minimum: 1, maximum: 7}
+        points: {type: integer, minimum: 0, maximum: 9007199254740991}
+        expected_revision: {type: integer, minimum: 0}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    AdminMemberRankTransferResponse:
+      type: object
+      additionalProperties: false
+      required: [data, request_id, idempotent_replay]
+      properties:
+        data: {$ref: '#/components/schemas/AdminMemberRankTransfer'}
+        request_id: {type: string, format: uuid}
+        idempotent_replay: {type: boolean}
+    AdminPaymentChargebackInput: {"type":"object","additionalProperties":false,"required":["reason"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_case_id":{"type":["string","null"],"maxLength":191},"rank_after":{"$ref":"#/components/schemas/AdminMemberRankCode"},"rank_preview_token":{"type":"string","pattern":"^[0-9a-f]{64}$"}}}
+    AdminPaymentRankChoice:
+      type: object
+      additionalProperties: false
+      required: [current_rank, rank_points_after, reach_line, preview_token]
+      properties:
+        current_rank: {$ref: '#/components/schemas/AdminMemberRankCode'}
+        rank_points_after: {type: integer, minimum: 0}
+        reach_line: {type: integer, minimum: 0}
+        preview_token: {type: string, pattern: '^[0-9a-f]{64}$'}
     AdminMemberRankCode:
       type: string
       enum: [beginner, bronze, silver, gold, platinum, diamond, vip]
@@ -6182,8 +6365,18 @@ components:
     AdminMemberRankDetail:
       type: object
       additionalProperties: false
-      required: [enabled, rank, month, rank_points, revision, default_skip_count, next_rank, maintain, skip_count, guaranteed_until, transferred_at, last_transfer, achievements, frozen_at]
+      required: [enabled, rank, month, rank_points, revision, default_skip_count, next_rank, maintain, skip_count, guaranteed_until, transferred_at, last_transfer, achievements, frozen_at, point_basis, components, transfer]
       properties:
+        point_basis: {type: string, const: cumulative}
+        transfer: {$ref: '#/components/schemas/AdminMemberRankTransfer'}
+        components:
+          type: object
+          additionalProperties: false
+          required: [entries, transfer, compensation]
+          properties:
+            entries: {type: integer}
+            transfer: {type: integer, minimum: 0}
+            compensation: {type: integer, minimum: 0}
         enabled: {type: boolean}
         rank: {$ref: '#/components/schemas/AdminMemberRankCode'}
         month: {type: string, format: date}
@@ -6230,7 +6423,7 @@ components:
         month: {type: string, format: date}
         bonus_amount: {type: integer, minimum: 0}
         point_type: {type: string, const: free}
-        basis: {type: string, enum: [rank_points, manual_rank, manual_rank_points]}
+        basis: {type: string, enum: [rank_points, manual_rank, manual_rank_points, monthly, transfer]}
         origin_id: {type: string, format: uuid}
         occurred_at: {type: string, format: date-time}
         consumed: {type: boolean}

@@ -17,7 +17,7 @@ const names: Record<AdminMemberRankValue["code"], string> = {
   platinum: "プラチナ", diamond: "ダイヤモンド", vip: "VIP",
 };
 const fields = [
-  ["reach_line", "到達ライン"], ["maintain_line", "維持ライン"],
+  ["reach_line", "到達ライン（累計）"],
   ["promotion_bonus", "昇格ボーナス（無償）"], ["purchase_bonus_rate_bp", "購入ボーナス率（無償）"],
 ] as const;
 type Field = (typeof fields)[number][0];
@@ -89,7 +89,7 @@ export function MemberRankSettings() {
     !Number.isInteger(draft.default_skip_count) || draft.default_skip_count < 0 || draft.default_skip_count > 12
     || draft.ranks.some((rank, index) => index > 0 && (
       !Number.isSafeInteger(rank.reach_line) || rank.reach_line! < 1
-      || !Number.isSafeInteger(rank.maintain_line) || rank.maintain_line! < 0 || rank.maintain_line! > rank.reach_line!
+      || !Number.isSafeInteger(rank.maintain_line) || rank.maintain_line! < 0
       || (index > 1 && (rank.reach_line! <= draft.ranks[index - 1].reach_line! || rank.maintain_line! < draft.ranks[index - 1].maintain_line!))
       || !Number.isInteger(rank.promotion_bonus) || rank.promotion_bonus < 0 || rank.promotion_bonus > 1_000_000
       || !Number.isInteger(rank.purchase_bonus_rate_bp) || rank.purchase_bonus_rate_bp < 0 || rank.purchase_bonus_rate_bp > 10000
@@ -149,7 +149,7 @@ export function MemberRankSettings() {
           <p>昇格ボーナス・購入ボーナスは無償ポイントです。</p>
           <h2>現在の設定（版 {setting.current.revision}）</h2>
           <RankTable ranks={setting.current.ranks} />
-          <p>降格判定の見送り既定：{setting.current.default_skip_count}回</p>
+          <p>ランクポイントは累計です。自動降格はありません。</p>
         </section>
         <form className={styles.section} onSubmit={confirm}>
           <h2>{setting.scheduled ? "翌月の予約設定を編集" : "翌月の設定を予約"}</h2>
@@ -167,10 +167,7 @@ export function MemberRankSettings() {
                 onChange={(event) => edit(index, field, event.target.value)} />}
             </td>)}</tr>)}
           </tbody></table></div>
-          <label>降格判定の見送り既定（回） <input type="number" min={0} max={12} step={1} required
-            disabled={!canManage || busy || confirmation !== null} value={Number.isFinite(draft.default_skip_count) ? draft.default_skip_count : ""}
-            onChange={(event) => { setDraft({ ...draft, default_skip_count: event.target.value === "" ? Number.NaN : Number(event.target.value) }); pending.current = null; }} /></label>
-          {invalid ? <p role="alert">到達ラインは昇順、維持ラインは非減少かつ到達ライン以下、ボーナスは0〜1,000,000、率は0〜100.00%、見送りは0〜12回で指定してください。</p> : null}
+          {invalid ? <p role="alert">到達ラインは昇順、ボーナスは0〜1,000,000、率は0〜100.00%で指定してください。</p> : null}
           {canManage && !confirmation ? <div className={styles.actions}>
             <button className="primary-button" type="submit" disabled={busy || invalid || !changed}>変更内容を確認</button>
             <button className="secondary-button" type="button" disabled={busy || !changed} onClick={() => apply(setting)}>編集を戻す</button>
@@ -216,7 +213,6 @@ function differences(before: Values, after: Values): string[] {
       if (previous[field] !== rank[field]) result.push(names[rank.code] + " " + label + "：" + display(previous[field], field) + " → " + display(rank[field], field));
     }
   }
-  if (before.default_skip_count !== after.default_skip_count) result.push("降格判定の見送り既定：" + before.default_skip_count + " → " + after.default_skip_count + "回");
   return result;
 }
 

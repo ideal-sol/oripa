@@ -10,7 +10,7 @@ use App\Domain\MemberRank\Exceptions\V2MemberRankException;
 use App\Domain\MemberRank\Services\V2MemberRankAdminReadService;
 use App\Domain\MemberRank\Services\V2MemberRankAdminService;
 use App\Domain\MemberRank\Services\V2MemberRankResolver;
-use App\Domain\MemberRank\Services\V2MemberRankMonthlyWorker;
+use App\Domain\MemberRank\Services\V2MemberRankPromotionWorker;
 use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
 use Carbon\Carbon;
@@ -81,18 +81,18 @@ final class MemberRankAdminTest extends TestCase
         self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
     }
 
-    public function test_full_recovery_releases_slot_and_reach_grants_exactly_generation_two(): void
+    public function test_decrease_preserves_rank_bonus_and_lifetime_entitlement(): void
     {
         $user = $this->rankUser();
         $this->write($user, 'points', ['delta' => 10000, 'reason' => '加算']);
         $result = $this->write($user, 'points', ['delta' => -10000, 'reason' => '取消']);
-        self::assertSame('beginner', $result['data']['after_rank']);
-        self::assertSame(500, $result['data']['recoveries'][0]['recovered_amount']);
-        self::assertDatabaseHas('member_rank_changes', ['user_id' => $user->id, 'reason' => 'promotion_reversal', 'from_level' => 2, 'to_level' => 1]);
-        self::assertDatabaseHas('member_rank_entitlements', ['user_id' => $user->id, 'level' => 2, 'achievement_id' => null]);
-        self::assertSame(0, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertSame('bronze', $result['data']['after_rank']);
+        self::assertSame([], $result['data']['recoveries']);
+        self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'promotion_reversal')->count());
+        self::assertNotNull(DB::table('member_rank_entitlements')->where('user_id', $user->id)->where('level', 2)->value('achievement_id'));
+        self::assertSame(500, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         $this->write($user, 'points', ['delta' => 10000, 'reason' => '再到達']);
-        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'level' => 2, 'generation' => 2]);
+        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'level' => 2, 'generation' => 1]);
         self::assertSame(500, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         $this->assertLedger($user);
     }
@@ -103,7 +103,7 @@ final class MemberRankAdminTest extends TestCase
     }
 
     #[DataProvider('shortfalls')]
-    public function test_partial_recovery_is_visible_and_prevents_double_recovery_and_regrant(int $spent, int $recovered, int $shortfall): void
+    public function test_spent_bonus_never_triggers_recovery_or_regrant_after_point_decrease(int $spent, int $recovered, int $shortfall): void
     {
         $user = $this->rankUser();
         $this->write($user, 'points', ['delta' => 10000, 'reason' => '到達']);
@@ -111,24 +111,25 @@ final class MemberRankAdminTest extends TestCase
             app(V2PointService::class)->consume($user->id, $spent, (string) Str::uuid7());
         }
         $this->write($user, 'points', ['delta' => -10000, 'reason' => '取消']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $user->id, 'recovered_amount' => $recovered, 'shortfall_amount' => $shortfall]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         $summary = app(V2MemberRankAdminReadService::class)->summary();
-        self::assertCount($shortfall > 0 ? 1 : 0, $summary['reviews']);
+        self::assertCount(0, $summary['reviews']);
+        self::assertSame(500 - $spent, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         $this->write($user, 'points', ['delta' => 10000, 'reason' => '再到達']);
-        self::assertSame($shortfall > 0 ? 1 : 2, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
+        self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         $this->write($user, 'points', ['delta' => -10000, 'reason' => '再取消']);
-        self::assertSame($shortfall > 0 ? 1 : 2, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         $this->assertLedger($user);
     }
 
-    public function test_manual_gold_stays_gold_but_own_bronze_achievement_is_recovered(): void
+    public function test_manual_gold_and_own_bronze_achievement_survive_decrease(): void
     {
         $user = $this->rankUser();
         $this->write($user, 'rank', $this->rankInput());
         $this->settleRankPayment($user, 10000);
         $this->write($user, 'points', ['delta' => -10000, 'reason' => '自力到達を取消']);
         self::assertSame(4, $this->projection($user)['level']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $user->id, 'requested_amount' => 500, 'shortfall_amount' => 0]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'promotion_reversal')->count());
     }
 
@@ -191,22 +192,22 @@ final class MemberRankAdminTest extends TestCase
 
     public static function skipCounts(): array
     {
-        return [[0, 3], [1, 4], [2, 4], [12, 4]];
+        return [[0, 4], [1, 4], [2, 4], [12, 4]];
     }
 
     #[DataProvider('skipCounts')]
-    public function test_manual_skip_overwrites_and_lazy_month_boundary_uses_new_baseline(int $skip, int $novemberLevel): void
+    public function test_legacy_skip_input_is_ignored_and_month_boundary_preserves_rank(int $skip, int $novemberLevel): void
     {
         $user = $this->rankUser();
         $this->write($user, 'rank', [...$this->rankInput(), 'skip_count' => 12]);
         $this->write($user, 'rank', [...$this->rankInput(), 'skip_count' => $skip]);
-        self::assertSame($skip, $this->projection($user)['skip_count']);
+        self::assertSame(0, $this->projection($user)['skip_count']);
         $this->rankClock('2026-10-31T15:00:00Z');
         self::assertSame($novemberLevel, $this->projection($user)['level']);
-        self::assertSame(max(0, $skip - 1), $this->projection($user)['skip_count']);
+        self::assertSame(0, $this->projection($user)['skip_count']);
         if ($skip === 1) {
             $this->rankClock('2026-11-30T15:00:00Z');
-            self::assertSame(3, $this->projection($user)['level']);
+            self::assertSame(4, $this->projection($user)['level']);
         }
     }
 
@@ -221,14 +222,15 @@ final class MemberRankAdminTest extends TestCase
             $users[] = $user;
         }
         $this->write($users[3], 'rank', [...$this->rankInput(), 'kind' => 'transfer']);
+        $this->rankUser(); // A second beginner verifies filtering before the cursor without demotion.
         $closed = $users[6];
         app(V2AdminUserStateService::class)->update($this->admin, $closed->public_id,
             ['status' => 'closed', 'expected_revision' => 1, 'reason' => '退会'], (string) Str::uuid7());
         $this->rankClock('2026-10-31T15:00:00Z');
         $this->admin = $this->rankAdmin();
         $summary = app(V2MemberRankAdminReadService::class)->summary();
-        self::assertSame(6, $summary['active_total']);
-        self::assertSame(6, array_sum(array_column($summary['ranks'], 'count')));
+        self::assertSame(7, $summary['active_total']);
+        self::assertSame(7, array_sum(array_column($summary['ranks'], 'count')));
         self::assertTrue($summary['progress']['provisional']);
         self::assertSame(7, $this->projection($closed)['level']);
         $counts = $this->counts();
@@ -241,7 +243,7 @@ final class MemberRankAdminTest extends TestCase
         $transfer = app(V2AdminUserReadService::class)->users($this->admin, null, 20, null, null, null, null, 'gold', 'true');
         self::assertCount(1, $transfer['items']);
         self::assertSame($counts['member_rank_states'], $this->counts()['member_rank_states']);
-        app(V2MemberRankMonthlyWorker::class)->run('m7-synthetic', 100);
+        app(V2MemberRankPromotionWorker::class)->run('m7-synthetic', 100);
         self::assertSame($summary['ranks'], app(V2MemberRankAdminReadService::class)->summary()['ranks']);
         self::assertSame(7, app(V2MemberRankAdminReadService::class)->detail($closed->id)['rank'] === 'vip' ? 7 : 0);
     }
@@ -320,7 +322,7 @@ final class MemberRankAdminTest extends TestCase
         $this->write($reserved, 'points', ['delta' => 10000, 'reason' => '有効化前の予約を保持して到達']);
         app(V2PointService::class)->consume($reserved->id, 500, (string) Str::uuid7());
         $this->write($reserved, 'points', ['delta' => -10000, 'reason' => '予約済みを回収しない']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $reserved->id, 'recovered_amount' => 0, 'shortfall_amount' => 500]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $reserved->id)->count());
         self::assertDatabaseHas('wallets', ['user_id' => $reserved->id, 'free_balance' => 200, 'free_reserved_balance' => 200]);
         self::assertDatabaseHas('wallets', ['user_id' => $reserved->id, 'paid_balance' => 10000, 'paid_reserved_balance' => 10000]);
         self::assertSame(2, DB::table('point_lot_reservations')->where('status', 'active')->count());
@@ -329,13 +331,13 @@ final class MemberRankAdminTest extends TestCase
         app(V2PointService::class)->consume($expired->id, 500, (string) Str::uuid7());
         app(V2PointService::class)->grantFree($expired->id, 300, (string) Str::uuid7(), CarbonImmutable::now()->subDays(181));
         $this->write($expired, 'points', ['delta' => -10000, 'reason' => '失効済みを回収しない']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $expired->id, 'recovered_amount' => 0, 'shortfall_amount' => 500]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $expired->id)->count());
         self::assertDatabaseHas('wallets', ['user_id' => $expired->id, 'free_balance' => 300]);
         $this->assertLedger($reserved);
         $this->assertLedger($expired);
     }
 
-    public function test_recovery_can_use_other_current_free_lots_including_real_preregistration_bonus(): void
+    public function test_decrease_preserves_other_free_lots_including_preregistration_bonus(): void
     {
         $user = $this->rankUser(true);
         $this->settleRankPayment($user, 10000);
@@ -344,7 +346,7 @@ final class MemberRankAdminTest extends TestCase
         self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         app(V2PointService::class)->consume($user->id, 500, (string) Str::uuid7());
         $this->write($user, 'points', ['delta' => -10000, 'reason' => '現在の利用可能無償から回収']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $user->id, 'recovered_amount' => 500, 'shortfall_amount' => 0]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         self::assertSame(2, DB::table('member_rank_point_entries')->where('user_id', $user->id)->count());
         $this->assertLedger($user);
     }
@@ -420,14 +422,14 @@ final class MemberRankAdminTest extends TestCase
             DB::table('member_rank_month_totals')->where('user_id', $user->id)->update(['points' => 0]);
             $version = app(\App\Domain\MemberRank\Services\V2MemberRankSettingsService::class)->effectiveAt(CarbonImmutable::now());
             $service = app(\App\Domain\MemberRank\Services\V2MemberRankCorrectionService::class);
-            self::assertCount(1, $service->applyDecrease($user->id, $entry, $version, CarbonImmutable::now()));
+            self::assertCount(0, $service->applyDecrease($user->id, $entry, $version, CarbonImmutable::now()));
             self::assertSame([], $service->applyDecrease($user->id, $entry, $version, CarbonImmutable::now()));
         });
-        self::assertSame(1, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         $this->assertLedger($user);
     }
 
-    public function test_zero_bonus_consumes_and_full_zero_recovery_reopens_a_new_generation(): void
+    public function test_zero_bonus_entitlement_is_never_reopened_by_decrease(): void
     {
         $settings = app(\App\Domain\MemberRank\Services\V2MemberRankSettingsService::class);
         $ranks = $settings->read($this->admin)['current']['ranks'];
@@ -441,11 +443,12 @@ final class MemberRankAdminTest extends TestCase
         self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'generation' => 1, 'bonus_amount' => 0]);
         self::assertSame(0, DB::table('point_operations')->where('user_id', $user->id)->count());
         $this->write($user, 'points', ['delta' => -10000, 'reason' => '0pt全額回収']);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $user->id, 'requested_amount' => 0, 'shortfall_amount' => 0]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
         $this->write($user, 'points', ['delta' => 10000, 'reason' => '0pt再到達']);
-        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'generation' => 2, 'bonus_amount' => 0]);
+        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'generation' => 1, 'bonus_amount' => 0]);
         self::assertSame(0, DB::table('point_operations')->where('user_id', $user->id)->count());
-        self::assertSame(2, app(V2MemberRankAdminReadService::class)->detail($user->id)['default_skip_count']);
+        self::assertSame(0, app(V2MemberRankAdminReadService::class)->detail($user->id)['default_skip_count']);
+        self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         $this->assertLedger($user);
     }
 

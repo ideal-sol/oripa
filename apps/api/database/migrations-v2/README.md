@@ -230,3 +230,15 @@ publication, rank and snapshot guards remain unchanged. No published row UPDATE,
 prior migration edit or operational application is authorized. Forward-only:
 do not restore older global-login writers against conditioned login Gachas.
 PHP Hotfix Human Merge HOLD remains in effect; synthetic validation only.
+
+## Cumulative member ranks (000104)
+
+Forward-only migration `2026_11_02_000104_add_v2_member_rank_cumulative.php`
+adds editable per-user transfer allowances with immutable revision history,
+distinct cumulative promotion origins, monthly promotion jobs and worker-only
+compensation entries. Monthly buckets become signed while deferred equality
+with immutable point entries remains mandatory. Cumulative display is floored
+at zero. No wallet, lot, payment amount or prior ledger entry is rewritten.
+The migration is allocated under the shared Migration Allocation Lock.
+Operational application is deferred. Retain schema and histories on rollback;
+an older writer that performs automatic demotion must not be restored.

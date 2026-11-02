@@ -35,11 +35,11 @@ final class MemberRankPurchaseBoundaryTest extends TestCase
 
     public static function maintenance(): array
     {
-        return [[4999, 1, 0], [5000, 2, 25]];
+        return [[4999, 2, 25], [5000, 2, 25]];
     }
 
     #[DataProvider('maintenance')]
-    public function test_maintenance_threshold_changes_next_purchase_not_original_snapshot(int $previous, int $level, int $bonus): void
+    public function test_retired_maintenance_threshold_never_changes_rank_or_original_snapshot(int $previous, int $level, int $bonus): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -66,7 +66,7 @@ final class MemberRankPurchaseBoundaryTest extends TestCase
         $this->rankClock('2027-03-31T15:00:00Z');
         $payment = $this->settleRankPayment($idle, 5000);
         app(V2PaymentService::class)->confirmSucceeded($event->id);
-        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 1, 'bonus_amount' => 0, 'month' => '2027-04-01']);
+        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 7, 'bonus_amount' => 200, 'month' => '2027-04-01']);
         self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $pending->id, 'rank_level' => 7, 'bonus_amount' => 200, 'month' => '2027-04-01']);
         self::assertSame(0, DB::table('member_rank_point_entries')->where('user_id', $closed->id)->count());
         self::assertDatabaseHas('member_rank_states', ['user_id' => $closed->id, 'level' => 7, 'baseline_month' => '2026-10-01']);

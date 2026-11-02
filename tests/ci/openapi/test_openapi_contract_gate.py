@@ -23,6 +23,43 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_cumulative_rank_authority_rejects_unrelated_breaks_and_marker_drift(self):
+        for surface in ['public', 'admin']:
+            current = json.loads((ROOT / f'openapi/bundled/{surface}.openapi.json').read_text())
+            previous = copy.deepcopy(current)
+            previous['info']['version'] = '2.0.0-alpha.44'
+            schemas = previous['components']['schemas']
+            if surface == 'admin':
+                for field in ['components', 'point_basis', 'transfer']:
+                    schemas['AdminMemberRankDetail']['required'].remove(field)
+                    del schemas['AdminMemberRankDetail']['properties'][field]
+            else:
+                for name in ['MyMemberRankEnabled', 'MyMemberRankDisabled']:
+                    for field in ['breakdown', 'point_basis', 'promotion_bonus', 'transferred']:
+                        schemas[name]['required'].remove(field)
+                        del schemas[name]['properties'][field]
+                for field, children in {'period': ['month', 'resets_at'], 'maintain': ['achieved', 'line', 'remaining'],
+                                        'demotion_protection': ['guaranteed_until', 'remaining_judgments']}.items():
+                    schemas['MyMemberRankEnabled']['properties'][field] = {
+                        'type': ['object', 'null'], 'properties': {child: {} for child in children}}
+                schemas['MemberRankPublicSetting']['properties']['maintain_line'] = {'type': 'integer'}
+            authorize = openapi_contract_gate.is_authorized_member_rank_cumulative_break
+            self.assertTrue(authorize(surface, previous, current))
+            for mutation in ['authority', 'security', 'extra_required', 'version']:
+                changed = copy.deepcopy(current)
+                if mutation == 'authority':
+                    changed['x-oripa-member-rank-cumulative']['authority'] = 'unapproved'
+                elif mutation == 'security':
+                    path = '/me/member-rank' if surface == 'public' else '/users'
+                    changed['paths'][path]['get']['security'] = []
+                elif mutation == 'version':
+                    changed['info']['version'] = '2.0.0-alpha.46'
+                else:
+                    name = 'MyMemberRankEnabled' if surface == 'public' else 'AdminMemberRankDetail'
+                    changed['components']['schemas'][name]['required'].append('unrelated')
+                with self.subTest(surface=surface, mutation=mutation):
+                    self.assertFalse(authorize(surface, previous, changed))
+
     def test_m9_provider_widening_is_limited_to_the_exact_approved_admin_delta(self):
         current = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text())
         current["info"]["version"] = "2.0.0-alpha.42"
@@ -293,7 +330,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.44", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.45", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

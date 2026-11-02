@@ -4,12 +4,13 @@ import { AdminPaymentDetail } from "@/components/payments/admin-payment-detail";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import { adjustment, detail, impact, paymentId } from "./payment-adjustment-fixture";
 
-const permissions = vi.hoisted(() => ({ allowed: true }));
-vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ hasPermission: () => permissions.allowed }) }));
+const permissions = vi.hoisted(() => ({ allowed: true, rank: true }));
+vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ hasPermission: (code: string) => permissions.allowed && (code !== "member_rank.user.manage" || permissions.rank) }) }));
 
 describe("Admin manual payment adjustments", () => {
   beforeEach(() => {
     permissions.allowed = true;
+    permissions.rank = true;
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     vi.spyOn(AdminApiClient.prototype, "getAdminPayment").mockResolvedValue({ data: detail(), request_id: paymentId });
   });
@@ -116,6 +117,28 @@ describe("Admin manual payment adjustments", () => {
     expect(preview).toHaveBeenCalledOnce(); expect(write).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "確認して記録" }));
     expect(await screen.findByRole("status", { name: "操作結果" })).toHaveTextContent("不足：有償 1000pt");
+  });
+
+  it.each([true, false])("offers rank selection only with rank permission (%s), defaulting to unchanged", async rankAllowed => {
+    permissions.rank = rankAllowed;
+    const value = detail(); value.adjustments = [adjustment()];
+    value.rank_change = { current_rank: "gold", rank_points_after: 0, reach_line: 100000, preview_token: "a".repeat(64) };
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({ data: value, request_id: paymentId });
+    const write = vi.spyOn(AdminApiClient.prototype, "writeAdminPaymentAdjustment").mockResolvedValue({ data: adjustment("succeeded"), rank_adjustment_pending: false, idempotent_replay: false, request_id: paymentId });
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    fireEvent.click(await screen.findByRole("button", { name: "返金済みにする" }));
+    const select = screen.queryByLabelText("変更後のランク");
+    if (rankAllowed) {
+      expect(select).toHaveValue("");
+      expect(select!.children).toHaveLength(8);
+      fireEvent.change(select!, { target: { value: "silver" } });
+    } else expect(select).toBeNull();
+    fireEvent.change(screen.getByLabelText("理由（必須）"), { target: { value: "Confirmed refund" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "確認して記録" }));
+    await waitFor(() => expect(write).toHaveBeenCalledOnce());
+    expect(write.mock.calls[0][2]).toEqual({ reason: "Confirmed refund", provider_refund_confirmed: true,
+      ...(rankAllowed ? { rank_after: "silver", rank_preview_token: "a".repeat(64) } : {}) });
   });
 
   it("holds M8 actions while keeping explicit cancellation available", async () => {

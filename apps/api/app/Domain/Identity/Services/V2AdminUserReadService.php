@@ -104,12 +104,13 @@ final class V2AdminUserReadService
                 fn (array $rank): bool => V2MemberRankSettingsService::CODES[$rank['level'] - 1] === $memberRank)));
         }
         if ($transferred === 'true') {
-            $query->whereIn('users.id', DB::table('member_rank_states')->select('user_id')->whereNotNull('transferred_at'));
+            $query->whereRaw("COALESCE((SELECT status = 'transferred' FROM member_rank_transfer_allowances WHERE user_id = users.id),
+                EXISTS (SELECT 1 FROM member_rank_states WHERE user_id = users.id AND transferred_at IS NOT NULL))");
         }
         $page = $this->page($query, $cursor, $limit, fn (object $row): array => [
             'member_rank' => V2MemberRankSettingsService::CODES[$projections[(int) $row->id]['level'] - 1],
             'member_rank_points' => $projections[(int) $row->id]['rank_points'],
-            'member_rank_transferred' => DB::table('member_rank_states')->where('user_id', $row->id)->whereNotNull('transferred_at')->exists(),
+            'member_rank_transferred' => app(\App\Domain\MemberRank\Services\V2MemberRankTransferService::class)->transferred((int) $row->id),
             'id' => (string) $row->public_id,
             'display_name' => $row->display_name === null
                 ? null
@@ -255,7 +256,7 @@ final class V2AdminUserReadService
                 'id' => (string) $row->public_id,
                 'member_rank' => $memberRank['rank'],
                 'member_rank_points' => $memberRank['rank_points'],
-                'member_rank_transferred' => DB::table('member_rank_states')->where('user_id', $row->id)->whereNotNull('transferred_at')->exists(),
+                'member_rank_transferred' => app(\App\Domain\MemberRank\Services\V2MemberRankTransferService::class)->transferred((int) $row->id),
                 'member_rank_detail' => $memberRank,
                 'display_name' => $row->display_name === null
                     ? null

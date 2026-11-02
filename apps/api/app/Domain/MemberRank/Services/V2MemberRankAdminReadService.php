@@ -13,7 +13,7 @@ final class V2MemberRankAdminReadService
     public function __construct(
         private readonly V2MemberRankResolver $resolver,
         private readonly V2MemberRankSettingsService $settings,
-        private readonly V2MemberRankMonthlyWorker $worker,
+        private readonly V2MemberRankPromotionWorker $worker,
         private readonly V2ReportingCursor $cursor
     ) {
     }
@@ -31,13 +31,6 @@ final class V2MemberRankAdminReadService
         $level = $projection['level'];
         $rankPoints = $projection['rank_points'];
         $next = $level < 7 ? $version['ranks'][$level] : null;
-        $maintain = $level > 1 ? $version['ranks'][$level - 1] : null;
-        $previousMonth = $month->subMonth();
-        $previousPoints = (int) DB::table('member_rank_month_totals')->where('user_id', $userId)
-            ->where('month', $previousMonth->toDateString())->value('points');
-        if ($maintain !== null) {
-            $maintain = $this->settings->effectiveAt($previousMonth)['ranks'][$level - 1];
-        }
         $achievements = DB::table('member_rank_achievements as achievement')
             ->leftJoin('member_rank_entitlements as slot', 'slot.achievement_id', '=', 'achievement.id')
             ->leftJoin('member_rank_bonus_recoveries as recovery', 'recovery.achievement_id', '=', 'achievement.id')
@@ -56,15 +49,15 @@ final class V2MemberRankAdminReadService
         return [
             'enabled' => $projection['enabled'], 'rank' => $this->code($level), 'month' => $month->toDateString(),
             'rank_points' => $rankPoints, 'revision' => (int) ($state?->revision ?? 0),
-            'default_skip_count' => $version['default_skip_count'], 'skip_count' => $projection['skip_count'],
-            'guaranteed_until' => $projection['skip_count'] === 0 ? null
-                : $month->addMonths($projection['skip_count'] + 1)->subSecond()->utc()->toIso8601String(),
+            'point_basis' => 'cumulative',
+            'components' => app(V2MemberRankCumulativePoints::class)->components($userId),
+            'transfer' => app(V2MemberRankTransferService::class)->read($userId),
+            'default_skip_count' => 0, 'skip_count' => 0, 'guaranteed_until' => null,
             'transferred_at' => $this->timestamp($state?->transferred_at),
             'frozen_at' => $this->timestamp($frozenAt), 'last_transfer' => $this->lastTransfer($userId),
             'next_rank' => $next === null ? null : ['rank' => $next['code'], 'month' => $month->toDateString(),
                 'line' => $next['reach_line'], 'remaining' => max(0, $next['reach_line'] - $rankPoints)],
-            'maintain' => $maintain === null ? null : ['rank' => $maintain['code'], 'month' => $previousMonth->toDateString(),
-                'line' => $maintain['maintain_line'], 'remaining' => max(0, $maintain['maintain_line'] - $previousPoints)],
+            'maintain' => null,
             'achievements' => $achievements,
         ];
     }
@@ -205,17 +198,69 @@ final class V2MemberRankAdminReadService
         return $user;
     }
 
+    public function discrepancies(array $filters): array
+    {
+        if (array_diff(array_keys($filters), ['cursor', 'limit']) !== []) {
+            throw $this->invalid();
+        }
+        $limit = $filters['limit'] ?? '20';
+        if (! is_string($limit) || ! ctype_digit($limit) || (int) $limit < 1 || (int) $limit > 100
+            || (isset($filters['cursor']) && ! is_string($filters['cursor']))) {
+            throw $this->invalid();
+        }
+        if (! DB::table('member_rank_settings')->where('id', 1)->value('enabled')) {
+            return ['items' => [], 'next_cursor' => null];
+        }
+        $version = $this->settings->effectiveAt(CarbonImmutable::now());
+        $query = DB::table('users as u')->join('member_rank_states as s', 's.user_id', '=', 'u.id')
+            ->join('member_rank_setting_values as v', 'v.level', '=', 's.level')
+            ->where('u.state', 'active')->whereNull('s.frozen_at')->where('v.version_revision', $version['revision'])
+            ->selectRaw("u.id, u.public_id, s.level, COALESCE(v.reach_line, 0) as reach_line,
+                GREATEST(0, COALESCE((SELECT sum(points) FROM member_rank_month_totals WHERE user_id = u.id), 0)
+                + COALESCE((SELECT points FROM member_rank_transfer_allowances WHERE user_id = u.id), 0)
+                + COALESCE((SELECT sum(delta) FROM member_rank_compensation_entries WHERE user_id = u.id), 0))::bigint as rank_points");
+        $before = $this->cursor->decode($filters['cursor'] ?? null);
+        if ($before !== null) $query->where('u.id', '<', $before);
+        $rows = DB::query()->fromSub($query, 'rank_discrepancy')->whereColumn('rank_points', '<', 'reach_line')
+            ->orderByDesc('id')->limit((int) $limit + 1)->get();
+        $page = $rows->take((int) $limit);
+
+        return ['items' => $page->map(fn (object $row): array => [
+            'user_id' => $row->public_id, 'rank' => $this->code((int) $row->level),
+            'rank_points' => (int) $row->rank_points, 'reach_line' => (int) $row->reach_line,
+            'shortfall' => (int) $row->reach_line - (int) $row->rank_points,
+        ])->all(), 'next_cursor' => $rows->count() > (int) $limit ? $this->cursor->encode((int) $page->last()->id) : null];
+    }
+
+    public function compensationHistory(int $userId, array $filters): array
+    {
+        if (array_diff(array_keys($filters), ['cursor']) !== [] || (isset($filters['cursor']) && ! is_string($filters['cursor']))) {
+            throw $this->invalid();
+        }
+        $before = $this->cursor->decode($filters['cursor'] ?? null);
+        $rows = DB::table('member_rank_compensation_entries as c')->join('member_rank_cumulative_events as e', 'e.id', '=', 'c.event_id')
+            ->where('c.user_id', $userId)->when($before !== null, fn ($q) => $q->where('c.id', '<', $before))
+            ->orderByDesc('c.id')->limit(21)->get(['c.*', 'e.public_id', 'e.month', 'e.setting_revision']);
+        $page = $rows->take(20);
+
+        return ['items' => $page->map(fn ($row): array => [
+            'id' => $row->public_id, 'month' => $row->month, 'setting_revision' => (int) $row->setting_revision,
+            'delta' => (int) $row->delta, 'remaining' => (int) $row->remaining, 'occurred_at' => $this->timestamp($row->occurred_at),
+        ])->all(), 'next_cursor' => $rows->count() > 20 ? $this->cursor->encode((int) $page->last()->id) : null];
+    }
+
     private function rankHistoryQuery(): Builder
     {
         return DB::table('member_rank_changes as change')->join('users as user', 'user.id', '=', 'change.user_id')
             ->leftJoin('member_rank_manual_changes as manual', 'manual.id', '=', 'change.manual_change_id')
             ->leftJoin('member_rank_point_entries as origin', 'origin.id', '=', 'change.point_entry_id')
+            ->leftJoin('member_rank_cumulative_events as event', 'event.id', '=', 'change.cumulative_event_id')
             ->leftJoin('admins as admin', function ($join): void {
                 $join->whereRaw('admin.id = COALESCE(manual.admin_id, origin.admin_id)');
             })
             ->select(['change.*', 'user.public_id as user_public_id', 'admin.public_id as actor_public_id',
                 'manual.kind', DB::raw('COALESCE(manual.reason_text, origin.reason_text) as reason_text'), 'manual.grant_bonus', 'manual.bonus_amount', 'manual.skip_count',
-                DB::raw('COALESCE(manual.public_id, origin.public_id) as origin_public_id')]);
+                DB::raw('COALESCE(manual.public_id, origin.public_id, event.public_id) as origin_public_id')]);
     }
 
     private function pointHistoryQuery(): Builder
