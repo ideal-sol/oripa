@@ -268,7 +268,7 @@ final class AdminUserPrizeReadTest extends TestCase
     {
         $this->configureB2();
         CarbonImmutable::setTestNow('2026-10-31T15:01:00Z');
-        $ids = $this->b2Requests();
+        $ids = $this->b2Requests('ABC');
         $session = $this->adminSession(V2AdminRole::Operator);
         $before = DB::table('shipping_requests')->whereIn('public_id', $ids)->orderBy('id')->get()->toJson();
         $histories = DB::table('shipping_request_status_histories')->count();
@@ -277,7 +277,10 @@ final class AdminUserPrizeReadTest extends TestCase
         $response = $this->mutatingShippingRequest($session['token'], '/admin/api/v2/shipping-requests/export-b2',
             ['shipping_ids' => [$ids[0], $ids[0], $ids[1]]])->assertOk()
             ->assertJsonPath('filename', 'b2cloud-shipping-20261101-0001.csv')
-            ->assertJsonPath('warning_count', 0)->assertJsonPath('warnings', []);
+            ->assertJsonPath('warning_count', 2)->assertJsonCount(2, 'warnings');
+        foreach ($response->json('warnings') as $warning) {
+            self::assertSame(['POSTAL_INVALID'], $warning['codes']);
+        }
         $this->assertPrivate($response);
         $csv = base64_decode($response->json('csv_base64'), true);
         self::assertIsString($csv);
@@ -288,6 +291,7 @@ final class AdminUserPrizeReadTest extends TestCase
             self::assertCount(97, $row);
         }
         self::assertSame(str_replace('-', '', $ids[0]), $rows[1][0]);
+        self::assertSame('ABC', $rows[1][10]);
         self::assertSame('計2点', $rows[1][29]);
         self::assertSame('計1点', $rows[2][29]);
         self::assertSame('トレーディングカード(置き配禁止)', $rows[1][27]);
@@ -299,7 +303,7 @@ final class AdminUserPrizeReadTest extends TestCase
         self::assertNotNull($audit);
         $metadata = json_decode($audit->metadata_redacted, true, flags: JSON_THROW_ON_ERROR);
         ksort($metadata);
-        self::assertSame(['permission' => 'shipping.request.manage', 'shipping_count' => 2, 'warning_count' => 0], $metadata);
+        self::assertSame(['permission' => 'shipping.request.manage', 'shipping_count' => 2, 'warning_count' => 2], $metadata);
         $encodedAudit = json_encode($audit, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         foreach (['検証用受取人', '検証町', '000-0000-0000', '架空発送元', '000000000001', 'csv_base64'] as $plain) {
             self::assertStringNotContainsString($plain, $encodedAudit);
@@ -364,6 +368,7 @@ final class AdminUserPrizeReadTest extends TestCase
         $source['street_ciphertext'] = Crypt::encryptString(str_repeat('あ', 33));
         $source['building_ciphertext'] = Crypt::encryptString(str_repeat('あ', 17));
         $source['phone_number_ciphertext'] = Crypt::encryptString('');
+        $source['postal_code_ciphertext'] = Crypt::encryptString('ABC');
         $selection = [];
         foreach (range(1, 500) as $unused) {
             $source['public_id'] = (string) Str::uuid7();
@@ -380,7 +385,7 @@ final class AdminUserPrizeReadTest extends TestCase
         self::assertSame($selection, array_column($response->json('warnings'), 'shipping_id'));
         foreach ($response->json('warnings') as $warning) {
             self::assertSame(['shipping_id', 'codes'], array_keys($warning));
-            self::assertSame(['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER'], $warning['codes']);
+            self::assertSame(['ADDRESS_TOO_LONG', 'BUILDING_TOO_LONG', 'NAME_TOO_LONG', 'PHONE_INVALID', 'UNSUPPORTED_CHARACTER', 'POSTAL_INVALID'], $warning['codes']);
         }
         self::assertLessThan(2000, strlen((string) $response->headers));
         self::assertStringNotContainsString('髙', json_encode($response->json('warnings'), JSON_UNESCAPED_UNICODE));
@@ -393,10 +398,10 @@ final class AdminUserPrizeReadTest extends TestCase
             'v2_b2_shipping.billing_customer_code' => '000000000001', 'v2_b2_shipping.freight_number' => '01']);
     }
 
-    private function b2Requests(): array
+    private function b2Requests(?string $postal = null): array
     {
         $service = app(V2PrizeShippingService::class);
-        $address = $service->createAddress($this->user, $this->address(), (string) Str::uuid7());
+        $address = $service->createAddress($this->user, array_replace($this->address(), $postal === null ? [] : ['postal_code' => $postal]), (string) Str::uuid7());
         $ids = [];
         foreach ([[$this->prizeIds[0], $this->prizeIds[1]], [$this->prizeIds[2]]] as $prizes) {
             $ids[] = $service->createShippingRequest($this->user, $address['id'], $prizes,

@@ -835,13 +835,16 @@ describe("B2 shipping export contract and transport", () => {
     expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(["200", "403", "404", "422", "503"]));
     expect(Object.keys(operation.responses["200"].content)).toEqual(["text/csv", "application/json"]);
     expect(contract.components.schemas.AdminB2ShippingExport.properties.warnings.maxItems).toBe(500);
-    expect(contract.components.schemas.AdminB2ShippingWarning.properties.codes.maxItems).toBe(5);
+    expect(contract.components.schemas.AdminB2ShippingWarning.properties.codes.maxItems).toBe(6);
+    expect(contract.components.schemas.AdminB2ShippingWarning.properties.codes.items.enum).toEqual([
+      "ADDRESS_TOO_LONG", "BUILDING_TOO_LONG", "NAME_TOO_LONG", "PHONE_INVALID", "UNSUPPORTED_CHARACTER", "POSTAL_INVALID",
+    ]);
   });
 
   it("decodes binary CP932 bytes and retains all 500 warnings without headers or a second request", async () => {
     const warnings = Array.from({ length: 500 }, (_, index) => ({
       shipping_id: `01910191-0191-7191-8191-${index.toString().padStart(12, "0")}`,
-      codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER"],
+      codes: ["NAME_TOO_LONG", "UNSUPPORTED_CHARACTER", "POSTAL_INVALID"],
     }));
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       filename: "b2cloud-shipping-20261101-0001.csv",

@@ -12538,3 +12538,41 @@ Inherited B2 postal/header/import limitations remain tracked by #643; no runtime
 gate waived. SEV-0/1 findings: 0; inherited #643 SEV-2 remains outside this change.
 
 Final exact-head CI/review and timing are recorded on the PR after commit.
+
+
+## SHIP-B2POSTAL-20261101 — B2 recipient postal warning
+
+B2 No.11 previously emitted malformed postal codes without a warning. Add POSTAL_INVALID while continuing CSV downloads, preserving ordinary invalid values, and blanking formula-capable prefixes. Existing Admin warning UI is reused.
+
+- Change ID: SHIP-B2POSTAL-20261101
+- Parent Issue: #643 (keep open pending review; no closing keyword)
+- Risk: R3
+- Lane: Strict Change
+- Application Runtime Activation: deferred
+- UI Verification: PASS
+- Base SHA: ffce74e143b73b25e252f6f4bfb3c0466f5088c9
+
+Normal 1234567 and 123-4567 both output 123-4567 without warnings. Other formats add POSTAL_INVALID. Dangerous =/+/-/@ prefixes, including leading whitespace/control/format characters, blank No.11. Existing encoding substitutions and all five warning codes remain; warning count is unique shipping IDs. Contract enum/maxItems becomes six; generated types are regenerated.
+
+Changed files:
+- apps/api/app/Domain/PrizeShipping/Services/V2B2ShippingCsv.php
+- apps/api/tests/V2/B2ShippingCsvTest.php
+- apps/api/tests/V2/AdminUserPrizeReadTest.php
+- openapi/admin/openapi.yaml
+- openapi/bundled/admin.openapi.json
+- apps/admin/src/lib/admin-api/generated.ts
+- apps/admin/test/admin-api-client.test.ts
+- apps/admin/test/admin-shipping-management.test.tsx
+- worklogs/new_ver_main.md
+
+Validation: isolated PHP8.4/PostgreSQL synthetic Backend focused tests PASS (74 tests/1494 assertions), including address registration -> encrypted snapshot -> B2 export, 97-column mapping, CP932/CRLF, every six-code warning for 500 IDs, DB/status/mail invariance, counts-only audit/no logs, and existing nine-column CSV regression. Admin focused tests PASS (42 tests), existing download/UI plus multi-warning display and 500-warning transport. OpenAPI bundle validation, generated-diff check, Admin typecheck and focused ESLint recorded below after completion.
+
+No address validation/snapshot implementation, existing nine-column CSV, statuses, ENV, mail, auth, payment, point, draw, infrastructure or runtime modifications. Migration creation/application to operational DB: zero. Fresh synthetic test DB only initialized with existing schema. Build count 0; runtime activation 0. Browser/E2E, B2 import, OLD Test and Production verification not run in this Source-only change. Human's earlier import acceptance is not claimed as a new test here.
+
+Draft only: do not merge; keep Issue #643 open. Final exact-head CI, self-review evidence and timing follow on this PR. Later Source merge requires separate Human instruction plus all current gates and fresh Strict review. Runtime activation requires separate source/artifact/runtime authority check. Rollback before merge: withdraw this PR; after merge: reviewed revert, with separate runtime approval if deployed.
+
+Final HEAD/Tree, Required CI 5/5, review URL and elapsed/CI timing are external PR records after the single final commit, avoiding a review-invalidating evidence-only push. Dedicated worktree/branch retained for requested Draft; primary worktree unchanged. Source Lock not required (isolated, no known concurrent collision); Migration Lock not applicable. Transport-only root-owned exact-path Task Policy used for approved GitHub App wrappers.
+
+Local validation complete: OpenAPI check-bundles PASS; Admin generated check PASS; Admin typecheck PASS; focused ESLint PASS; diff whitespace and secret-candidate scan PASS (0). PII review: synthetic fixtures only; no recipient values added to audit/log behavior. Initial test expectation for unsupported Unicode was corrected to retain both warnings; pre-generation typecheck was rerun after generation. Optional Pint unavailable (not installed/dependency); no claim of Pint PASS. No added Build.
+
+CI blocker follow-up: first PR event failed mandatory PR headings; local validation also found Human-selected Change ID excluded by the historical CI parser. Corrected external PR template and added only this exact Task ID plus positive/negative regression tests in scripts/ci/policy_gate.py and tests/ci/policy/test_policy_gate.py. Security/permissions/Required Checks unchanged. A superseded workflow_dispatch was canceled before integration. Final head gets a fresh complete PR-event run; final timing/check/review evidence remains on PR #649. Earlier single-commit intent is superseded by this required bounded blocker.
