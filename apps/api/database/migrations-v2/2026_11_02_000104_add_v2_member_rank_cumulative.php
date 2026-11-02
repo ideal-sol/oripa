@@ -199,7 +199,7 @@ return new class extends Migration
             -- Existing adjustment entries retain their historical monthly validation.
             ALTER TABLE member_rank_point_entries ADD COLUMN cumulative_balance_before bigint
                 CHECK (cumulative_balance_before >= 0);
-            CREATE FUNCTION v2_member_rank_adjustment_cumulative_snapshot() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_member_rank_adjustment_cumulative_snapshot() RETURNS trigger AS $$
             BEGIN
                 PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
                 PERFORM 1 FROM member_rank_states WHERE user_id = NEW.user_id FOR UPDATE;
