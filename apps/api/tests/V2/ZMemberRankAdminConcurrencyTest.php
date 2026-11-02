@@ -17,6 +17,18 @@ final class ZMemberRankAdminConcurrencyTest extends TestCase
 {
     use MemberRankAccountingFixture;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (getenv('V2_M7_CONCURRENCY_TEST') !== '1') {
+            self::markTestSkipped('Requires the dedicated disposable M7 concurrency database.');
+        }
+        self::assertTrue(app()->environment('testing'));
+        self::assertSame('oripa_v2_m7_synthetic', DB::connection()->getDatabaseName());
+        // Each real-process race needs its own job timeline, irrespective of test order.
+        \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
+    }
+
     public function test_monthly_worker_serializes_refund_transfer_replay_and_closure(): void
     {
         if (getenv('V2_M7_CONCURRENCY_TEST') !== '1') {
@@ -205,6 +217,7 @@ final class ZMemberRankAdminConcurrencyTest extends TestCase
         self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => 500 + (int) $purchase->bonus_amount]);
         self::assertSame(5000, (int) DB::table('member_rank_point_entries')->where('user_id', $user->id)->sum('applied_delta'));
         self::assertDatabaseHas('member_rank_states', ['user_id' => $other->id, 'level' => 7, 'baseline_month' => '2026-10-01']);
+        self::assertDatabaseHas('member_rank_cumulative_events', ['user_id' => $other->id, 'kind' => 'monthly', 'month' => '2026-11-01']);
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
     }
