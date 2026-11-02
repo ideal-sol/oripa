@@ -60,11 +60,13 @@ final class V2MemberRankPromotionWorker
             return ['enabled' => false, 'remaining' => 0, 'provisional' => false, 'job' => null, 'last_completed_month' => null];
         }
         $month = ($instant ?? CarbonImmutable::now())->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString();
-        $remaining = $this->pending($month)->count();
+        $job = DB::table('member_rank_promotion_jobs')->where('month', $month)->first();
+        // Members added after a finished monthly batch do not reopen that batch.
+        $remaining = $job?->status === 'completed' ? 0 : $this->pending($month)->count();
 
         return [
             'enabled' => true, 'remaining' => $remaining, 'provisional' => $remaining > 0,
-            'job' => DB::table('member_rank_promotion_jobs')->where('month', $month)->first(),
+            'job' => $job,
             'last_completed_month' => DB::table('member_rank_promotion_jobs')->where('status', 'completed')->max('month'),
         ];
     }

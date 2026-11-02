@@ -88,6 +88,9 @@ month. Inspect jobs too for an older blocked month. Logical month/settings stay
 on an event; late processing uses actual event/bonus timestamps, avoiding
 backdated free-point expiry. Reads keep the stored rank while work is pending.
 Feature OFF yields beginner projection and no Worker writes.
+Members added after a completed batch keep that batch's progress complete;
+purchase promotion remains immediate and they participate in the next month's
+batch. A completed monthly job is not reopened by later member creation.
 
 Immutable compensation entries link to monthly events/settings and have a
 nonnegative Worker-only running balance. Audit includes delta and before/after

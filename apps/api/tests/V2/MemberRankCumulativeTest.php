@@ -56,6 +56,29 @@ final class MemberRankCumulativeTest extends TestCase
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
+    public function test_members_added_after_completed_batch_do_not_reopen_progress_and_join_next_month(): void
+    {
+        $this->settleRankPayment($this->rankUser(), 20000);
+        $this->rankClock('2026-11-30T15:00:00Z');
+        $worker = app(V2MemberRankPromotionWorker::class);
+        $worker->run('completed-batch', 100);
+        self::assertSame('completed', $worker->progress()['job']->status);
+        $this->rankClock('2026-12-10T00:00:00Z');
+        $late = $this->rankUser();
+        $this->settleRankPayment($late, 10000);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $late->id, 'level' => 2]);
+        self::assertSame(0, $worker->progress()['remaining']);
+        self::assertFalse($worker->progress()['provisional']);
+        self::assertSame(0, $worker->run('completed-batch-replay', 100));
+        self::assertSame(0, DB::table('member_rank_cumulative_events')->where('user_id', $late->id)->count());
+        $this->rankClock('2026-12-31T15:00:00Z');
+        self::assertTrue($worker->progress()['provisional']);
+        $worker->run('next-month-batch', 100);
+        self::assertDatabaseHas('member_rank_cumulative_events', ['user_id' => $late->id, 'month' => '2027-01-01', 'kind' => 'monthly']);
+        self::assertSame(0, $worker->progress()['remaining']);
+        self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $late->id)->where('level', 2)->count());
+    }
+
     public function test_transfer_edit_and_replay_keep_one_allowance_without_coins(): void
     {
         $user = $this->rankUser();
