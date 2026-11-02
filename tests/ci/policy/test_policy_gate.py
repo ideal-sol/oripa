@@ -166,11 +166,14 @@ class PolicyGateTest(unittest.TestCase):
             "apps/admin/e2e/admin-member-rank-management.spec.ts",
             "apps/admin/src/app/users/member-ranks/page.tsx",
             "apps/admin/src/components/member-ranks/member-rank-detail.tsx",
+            "apps/admin/src/components/member-ranks/member-rank-discrepancies.tsx",
             "apps/admin/src/components/member-ranks/member-rank-history.tsx",
             "apps/admin/src/components/member-ranks/member-rank-labels.ts",
             "apps/admin/src/components/member-ranks/member-rank-summary.tsx",
+            "apps/admin/src/components/member-ranks/member-rank-transfer.tsx",
             "apps/admin/src/components/member-ranks/member-ranks.module.css",
             "apps/admin/test/member-rank-management.test.tsx",
+            "apps/admin/test/member-rank-discrepancies.test.tsx",
         }
         self.assertEqual(expected, policy_gate.MEMBER_RANK_M7_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
@@ -1521,7 +1524,11 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.49')
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertTrue(value['candidate']['breaking_change'])
+        # Replay the released ledger below independently of the pending candidate.
+        value['candidate'] = None
         self.assertEqual(len(value['immutable_history']), 28)
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.48')
         self.assertEqual(value['latest_immutable']['source_commit'], '6e945df343d3d42ffa844b3b369ca0c171a6bbbe')
@@ -4060,7 +4067,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.48",
+                    "version": "2.0.0-alpha.49",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -4098,7 +4105,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.44",
+                        "minimumPublicApiContract": "2.0.0-alpha.45",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
