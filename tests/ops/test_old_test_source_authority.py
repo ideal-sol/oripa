@@ -24,15 +24,15 @@ TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
 
 
-class FirstBuyApprovalInventoryTest(unittest.TestCase):
-    def test_exact_api_payload_retains_all_103_migrations_and_admin(self):
+class PostalApprovalInventoryTest(unittest.TestCase):
+    def test_exact_payload_preserves_schema_and_public_contract(self):
         approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
-        self.assertEqual(approval["task_id"], "OLDTEST-FIRSTBUY-1031")
-        self.assertEqual(approval["source_pr"], 646)
-        self.assertEqual(approval["source_sha"], "a35468d259c99dda7e64ce6f0c7fccda2ee9e665")
-        self.assertEqual(approval["image_mode"], "api-only")
+        self.assertEqual(approval["task_id"], "OLDTEST-B2POSTAL-20261102")
+        self.assertEqual(approval["source_pr"], 649)
+        self.assertEqual(approval["source_sha"], "e250937a2e6c6bc22b8b2a8af905ee04e780ada7")
+        self.assertEqual(approval["image_mode"], "normal")
         self.assertIs(approval["activation_authorized"], False)
-        baseline = "5fef1a09f35f8b4fce7f68a15cbb9f6d0240da20"
+        baseline = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
         target = approval["source_sha"]
         def inventory(ref, directory):
             output = subprocess.check_output(["git", "ls-tree", "-r", ref, "--", directory], cwd=ROOT, text=True)
@@ -40,8 +40,11 @@ class FirstBuyApprovalInventoryTest(unittest.TestCase):
         before = inventory(baseline, "apps/api/database/migrations-v2")
         self.assertEqual(sum(path.endswith(".php") for path in before), 103)
         self.assertEqual(inventory(target, "apps/api/database/migrations-v2"), before)
-        self.assertEqual(inventory(target, "apps/admin"), inventory(baseline, "apps/admin"))
-        self.assertEqual(inventory(target, "openapi"), inventory(baseline, "openapi"))
+        for directory in ("packages", "openapi/public", "openapi/bundled/public.openapi.json"):
+            self.assertEqual(inventory(target, directory), inventory(baseline, directory))
+        self.assertEqual(subprocess.check_output(
+            ["git", "rev-parse", target + "^{tree}"], cwd=ROOT, text=True).strip(),
+            "b1e334fd4b35d00cb77b028ea9ce23b2ed084523")
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
@@ -314,7 +317,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "api-only")
+            self.assertEqual(result["image_mode"], "normal")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
