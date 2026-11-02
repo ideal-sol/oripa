@@ -15,6 +15,7 @@ final class V2MemberRankPaymentAdjustmentService
         private readonly V2MemberRankResolver $resolver,
         private readonly V2MemberRankSettingsService $settings,
         private readonly V2MemberRankCorrectionService $corrections,
+        private readonly V2MemberRankCumulativePoints $points,
         private readonly V2AuditLogService $audit
     ) {
     }
@@ -76,8 +77,7 @@ final class V2MemberRankPaymentAdjustmentService
         if ($context['entry'] === null) {
             return $result;
         }
-        $total = (int) DB::table('member_rank_month_totals')->where('user_id', $payment->user_id)
-            ->where('month', $context['month'])->value('points');
+        $total = $this->points->total((int) $payment->user_id);
         $current = $context['month'] === $instant->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString();
         $projection = $this->resolver->project((int) $payment->user_id, $instant);
         $level = $projection['level'];

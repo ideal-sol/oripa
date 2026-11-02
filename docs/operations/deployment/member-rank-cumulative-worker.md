@@ -73,6 +73,30 @@ does not mutate compensation.
 
 ## Progress, failure and audit
 
+### Legacy transfer scope decision pending
+
+Instruction v1.1 section3.4 identifies all members with `transferred_at`, without
+an active-state restriction. The current command selects only active, unfrozen
+members; both its dry-run and apply silently omit other states. The shared
+transfer save service enforces the same restriction. `frozen_at` is a rank-state
+flag, independent of the account state. Suspended, closed and anonymized accounts
+are excluded, as are active accounts with frozen rank state. Existing allowances
+or prior backfill history are also skipped to preserve one-time correction.
+
+Excluded members retain the legacy transfer marker and stored rank but receive
+no allowance or new transfer history, so cumulative totals omit the legacy
+deficit. If a suspended member is later reactivated, the deficit persists until
+an explicitly authorized correction is performed. Closed/anonymized members
+remain frozen and their accounting history is retained.
+
+Recommendation requiring Human decision: preserve closed/anonymized/frozen
+records without mutation; separately reconcile suspended members before their
+reactivation (or authorize a dedicated backfill path for suspended, unfrozen
+members). Report excluded counts privately during operational planning. Do not
+broaden eligibility or bypass the existing freeze guard without that decision.
+The prior Human active-only decision concerned the discrepancy list, not this
+backfill scope. Operational backfill remains on hold.
+
 `member_rank_promotion_jobs` records month, status, cursor, processed count,
 failures, lease owner/expiry, heartbeat and sanitized error. One owner processes
 a month; each member commits separately with the user/state locks shared by

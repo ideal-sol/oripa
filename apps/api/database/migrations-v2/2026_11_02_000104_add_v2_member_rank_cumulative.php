@@ -195,6 +195,123 @@ return new class extends Migration
                 FOR EACH ROW EXECUTE FUNCTION v2_member_rank_accounting_immutable();
             CREATE TRIGGER v2_member_rank_transfer_no_truncate BEFORE TRUNCATE ON member_rank_transfer_allowances
                 FOR EACH STATEMENT EXECUTE FUNCTION v2_member_rank_accounting_immutable();
+            -- New entries carry a database-derived immutable cumulative snapshot.
+            -- Existing adjustment entries retain their historical monthly validation.
+            ALTER TABLE member_rank_point_entries ADD COLUMN cumulative_balance_before bigint
+                CHECK (cumulative_balance_before >= 0);
+            CREATE FUNCTION v2_member_rank_adjustment_cumulative_snapshot() RETURNS trigger AS $$
+            BEGIN
+                PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+                PERFORM 1 FROM member_rank_states WHERE user_id = NEW.user_id FOR UPDATE;
+                SELECT GREATEST(0::numeric,
+                    (SELECT COALESCE(sum(applied_delta), 0) FROM member_rank_point_entries WHERE user_id = NEW.user_id)
+                    + (SELECT COALESCE(sum(points), 0) FROM member_rank_transfer_allowances WHERE user_id = NEW.user_id)
+                    + (SELECT COALESCE(sum(delta), 0) FROM member_rank_compensation_entries WHERE user_id = NEW.user_id))
+                    INTO NEW.cumulative_balance_before;
+                IF NEW.applied_delta::numeric IS DISTINCT FROM
+                    -LEAST(-NEW.requested_delta::numeric, NEW.cumulative_balance_before::numeric) THEN
+                    RAISE EXCEPTION 'rank adjustment must debit the available cumulative balance';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            CREATE TRIGGER v2_member_rank_adjustment_cumulative_snapshot BEFORE INSERT ON member_rank_point_entries
+                FOR EACH ROW WHEN (NEW.reason = 'payment_adjustment')
+                EXECUTE FUNCTION v2_member_rank_adjustment_cumulative_snapshot();
+            CREATE OR REPLACE FUNCTION v2_member_rank_adjustment_consistent() RETURNS trigger AS $$
+            DECLARE
+                target_id bigint;
+                adjustment payment_adjustments%ROWTYPE;
+                record member_rank_payment_adjustments%ROWTYPE;
+                payment payments%ROWTYPE;
+                grant_record payment_point_grants%ROWTYPE;
+                origin member_rank_point_entries%ROWTYPE;
+                entry member_rank_point_entries%ROWTYPE;
+                impact payment_adjustment_point_impacts%ROWTYPE;
+                operation point_operations%ROWTYPE;
+                bonus_amount bigint;
+            BEGIN
+                IF TG_TABLE_NAME = 'payment_adjustments' THEN
+                    target_id := NEW.id;
+                ELSIF TG_TABLE_NAME IN ('payment_adjustment_point_impacts', 'payment_adjustment_point_operations') THEN
+                    target_id := NEW.payment_adjustment_id;
+                ELSIF TG_TABLE_NAME = 'point_ledger_entries' THEN
+                    SELECT adjustment_id INTO target_id FROM member_rank_payment_adjustments WHERE point_operation_id = NEW.point_operation_id;
+                ELSE
+                    target_id := NEW.adjustment_id;
+                END IF;
+                IF target_id IS NULL THEN RETURN NEW; END IF;
+                SELECT * INTO adjustment FROM payment_adjustments WHERE id = target_id;
+                SELECT * INTO record FROM member_rank_payment_adjustments WHERE adjustment_id = target_id;
+                IF record.id IS NULL THEN
+                    IF TG_TABLE_NAME = 'payment_adjustments' AND adjustment.status = 'succeeded'
+                        AND adjustment.type IN ('refund', 'chargeback') THEN
+                        RAISE EXCEPTION 'payment adjustment success requires immutable rank and bonus accounting';
+                    END IF;
+                    IF TG_TABLE_NAME = 'member_rank_point_entries' THEN
+                        RAISE EXCEPTION 'rank adjustment entry requires immutable adjustment accounting';
+                    END IF;
+                    RETURN NEW;
+                END IF;
+                SELECT * INTO payment FROM payments WHERE id = record.payment_id;
+                SELECT * INTO grant_record FROM payment_point_grants WHERE payment_id = record.payment_id;
+                SELECT * INTO origin FROM member_rank_point_entries WHERE payment_id = record.payment_id AND reason = 'payment';
+                SELECT * INTO entry FROM member_rank_point_entries WHERE id = record.point_entry_id;
+                SELECT * INTO impact FROM payment_adjustment_point_impacts WHERE payment_adjustment_id = target_id;
+                SELECT * INTO operation FROM point_operations WHERE id = record.point_operation_id;
+                SELECT COALESCE((SELECT bonus.bonus_amount FROM member_rank_purchase_bonuses bonus WHERE bonus.payment_id = record.payment_id), 0) INTO bonus_amount;
+                IF adjustment.status <> 'succeeded' OR adjustment.type NOT IN ('refund', 'chargeback')
+                    OR adjustment.payment_id <> payment.id OR adjustment.amount <> payment.amount
+                    OR payment.status <> 'succeeded' OR payment.user_id <> record.user_id
+                    OR grant_record.payment_id IS NULL OR impact.payment_adjustment_id IS NULL
+                    OR record.occurred_at IS DISTINCT FROM adjustment.succeeded_at
+                    OR impact.completed_at IS DISTINCT FROM record.occurred_at
+                    OR record.month <> date_trunc('month', grant_record.granted_at AT TIME ZONE 'Asia/Tokyo')::date
+                    OR record.purchase_bonus_required <> bonus_amount
+                    OR operation.user_id IS DISTINCT FROM record.user_id OR operation.source_type IS DISTINCT FROM 'payment_adjustment'
+                    OR operation.source_id IS DISTINCT FROM payment.id
+                    OR operation.operation_type <> (CASE WHEN adjustment.type = 'refund' THEN 'refund_reversal' ELSE 'chargeback_reversal' END)
+                    OR NOT EXISTS (SELECT 1 FROM payment_adjustment_point_operations link
+                        WHERE link.payment_adjustment_id = target_id AND link.point_operation_id = record.point_operation_id
+                            AND link.role = CASE WHEN adjustment.type = 'refund' THEN 'reserve_consume' ELSE 'reversal' END)
+                    OR (SELECT count(*) FROM payment_adjustment_point_operations WHERE payment_adjustment_id = target_id) <> 1
+                    OR EXISTS (SELECT 1 FROM point_ledger_entries ledger WHERE ledger.point_operation_id = record.point_operation_id
+                        AND (ledger.entry_type <> 'reverse' OR ledger.amount_delta >= 0))
+                    OR impact.reversed_paid_from_paid::numeric <> (SELECT COALESCE(-sum(ledger.amount_delta), 0)
+                        FROM point_ledger_entries ledger WHERE ledger.point_operation_id = record.point_operation_id AND ledger.point_type = 'paid')
+                    OR impact.reversed_free_from_free::numeric + impact.reversed_paid_shortage_from_free <> (SELECT COALESCE(-sum(ledger.amount_delta), 0)
+                        FROM point_ledger_entries ledger WHERE ledger.point_operation_id = record.point_operation_id AND ledger.point_type = 'free')
+                    OR impact.required_paid_amount <> payment.paid_point_amount
+                    OR impact.required_free_amount::numeric <> payment.free_point_amount::numeric + COALESCE(payment.limited_bonus_point_amount, 0) + bonus_amount
+                    OR impact.required_paid_amount::numeric <> impact.reversed_paid_from_paid::numeric + impact.reversed_paid_shortage_from_free + impact.shortfall_paid_amount
+                    OR impact.required_free_amount::numeric <> impact.reversed_free_from_free::numeric + impact.shortfall_free_amount
+                    OR record.purchase_bonus_reversed <> LEAST(bonus_amount,
+                        GREATEST(0::numeric, impact.reversed_free_from_free::numeric - payment.free_point_amount - COALESCE(payment.limited_bonus_point_amount, 0)))
+                THEN
+                    RAISE EXCEPTION 'payment adjustment accounting must match succeeded payment grant and impact';
+                END IF;
+                IF origin.id IS NULL THEN
+                    IF record.effect <> 'none' OR entry.id IS NOT NULL OR bonus_amount > 0 THEN
+                        RAISE EXCEPTION 'unaccounted payment cannot create a rank decrease';
+                    END IF;
+                ELSIF record.effect = 'none' OR entry.id IS NULL
+                    OR entry.reason <> 'payment_adjustment' OR entry.user_id <> record.user_id
+                    OR entry.adjustment_id <> adjustment.id OR entry.origin_payment_id <> payment.id
+                    OR entry.month <> origin.month OR entry.granted_at <> origin.granted_at
+                    OR entry.recorded_at <> record.occurred_at OR entry.requested_delta <> -payment.amount
+                    OR entry.applied_delta <> -record.applied_points OR record.requested_points <> payment.amount
+                    OR record.month <> entry.month OR origin.user_id <> record.user_id
+                    OR record.applied_points::numeric <> LEAST(payment.amount::numeric, GREATEST(0::numeric,
+                        COALESCE(entry.cumulative_balance_before, (SELECT COALESCE(sum(previous.applied_delta), 0) FROM member_rank_point_entries previous
+                         WHERE previous.user_id = entry.user_id AND previous.month = entry.month AND previous.id < entry.id))))
+                    OR (record.effect = 'current_month') IS DISTINCT FROM
+                        (record.month = date_trunc('month', record.occurred_at AT TIME ZONE 'Asia/Tokyo')::date)
+                THEN
+                    RAISE EXCEPTION 'rank adjustment must match original positive entry and succeeded adjustment';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
             SQL);
     }
 

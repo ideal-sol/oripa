@@ -225,6 +225,63 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
+    public static function signedRefundMonths(): array
+    {
+        return [['complete', false], ['complete', true], ['chargeback', false], ['chargeback', true]];
+    }
+
+    #[DataProvider('signedRefundMonths')]
+    public function test_refund_debits_cumulative_points_even_when_original_month_is_negative(string $operation, bool $past): void
+    {
+        $this->enableRankFixture();
+        $user = $this->rankUser();
+        $this->settleRankPayment($user, 30000);
+        $this->rankClock('2026-11-02T00:00:00Z');
+        $payment = $this->settleRankPayment($user, 10000, 100);
+        $admin = $this->rankAdmin();
+        $ranks = app(V2MemberRankAdminService::class);
+        $input = ['delta' => -20000, 'reason' => 'Synthetic signed month regression'];
+        $preview = $ranks->preview($admin, $user->public_id, 'points', $input);
+        $ranks->write($admin, $user->public_id, 'points', [...$input,
+            'expected_revision' => $preview['expected_revision'], 'preview_token' => $preview['preview_token']], (string) Str::uuid7());
+        $points = app(\App\Domain\MemberRank\Services\V2MemberRankCumulativePoints::class);
+        self::assertSame(20000, $points->total($user->id));
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => -10000]);
+        $level = DB::table('member_rank_states')->where('user_id', $user->id)->value('level');
+        $achievements = DB::table('member_rank_achievements')->where('user_id', $user->id)->count();
+        if ($past) {
+            $this->rankClock('2026-12-02T00:00:00Z');
+            $admin = $this->rankAdmin();
+        }
+        $service = app(V2AdminPaymentAdjustmentService::class);
+        $adjustmentId = null;
+        if ($operation === 'complete') {
+            $prepared = $service->write($admin, $payment->public_id, 'refund', ['reason' => 'Synthetic refund'], (string) Str::uuid7());
+            $adjustmentId = $prepared['data']['id'];
+        }
+        $key = (string) Str::uuid7();
+        $payload = ['reason' => 'Synthetic completion', ...($operation === 'complete' ? ['provider_refund_confirmed' => true] : [])];
+        $result = $service->write($admin, $payment->public_id, $operation, $payload, $key, $adjustmentId);
+        self::assertSame(10000, $result['data']['impact']['rank_adjustment']['applied_points']);
+        self::assertSame([], $result['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertSame(10000, $points->total($user->id));
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-10-01', 'points' => 30000]);
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => -20000]);
+        self::assertDatabaseHas('member_rank_point_entries', ['origin_payment_id' => $payment->id,
+            'reason' => 'payment_adjustment', 'month' => '2026-11-01', 'requested_delta' => -10000, 'applied_delta' => -10000,
+            'cumulative_balance_before' => 20000]);
+        self::assertSame((int) $level, (int) DB::table('member_rank_states')->where('user_id', $user->id)->value('level'));
+        self::assertSame($achievements, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertSame(100, $result['data']['impact']['purchase_bonus']['reversed_amount']);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 30000, 'free_balance' => 2500,
+            'paid_reserved_balance' => 0, 'free_reserved_balance' => 0]);
+        $service->write($admin, $payment->public_id, $operation, $payload, $key, $adjustmentId);
+        self::assertSame(10000, $points->total($user->id));
+        self::assertSame(1, DB::table('member_rank_point_entries')->where('origin_payment_id', $payment->id)->where('reason', 'payment_adjustment')->count());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
     private function chargeback(object $payment): array
     {
         return app(V2AdminPaymentAdjustmentService::class)->write($this->rankAdmin(), $payment->public_id,
