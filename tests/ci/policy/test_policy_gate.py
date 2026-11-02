@@ -3860,7 +3860,7 @@ This is a non-Production Skeleton and contains no application implementation.
                             "brace-expansion": "5.0.12",
                             "fast-uri": "3.1.9",
                             "js-yaml": "4.3.2",
-                            "minimatch": "10.2.5",
+                            "minimatch": "11.0.1",
                             "nanoid": "3.3.18",
                             "postcss": "8.5.23",
                             "prosemirror-view": "1.42.3",
