@@ -38,9 +38,27 @@ final class V2AdminUserReadService
         ?string $dateFrom = null,
         ?string $dateTo = null,
         ?string $memberRank = null,
-        ?string $transferred = null
+        ?string $transferred = null,
+        #[\SensitiveParameter] ?string $email = null,
+        #[\SensitiveParameter] ?string $phone = null,
+        #[\SensitiveParameter] ?string $userName = null
     ): array {
         $filters = $this->userFilters($userId, $status, $dateFrom, $dateTo);
+        $email = $this->searchText($email, 320);
+        $phone = $this->searchText($phone, 20);
+        $userName = $this->searchText($userName, 191);
+        if ($email !== null) {
+            $email = app(V2EmailNormalizer::class)->normalize($email);
+        }
+        $phoneHashes = [];
+        if ($phone !== null) {
+            try {
+                $canonical = app(V2PhoneNormalizer::class)->normalize($phone);
+            } catch (\InvalidArgumentException) {
+                throw $this->invalidQuery();
+            }
+            $phoneHashes = app(V2IdentityCorrelation::class)->hashes($canonical);
+        }
         $operationAt = CarbonImmutable::now()->startOfSecond();
         if (($memberRank !== null && ! in_array($memberRank, V2MemberRankSettingsService::CODES, true))
             || ($transferred !== null && ! in_array($transferred, ['true', 'false'], true))) {
@@ -79,6 +97,19 @@ final class V2AdminUserReadService
                 'available_points.paid_balance as available_paid_balance',
                 'available_points.free_balance as available_free_balance',
             ]);
+        foreach (['users.email_normalized' => $email, 'users.full_name' => $userName] as $column => $value) {
+            if ($value !== null) {
+                $query->where($column, 'ilike', '%'.strtr($value, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']).'%');
+            }
+        }
+        if ($phone !== null) {
+            $query->whereExists(function (Builder $phoneQuery) use ($phoneHashes): void {
+                $phoneQuery->selectRaw('1')->from('user_phone_numbers')
+                    ->whereColumn('user_phone_numbers.user_id', 'users.id')
+                    ->whereIn('phone_hmac', $phoneHashes)
+                    ->whereNotNull('verified_at')->whereNull('revoked_at');
+            });
+        }
         if ($filters['user_id'] !== null) {
             $query->where('users.public_id', $filters['user_id']);
         }
@@ -155,6 +186,22 @@ final class V2AdminUserReadService
             'date_from' => $from,
             'date_to' => $to,
         ];
+    }
+
+    private function searchText(#[\SensitiveParameter] ?string $value, int $maximum): ?string
+    {
+        if ($value !== null && ! mb_check_encoding($value, 'UTF-8')) {
+            throw $this->invalidQuery();
+        }
+        $value = preg_replace('/\A[\s\p{Z}]+|[\s\p{Z}]+\z/u', '', $value ?? '') ?? '';
+        if ($value === '') {
+            return null;
+        }
+        if (mb_strlen($value) > $maximum) {
+            throw $this->invalidQuery();
+        }
+
+        return $value;
     }
 
     private function jstDate(?string $value): ?CarbonImmutable

@@ -12686,3 +12686,22 @@ Human wait0. CI verification work is distinct from deployable artifact dispatch.
 Primary active branch/HEAD/changes are preserved; no primary main checkout/sync.
 
 Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
+
+## ADMIN-USER-SEARCH-20261103 — Admin identity search (Draft-only)
+
+- Human scope: implement email/phone/registered full-name search and stop at Draft PR. Ready, merge, auto-merge, release and runtime operations are prohibited.
+- Issue none; Risk R2; Lane Standard Change; Application Runtime Activation none.
+- Base protected main: `869c94371dd23617d1991776cf5bacd882733a08`, verified live at start. Dedicated branch `feat/ADMIN-USER-SEARCH-20261103`, isolated worktree `/var/www/oripa-task-worktrees/ADMIN-USER-SEARCH-20261103`.
+- Primary worktree has existing unrelated changes and is preserved. PR651 branch remains `f471953e5731a20f9a7341c8713c869f530f1398`; no unmerged rank source is imported. Future integration must preserve both services' predicates and regenerate Admin contract artifacts from the combined OpenAPI source.
+- Source evidence: registration validates and saves `full_name` in V2UserAuthenticationService; migration083 defines nullable varchar255. Search input is limited to191 per Human. `display_name` remains a separate display field, never a search fallback.
+- Additive queries: email uses V2EmailNormalizer and email_normalized; user_name uses full_name. Both use bound ILIKE with literal percent/underscore/backslash escaping. Unicode edge whitespace and blank values are removed. Phone uses V2PhoneNormalizer plus V2IdentityCorrelation hashes for current/previous keys, EXISTS on verified/non-revoked phone_hmac, with no decryption scan. SensitiveParameter protects the new service inputs.
+- Admin adds three fields, mobile validation, trimmed query submission and reset; active default, existing filters, cursor and response shape stay intact. OpenAPI source/bundle and generated Admin artifact updated through generators; handwritten thin client and AdminUserQuery updated.
+- Audit names array intentionally deferred under Human's exception: V2AuditRedactor permits scalar metadata only and rejects arrays. Existing list audit remains unchanged; no search values are recorded. Regression asserts empty audit payload and no new PII response fields.
+- Local focused API: 9 PASS /270 assertions /0 FAIL /0 skip on isolated synthetic PostgreSQL, including final whitespace implementation. Admin relevant tests:49 PASS /0 FAIL /0 skip. OpenAPI tests:76 PASS /0 FAIL /0 skip after locked dependency installation. Generation check PASS. Diff whitespace PASS.
+- Initial full Admin run stopped due resource pressure; focused rerun uses locked dependencies and one worker. Initial OpenAPI attempt lacked a workspace dependency; locked installation corrected the environment and all76 passed.
+- Additional unchanged Unit regression:1 PASS,1 ERROR (old gacha-history fixture calls grantFree with an obsolete fourth argument). No production code or test assertions were changed to hide that existing failure.
+- Typecheck/lint/build, Browser and exact-head CI/self-review results are recorded in the Draft PR after completion. No result is implied while pending.
+- Migration creation none. Existing migrations applied only to a new task-owned synthetic DB; operational migration none. Database schema/auth/point/payment/draw/infrastructure behavior unchanged. No deployment, OLD Test, release, artifact publication or Production operation.
+- Rollback: remove additive predicates, input fields and query contract via reviewed source change; no data rollback required. No new provider/legal/accounting decision. Existing rank projection cost is outside scope.
+- Transport Task Policy is root-owned, exact-path, and authorizes only branch push, Draft creation/body update, read checks and self-review; no ready/merge/auto-merge operation. No source collision in isolated worktree; no migration reservation or lock.
+- Final HEAD, CI, evidence link and elapsed metrics are retained on the Draft PR. Branch/worktree retained for Human review. Build count1 local validation attempt; runtime activation0; manual CI reruns0; Human wait0.

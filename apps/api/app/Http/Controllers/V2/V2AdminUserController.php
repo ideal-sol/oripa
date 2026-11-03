@@ -31,7 +31,10 @@ final class V2AdminUserController
             $this->stringQuery($request, 'date_from'),
             $this->stringQuery($request, 'date_to'),
             $this->rankQuery($request, 'member_rank'),
-            $this->rankQuery($request, 'transferred')
+            $this->rankQuery($request, 'transferred'),
+            $this->searchQuery($request, 'email'),
+            $this->searchQuery($request, 'phone'),
+            $this->searchQuery($request, 'user_name')
         ));
     }
 
@@ -137,6 +140,16 @@ final class V2AdminUserController
         $value = $request->query($key);
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function searchQuery(#[\SensitiveParameter] Request $request, string $key): ?string
+    {
+        $value = $request->query($key);
+        if ($value !== null && ! is_string($value)) {
+            throw new V2AdminUserReadException('ADMIN_USER_QUERY_INVALID', 422, '検索条件を確認してください。');
+        }
+
+        return $value;
     }
 
     private function rankQuery(Request $request, string $key): ?string

@@ -4698,6 +4698,18 @@ paths:
       security:
         - adminSession: []
       parameters:
+        - name: email
+          in: query
+          description: Trimmed V2EmailNormalizer-normalized case-insensitive literal substring of email_normalized. Blank input is ignored.
+          schema: {type: string, minLength: 1, maxLength: 320}
+        - name: phone
+          in: query
+          description: Exact current SMS-verified domestic mobile number; hyphens allowed. Invalid input returns 422 ADMIN_USER_QUERY_INVALID. Blank input is ignored.
+          schema: {type: string, minLength: 1, maxLength: 20}
+        - name: user_name
+          in: query
+          description: 氏名。Trimmed case-insensitive literal substring of users.full_name. NULL never matches; display_name is never searched. Blank input is ignored.
+          schema: {type: string, minLength: 1, maxLength: 191}
         - {name: member_rank, in: query, schema: {$ref: '#/components/schemas/AdminMemberRankCode'}}
         - {name: transferred, in: query, schema: {type: boolean}}
         - $ref: '#/components/parameters/PageLimit'
