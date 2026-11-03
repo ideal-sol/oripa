@@ -72,7 +72,7 @@ test("identity filters validate locally, reach the API, and reset", async ({ pag
   await page.getByLabel("電話番号", { exact: true }).fill("090123");
   const before = queries.length;
   await page.getByRole("button", { name: "検索", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("11桁");
+  await expect(page.getByRole("form", { name: "ユーザー検索フィルター" }).getByRole("alert")).toContainText("11桁");
   expect(queries).toHaveLength(before);
   await page.getByLabel("電話番号", { exact: true }).fill("090-1234-5678");
   await page.getByRole("button", { name: "検索", exact: true }).click();
