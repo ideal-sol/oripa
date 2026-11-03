@@ -12687,7 +12687,7 @@ Primary active branch/HEAD/changes are preserved; no primary main checkout/sync.
 
 Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
 
-## ADMIN-USER-SEARCH-20261103 — Admin identity search (Draft-only)
+## SEARCH-20261103 — Admin identity search (Draft-only; branch ADMIN-USER-SEARCH-20261103)
 
 - Human scope: implement email/phone/registered full-name search and stop at Draft PR. Ready, merge, auto-merge, release and runtime operations are prohibited.
 - Issue none; Risk R2; Lane Standard Change; Application Runtime Activation none.
@@ -12705,4 +12705,5 @@ Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
 - Rollback: remove additive predicates, input fields and query contract via reviewed source change; no data rollback required. No new provider/legal/accounting decision. Existing rank projection cost is outside scope.
 - Transport Task Policy is root-owned, exact-path, and authorizes only branch push, Draft creation/body update, read checks and self-review; no ready/merge/auto-merge operation. No source collision in isolated worktree; no migration reservation or lock.
 - Draft PR: https://github.com/ideal-sol/oripa/pull/653 . Initial CI failed because metadata lacked required bullet syntax; PR body corrected and lane validator PASS. A test-only locator correction fixes Next's separate alert collision. Final HEAD CI is triggered by the necessary normal push, with no manual rerun. Review records HOLD_DRAFT (Human merge prohibition), not a merge authorization; the merge-wrapper evidence path requires MERGE and is not used.
+- Additional PR metadata correction: required template headings/path inventory supplied; Change ID shortened to `SEARCH-20261103` to satisfy existing CI Task ID grammar. Same branch/worktree/PR, same R2/Standard/none and same feature scope. No CI or protection change. A worklog-only commit records this directly necessary correction and triggers normal CI with the corrected PR payload; prior tests cover unchanged application bytes.
 - Final HEAD, CI, evidence link and elapsed metrics are retained on the Draft PR. Branch/worktree retained for Human review. Local build attempts2 (first startup timeout, second PASS; one temporary-config attempt failed before build due cwd); runtime activation0; manual CI reruns0; Human wait0. Synthetic resources are task-owned and isolated; no runtime activation.
