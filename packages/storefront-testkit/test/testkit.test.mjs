@@ -62,6 +62,7 @@ import {
   PUBLIC_SHIPPING_REQUEST_FIXTURE,
   PUBLIC_USER_PRIZE_FIXTURE,
   PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE,
+  PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE,
   PUBLIC_CONTRACT_FIXTURE,
   PUBLIC_RESPONSE_METADATA_FIXTURE,
   TestkitAssertionError,
@@ -482,6 +483,12 @@ test("Prize／Shipping FixtureはPublic-safeなOpaque IDと状態だけを公開
   });
   assert.equal(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
   assert.equal(PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE.allowed_actions.selection.allowed, true);
+  assert.equal(PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE.exchange_only, true);
+  assert.equal(PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE.shipping_only, false);
+  assert.deepEqual(PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE.allowed_actions.shipping, {
+    allowed: false, unavailable_reason: "exchange_only",
+  });
+  assert.equal(PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE.allowed_actions.point_exchange.allowed, true);
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.presentation.rank.name, "Sランク");
   assert.equal(PUBLIC_USER_PRIZE_FIXTURE.allowed_actions.shipping.allowed, true);
   assert.equal(
@@ -1300,6 +1307,7 @@ test("実Networkを使わず固定Export Surfaceだけを公開する", async ()
     "PUBLIC_DRAW_HISTORY_FIXTURES",
     "PUBLIC_DRAW_HISTORY_PROBLEM_FIXTURES",
     "PUBLIC_DRAW_PROBLEM_FIXTURES",
+    "PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE",
     "PUBLIC_EXTERNAL_IDENTITY_FIXTURE",
     "PUBLIC_FOOTER_PAGES_FIXTURE",
     "PUBLIC_FULFILLMENT_PROBLEM_FIXTURES",

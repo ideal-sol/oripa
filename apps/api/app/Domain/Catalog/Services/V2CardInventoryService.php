@@ -219,6 +219,8 @@ final class V2CardInventoryService
                 JOIN catalog_prizes prize ON prize.id = relation.prize_id
                 LEFT JOIN allocation ON allocation.id = relation.id
                 LEFT JOIN ownership_counts owned ON owned.gacha_version_prize_id = relation.id
+                WHERE NOT relation.exchange_only AND NOT prize.exchange_only
+                  AND NOT EXISTS (SELECT 1 FROM content_banners excluded WHERE excluded.external_id = prize.external_id AND excluded.exchange_only)
             ), unlinked AS (
                 SELECT * FROM relations WHERE external_id IS NULL AND (selected OR stored > 0)
             ), totals AS (
@@ -251,6 +253,8 @@ final class V2CardInventoryService
                 FROM identities LEFT JOIN totals ON totals.external_id = identities.external_id
                 LEFT JOIN library ON library.external_id = identities.external_id
                 LEFT JOIN notion_inventory_cache notion ON notion.external_id = identities.external_id
+                WHERE NOT EXISTS (SELECT 1 FROM content_banners excluded WHERE excluded.external_id = identities.external_id AND excluded.exchange_only)
+                  AND NOT EXISTS (SELECT 1 FROM catalog_prizes excluded WHERE excluded.external_id = identities.external_id AND excluded.exchange_only)
             )
             SQL;
     }
@@ -273,9 +277,23 @@ final class V2CardInventoryService
         ];
     }
 
+    /** Include archived banners and immutable prize classifications: exclusion survives archival. */
+    public function exchangeOnlyExternalIds(): array
+    {
+        return DB::table('content_banners')->where('exchange_only', true)->whereNotNull('external_id')->select('external_id')
+            ->union(DB::table('catalog_prizes')->where('exchange_only', true)->whereNotNull('external_id')->select('external_id'))
+            ->pluck('external_id')->all();
+    }
+
     public function importWarnings(object $version, array $operations): array
     {
         if ($operations === [] || config('v2_notion.enabled') !== true) {
+            return [];
+        }
+        $excluded = $this->exchangeOnlyExternalIds();
+        $operations = array_values(array_filter($operations, fn ($operation) => ! ($operation['after']['exchange_only'] ?? false)
+            && ! in_array($operation['externalId'], $excluded, true)));
+        if ($operations === []) {
             return [];
         }
         $ids = array_column($operations, 'externalId');

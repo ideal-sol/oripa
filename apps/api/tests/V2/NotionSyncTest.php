@@ -72,6 +72,20 @@ final class NotionSyncTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_archived_exchange_only_banner_is_not_zero_patched_when_absent_from_snapshot(): void
+    {
+        DB::table('content_banners')->insert([
+            'public_id' => (string) Str::uuid7(), 'code' => 'exchange-only-synthetic',
+            'external_id' => 'EXCHANGE-ONLY', 'status' => 'archived', 'exchange_only' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->fake([$this->page('EXCHANGE-ONLY', 99)]);
+        $run = $this->synchronize();
+        self::assertSame('completed', $run['status']);
+        self::assertSame(0, $run['updated_count']);
+        Http::assertNotSent(fn ($request): bool => $request->method() === 'PATCH');
+    }
+
     public function test_f5_snapshot_difference_cache_filters_and_warning_use_the_canonical_values(): void
     {
         $fixture = json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR);

@@ -207,6 +207,7 @@ export function CatalogGachaRankPrizeManager({
       name: String(data.get("name") ?? "").trim(),
       total_inventory: Number(data.get("total_inventory")),
       exchange_points: Number(data.get("exchange_points")),
+      ...(data.get("banner_id") ? { banner_id: String(data.get("banner_id")) } : {}),
       shipping_only: version?.status === "published" ? (prizeEditing?.shipping_only ?? false) : data.get("shipping_only") === "on",
       cost_price: Number(data.get("cost_price")),
       is_active: data.get("is_active") === "true",
@@ -363,6 +364,8 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
   const externalIdTouched = useRef(false);
   const [presentationAssetId, setPresentationAssetId] = useState(current?.presentation_asset?.id ?? null);
   const [selectedBannerId, setSelectedBannerId] = useState<string | null>(null);
+  const [exchangeOnly, setExchangeOnly] = useState(current?.exchange_only ?? false);
+  const [shippingOnly, setShippingOnly] = useState(current?.shipping_only ?? false);
   const [bannerPickerChanged, setBannerPickerChanged] = useState(false);
   const [bannerPickerError, setBannerPickerError] = useState<string | null>(null);
   const [totalInventory, setTotalInventory] = useState(current?.total_inventory ?? 0);
@@ -388,14 +391,16 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
     <label>ランク<input readOnly value={rankName} /></label>
     <ExternalIdField disabled={busy} value={externalId} onChange={(value) => { externalIdTouched.current = true; setExternalId(value); }} />
     <label>景品名<input defaultValue={current?.name ?? ""} maxLength={191} name="name" ref={inputRef} required /></label>
-    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); if (!externalIdTouched.current) setExternalId(selection.externalId ?? ""); }} />
+    <CatalogBannerAssetPicker assetId={presentationAssetId} disabled={busy} onSelectionChange={(selection) => { setBannerPickerChanged(selection.changed); setPresentationAssetId(selection.assetId); setSelectedBannerId(selection.bannerId); setExchangeOnly(selection.exchangeOnly ?? false); if (selection.exchangeOnly) setShippingOnly(false); if (!externalIdTouched.current) setExternalId(selection.externalId ?? ""); }} />
+    <input name="banner_id" type="hidden" value={selectedBannerId ?? ""} />
+    {exchangeOnly ? <p>コイン交換限定（発送不可）</p> : null}
     <input name="presentation_asset_id" type="hidden" value={presentationAssetId ?? ""} />
     {bannerPickerError ? <p className="form-field-error" role="alert">{bannerPickerError}</p> : null}
     <div className="catalog-form-grid">
       <label>総在庫数<input aria-label="総在庫数" min={0} name="total_inventory" onChange={(event) => setTotalInventory(Number(event.target.value))} required type="number" value={totalInventory} /><span className="field-hint">（総口数残り{remainingTotalCount.toLocaleString()}）</span></label>
       {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
-      <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={0} name="exchange_points" required type="number" /></label>
-      <label><input defaultChecked={current?.shipping_only ?? false} disabled={busy || published} name="shipping_only" type="checkbox" />配送のみ・ポイント交換不可<span className="field-hint">自動発送ではありません。通常の配送条件・保管期限が適用され、期限後はポイント化せず失効します。公開後は変更できません。</span></label>
+      <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={exchangeOnly ? 1 : 0} name="exchange_points" required type="number" /></label>
+      <label><input checked={shippingOnly} onChange={(event) => setShippingOnly(event.target.checked)} disabled={busy || published || exchangeOnly} name="shipping_only" type="checkbox" />配送のみ・ポイント交換不可<span className="field-hint">自動発送ではありません。通常の配送条件・保管期限が適用され、期限後はポイント化せず失効します。公開後は変更できません。</span></label>
       <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" required type="number" /></label>
       <label>状態<select defaultValue={String(current?.is_visible ?? true)} name="is_active"><option value="true">有効</option><option value="false">無効</option></select></label>
     </div>

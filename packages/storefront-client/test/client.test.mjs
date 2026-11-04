@@ -46,6 +46,16 @@ const jsonResponse = (body, init = {}) =>
     ...init,
   });
 
+test("prize listing preserves legacy cursor and transmits status group and limit", async () => {
+  const calls = [];
+  const client = createStorefrontPrizeShippingClient({ request: async input => { calls.push(input); return { data: {} }; } });
+  await client.listPrizes();
+  await client.listPrizes("MTIz");
+  await client.listPrizes({ status_group: "stored", limit: 100 });
+  await client.listPrizes({ status_group: "shipping", limit: 100, cursor: "scoped/cursor" });
+  assert.deepEqual(calls.map(call => call.path), ["/me/prizes", "/me/prizes?cursor=MTIz", "/me/prizes?status_group=stored&limit=100", "/me/prizes?cursor=scoped%2Fcursor&status_group=shipping&limit=100"]);
+});
+
 test("account closure forwards explicit idempotency and CSRF with automatic retry disabled", async () => {
   const calls = [];
   const client = createStorefrontIdentityClient({ request: async input => { calls.push(input); return { data: {} }; } });

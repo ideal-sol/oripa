@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.45",
+    "version": "2.0.0-alpha.46",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -1024,6 +1024,19 @@
           }
         ],
         "parameters": [
+          {
+            "name": "status_group",
+            "in": "query",
+            "required": false,
+            "description": "storedは発送依頼のない決済保留も含む。shippingは発送関連holdと発送済み・配送完了を含む。カーソルはグループ専用。省略時は全状態・初期20件。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stored",
+                "shipping"
+              ]
+            }
+          },
           {
             "$ref": "#/components/parameters/CatalogLimit"
           },
@@ -4977,6 +4990,9 @@
           "asset"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },
@@ -6868,7 +6884,8 @@
           "status_not_actionable",
           "storage_expired",
           "exchange_points_unavailable",
-          "shipping_only"
+          "shipping_only",
+          "exchange_only"
         ]
       },
       "UserPrizeActionState": {
@@ -6958,6 +6975,10 @@
           "rank"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "description": "バナー選択時に確定した交換限定条件。trueの場合は発送不可。"
+          },
           "shipping_only": {
             "type": "boolean",
             "description": "当選時に固定された配送専用条件。trueはポイント交換不可。自動発送や配送条件の免除を意味しない。"
@@ -8533,6 +8554,10 @@
           "display_order"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "description": "バナー選択時に確定した交換限定条件。trueの場合は発送不可。"
+          },
           "shipping_only": {
             "type": "boolean",
             "description": "現在の公開Versionに固定された配送専用条件。trueは配送のみ・ポイント交換不可。自動発送ではない。"
@@ -9520,6 +9545,10 @@
           "presentation_asset"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "description": "当選時の交換限定スナップショット。"
+          },
           "id": {
             "$ref": "#/components/schemas/OpaqueId"
           },

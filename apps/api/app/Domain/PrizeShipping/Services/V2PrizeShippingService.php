@@ -183,11 +183,24 @@ final class V2PrizeShippingService
     }
 
     /** @return array<string, mixed> */
-    public function prizes(User $user, ?string $cursor, int $limit): array
+    public function prizes(User $user, ?string $cursor, int $limit, ?string $statusGroup = null): array
     {
+        if (! in_array($statusGroup, [null, 'stored', 'shipping'], true)) {
+            throw new V2PrizeShippingException('INVALID_PAGINATION', 422, 'The status group is invalid.');
+        }
         $limit = $this->limit($limit);
-        $after = $this->decodeCursor($cursor);
+        $after = $this->decodeCursor($cursor, $statusGroup);
         $rows = $this->prizeQuery($user->id)
+            ->when($statusGroup !== null, function ($query) use ($statusGroup): void {
+                $query->where(function ($states) use ($statusGroup): void {
+                    $states->whereIn('up.status', $statusGroup === 'stored' ? ['stored'] : ['shipping_requested', 'packing', 'shipped', 'delivered', 'return_requested'])
+                        ->orWhere(function ($hold) use ($statusGroup): void {
+                            $hold->where('up.status', 'hold');
+                            $linked = fn ($items) => $items->selectRaw('1')->from('shipping_request_items as item')->whereColumn('item.user_prize_id', 'up.id');
+                            $statusGroup === 'shipping' ? $hold->whereExists($linked) : $hold->whereNotExists($linked);
+                        });
+                });
+            })
             ->when($after !== null, fn ($query) => $query->where('up.id', '<', $after))
             ->orderByDesc('up.id')
             ->limit($limit + 1)
@@ -201,7 +214,7 @@ final class V2PrizeShippingService
         return [
             'items' => $items,
             'next_cursor' => $hasMore && $items !== []
-                ? $this->encodeCursor((int) $rows->get($limit - 1)->id)
+                ? $this->encodeCursor((int) $rows->get($limit - 1)->id, $statusGroup)
                 : null,
         ];
     }
@@ -1069,6 +1082,7 @@ final class V2PrizeShippingService
                 'up.status',
                 'up.exchange_point_snapshot',
                 'up.shipping_only_snapshot',
+                'up.exchange_only_snapshot',
                 'up.exchanged_point_amount',
                 'up.acquired_at',
                 'up.storage_expires_at',
@@ -1115,6 +1129,7 @@ final class V2PrizeShippingService
             'status' => $row->status,
             'exchange_points' => (int) $row->exchange_point_snapshot,
             'shipping_only' => (bool) $row->shipping_only_snapshot,
+            'exchange_only' => (bool) $row->exchange_only_snapshot,
             'acquired_at' => CarbonImmutable::parse($row->acquired_at)->toIso8601String(),
             'storage_expires_at' => CarbonImmutable::parse(
                 $row->storage_expires_at
@@ -1139,7 +1154,7 @@ final class V2PrizeShippingService
                 'storage_expired',
             default => null,
         };
-        $shipping = $this->actionState($commonReason);
+        $shipping = $this->actionState($prize->exchange_only_snapshot ? 'exchange_only' : $commonReason);
         $pointExchange = $this->actionState(
             $commonReason ?? match (true) {
                 (bool) $prize->shipping_only_snapshot => 'shipping_only',
@@ -1796,17 +1811,21 @@ final class V2PrizeShippingService
         return $limit;
     }
 
-    private function encodeCursor(int $id): string
+    private function encodeCursor(int $id, ?string $scope = null): string
     {
-        return rtrim(strtr(base64_encode((string) $id), '+/', '-_'), '=');
+        return rtrim(strtr(base64_encode(($scope === null ? '' : $scope.':').$id), '+/', '-_'), '=');
     }
 
-    private function decodeCursor(?string $cursor): ?int
+    private function decodeCursor(?string $cursor, ?string $scope = null): ?int
     {
         if ($cursor === null || $cursor === '') {
             return null;
         }
         $decoded = base64_decode(strtr($cursor, '-_', '+/'), true);
+        if ($scope !== null) {
+            $prefix = $scope.':';
+            $decoded = is_string($decoded) && str_starts_with($decoded, $prefix) ? substr($decoded, strlen($prefix)) : false;
+        }
         if ($decoded === false || ! ctype_digit($decoded) || (int) $decoded < 1) {
             throw new V2PrizeShippingException(
                 'INVALID_CURSOR',

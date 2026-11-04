@@ -468,7 +468,7 @@ final class V2ContentContactAdminService
             ->get([
                 'banner.id as internal_cursor',
                 'banner.public_id',
-                'banner.external_id',
+                'banner.external_id', 'banner.exchange_only',
                 'banner.status',
                 'banner.created_at',
                 'banner.updated_at',
@@ -556,6 +556,7 @@ final class V2ContentContactAdminService
                 'public_id' => $publicId,
                 'code' => 'banner-'.str_replace('-', '', $publicId),
                 'external_id' => $payload['external_id'] ?? null,
+                'exchange_only' => $payload['exchange_only'] ?? false,
                 'status' => 'draft',
                 'created_at' => V2DatabaseTimestamp::format($now),
                 'updated_at' => V2DatabaseTimestamp::format($now),
@@ -574,6 +575,8 @@ final class V2ContentContactAdminService
                 'show_on_top' => $payload['show_on_top'],
                 'external_id_before' => null,
                 'external_id_after' => $payload['external_id'] ?? null,
+                'exchange_only_before' => null,
+                'exchange_only_after' => $payload['exchange_only'] ?? false,
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result, 201);
@@ -616,6 +619,26 @@ final class V2ContentContactAdminService
             if ($parent->status === 'archived') {
                 throw $this->conflict('BANNER_ARCHIVED');
             }
+            if (array_key_exists('exchange_only', $payload) && $payload['exchange_only'] !== (bool) $parent->exchange_only) {
+                $used = DB::table('catalog_prizes as prize')->join('catalog_gachas as gacha', 'gacha.id', '=', 'prize.gacha_id')
+                    ->whereNotNull('gacha.first_published_at')->where(function ($query) use ($parent): void {
+                        if ($parent->external_id !== null) {
+                            $query->where('prize.external_id', $parent->external_id);
+                        }
+                        $query->orWhereExists(fn ($assets) => $assets->selectRaw('1')->from('content_versions as version')
+                            ->join('content_version_assets as asset', 'asset.content_version_id', '=', 'version.id')
+                            ->where('version.banner_id', $parent->id)->where('asset.usage_type', 'image')
+                            ->where(function ($images): void {
+                                $images->whereColumn('asset.presentation_asset_id', 'prize.presentation_asset_id')
+                                    ->orWhereExists(fn ($snapshot) => $snapshot->selectRaw('1')->from('catalog_gacha_version_prizes as snapshot')
+                                        ->whereColumn('snapshot.prize_id', 'prize.id')
+                                        ->whereColumn('snapshot.presentation_asset_id', 'asset.presentation_asset_id'));
+                            }));
+                    })->exists();
+                if ($used) {
+                    throw $this->conflict('BANNER_CLASSIFICATION_IMMUTABLE');
+                }
+            }
             $latest = DB::table('content_versions')->where('banner_id', $parent->id)
                 ->orderByDesc('version_number')->lockForUpdate()->first();
             if ($latest === null) {
@@ -641,6 +664,7 @@ final class V2ContentContactAdminService
             );
             DB::table('content_banners')->where('id', $parent->id)->update([
                 'external_id' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $parent->external_id,
+                'exchange_only' => $payload['exchange_only'] ?? (bool) $parent->exchange_only,
                 'updated_at' => V2DatabaseTimestamp::format(now()->startOfSecond()),
             ]);
             $this->auditContent('content.banner_updated', $context, 'banner', $publicId, [
@@ -649,6 +673,8 @@ final class V2ContentContactAdminService
                 'show_on_top' => $payload['show_on_top'],
                 'external_id_before' => $parent->external_id,
                 'external_id_after' => array_key_exists('external_id', $payload) ? $payload['external_id'] : $parent->external_id,
+                'exchange_only_before' => (bool) $parent->exchange_only,
+                'exchange_only_after' => $payload['exchange_only'] ?? (bool) $parent->exchange_only,
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result);
@@ -1694,9 +1720,12 @@ final class V2ContentContactAdminService
             : ['category_id', 'title'];
         $this->assertFields(
             $input,
-            ['category_id', 'title', 'asset_id', 'show_on_top', 'link_url', 'external_id'],
+            ['category_id', 'title', 'asset_id', 'show_on_top', 'link_url', 'external_id', 'exchange_only'],
             $required
         );
+        if (array_key_exists('exchange_only', $input) && ! is_bool($input['exchange_only'])) {
+            throw $this->invalid('BANNER_INPUT_INVALID');
+        }
         $showOnTop = $input['show_on_top'] ?? false;
         if (! is_bool($showOnTop)) {
             throw $this->invalid('BANNER_TOP_VISIBILITY_INVALID');
@@ -1710,6 +1739,7 @@ final class V2ContentContactAdminService
             ...(array_key_exists('external_id', $input) ? [
                 'external_id' => V2ExternalId::normalize($input['external_id'], $this->invalid('BANNER_EXTERNAL_ID_INVALID')),
             ] : []),
+            ...(array_key_exists('exchange_only', $input) ? ['exchange_only' => $input['exchange_only']] : []),
             'category_id' => $this->uuid($input['category_id'], 'BANNER_CATEGORY_INVALID'),
             'title' => $this->plainText($input['title'], 1, 191),
             'asset_id' => array_key_exists('asset_id', $input) && $input['asset_id'] !== null
@@ -1945,7 +1975,7 @@ final class V2ContentContactAdminService
             ->first([
                 'banner.id as internal_cursor',
                 'banner.public_id',
-                'banner.external_id',
+                'banner.external_id', 'banner.exchange_only',
                 'banner.status',
                 'banner.created_at',
                 'banner.updated_at',
@@ -1970,6 +2000,7 @@ final class V2ContentContactAdminService
     {
         return [
             'external_id' => $row->external_id,
+            'exchange_only' => (bool) $row->exchange_only,
             'id' => $row->public_id,
             'title' => $row->title,
             'status' => $row->status,

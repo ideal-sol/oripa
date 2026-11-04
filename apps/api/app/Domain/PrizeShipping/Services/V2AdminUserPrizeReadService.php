@@ -174,6 +174,7 @@ final class V2AdminUserPrizeReadService
                 'ownership.acquired_at',
                 'ownership.storage_expires_at',
                 'ownership.shipping_only_snapshot',
+                'ownership.exchange_only_snapshot',
                 'ownership.terminal_at',
                 'ownership.updated_at',
                 'user.public_id as user_public_id',
@@ -285,6 +286,7 @@ final class V2AdminUserPrizeReadService
             ],
             'exchange_points' => (int) $row->exchange_point_snapshot,
             'shipping_only' => (bool) $row->shipping_only_snapshot,
+            'exchange_only' => (bool) $row->exchange_only_snapshot,
             'exchanged_points' => $row->exchanged_point_amount === null
                 ? null
                 : (int) $row->exchanged_point_amount,

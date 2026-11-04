@@ -220,6 +220,7 @@ function unavailableReason(reason: AdminUserPrizeActionState["unavailable_reason
     status_not_actionable: "現在状態では操作できません",
     storage_expired: "保管期限を過ぎています",
     shipping_only: "配送のみ・ポイント交換不可です",
+    exchange_only: "コイン交換限定・発送不可です",
   } as const;
   return reason ? labels[reason] : "理由なし";
 }

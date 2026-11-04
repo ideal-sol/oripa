@@ -78,7 +78,7 @@ final class V2PrizeImportPlan
                     $errors[] = $this->message($row, 'ランク', 'RANK_CHANGE_NOT_SUPPORTED', '既存景品のランクはCSVから変更できません。');
                 }
             }
-            $after = [];
+            $after = ['exchange_only' => (bool) ($entry['banner']->exchange_only ?? false)];
             foreach (['枚数' => 'quantity', '交換ポイント' => 'exchange_points', '原価' => 'cost_price', '表示順' => 'sort_order'] as $column => $field) {
                 if (! array_key_exists($column, $values)) {
                     continue;
@@ -110,7 +110,7 @@ final class V2PrizeImportPlan
             $before = $relation === null ? [] : [
                 'quantity' => (int) ($inventory?->total_quantity ?? $relation->initial_inventory),
                 'exchange_points' => (int) $relation->exchange_points, 'cost_price' => (int) $relation->cost_price,
-                'shipping_only' => (bool) $relation->shipping_only, 'sort_order' => (int) $relation->sort_order,
+                'exchange_only' => (bool) $relation->exchange_only, 'shipping_only' => (bool) $relation->shipping_only, 'sort_order' => (int) $relation->sort_order,
             ];
             if ($inventory !== null && $after['quantity'] < (int) $inventory->awarded_count + (int) $inventory->withdrawn_quantity) {
                 $errors[] = $this->message($row, '枚数', 'VALUE_INVALID', '枚数は確定済み当選数と除外在庫の合計より少なくできません。');
@@ -123,6 +123,9 @@ final class V2PrizeImportPlan
                 $after += ['name' => $entry['version']->title, 'image' => $asset->public_id, 'rank' => $master->rank_name];
             } else {
                 $after += $before;
+            }
+            if ($after['exchange_only'] && ($after['shipping_only'] || $after['exchange_points'] < 1)) {
+                $errors[] = $this->message($row, '発送のみ', 'VALUE_INVALID', '交換限定景品は発送のみ不可・交換ポイント1以上が必要です。');
             }
             $changes = [];
             foreach ($after as $field => $value) {

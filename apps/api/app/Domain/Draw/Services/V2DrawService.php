@@ -958,7 +958,7 @@ final class V2DrawService
                 'prize.public_id as prize_public_id',
                 'prize.display_name as prize_name',
                 'relation.exchange_points as prize_exchange_points',
-                'relation.shipping_only',
+                'relation.shipping_only', 'relation.exchange_only',
                 'rank_revision.id as rank_master_revision_id',
                 'video_revision.id as gacha_rank_video_revision_id',
                 'rank_master.public_id as rank_public_id',
@@ -1004,6 +1004,7 @@ final class V2DrawService
                 'prize_name' => $row->prize_name,
                 'exchange_points' => (int) $row->prize_exchange_points,
                 'shipping_only' => (bool) $row->shipping_only,
+                'exchange_only' => (bool) $row->exchange_only,
                 'rank_master_revision_id' => (int) $row->rank_master_revision_id,
                 'gacha_rank_video_revision_id' =>
                     (int) $row->gacha_rank_video_revision_id,
@@ -1239,6 +1240,7 @@ final class V2DrawService
             'prize' => [
                 'id' => $prize['prize_public_id'],
                 'name' => $prize['prize_name'],
+                'exchange_only' => $prize['exchange_only'],
                 'presentation_asset' => $prize['asset'],
             ],
         ];
@@ -1617,6 +1619,7 @@ final class V2DrawService
                 'status' => 'stored',
                 'exchange_point_snapshot' => $row['prize']['exchange_points'],
                 'shipping_only_snapshot' => $row['prize']['shipping_only'],
+                'exchange_only_snapshot' => $row['prize']['exchange_only'],
                 'exchanged_point_amount' => null,
                 'acquired_at' => V2DatabaseTimestamp::format($occurredAt),
                 'storage_expires_at' => V2DatabaseTimestamp::format($occurredAt->copy()->addDays(
@@ -1703,6 +1706,7 @@ final class V2DrawService
                 'prize' => [
                     'id' => $prize['prize_public_id'],
                     'name' => $prize['prize_name'],
+                    'exchange_only' => $prize['exchange_only'],
                     'presentation_asset' => $prize['asset'],
                 ],
                 'rank' => $rankCounts[$rankKey]['rank'],

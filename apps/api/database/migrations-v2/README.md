@@ -1,5 +1,19 @@
 # V2 Migration Root
 
+## Exchange-only prizes (000105)
+
+`2026_11_04_000105_add_v2_exchange_only_prizes.php` is allocated to
+`EXCHANGEONLY-20261104` under the shared Migration Allocation Lock. Banner
+classification is snapshotted into catalog versions and owned prizes. Additive
+false defaults preserve existing rights; CHECKs reject conflicting classifications,
+zero exchange values and shipping states. Financial hold remains valid. Ownership,
+published classification and shipping-item guards enforce the boundary in the DB.
+Only task-owned synthetic database application is authorized. Operational migration,
+runtime activation and release remain deferred. Retain schema/rights on rollback;
+never restore a shipping writer that ignores exchange-only rights. Use a forward
+correction; `down()` refuses. See the
+[handoff](../../../../docs/implementation/EXCHANGEONLY_2026-11-04_HANDOFF.md).
+
 ## RANKPOINTS-20261016 (M2)
 
 Migration `2026_10_16_000090_add_v2_member_rank_monthly_judgment.php` is allocated

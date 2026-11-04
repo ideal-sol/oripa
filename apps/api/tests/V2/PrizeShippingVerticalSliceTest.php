@@ -55,6 +55,87 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_exchange_only_draw_snapshot_rejects_shipping_and_still_exchanges(): void
+    {
+        [$user, $ids] = $this->fixture(5, 8000, false, true, true, true);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        self::assertGreaterThanOrEqual(2, DB::table('catalog_prizes')->where('exchange_only', true)->count());
+        $exchangeIds = DB::table('user_prizes')->where('user_id', $user->id)->where('exchange_only_snapshot', true)->pluck('public_id')->all();
+        foreach ($exchangeIds as $id) {
+            $item = $service->prizeDetail($user, $id);
+            self::assertTrue($item['exchange_only']);
+            self::assertFalse($item['allowed_actions']['shipping']['allowed']);
+            self::assertTrue($item['allowed_actions']['point_exchange']['allowed']);
+        }
+        try {
+            $service->createShippingRequest($user, $address['id'], $ids, 'exchange-only-shipping', (string) Str::uuid7());
+            self::fail('Exchange-only prizes must never ship.');
+        } catch (V2PrizeShippingException $exception) {
+            self::assertSame('PRIZE_NOT_SHIPPABLE', $exception->errorCode);
+        }
+        self::assertSame(0, DB::table('shipping_requests')->where('user_id', $user->id)->count());
+        self::assertSame(10, DB::table('user_prizes')->where('user_id', $user->id)->where('status', 'stored')->count());
+        $service->exchange($user, $exchangeIds, 'exchange-only-convert', (string) Str::uuid7());
+        self::assertSame(5, DB::table('user_prizes')->where('user_id', $user->id)->where('status', 'converted')->count());
+    }
+
+    public function test_prize_group_pages_preserve_default_twenty_and_support_one_hundred(): void
+    {
+        [$user] = $this->fixture(100);
+        $service = app(V2PrizeShippingService::class);
+        self::assertCount(20, $service->prizes($user, null, 20)['items']);
+        $first = $service->prizes($user, null, 20, 'stored');
+        $second = $service->prizes($user, $first['next_cursor'], 100, 'stored');
+        self::assertCount(80, $second['items']);
+        self::assertEmpty(array_intersect(array_column($first['items'], 'id'), array_column($second['items'], 'id')));
+        self::assertCount(100, $service->prizes($user, null, 100, 'stored')['items']);
+        self::assertSame([], $service->prizes($user, null, 100, 'shipping')['items']);
+    }
+
+    public function test_exchange_only_ownership_snapshot_is_immutable(): void
+    {
+        [$user, $ids] = $this->fixture(1, 8000, false, true, false, true);
+        $this->expectException(QueryException::class);
+        DB::table('user_prizes')->where('public_id', $ids[0])->update(['exchange_only_snapshot' => false]);
+    }
+
+    public function test_prize_groups_keep_payment_hold_stored_and_shipping_hold_with_shipped_and_delivered(): void
+    {
+        [$user, $ids] = $this->fixture(10, 8000, false, true);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $service->createShippingRequest($user, $address['id'], array_slice($ids, 0, 6), (string) Str::uuid7(), (string) Str::uuid7());
+        foreach (['shipping_requested', 'packing', 'hold', 'shipped', 'delivered', 'return_requested'] as $index => $status) {
+            DB::table('user_prizes')->where('public_id', $ids[$index])->update(['status' => $status]);
+        }
+        DB::table('user_prizes')->where('public_id', $ids[6])->update(['status' => 'hold']);
+        self::assertEqualsCanonicalizing(array_slice($ids, 0, 6), array_column($service->prizes($user, null, 100, 'shipping')['items'], 'id'));
+        self::assertEqualsCanonicalizing(array_slice($ids, 6), array_column($service->prizes($user, null, 100, 'stored')['items'], 'id'));
+        $page = $service->prizes($user, null, 2, 'stored');
+        $this->expectException(V2PrizeShippingException::class);
+        $service->prizes($user, $page['next_cursor'], 100, 'shipping');
+    }
+
+    public function test_exchange_only_database_allows_financial_hold_but_rejects_shipping_and_auto_converts(): void
+    {
+        [$user, $ids] = $this->fixture(1, 8000, false, true, false, true);
+        DB::table('user_prizes')->where('public_id', $ids[0])->update(['status' => 'hold']);
+        self::assertCount(1, app(V2PrizeShippingService::class)->prizes($user, null, 100, 'stored')['items']);
+        try {
+            DB::transaction(fn () => DB::table('user_prizes')->where('public_id', $ids[0])->update(['status' => 'shipping_requested']));
+            self::fail('Database must reject shipping an exchange-only prize.');
+        } catch (QueryException $exception) {
+            self::assertSame('23514', $exception->getCode());
+        }
+        DB::table('user_prizes')->where('public_id', $ids[0])->update(['status' => 'stored']);
+        $deadline = DB::table('user_prizes')->where('public_id', $ids[0])->value('storage_expires_at');
+        CarbonImmutable::setTestNow($deadline);
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
+        self::assertSame(1, app(V2PrizeShippingService::class)->autoExchangeExpired()['processed']);
+        self::assertDatabaseHas('user_prizes', ['public_id' => $ids[0], 'status' => 'converted', 'exchange_only_snapshot' => true]);
+    }
+
     public function test_auto_exchange_flag_deadline_snapshot_expiry_and_replay(): void
     {
         [$user, $ids] = $this->fixture(1);
@@ -1326,7 +1407,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame($inventory, DB::table('prize_inventories')->sum('available_quantity'));
     }
 
-    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false): array
+    private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false, bool $exchangeOnly = false): array
     {
         $fixture = json_decode(
             file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'),
@@ -1339,6 +1420,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         $fixture['versions'][0]['allowed_draw_counts'] = [1, 5, 10, 100, 1000];
         $fixture['prizes'][0]['exchange_points'] = $exchangePoints;
         $fixture['prizes'][0]['shipping_only'] = $shippingOnly;
+        $fixture['prizes'][0]['exchange_only'] = $exchangeOnly;
         foreach ($fixture['gacha_prizes'] as $index => &$relation) {
             $relation['initial_inventory'] = $index === 0
                 ? intdiv($inventoryTotal, 10)
@@ -1349,6 +1431,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             foreach ($fixture['prizes'] as &$prize) {
                 $prize['exchange_points'] = $exchangePoints;
                 $prize['shipping_only'] = $shippingOnly;
+                $prize['exchange_only'] = $exchangeOnly;
             }
             unset($prize);
         }
@@ -1364,6 +1447,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             foreach ($second['prizes'] as &$prize) {
                 $prize['exchange_points'] = 8000;
                 $prize['shipping_only'] = true;
+                $prize['exchange_only'] = false;
             }
             unset($prize);
             foreach ($second as $section => $records) {

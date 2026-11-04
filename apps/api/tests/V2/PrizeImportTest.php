@@ -76,6 +76,19 @@ final class PrizeImportTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_exchange_only_csv_inherits_banner_and_rejects_conflicting_economics(): void
+    {
+        app(V2ContentContactAdminService::class)->updateManagedBanner($this->context, $this->banner['id'],
+            [...$this->bannerInput, 'exchange_only' => true], (string) Str::uuid7());
+        $this->assertError('CSV_VALIDATION_FAILED', fn () => $this->preview($this->input('CARD-001,CSV賞,2,0,4')), 'VALUE_INVALID');
+        $this->assertError('CSV_VALIDATION_FAILED', fn () => $this->preview($this->input('CARD-001,CSV賞,2,3,4,TRUE', ',発送のみ')), 'VALUE_INVALID');
+        $this->import();
+        $prize = DB::table('catalog_prizes')->where('external_id', 'CARD-001')->firstOrFail();
+        self::assertTrue($prize->exchange_only);
+        self::assertDatabaseHas('catalog_gacha_version_prizes', ['prize_id' => $prize->id, 'exchange_only' => true, 'shipping_only' => false]);
+        self::assertSame(1, $this->preview($this->input())['summary']['unchanged']);
+    }
+
     public function test_preview_is_read_only_create_replay_and_history_are_canonical(): void
     {
         $before = $this->snapshot();

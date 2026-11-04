@@ -73,7 +73,7 @@ trait V2PrizeImportMutations
                 $payload = [
                     'external_id' => $operation['externalId'], 'name' => $after['name'] ?? $operation['relation']->display_name,
                     'total_inventory' => $after['quantity'], 'exchange_points' => $after['exchange_points'],
-                    'cost_price' => $after['cost_price'], 'shipping_only' => $after['shipping_only'],
+                    'cost_price' => $after['cost_price'], 'exchange_only' => $after['exchange_only'], 'shipping_only' => $after['shipping_only'],
                     'is_active' => $operation['prize'] === null ? true : (bool) $operation['relation']->is_visible,
                     'sort_order' => $after['sort_order'],
                 ];
@@ -91,7 +91,7 @@ trait V2PrizeImportMutations
                 }
                 $now = V2DatabaseTimestamp::format(now()->startOfSecond());
                 $economics = ['exchange_points' => $after['exchange_points'], 'cost_price' => $after['cost_price'],
-                    'shipping_only' => $after['shipping_only'], 'updated_at' => $now];
+                    'exchange_only' => $after['exchange_only'], 'shipping_only' => $after['shipping_only'], 'updated_at' => $now];
                 DB::table('catalog_prizes')->where('id', $prize->id)->update([
                     ...$economics, 'revision' => (int) $prize->revision + 1,
                 ]);
@@ -155,6 +155,7 @@ trait V2PrizeImportMutations
 
     private function insertRankPrize(object $gacha, object $version, object $gachaRank, ?object $asset, array $payload): object
     {
+        $payload['exchange_only'] = app(V2ExchangeOnlyClassification::class)->resolve($payload);
         return $this->insertRankPrizes($gacha, $version, [compact('gachaRank', 'asset', 'payload')])[0];
     }
 
@@ -168,7 +169,7 @@ trait V2PrizeImportMutations
             $publicId = (string) Str::uuid7();
             $shared = ['rank_id' => null, 'gacha_rank_id' => $entry['gachaRank']->id, 'presentation_asset_id' => $entry['asset']?->id,
                 'display_name' => $payload['name'], 'description' => null, 'display_price' => 0,
-                'exchange_points' => $payload['exchange_points'], 'shipping_only' => $payload['shipping_only'] ?? false,
+                'exchange_points' => $payload['exchange_points'], 'exchange_only' => $payload['exchange_only'] ?? false, 'shipping_only' => $payload['shipping_only'] ?? false,
                 'cost_price' => $payload['cost_price'], 'is_visible' => $payload['is_active'], 'created_at' => $now, 'updated_at' => $now];
             $masters[] = [...$shared, 'public_id' => $publicId, 'code' => 'prize-'.str_replace('-', '', $publicId),
                 'external_id' => $payload['external_id'] ?? null, 'gacha_id' => $gacha->id, 'revision' => 1, 'archived_at' => null];

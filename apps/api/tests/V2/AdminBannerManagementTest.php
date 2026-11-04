@@ -41,6 +41,27 @@ final class AdminBannerManagementTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_exchange_only_banner_is_authoritative_and_preserved_when_omitted(): void
+    {
+        $service = app(V2ContentContactAdminService::class);
+        $context = $this->context(V2AdminRole::Admin);
+        $category = $service->createBannerCategory($context, ['name' => '交換限定'], (string) Str::uuid7());
+        $asset = $service->uploadBannerAsset($context, $this->imageInput('exchange.png'), (string) Str::uuid7());
+        $input = ['category_id' => $category['id'], 'title' => '交換限定景品', 'asset_id' => $asset['id'], 'external_id' => 'EXCHANGE-1'];
+        $banner = $service->createManagedBanner($context, [...$input, 'exchange_only' => true], (string) Str::uuid7());
+        self::assertTrue($banner['exchange_only']);
+        self::assertTrue($service->updateManagedBanner($context, $banner['id'], $input, (string) Str::uuid7())['exchange_only']);
+        $classification = app(\App\Domain\Catalog\Services\V2ExchangeOnlyClassification::class);
+        self::assertTrue($classification->resolve(['banner_id' => $banner['id'], 'presentation_asset_id' => $asset['id'], 'external_id' => 'EXCHANGE-1', 'exchange_points' => 1]));
+        $service->updateManagedBanner($context, $banner['id'], [...$input, 'exchange_only' => false], (string) Str::uuid7());
+        $snapshot = (object) ['presentation_asset_id' => DB::table('catalog_presentation_assets')->where('public_id', $asset['id'])->value('id'),
+            'external_id' => 'EXCHANGE-1', 'exchange_only' => true, 'shipping_only' => false];
+        self::assertTrue($classification->resolve(['presentation_asset_id' => $asset['id'], 'exchange_points' => 1], $snapshot),
+            'An unchanged draft selection retains its snapshot after the banner is edited.');
+        $this->expectException(\App\Domain\Catalog\Exceptions\V2CatalogException::class);
+        $classification->resolve(['banner_id' => $banner['id'], 'presentation_asset_id' => $asset['id'], 'external_id' => 'WRONG-ID', 'exchange_points' => 1]);
+    }
+
     public function test_category_asset_banner_crud_filter_and_replay_are_canonical(): void
     {
         $service = app(V2ContentContactAdminService::class);

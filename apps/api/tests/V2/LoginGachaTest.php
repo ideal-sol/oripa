@@ -463,7 +463,11 @@ final class LoginGachaTest extends TestCase
         self::assertNull($projection['publish_start_at']);
         self::assertNull($projection['publish_end_at']);
         self::assertSame($type, $projection['gacha_type']);
-        self::assertEquals(array_map(fn (array $prize): array => [...$prize, 'external_id' => null], $input['prizes']), $projection['prizes']);
+        $sourcePrizeIds = DB::table('catalog_prizes')->where('gacha_id', DB::table('catalog_gachas')->where('public_id', $source['id'])->value('id'))
+            ->orderBy('id')->pluck('public_id')->all();
+        self::assertEquals(array_map(fn (array $prize, int $index): array => [
+            ...$prize, 'external_id' => null, 'exchange_only' => false, 'source_prize_id' => $sourcePrizeIds[$index],
+        ], $input['prizes'], array_keys($input['prizes'])), $projection['prizes']);
         $projection['publish_start_at'] = '2026-07-01T00:00:00Z';
         $copy = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $projection)->assertCreated()->json('data');
         self::assertNotSame($source['id'], $copy['id']);
@@ -491,6 +495,45 @@ final class LoginGachaTest extends TestCase
         }
 
         return $cases;
+    }
+
+    #[DataProvider('exchangeOnlyTypes')]
+    public function test_exchange_only_composition_publication_copy_and_draw(string $type): void
+    {
+        $category = $this->mutate('POST', '/admin/api/v2/banner-management/categories', ['name' => 'Exchange only'])->assertCreated()->json();
+        $asset = $this->mutate('POST', '/admin/api/v2/banner-management/assets', [
+            'file_name' => 'exchange.png', 'mime_type' => 'image/png',
+            'content_base64' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        ])->assertCreated()->json();
+        $bannerInput = ['category_id' => $category['id'], 'asset_id' => $asset['id'], 'title' => 'Exchange only', 'exchange_only' => true];
+        $banner = $this->mutate('POST', '/admin/api/v2/banner-management/banners', $bannerInput)->assertCreated()->json();
+        $input = $this->input($type);
+        foreach ($input['prizes'] as &$prize) {
+            $prize['presentation_asset_id'] = $asset['id'];
+            $prize['banner_id'] = $banner['id'];
+            $prize['exchange_only'] = false; // Untrusted browser value cannot override the banner.
+        }
+        unset($prize);
+        $source = $this->createPublished($type, $input);
+        $sourceId = DB::table('catalog_gachas')->where('public_id', $source['id'])->value('id');
+        self::assertSame(2, DB::table('catalog_prizes')->where('gacha_id', $sourceId)->where('exchange_only', true)->count());
+        $this->mutate('PUT', '/admin/api/v2/banner-management/banners/'.$banner['id'], [...$bannerInput, 'exchange_only' => false])
+            ->assertConflict()->assertJsonPath('code', 'BANNER_CLASSIFICATION_IMMUTABLE');
+        $this->mutate('PUT', '/admin/api/v2/banner-management/banners/'.$banner['id'], [...$bannerInput, 'title' => 'Presentation edit'])->assertOk();
+        $projection = app(V2GachaCopyService::class)->projection($source['id'], true);
+        self::assertTrue($projection['prizes'][0]['exchange_only']);
+        $projection['publish_start_at'] = '2026-07-01T00:00:00Z';
+        $copy = $this->mutate('POST', '/admin/api/v2/catalog/gacha-compositions', $projection)->assertCreated()->json('data');
+        self::assertSame(2, DB::table('catalog_prizes')->where('gacha_id', DB::table('catalog_gachas')->where('public_id', $copy['id'])->value('id'))->where('exchange_only', true)->count());
+        $user = $this->user();
+        $this->draw($user, $source, 'exchange-only-draw');
+        self::assertTrue(DB::table('user_prizes')->where('user_id', $user->id)->value('exchange_only_snapshot'));
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public static function exchangeOnlyTypes(): array
+    {
+        return [['login_daily'], ['signup_once']];
     }
 
     #[DataProvider('failureCases')]
