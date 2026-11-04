@@ -273,6 +273,77 @@ final class AdminUserReadModelApiTest extends TestCase
         self::assertArrayNotHasKey('email', $payload['items'][0]);
     }
 
+    public function test_identity_substrings_use_full_name_literal_matching_and_preserve_cursor_and_privacy(): void
+    {
+        $first = $this->user('DisplayOnly');
+        $second = $this->user('DisplayOnly');
+        $null = $this->user('RegisteredName');
+        foreach ([$first, $second] as $user) {
+            DB::table('users')->where('id', $user['id'])->update([
+                'full_name' => 'RegisteredName %_\\ Test',
+                'email_normalized' => 'literal%_\\'.$user['id'].'@example.test',
+            ]);
+        }
+        $client = $this->asAdmin($this->sessionToken(V2AdminRole::Operator));
+        $search = fn (array $query) => $client->getJson('/admin/api/v2/users?'.http_build_query($query));
+        foreach (['registeredNAME', '%_\\'] as $name) {
+            $search(['user_name' => ' '.$name.' '])->assertOk()->assertJsonCount(2, 'items');
+        }
+        $search(['user_name' => 'DisplayOnly'])->assertOk()->assertJsonCount(0, 'items');
+        $search(['user_name' => 'registeredname', 'email' => 'example.test', 'member_rank' => 'beginner'])
+            ->assertOk()->assertJsonCount(2, 'items')->assertJsonPath('items.0.member_rank_points', 0);
+        $search(['user_name' => 'registeredname', 'member_rank' => 'vip'])->assertOk()->assertJsonCount(0, 'items');
+        $search(['user_name' => 'registeredname', 'transferred' => 'true'])->assertOk()->assertJsonCount(0, 'items');
+        foreach (['EXAMPLE.TEST', '@example.test', '%_\\'] as $email) {
+            $query = ['email' => ' '.$email.' ', 'user_name' => 'registeredname', 'status' => 'active'];
+            $page = $search([...$query, 'limit' => 1])->assertOk()->assertJsonPath('items.0.id', $second['public_id']);
+            $search([...$query, 'limit' => 1, 'cursor' => $page->json('next_cursor')])
+                ->assertOk()->assertJsonPath('items.0.id', $first['public_id'])->assertJsonPath('next_cursor', null);
+        }
+        $search(['user_id' => $null['public_id'], 'user_name' => 'RegisteredName'])->assertOk()->assertJsonCount(0, 'items');
+        $search(['user_id' => $first['public_id'], 'status' => 'suspended', 'email' => 'example.test'])->assertOk()->assertJsonCount(0, 'items');
+        $payload = $search(['email' => '%_\\', 'user_name' => 'RegisteredName'])->assertOk()->json();
+        foreach (['email', 'phone', 'full_name', 'email_normalized'] as $key) {
+            self::assertArrayNotHasKey($key, $payload['items'][0]);
+        }
+        $audit = DB::table('audit_logs')->where('action_code', 'admin.user.list.viewed')->orderByDesc('id')->first();
+        self::assertNull($audit->after_redacted);
+        self::assertNull($audit->before_redacted);
+        self::assertSame('{}', $audit->metadata_redacted);
+        foreach (['email' => str_repeat('a', 321), 'user_name' => str_repeat('名', 192), 'phone' => ['bad']] as $key => $value) {
+            $search([$key => $value])->assertStatus(422)->assertJsonPath('code', 'ADMIN_USER_QUERY_INVALID');
+        }
+        $search(['email' => ' ', 'phone' => ' ', 'user_name' => ' '])->assertOk()->assertJsonCount(3, 'items');
+    }
+
+    public function test_phone_search_accepts_both_formats_and_key_versions_but_only_current_verified_numbers(): void
+    {
+        config([
+            'v2_identity.sms_verification.phone_hmac_key' => 'base64:'.base64_encode(str_repeat('a', 32)),
+            'v2_identity.sms_verification.phone_hmac_previous_keys' => ['base64:'.base64_encode(str_repeat('b', 32))],
+        ]);
+        $hashes = app(\App\Domain\Identity\Services\V2IdentityCorrelation::class)->hashes('+819012345678');
+        self::assertCount(2, $hashes);
+        $user = $this->user(smsVerified: true);
+        $client = $this->asAdmin($this->sessionToken(V2AdminRole::Operator));
+        foreach ($hashes as $hash) {
+            DB::table('user_phone_numbers')->where('user_id', $user['id'])->update(['phone_hmac' => $hash]);
+            foreach (['09012345678', '090-1234-5678'] as $phone) {
+                $client->getJson('/admin/api/v2/users?'.http_build_query(['phone' => $phone]))
+                    ->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.id', $user['public_id']);
+            }
+        }
+        $client->getJson('/admin/api/v2/users?phone=09012345679')->assertOk()->assertJsonCount(0, 'items');
+        foreach ([['revoked_at' => now()], ['revoked_at' => null, 'verified_at' => null]] as $state) {
+            DB::table('user_phone_numbers')->where('user_id', $user['id'])->update($state);
+            $client->getJson('/admin/api/v2/users?phone=09012345678')->assertOk()->assertJsonCount(0, 'items');
+        }
+        foreach (['090123', '0312345678', '090-12345678', str_repeat('1', 21)] as $phone) {
+            $client->getJson('/admin/api/v2/users?phone='.$phone)->assertStatus(422)
+                ->assertJsonPath('code', 'ADMIN_USER_QUERY_INVALID');
+        }
+    }
+
     private function sessionToken(V2AdminRole $role): string
     {
         $email = 'user-read-api-'.Str::uuid7().'@example.test';

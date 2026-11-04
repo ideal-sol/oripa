@@ -170,6 +170,19 @@ describe("AdminApiClient", () => {
     }
   });
 
+  it("serializes trimmed identity searches and omits whitespace-only values", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse({ items: [], next_cursor: null }));
+    const client = new AdminApiClient(fetcher, () => csrf);
+    await client.listAdminUsers({ email: " @example.test ", phone: "090-1234-5678", user_name: " Test Name ", cursor: "opaque" });
+    const query = new URL(String(fetcher.mock.calls[0][0]), "https://admin.example.test").searchParams;
+    expect(query.get("email")).toBe("@example.test");
+    expect(query.get("phone")).toBe("090-1234-5678");
+    expect(query.get("user_name")).toBe("Test Name");
+    expect(query.get("cursor")).toBe("opaque");
+    await client.listAdminUsers({ email: " ", phone: " ", user_name: " " });
+    expect(fetcher.mock.calls[1][0]).toBe("/admin/api/v2/users?limit=50");
+  });
+
   it("reads all-user and user-specific Payment history with canonical filters", async () => {
     const userId = "01910191-0191-7191-8191-019101910191";
     const fetcher = vi.fn<typeof fetch>()

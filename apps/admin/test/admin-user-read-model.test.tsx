@@ -96,6 +96,9 @@ describe("Admin User Read workspace", () => {
     expect(readModel.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
       listFilters: {
         date_from: "2026-08-01",
+        email: undefined,
+        phone: undefined,
+        user_name: undefined,
         date_to: "2026-08-31",
         status: "verification_failed",
         user_id: uuid("1"),
@@ -109,6 +112,9 @@ describe("Admin User Read workspace", () => {
     expect(readModel.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
       listFilters: {
         date_from: undefined,
+        email: undefined,
+        phone: undefined,
+        user_name: undefined,
         date_to: undefined,
         status: "active",
         user_id: undefined,
@@ -116,6 +122,37 @@ describe("Admin User Read workspace", () => {
         transferred: undefined,
       },
     }));
+  });
+
+  it("applies trimmed identity filters, validates mobile input, and clears all three fields", () => {
+    render(<AdminUserReadWorkspace mode="list" />);
+    expect(screen.getByLabelText("メールアドレス")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("電話番号")).toHaveAttribute("inputmode", "numeric");
+    expect(screen.getByLabelText("氏名")).toHaveAttribute("placeholder", "一部でも可");
+    for (const label of ["メールアドレス", "電話番号", "氏名"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("autocomplete", "off");
+    }
+    const initialApplied = readModel.mock.calls.at(-1)?.[0].listFilters;
+    fireEvent.change(screen.getByLabelText("電話番号"), { target: { value: "090123" } });
+    fireEvent.click(screen.getByRole("button", { name: "検索" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("11桁");
+    expect(readModel.mock.calls.at(-1)?.[0].listFilters).toBe(initialApplied);
+    fireEvent.change(screen.getByLabelText("電話番号"), { target: { value: "090-1234-5678" } });
+    fireEvent.change(screen.getByLabelText("メールアドレス"), { target: { value: " @example.test " } });
+    fireEvent.change(screen.getByLabelText("氏名"), { target: { value: " Synthetic Name " } });
+    fireEvent.click(screen.getByRole("button", { name: "検索" }));
+    expect(readModel.mock.calls.at(-1)?.[0].listFilters).toMatchObject({
+      email: "@example.test", phone: "090-1234-5678", user_name: "Synthetic Name", status: "active",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "条件を解除" }));
+    for (const label of ["メールアドレス", "電話番号", "氏名"]) {
+      expect(screen.getByLabelText(label)).toHaveValue("");
+      fireEvent.change(screen.getByLabelText(label), { target: { value: "  " } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "検索" }));
+    expect(readModel.mock.calls.at(-1)?.[0].listFilters).toMatchObject({
+      email: undefined, phone: undefined, user_name: undefined, status: "active",
+    });
   });
 
   it("rejects an inverted registration date range before loading", () => {

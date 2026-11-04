@@ -289,6 +289,9 @@ export const ADMIN_SHIPPING_STATUS_FILTERS = [
 export type AdminShippingStatusFilter = typeof ADMIN_SHIPPING_STATUS_FILTERS[number];
 
 export interface AdminUserQuery {
+  email?: string;
+  phone?: string;
+  user_name?: string;
   member_rank?: import("./generated").AdminMemberRankCode;
   transferred?: boolean;
   cursor?: string;
@@ -477,6 +480,10 @@ export class AdminApiClient {
     if (query.date_to) parameters.set("date_to", query.date_to);
     if (query.status) parameters.set("status", query.status);
     if (query.user_id) parameters.set("user_id", query.user_id);
+    for (const key of ["email", "phone", "user_name"] as const) {
+      const value = query[key]?.trim();
+      if (value) parameters.set(key, value);
+    }
     if (query.member_rank) parameters.set("member_rank", query.member_rank);
     if (query.transferred) parameters.set("transferred", "true");
     return this.request("GET", `/users?${parameters.toString()}`, { signal });

@@ -114,10 +114,18 @@ export function AdminUserReadWorkspace({
               setFilterError("登録日の開始日は終了日以前を指定してください。");
               return;
             }
+            const phone = draftFilters.phone?.trim();
+            if (phone && !/^(070|080|090)([0-9]{8}|-[0-9]{4}-[0-9]{4})$/.test(phone)) {
+              setFilterError("電話番号は070・080・090から始まる11桁で入力してください（ハイフン可）。");
+              return;
+            }
             setFilterError(null);
             setAppliedFilters({
               ...draftFilters,
               user_id: draftFilters.user_id?.trim() || undefined,
+              email: draftFilters.email?.trim() || undefined,
+              phone: phone || undefined,
+              user_name: draftFilters.user_name?.trim() || undefined,
             });
           }}
         />
@@ -199,6 +207,20 @@ function UserFilters({
           ))}
         </select>
       </label>
+      {([
+        ["email", "メールアドレス", "text", 320],
+        ["phone", "電話番号", "tel", 20],
+        ["user_name", "氏名", "text", 191],
+      ] as const).map(([key, label, type, maxLength]) => (
+        <label key={key}>
+          <span>{label}</span>
+          <input aria-label={label} type={type} autoComplete="off" maxLength={maxLength}
+            inputMode={key === "phone" ? "numeric" : undefined}
+            placeholder={key === "user_name" ? "一部でも可" : undefined}
+            value={draft[key] ?? ""}
+            onChange={(event) => onChange({ ...draft, [key]: event.target.value })} />
+        </label>
+      ))}
       <label>
         <span>登録日（開始）</span>
         <input
@@ -236,6 +258,9 @@ function UserFilters({
 
 function listFilters(filters?: AdminUserQuery): AdminUserQuery {
   return {
+    email: filters?.email?.trim() || undefined,
+    phone: filters?.phone?.trim() || undefined,
+    user_name: filters?.user_name?.trim() || undefined,
     date_from: filters?.date_from || undefined,
     date_to: filters?.date_to || undefined,
     status: filters?.status ?? "active",

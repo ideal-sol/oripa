@@ -59,6 +59,34 @@ test("Operator reads User list, detail, and acquired-prize history", async ({ pa
   expect(gatewayErrors).toEqual([]);
 });
 
+test("identity filters validate locally, reach the API, and reset", async ({ page }) => {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/admin/api/v2/users") queries.push(url.searchParams);
+  });
+  await page.goto("/users");
+  await expect(page.getByText("テストユーザー", { exact: true })).toBeVisible();
+  await page.getByLabel("メールアドレス").fill(" @example.test ");
+  await page.getByLabel("氏名", { exact: true }).fill(" Synthetic Name ");
+  await page.getByLabel("電話番号", { exact: true }).fill("090123");
+  const before = queries.length;
+  await page.getByRole("button", { name: "検索", exact: true }).click();
+  await expect(page.getByRole("form", { name: "ユーザー検索フィルター" }).getByRole("alert")).toContainText("11桁");
+  expect(queries).toHaveLength(before);
+  await page.getByLabel("電話番号", { exact: true }).fill("090-1234-5678");
+  await page.getByRole("button", { name: "検索", exact: true }).click();
+  await expect.poll(() => queries.at(-1)?.get("user_name")).toBe("Synthetic Name");
+  expect(queries.at(-1)?.get("email")).toBe("@example.test");
+  expect(queries.at(-1)?.get("phone")).toBe("090-1234-5678");
+  await page.getByRole("button", { name: "条件を解除" }).click();
+  await expect.poll(() => queries.at(-1)?.has("email")).toBe(false);
+  for (const label of ["メールアドレス", "電話番号", "氏名"]) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue("");
+  }
+  await expect(page.getByLabel("状態", { exact: true })).toHaveValue("active");
+});
+
 test("mobile User tables remain inside a keyboard-scrollable region", async ({ page }) => {
   await page.setViewportSize({ height: 844, width: 390 });
   await page.goto("/users");
