@@ -498,6 +498,24 @@ export class AdminApiClient {
     return this.request("GET", "/member-ranks/summary", { signal });
   }
 
+  getMemberRankDiscrepancies(cursor?: string, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankDiscrepancies> {
+    return this.request("GET", `/member-ranks/discrepancies${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { signal });
+  }
+
+  updateMemberRankTransfer(userId: string, body: import("./generated").AdminMemberRankTransferWrite, key: string): Promise<import("./generated").AdminMemberRankTransferResponse> {
+    return this.request("PUT", `/users/${encodeURIComponent(userId)}/member-rank-transfer`, { body, idempotencyKey: key });
+  }
+
+  getMemberRankTransferHistory(userId: string, cursor?: string, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankTransferHistory> {
+    const query = new URLSearchParams(cursor ? { cursor } : {});
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/member-rank-transfer?${query}`, { signal });
+  }
+
+  getMemberRankCompensationHistory(userId: string, cursor?: string, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankCompensationHistory> {
+    const query = new URLSearchParams(cursor ? { cursor } : {});
+    return this.request("GET", `/users/${encodeURIComponent(userId)}/member-rank-compensation-history?${query}`, { signal });
+  }
+
   listMemberRankManualChanges(filters: { cursor?: string; kind?: string; date_from?: string; date_to?: string } = {}, signal?: AbortSignal): Promise<import("./generated").AdminMemberRankHistoryCollection> {
     const query = new URLSearchParams({ limit: "20" });
     for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);

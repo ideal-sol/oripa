@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PermissionGate } from "@/components/permissions/permission-gate";
+import { usePermissions } from "@/components/permissions/permission-provider";
+import { rankNames } from "@/components/member-ranks/member-rank-labels";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { AdminPaymentDetail as PaymentDetail, AdminPaymentAdjustment, AdminPaymentPointImpact } from "@/lib/admin-api/generated";
+import type { AdminPaymentDetail as PaymentDetail, AdminPaymentAdjustment, AdminPaymentPointImpact, AdminMemberRankCode, AdminPaymentRankChoice } from "@/lib/admin-api/generated";
 
 type Operation = "refund" | "complete" | "cancel" | "chargeback" | "reversal";
 const labels: Record<Operation, string> = { refund: "返金の準備", complete: "返金済みにする", cancel: "取りやめる", chargeback: "チャージバックを記録", reversal: "チャージバック取消を記録" };
@@ -81,7 +83,7 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
         </article>)}
       </section>
     </>}
-    {action && <AdjustmentDialog client={client} paymentId={paymentId} action={action} close={() => setAction(null)} complete={adjustment => {
+    {action && <AdjustmentDialog client={client} paymentId={paymentId} action={action} rankChoice={detail?.rank_change ?? null} close={() => setAction(null)} complete={adjustment => {
       setResult(adjustment); setAction(null); setReload(value => value + 1);
     }} />}
   </div>;
@@ -100,10 +102,14 @@ function Impact({ impact }: { impact: AdminPaymentPointImpact }) {
   </div>;
 }
 
-function AdjustmentDialog({ client, paymentId, action, close, complete }: {
+function AdjustmentDialog({ client, paymentId, action, rankChoice, close, complete }: {
   client: AdminApiClient; paymentId: string; action: { operation: Operation; adjustmentId?: string };
   close: () => void; complete: (result: AdminPaymentAdjustment) => void;
+  rankChoice: AdminPaymentRankChoice | null;
 }) {
+  const { hasPermission } = usePermissions();
+  const [choice, setChoice] = useState(rankChoice);
+  const [rankAfter, setRankAfter] = useState<AdminMemberRankCode | "">("");
   const dialog = useRef<HTMLDialogElement>(null);
   const busy = useRef(false);
   const replay = useRef<{ payload: string; key: string } | null>(null);
@@ -118,11 +124,14 @@ function AdjustmentDialog({ client, paymentId, action, close, complete }: {
   async function submit() {
     if (busy.current) return;
     busy.current = true; setPending(true); setError(null);
-    const body = isComplete ? { reason, provider_refund_confirmed: true as const, ...(reference ? { provider_adjustment_id: reference } : {}) }
-      : { reason, ...(reference ? { provider_case_id: reference } : {}) };
+    const selectedRank = choice && rankAfter && (isComplete || action.operation === "chargeback")
+      ? { rank_after: rankAfter, rank_preview_token: choice.preview_token } : {};
+    const body = isComplete ? { reason, provider_refund_confirmed: true as const, ...(reference ? { provider_adjustment_id: reference } : {}), ...selectedRank }
+      : { reason, ...(reference ? { provider_case_id: reference } : {}), ...selectedRank };
     try {
       if (action.operation === "chargeback" && !preview) {
-        setPreview((await client.previewAdminPaymentChargeback(paymentId, body)).data.impact);
+        const response = (await client.previewAdminPaymentChargeback(paymentId, body)).data;
+        setPreview(response.impact); setChoice(response.rank_change ?? null); setRankAfter("");
       } else {
         const payload = JSON.stringify(body);
         if (!replay.current || replay.current.payload !== payload) replay.current = { payload, key: crypto.randomUUID() };
@@ -139,6 +148,12 @@ function AdjustmentDialog({ client, paymentId, action, close, complete }: {
       {(isComplete || action.operation === "chargeback" || action.operation === "reversal") &&
         <label>決済会社の参照番号（任意）<input maxLength={191} value={reference} disabled={pending} onChange={event => { setReference(event.target.value); setPreview(null); }} /></label>}
       {isComplete && <label><input type="checkbox" checked={confirmed} disabled={pending} onChange={event => setConfirmed(event.target.checked)} />決済会社側で実際の返金が完了したことを確認しました</label>}
+      {choice && (isComplete || (action.operation === "chargeback" && preview)) && hasPermission("member_rank.user.manage") && <div>
+        <p id="payment-rank-choice-description">減算後 {choice.rank_points_after.toLocaleString()}pt ／ 現在ランクの到達ライン {choice.reach_line.toLocaleString()}pt。選択しなければランクは維持されます。</p>
+        <label>変更後のランク<select aria-describedby="payment-rank-choice-description" value={rankAfter} disabled={pending} onChange={event => setRankAfter(event.target.value as AdminMemberRankCode | "")}>
+          <option value="">変動なし</option>{Object.entries(rankNames).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select></label>
+      </div>}
       {preview && <section aria-label="取消予定額"><h3>取消予定額</h3><Impact impact={preview} /><p>実行時の残高で再計算されます。記録後の結果を確認してください。</p></section>}
       {action.operation === "reversal" && <p>ポイントは自動復元されません。</p>}
       {error && <p role="alert">{error}</p>}

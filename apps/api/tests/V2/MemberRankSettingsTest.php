@@ -182,7 +182,7 @@ final class MemberRankSettingsTest extends TestCase
         $token = $this->adminSession(V2AdminRole::Owner);
         foreach ([
             [0, 'reach_line', 1], [0, 'promotion_bonus', 1], [1, 'reach_line', 0],
-            [2, 'reach_line', 10000], [2, 'maintain_line', 4999], [1, 'maintain_line', 10001],
+            [2, 'reach_line', 10000], [2, 'maintain_line', 4999], [1, 'maintain_line', -1],
             [1, 'promotion_bonus', 1000001], [1, 'promotion_bonus', -1],
             [1, 'purchase_bonus_rate_bp', 10001], [1, 'purchase_bonus_rate_bp', 0.5],
             [1, 'purchase_bonus_rate_bp', '50'], [1, 'code', 'gold'],

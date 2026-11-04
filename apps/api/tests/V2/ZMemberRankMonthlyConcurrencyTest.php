@@ -2,7 +2,7 @@
 
 namespace Tests\V2;
 
-use App\Domain\MemberRank\Services\V2MemberRankMonthlyWorker;
+use App\Domain\MemberRank\Services\V2MemberRankPromotionWorker;
 use App\Domain\MemberRank\Services\V2MemberRankResolver;
 use App\Domain\Payment\V2\Services\V2PaymentService;
 use App\Domain\Point\Services\V2PointTransactionRunner;
@@ -44,8 +44,8 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
         [, $secondEvent] = $this->rankPayment($user, 50000, planId: $first->point_purchase_plan_id);
         $this->rankClock('2026-11-30T15:00:01Z');
         $outcomes = $this->race([
-            fn () => app(V2MemberRankMonthlyWorker::class)->run('worker-one', 10),
-            fn () => app(V2MemberRankMonthlyWorker::class)->run('worker-two', 10),
+            fn () => app(V2MemberRankPromotionWorker::class)->run('worker-one', 10),
+            fn () => app(V2MemberRankPromotionWorker::class)->run('worker-two', 10),
             function () use ($firstEvent): void {
                 app(V2PaymentService::class)->confirmSucceeded($firstEvent->id);
                 app(V2PaymentService::class)->confirmSucceeded($firstEvent->id);
@@ -57,22 +57,22 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
             function () use ($user): void {
                 for ($iteration = 0; $iteration < 20; $iteration++) {
                     $rank = app(V2MemberRankResolver::class)->project($user->id);
-                    if (! in_array($rank['level'], [3, 4], true) || $rank['last_judged_month'] !== '2026-12-01') {
+                    if ($rank['level'] !== 4 || $rank['last_judged_month'] !== null) {
                         throw new \LogicException('Torn projection');
                     }
                 }
             },
         ]);
         self::assertCount(5, $outcomes);
-        app(V2MemberRankMonthlyWorker::class)->run('finish', 100);
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'baseline_level' => 3, 'last_judged_month' => '2026-12-01']);
+        app(V2MemberRankPromotionWorker::class)->run('finish', 100);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'baseline_level' => 1, 'last_judged_month' => null]);
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-12-01', 'points' => 100000]);
-        self::assertSame(['promotion', 'demotion', 'promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
+        self::assertSame(['promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
         self::assertSame(3, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
         self::assertSame(3, DB::table('member_rank_point_entries')->where('user_id', $user->id)->count());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 8500]);
-        self::assertSame(1000, (int) DB::table('member_rank_purchase_bonuses')->where('user_id', $user->id)->sum('bonus_amount'));
-        self::assertSame(1, DB::table('member_rank_monthly_jobs')->where('month', '2026-12-01')->count());
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 9000]);
+        self::assertSame(1500, (int) DB::table('member_rank_purchase_bonuses')->where('user_id', $user->id)->sum('bonus_amount'));
+        self::assertSame(1, DB::table('member_rank_promotion_jobs')->where('month', '2026-12-01')->count());
     }
 
     public function test_real_deadlock_retries_preserve_one_judgment_per_user(): void
@@ -109,9 +109,9 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
             };
         }, [[$first->id, $second->id], [$second->id, $first->id]]));
         self::assertGreaterThanOrEqual(3, array_sum($outcomes));
-        self::assertSame(2, DB::table('member_rank_changes')->whereIn('user_id', [$first->id, $second->id])->where('reason', 'demotion')->count());
+        self::assertSame(0, DB::table('member_rank_changes')->whereIn('user_id', [$first->id, $second->id])->where('reason', 'demotion')->count());
         foreach ([$first, $second] as $user) {
-            self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 3, 'last_judged_month' => '2026-11-01']);
+            self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'last_judged_month' => null]);
             unlink($barrier.'.'.$user->id);
         }
         unlink($barrier);
@@ -146,7 +146,7 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
             },
         ]);
         self::assertCount(2, $outcomes);
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'last_judged_month' => '2026-11-01']);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'last_judged_month' => null]);
         self::assertDatabaseHas('member_rank_point_entries', ['payment_id' => $payment->id, 'month' => '2026-10-01', 'applied_delta' => 70000]);
         self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'demotion')->count());
         unlink($barrier);
@@ -158,28 +158,31 @@ final class ZMemberRankMonthlyConcurrencyTest extends TestCase
             $this->seedRankState($this->rankUser(), $level);
         }
         $this->rankClock('2027-01-31T15:00:01Z');
+        $warmup = app(V2MemberRankPromotionWorker::class);
+        while ($warmup->run('catchup', 100) > 0) {}
+        $this->rankClock('2027-02-28T15:00:01Z');
         $outcomes = $this->race([function (): int {
             \Illuminate\Console\Signals::resolveAvailabilityUsing(fn (): bool => extension_loaded('pcntl'));
             $sent = false;
             DB::listen(function ($query) use (&$sent): void {
-                if (! $sent && str_contains($query->sql, 'update "member_rank_states"')) {
+                if (! $sent && str_contains($query->sql, 'insert into "member_rank_cumulative_events"')) {
                     $sent = true;
                     posix_kill(getmypid(), SIGTERM);
                     pcntl_signal_dispatch();
                 }
             });
 
-            return \Illuminate\Support\Facades\Artisan::call('v2:member-rank:work', [
+            return \Illuminate\Support\Facades\Artisan::call('v2:member-rank:promote', [
                 '--worker' => 'signal-test', '--limit' => '1', '--loop' => true,
             ]);
         }]);
         self::assertSame([0], $outcomes);
-        $worker = app(V2MemberRankMonthlyWorker::class);
+        $worker = app(V2MemberRankPromotionWorker::class);
         self::assertSame('pending', $worker->progress()['job']->status);
         self::assertNull($worker->progress()['job']->lease_owner);
         self::assertSame(1, (int) $worker->progress()['job']->processed_count);
         self::assertGreaterThan(0, $worker->progress()['remaining']);
-        $this->artisan('v2:member-rank:work', ['--worker' => 'resume-test', '--limit' => '100'])->assertSuccessful();
+        $this->artisan('v2:member-rank:promote', ['--worker' => 'resume-test', '--limit' => '100'])->assertSuccessful();
         self::assertSame(0, $worker->progress()['remaining']);
     }
 

@@ -32,6 +32,18 @@ final class V2AdminMemberRankController
         });
     }
 
+    public function discrepancies(Request $request): JsonResponse
+    {
+        return $this->handle($request, function ($context) use ($request): array {
+            $admin = $this->authorization->authorizePermission($context, V2Permission::ReadMemberRankSettings);
+            if ($admin->role !== \App\Domain\Identity\Enums\V2AdminRole::Owner) {
+                throw new V2AuthenticationException('ADMIN_PERMISSION_DENIED', 403);
+            }
+
+            return $this->read->discrepancies($request->query());
+        });
+    }
+
     public function manualChanges(Request $request): JsonResponse
     {
         return $this->handle($request, function ($context) use ($request): array {
@@ -86,6 +98,27 @@ final class V2AdminMemberRankController
     {
         return $this->handle($request, fn ($context): array => $this->writes->write(
             $context, $userId, 'points', $request->json()->all(), (string) $request->header('Idempotency-Key', '')
+        ));
+    }
+
+    public function compensationHistory(Request $request, string $userId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => $this->read->compensationHistory(
+            (int) $this->read->user($userId)->id, $request->query()
+        ));
+    }
+
+    public function transferHistory(Request $request, string $userId): JsonResponse
+    {
+        return $this->handle($request, fn (): array => app(\App\Domain\MemberRank\Services\V2MemberRankTransferService::class)->history(
+            (int) $this->read->user($userId)->id, $request->query()
+        ));
+    }
+
+    public function updateTransfer(Request $request, string $userId): JsonResponse
+    {
+        return $this->handle($request, fn ($context): array => app(\App\Domain\MemberRank\Services\V2MemberRankTransferService::class)->write(
+            $context, $userId, $request->json()->all(), (string) $request->header('Idempotency-Key', '')
         ));
     }
 

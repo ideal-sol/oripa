@@ -39,6 +39,7 @@ final class MemberRankAdminApiTest extends TestCase
         $user = $this->rankUser();
         $token = $this->adminSession(V2AdminRole::Operator);
         foreach (['/member-ranks/summary', '/member-ranks/manual-changes', '/users', '/users/'.$user->public_id,
+            '/users/'.$user->public_id.'/member-rank-compensation-history',
             '/users/'.$user->public_id.'/member-rank-history?history=rank', '/users/'.$user->public_id.'/member-rank-history?history=points'] as $path) {
             $this->asAdmin($token)->getJson('/admin/api/v2'.$path)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
         }
@@ -101,6 +102,45 @@ final class MemberRankAdminApiTest extends TestCase
         $this->asAdmin($token)->getJson('/admin/api/v2/member-ranks/manual-changes?date_from=2026-02-30')->assertUnprocessable();
         $this->asAdmin($token)->getJson('/admin/api/v2/users/'.Str::uuid7().'/member-rank-history?history=rank')->assertNotFound();
         $this->asAdmin($token)->getJson('/admin/api/v2/users/not-a-user/member-rank-history?history=rank')->assertNotFound();
+    }
+
+    public function test_discrepancies_are_owner_only_active_only_and_paginated(): void
+    {
+        $this->enableRankFixture();
+        $active = $this->rankUser();
+        $second = $this->rankUser();
+        $suspended = $this->rankUser();
+        $closed = $this->rankUser();
+        foreach ([$active, $second, $suspended, $closed] as $user) $this->seedRankState($user, 4);
+        DB::table('users')->where('id', $suspended->id)->update(['state' => 'suspended']);
+        DB::table('users')->where('id', $closed->id)->update(['state' => 'closed']);
+        foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {
+            $this->asAdmin($this->adminSession($role))->getJson('/admin/api/v2/member-ranks/discrepancies')->assertForbidden();
+        }
+        $token = $this->adminSession(V2AdminRole::Owner);
+        $first = $this->asAdmin($token)->getJson('/admin/api/v2/member-ranks/discrepancies?limit=1')->assertOk()
+            ->assertJsonCount(1, 'items')->assertJsonPath('items.0.user_id', $second->public_id)
+            ->assertJsonPath('items.0.shortfall', 100000)->json();
+        $this->asAdmin($token)->getJson('/admin/api/v2/member-ranks/discrepancies?limit=1&cursor='.urlencode($first['next_cursor']))
+            ->assertOk()->assertJsonCount(1, 'items')->assertJsonPath('items.0.user_id', $active->public_id)->assertJsonPath('next_cursor', null);
+    }
+
+    public function test_transfer_routes_require_permission_revision_csrf_and_preserve_history_on_replay(): void
+    {
+        $this->enableRankFixture();
+        $user = $this->rankUser();
+        $url = '/admin/api/v2/users/'.$user->public_id.'/member-rank-transfer';
+        $input = ['status' => 'transferred', 'equivalent_level' => 1, 'points' => 20000, 'expected_revision' => 0, 'reason' => 'Synthetic transfer'];
+        $this->csrf($this->adminSession(V2AdminRole::Operator))->putJson($url, $input)->assertForbidden();
+        $token = $this->adminSession(V2AdminRole::Admin);
+        $key = (string) Str::uuid7();
+        $this->csrf($token, $key)->putJson($url, $input)->assertOk()->assertJsonPath('data.revision', 1);
+        $this->csrf($token, $key)->putJson($url, $input)->assertOk()->assertJsonPath('idempotent_replay', true);
+        $this->csrf($token)->putJson($url, $input)->assertConflict();
+        $this->asAdmin($token)->getJson($url)->assertOk()->assertJsonCount(1, 'items')
+            ->assertJsonPath('items.0.after.points', 20000)->assertJsonPath('items.0.before.points', 0);
+        self::assertSame(0, DB::table('member_rank_manual_changes')->where('user_id', $user->id)->count());
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
     private function input(): array

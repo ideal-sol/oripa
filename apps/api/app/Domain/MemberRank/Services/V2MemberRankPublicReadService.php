@@ -20,7 +20,7 @@ final class V2MemberRankPublicReadService
         if (! $projection['enabled']) {
             return ['data' => ['enabled' => false, ...array_fill_keys([
                 'rank', 'period', 'rank_points', 'next_rank', 'maintain',
-                'demotion_protection', 'benefits', 'as_of',
+                'demotion_protection', 'benefits', 'as_of', 'point_basis', 'breakdown', 'promotion_bonus', 'transferred',
             ], null)]];
         }
         $month = $instant->setTimezone('Asia/Tokyo')->startOfMonth();
@@ -29,25 +29,32 @@ final class V2MemberRankPublicReadService
         $points = $projection['rank_points'];
         $current = $ranks[$level - 1];
         $next = $level < 7 ? $ranks[$level] : null;
-        $skipCount = $projection['skip_count'];
 
         return ['data' => [
             'enabled' => true,
+            'point_basis' => 'cumulative',
+            'transferred' => app(V2MemberRankTransferService::class)->transferred($userId),
+            'promotion_bonus' => ['received' => $level > 1 && DB::table('member_rank_achievements')
+                ->where('user_id', $userId)->where('level', $level)->where('bonus_amount', '>', 0)->exists()],
+            'breakdown' => [
+                'recent' => DB::table('member_rank_point_entries')->where('user_id', $userId)->where('reason', 'payment')
+                    ->orderByDesc('granted_at')->orderByDesc('id')->limit(3)->get()
+                    ->map(fn (object $entry): array => [
+                        'occurred_at' => CarbonImmutable::parse($entry->granted_at)->utc()->toIso8601String(),
+                        'kind' => 'purchase', 'points' => (int) $entry->applied_delta,
+                        'label' => 'コイン購入（'.number_format((int) $entry->applied_delta).'コイン）',
+                    ])->all(),
+                'total' => $points,
+            ],
             'rank' => V2MemberRankGachaCondition::rank($level),
-            'period' => ['month' => $month->format('Y-m'), 'resets_at' => $month->addMonth()->utc()->format('Y-m-d\TH:i:s\Z')],
+            'period' => null,
             'rank_points' => $points,
             'next_rank' => $next === null ? null : [
                 'code' => $next['code'], 'name' => V2MemberRankGachaCondition::rank($level + 1)['name'],
                 'reach_line' => $next['reach_line'], 'remaining' => max(0, $next['reach_line'] - $points),
             ],
-            'maintain' => $level === 1 ? null : [
-                'line' => $current['maintain_line'], 'remaining' => max(0, $current['maintain_line'] - $points),
-                'achieved' => $points >= $current['maintain_line'],
-            ],
-            'demotion_protection' => $skipCount === 0 ? null : [
-                'remaining_judgments' => $skipCount,
-                'guaranteed_until' => $month->addMonths($skipCount + 1)->subSecond()->utc()->format('Y-m-d\TH:i:s\Z'),
-            ],
+            'maintain' => null,
+            'demotion_protection' => null,
             'benefits' => ['purchase_bonus' => $this->purchaseBenefit($current['purchase_bonus_rate_bp'])],
             'as_of' => $instant->utc()->format('Y-m-d\TH:i:s\Z'),
         ]];
@@ -64,7 +71,7 @@ final class V2MemberRankPublicReadService
 
         return ['data' => array_map(fn (array $rank, int $index): array => [
             ...V2MemberRankGachaCondition::rank($index + 1),
-            'reach_line' => $rank['reach_line'], 'maintain_line' => $rank['maintain_line'],
+            'reach_line' => $rank['reach_line'], 'maintain_line' => null,
             'promotion_bonus' => ['points' => $rank['promotion_bonus'], 'point_type' => 'free'],
             'purchase_bonus' => $this->purchaseBenefit($rank['purchase_bonus_rate_bp']),
         ], $version['ranks'], array_keys($version['ranks']))];

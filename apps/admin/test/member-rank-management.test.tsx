@@ -21,6 +21,8 @@ const user: AdminUserDetail = {
   created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z", email: "synthetic@example.test",
   email_verified_at: null, sms_verified: false, phone: null, verified_at: null, state_revision: 1,
   member_rank_detail: { enabled: true, rank: "gold", month: "2026-10-01", rank_points: 0, revision: 3,
+    point_basis: "cumulative", transfer: { status: "none", equivalent_level: null, points: 0, revision: 0 },
+    components: { entries: 0, transfer: 0, compensation: 0 },
     default_skip_count: 2, skip_count: 1, guaranteed_until: "2026-11-30T14:59:59Z", transferred_at: null,
     last_transfer: null, next_rank: null, maintain: null, achievements: [], frozen_at: null },
 };
@@ -31,16 +33,30 @@ describe("Member rank management", () => {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true,
       value: function (this: HTMLDialogElement) { this.setAttribute("open", ""); } });
     vi.spyOn(AdminApiClient.prototype, "getMemberRankHistory").mockResolvedValue({ items: [], next_cursor: null, request_id: "test" });
+    vi.spyOn(AdminApiClient.prototype, "getMemberRankTransferHistory").mockResolvedValue({ items: [], next_cursor: null, request_id: "test" });
     vi.spyOn(AdminApiClient.prototype, "previewMemberRank").mockResolvedValue({ data: { ...preview }, request_id: "test" });
   });
 
-  it("uses the effective default skip and hides grants when lowering", () => {
+  it("hides retired skip controls and grants when lowering", () => {
     render(<MemberRankDetail user={user} onRefresh={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "ランクを変更" }));
-    expect(screen.getByLabelText("降格判定の見送り回数")).toHaveValue(2);
+    expect(screen.queryByLabelText("降格判定の見送り回数")).toBeNull();
     expect(screen.getByLabelText("昇格ボーナス（無償）")).toHaveValue("false");
     fireEvent.change(screen.getByLabelText("変更後のランク"), { target: { value: "silver" } });
     expect(screen.queryByLabelText("昇格ボーナス（無償）")).toBeNull();
+  });
+
+  it("loads monthly compensation history on demand without changing points", async () => {
+    const read = vi.spyOn(AdminApiClient.prototype, "getMemberRankCompensationHistory").mockResolvedValue({
+      items: [{ id: "synthetic", month: "2026-12-01", delta: -30000, remaining: 0, setting_revision: 3, occurred_at: "2026-11-30T15:00:00Z" }], next_cursor: null, request_id: "test",
+    });
+    render(<MemberRankDetail user={user} onRefresh={vi.fn()} />);
+    expect(read).not.toHaveBeenCalled();
+    const details = screen.getByText("月次補填・取消履歴").closest("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(await screen.findByText(/取消 -30,000ポイント/u)).toHaveTextContent("補填残 0ポイント");
+    expect(read).toHaveBeenCalledOnce();
   });
 
   it("retains the exact key after uncertain failure and forces a new preview after conflict", async () => {
@@ -87,6 +103,29 @@ describe("Member rank management", () => {
     permissions.add("member_rank.user.manage");
     rerender(<MemberRankDetail user={{ ...user, status: "closed" }} onRefresh={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "ランクポイントを調整" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "移行欄を編集" })).toBeNull();
+  });
+
+  it("edits a single transfer allowance with revision and preserves the retry key", async () => {
+    const save = vi.spyOn(AdminApiClient.prototype, "updateMemberRankTransfer")
+      .mockRejectedValueOnce(new Error("uncertain transfer"))
+      .mockRejectedValueOnce(new AdminApiError(409, "MEMBER_RANK_REVISION_CONFLICT", "test", null, false));
+    render(<MemberRankDetail user={user} onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "移行欄を編集" }));
+    fireEvent.change(screen.getByLabelText("移行状態"), { target: { value: "transferred" } });
+    expect(screen.getByLabelText("相当ランク").children).toHaveLength(7);
+    fireEvent.change(screen.getByLabelText("相当ランク"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("移行ポイント"), { target: { value: "80000" } });
+    fireEvent.change(screen.getByLabelText("変更理由"), { target: { value: "Transfer correction" } });
+    fireEvent.click(screen.getByRole("button", { name: "変更内容を確認" }));
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "確認して保存" }));
+    await screen.findByText("uncertain transfer");
+    fireEvent.click(screen.getByRole("button", { name: "確認して保存" }));
+    await screen.findByText("移行欄が更新されています。会員詳細を再取得してから編集してください。");
+    expect(save.mock.calls[0][1]).toEqual({ status: "transferred", equivalent_level: 4, points: 80000, expected_revision: 0, reason: "Transfer correction" });
+    expect(save.mock.calls[0][2]).toBe(save.mock.calls[1][2]);
+    expect(screen.queryByRole("button", { name: "確認して保存" })).toBeNull();
   });
 
   it("discards an old rank-history page after switching to point history", async () => {

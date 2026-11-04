@@ -30,6 +30,18 @@ final class V2MemberRankMonthlyWorker
         if (preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}\z/', $worker) !== 1 || $limit < 1 || $limit > 500) {
             throw new \InvalidArgumentException('Member rank worker identity or limit is invalid.');
         }
+
+        // Retired demotion worker: accidental invocation must never mutate ranks,
+        // consume skip counters, or launch the replacement promotion worker.
+        return 0;
+    }
+
+    /** Historical worker retained for audit; inaccessible to command callers. */
+    private function runLegacyMonthly(string $worker, int $limit = 100): int
+    {
+        if (preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}\z/', $worker) !== 1 || $limit < 1 || $limit > 500) {
+            throw new \InvalidArgumentException('Member rank worker identity or limit is invalid.');
+        }
         if (! DB::table('member_rank_settings')->where('id', 1)->value('enabled')) {
             return 0;
         }

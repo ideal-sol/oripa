@@ -41,13 +41,19 @@ class MemberRankPublicContractTest(unittest.TestCase):
         enabled = self.schemas['MyMemberRankEnabled']
         self.assertFalse(enabled['additionalProperties'])
         self.assertEqual(set(enabled['properties']), {'enabled', 'rank', 'period', 'rank_points',
-                         'next_rank', 'maintain', 'demotion_protection', 'benefits', 'as_of'})
+                         'next_rank', 'maintain', 'demotion_protection', 'benefits', 'as_of',
+                         'point_basis', 'breakdown', 'transferred', 'promotion_bonus'})
         properties = enabled['properties']
         self.assertEqual(properties['rank_points']['minimum'], 0)
-        for name in ['next_rank', 'maintain', 'demotion_protection']:
+        for name in ['period', 'maintain', 'demotion_protection']:
+            self.assertEqual(properties[name], {'type': 'null'})
+        self.assertEqual(properties['point_basis'], {'const': 'cumulative'})
+        self.assertEqual(properties['breakdown']['properties']['recent']['maxItems'], 3)
+        self.assertEqual(properties['breakdown']['properties']['recent']['items']['properties']['kind'], {'const': 'purchase'})
+        for name in ['next_rank']:
             self.assertIn('null', properties[name]['type'])
             self.assertFalse(properties[name]['additionalProperties'])
-        for name in ['next_rank', 'maintain']:
+        for name in ['next_rank']:
             self.assertEqual(properties[name]['properties']['remaining']['minimum'], 0)
         bonus = self.schemas['MemberRankPurchaseBenefit']['properties']
         self.assertEqual(bonus['rate_percent']['type'], 'string')
@@ -63,7 +69,9 @@ class MemberRankPublicContractTest(unittest.TestCase):
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
         self.assertEqual(len(operations), 93)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertIsNone(ledger['candidate'])
+        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.49')
+        self.assertEqual(ledger['candidate']['release_state'], 'pending')
+        self.assertNotIn('publication', ledger['candidate'])
         self.assertEqual(ledger['latest_immutable'], ledger['immutable_history'][-1])
         self.assertEqual(ledger['latest_immutable']['handoff_status'], 'released')
         self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], len(operations))

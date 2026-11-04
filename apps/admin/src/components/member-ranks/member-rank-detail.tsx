@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { AdminMemberRankCode, AdminMemberRankHistoryCollection, AdminMemberRankManualKind, AdminMemberRankPreview, AdminUserDetail } from "@/lib/admin-api/generated";
+import { TransferAllowance } from "./member-rank-transfer";
 import { MemberRankHistory } from "./member-rank-history";
 import { manualKinds, rankDate, rankName, rankNames } from "./member-rank-labels";
 import styles from "./member-ranks.module.css";
@@ -22,19 +23,18 @@ export function MemberRankDetail({ user, onRefresh }: { user: AdminUserDetail; o
     </div>
     <dl className={styles.grid}>
       <div><dt>現在の会員ランク</dt><dd>{rankName(detail.rank)}</dd></div>
-      <div><dt>{detail.month.slice(0, 7)} ランクポイント</dt><dd>{detail.rank_points.toLocaleString()}</dd></div>
+      <div><dt>累計ランクポイント</dt><dd>{detail.rank_points.toLocaleString()}</dd></div>
       <div><dt>次の到達ラインまで</dt><dd>{detail.next_rank ? `${rankName(detail.next_rank.rank)}：あと${detail.next_rank.remaining.toLocaleString()}（到達ライン ${detail.next_rank.line.toLocaleString()}）` : "最高ランク"}</dd></div>
-      <div><dt>維持ライン</dt><dd>{detail.maintain ? `${detail.maintain.line.toLocaleString()} / あと${detail.maintain.remaining.toLocaleString()}（対象前月 ${detail.maintain.month.slice(0, 7)}）` : "—"}</dd></div>
-      {detail.skip_count > 0 ? <div><dt>降格判定の見送り</dt><dd>残り{detail.skip_count}回 / {rankDate(detail.guaranteed_until)}まで保証</dd></div> : null}
       {detail.transferred_at ? <div><dt>引き継ぎ適用済み</dt><dd>初回 {rankDate(detail.transferred_at)}<br />最終 {rankDate(detail.last_transfer?.occurred_at)}</dd></div> : null}
       {detail.frozen_at ? <div><dt>退会時点の記録</dt><dd>{rankDate(detail.frozen_at)}</dd></div> : null}
     </dl>
+    <TransferAllowance key={`${user.id}-${detail.transfer.revision}`} user={user} onRefresh={onRefresh} />
     <h3>到達・資格消化の履歴（昇格ボーナスは無償）</h3>
     {detail.achievements.length ? <div className={styles.scroll} tabIndex={0}><table className={styles.table}>
       <thead><tr><th>ランク・世代</th><th>日時</th><th>根拠</th><th>ボーナス</th><th>回収・資格</th></tr></thead>
       <tbody>{detail.achievements.map((item) => <tr key={item.id}>
         <td>{rankName(item.rank)} / {item.generation}</td><td>{rankDate(item.occurred_at)}</td>
-        <td>{item.basis === "manual_rank" ? "手動ランク付与" : item.basis === "manual_rank_points" ? "ランクポイント手動調整" : "有償購入到達"}<p>{item.month.slice(0, 7)} / 設定版 {item.setting_revision}</p><p>{item.origin_id}</p></td>
+        <td>{item.basis === "manual_rank" ? "手動ランク付与" : item.basis === "manual_rank_points" ? "ランクポイント手動調整" : item.basis === "monthly" ? "月次昇格" : item.basis === "transfer" ? "移行欄の編集" : "有償購入到達"}<p>{item.month.slice(0, 7)} / 設定版 {item.setting_revision}</p><p>{item.origin_id}</p></td>
         <td>{item.bonus_amount.toLocaleString()}pt（無償）</td>
         <td>{item.consumed ? "資格消化済み" : "資格取消済み"}{item.recovered_amount !== null ? <p>回収 {item.recovered_amount.toLocaleString()} / 不足 {item.shortfall_amount?.toLocaleString()}</p> : null}</td>
       </tr>)}</tbody>
@@ -89,7 +89,6 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
   const [rank, setRank] = useState<AdminMemberRankCode>(detail.rank);
   const [kind, setKind] = useState<AdminMemberRankManualKind>("support");
   const [reason, setReason] = useState("");
-  const [skip, setSkip] = useState(String(detail.default_skip_count));
   const [grant, setGrant] = useState(false);
   const [delta, setDelta] = useState("");
   const [preview, setPreview] = useState<AdminMemberRankPreview | null>(null);
@@ -99,7 +98,7 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
   const pending = useRef<{ signature: string; key: string } | null>(null);
   const codes = Object.keys(rankNames) as AdminMemberRankCode[];
   const lowering = codes.indexOf(rank) < codes.indexOf(detail.rank);
-  const input = operation === "rank" ? { rank, kind, reason, skip_count: Number(skip), grant_bonus: !lowering && grant } : { delta: Number(delta), reason };
+  const input = operation === "rank" ? { rank, kind, reason, skip_count: 0, grant_bonus: kind !== "transfer" && !lowering && grant } : { delta: Number(delta), reason };
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.showModal();
@@ -109,9 +108,8 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
   async function check(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    if ((operation === "points" && (!Number.isSafeInteger(Number(delta)) || Number(delta) === 0))
-      || (operation === "rank" && (!Number.isInteger(Number(skip)) || skip === "" || Number(skip) < 0 || Number(skip) > 12))) {
-      setError("増減は0以外の整数、見送りは0〜12の整数で入力してください。"); return;
+    if (operation === "points" && (!Number.isSafeInteger(Number(delta)) || Number(delta) === 0)) {
+      setError("増減は0以外の整数で入力してください。"); return;
     }
     setBusy(true); setError(null);
     try { setPreview((await client.previewMemberRank(user.id, operation, input)).data); }
@@ -139,9 +137,8 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
         {operation === "rank" ? <>
           <label>変更後のランク<select value={rank} onChange={(event) => setRank(event.target.value as AdminMemberRankCode)}>{codes.map((code) => <option key={code} value={code}>{rankNames[code]}</option>)}</select></label>
           <label>種別<select value={kind} onChange={(event) => setKind(event.target.value as AdminMemberRankManualKind)}>{Object.entries(manualKinds).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>
-          <label>降格判定の見送り回数<input type="number" min="0" max="12" step="1" required value={skip} onChange={(event) => setSkip(event.target.value)} /></label>
-          {!lowering ? <label>昇格ボーナス（無償）<select value={String(grant)} onChange={(event) => setGrant(event.target.value === "true")}><option value="false">付与しない</option><option value="true">付与する</option></select></label> : null}
-        </> : <label>ランクポイント増減<input aria-label="ランクポイント増減" aria-describedby="rank-points-help" type="number" step="1" required value={delta} onChange={(event) => setDelta(event.target.value)} /><small id="rank-points-help">当月のみ。コイン残高の直接調整とは別の操作です。</small></label>}
+          {!lowering && kind !== "transfer" ? <label>昇格ボーナス（無償）<select value={String(grant)} onChange={(event) => setGrant(event.target.value === "true")}><option value="false">付与しない</option><option value="true">付与する</option></select></label> : null}
+        </> : <label>ランクポイント増減<input aria-label="ランクポイント増減" aria-describedby="rank-points-help" type="number" step="1" required value={delta} onChange={(event) => setDelta(event.target.value)} /><small id="rank-points-help">累計ランクポイントを調整します。コイン残高は変わりません。</small></label>}
         <label>理由<textarea aria-label="理由" aria-describedby="rank-reason-help" required value={reason} onChange={(event) => setReason(event.target.value)} /><small id="rank-reason-help">1〜500文字</small></label>
       </fieldset>
       <button className="secondary-button" disabled={busy || !reason.trim() || Array.from(reason).length > 500} type="submit">{busy ? "処理中" : "変更内容を確認"}</button>
@@ -149,9 +146,10 @@ function RankOperation({ operation, user, onClose, onSaved }: { operation: "rank
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
     {preview ? <div className={styles.stack} aria-label="会員ランク変更の確認差分">
       <h3>保存前の確認</h3>
+      {operation === "rank" && kind === "transfer" ? <p>既存の移行ポイントを置き換え、指定ランクの到達ラインとの差額を設定します。引き継ぐランク以下の昇格ボーナスは以後付与されません。</p> : null}
       <p>{rankName(preview.before_rank)} → {rankName(preview.after_rank)}</p>
       <p>ランクポイント {preview.before_points.toLocaleString()} → {preview.after_points.toLocaleString()}</p>
-      <p>見送り {preview.before_skip} → {preview.after_skip}回 / 設定版 {preview.setting_revision} / {preview.month.slice(0, 7)}</p>
+      <p>設定版 {preview.setting_revision} / {preview.month.slice(0, 7)}</p>
       <p>{operation === "rank" ? manualKinds[kind] : "ランクポイント手動調整"}</p><p className={styles.reason}>{reason}</p>
       <p>昇格ボーナス合計（無償） {preview.total_bonus.toLocaleString()}pt / 有効期限180日</p>
       {preview.grants.map((effect) => <p key={effect.rank}>{rankName(effect.rank)}：{effect.amount.toLocaleString()}pt（無償）</p>)}

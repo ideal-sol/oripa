@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.44
+  version: 2.0.0-alpha.45
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -14,6 +14,10 @@ info:
     既存決済・カード登録の照会と安全な完了は継続し、SMS未認証にはnext_actionを返さない。
     初回購入資格は初回SMS成功から連続24時間。過去SMS認証済み会員への遡及付与は行わない。
   x-status: alpha
+x-oripa-member-rank-cumulative:
+  authority: human_member_rank_cumulative_2026-11-02
+  change_id: MEMBERRANK-CUMULATIVE-20261102
+  point_basis: cumulative
 x-oripa-surface: public
 x-oripa-breaking-change:
   authority: human_signup_sms_gate_required_2026-10-12
@@ -2661,7 +2665,7 @@ components:
         name: {type: string}
         level: {type: integer, minimum: 1, maximum: 7}
         reach_line: {type: [integer, 'null'], minimum: 0}
-        maintain_line: {type: [integer, 'null'], minimum: 0}
+        maintain_line: {type: 'null'}
         promotion_bonus:
           type: object
           additionalProperties: false
@@ -2691,9 +2695,13 @@ components:
     MyMemberRankDisabled:
       type: object
       additionalProperties: false
-      required: [enabled, rank, period, rank_points, next_rank, maintain, demotion_protection, benefits, as_of]
+      required: [enabled, rank, period, rank_points, next_rank, maintain, demotion_protection, benefits, as_of, point_basis, breakdown, promotion_bonus, transferred]
       properties:
         enabled: {const: false}
+        point_basis: {type: 'null'}
+        breakdown: {type: 'null'}
+        promotion_bonus: {type: 'null'}
+        transferred: {type: 'null'}
         rank: {type: 'null'}
         period: {type: 'null'}
         rank_points: {type: 'null'}
@@ -2705,17 +2713,42 @@ components:
     MyMemberRankEnabled:
       type: object
       additionalProperties: false
-      required: [enabled, rank, period, rank_points, next_rank, maintain, demotion_protection, benefits, as_of]
+      required: [enabled, rank, period, rank_points, next_rank, maintain, demotion_protection, benefits, as_of, point_basis, breakdown, promotion_bonus, transferred]
       properties:
         enabled: {const: true}
-        rank: {$ref: '#/components/schemas/MemberRankSnapshot'}
-        period:
+        point_basis: {const: cumulative}
+        transferred: {type: boolean}
+        promotion_bonus:
           type: object
           additionalProperties: false
-          required: [month, resets_at]
+          required: [received]
           properties:
-            month: {type: string, pattern: '^\d{4}-\d{2}$'}
-            resets_at: {type: string, format: date-time}
+            received: {type: boolean}
+        breakdown:
+          type: object
+          additionalProperties: false
+          required: [recent, total]
+          properties:
+            total:
+              type: integer
+              minimum: 0
+              description: 全計算要素を含む累計。rank_pointsと一致する。recentの合計とは一致する必要がない。
+            recent:
+              type: array
+              maxItems: 3
+              description: ランクポイント計上済みの購入のみ、新しい順。返金・調整・移行・補填の詳細は公開しない。
+              items:
+                type: object
+                additionalProperties: false
+                required: [occurred_at, kind, points, label]
+                properties:
+                  occurred_at: {type: string, format: date-time}
+                  kind: {const: purchase}
+                  points: {type: integer, minimum: 1}
+                  label: {type: string}
+        rank: {$ref: '#/components/schemas/MemberRankSnapshot'}
+        period:
+          type: 'null'
         rank_points: {type: integer, minimum: 0}
         next_rank:
           type: [object, 'null']
@@ -2727,23 +2760,9 @@ components:
             reach_line: {type: integer, minimum: 0}
             remaining: {type: integer, minimum: 0}
         maintain:
-          type: [object, 'null']
-          additionalProperties: false
-          required: [line, remaining, achieved]
-          properties:
-            line: {type: integer, minimum: 0}
-            remaining: {type: integer, minimum: 0}
-            achieved: {type: boolean}
+          type: 'null'
         demotion_protection:
-          type: [object, 'null']
-          additionalProperties: false
-          required: [remaining_judgments, guaranteed_until]
-          properties:
-            remaining_judgments: {type: integer, minimum: 1, maximum: 12}
-            guaranteed_until:
-              type: string
-              format: date-time
-              description: 残り見送りを消費した後の最初の判定直前、JST月末23時59分59秒。
+          type: 'null'
         benefits:
           type: object
           additionalProperties: false

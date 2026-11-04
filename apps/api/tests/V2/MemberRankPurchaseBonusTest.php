@@ -125,7 +125,7 @@ final class MemberRankPurchaseBonusTest extends TestCase
     }
 
     #[DataProvider('methods')]
-    public function test_pending_payment_uses_grant_month_demoted_rank_and_new_setting(string $method): void
+    public function test_pending_payment_uses_grant_month_preserved_rank_and_new_setting(string $method): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -135,19 +135,19 @@ final class MemberRankPurchaseBonusTest extends TestCase
         $settings = app(V2MemberRankSettingsService::class);
         $version = $settings->effectiveAt(CarbonImmutable::now());
         $ranks = $version['ranks'];
-        $ranks[1]['purchase_bonus_rate_bp'] = 100;
+        $ranks[2]['purchase_bonus_rate_bp'] = 101;
         $admin = $this->rankAdmin();
         $settings->update($admin, (string) Str::uuid7(), ['expected_revision' => 1, 'enabled' => true, 'default_skip_count' => 1, 'ranks' => $ranks]);
         $this->rankClock('2026-10-31T15:00:00Z');
         $estimate = app(V2MemberRankPurchaseBonusService::class)->estimateContext($user, CarbonImmutable::now());
-        self::assertSame(2, $estimate['rank_level']);
-        self::assertSame(100, $estimate['rate_basis_points']);
+        self::assertSame(3, $estimate['rank_level']);
+        self::assertSame(101, $estimate['rate_basis_points']);
         app(V2PaymentService::class)->confirmSucceeded($event->id);
         self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id,
-            'rank_level' => 2, 'rate_basis_points' => 100, 'bonus_amount' => 50,
+            'rank_level' => 3, 'rate_basis_points' => 101, 'bonus_amount' => 50,
             'setting_revision' => 2, 'month' => '2026-11-01']);
         self::assertDatabaseHas('member_rank_point_entries', ['payment_id' => $payment->id, 'month' => '2026-11-01']);
-        self::assertDatabaseHas('member_rank_changes', ['user_id' => $user->id, 'reason' => 'demotion', 'from_level' => 3, 'to_level' => 2]);
+        self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'demotion')->count());
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -202,8 +202,8 @@ final class MemberRankPurchaseBonusTest extends TestCase
         self::assertStringContainsString('private', $response->headers->get('Cache-Control'));
         self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $product = collect($response->json('data'))->firstWhere('id', $plan->public_id);
-        self::assertSame('bronze', $product['member_rank_purchase_bonus']['rank_code']);
-        self::assertSame(7, $product['member_rank_purchase_bonus']['bonus_points']);
+        self::assertSame('silver', $product['member_rank_purchase_bonus']['rank_code']);
+        self::assertSame(15, $product['member_rank_purchase_bonus']['bonus_points']);
         self::assertTrue($product['member_rank_purchase_bonus']['is_estimate']);
         self::assertSame('free', $product['member_rank_purchase_bonus']['point_type']);
         self::assertStringContainsString('お支払い完了時のランクで付与されます', $product['member_rank_purchase_bonus']['notice']);
@@ -212,8 +212,8 @@ final class MemberRankPurchaseBonusTest extends TestCase
         self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 3, 'baseline_month' => '2026-10-01']);
         $this->getJson('/api/v2/payments/'.$payment->public_id)->assertOk()->assertJsonPath('member_rank_purchase_bonus', null);
         app(V2PaymentService::class)->confirmSucceeded($event->id);
-        $detail = $this->getJson('/api/v2/payments/'.$payment->public_id)->assertOk()->assertJsonPath('member_rank_purchase_bonus.bonus_points', 7)->json();
-        $history = $this->getJson('/api/v2/me/payments?view=succeeded&limit=100')->assertOk()->assertJsonPath('data.0.member_rank_purchase_bonus.bonus_points', 7)->json();
+        $detail = $this->getJson('/api/v2/payments/'.$payment->public_id)->assertOk()->assertJsonPath('member_rank_purchase_bonus.bonus_points', 15)->json();
+        $history = $this->getJson('/api/v2/me/payments?view=succeeded&limit=100')->assertOk()->assertJsonPath('data.0.member_rank_purchase_bonus.bonus_points', 15)->json();
         file_put_contents('/tmp/m4-public-responses.json', json_encode(['products' => $response->json(), 'payment' => $detail, 'history' => $history], JSON_THROW_ON_ERROR));
         Auth::guard('v2_user')->setUser($this->rankUser(true));
         $this->getJson('/api/v2/payments/'.$payment->public_id)->assertNotFound();
@@ -239,7 +239,7 @@ final class MemberRankPurchaseBonusTest extends TestCase
 
     public static function manualSkips(): array
     {
-        return [[0, 3, 100], [1, 4, 150], [2, 4, 150]];
+        return [[0, 4, 150], [1, 4, 150], [2, 4, 150]];
     }
 
     #[DataProvider('manualSkips')]

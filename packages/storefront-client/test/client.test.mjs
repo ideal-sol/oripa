@@ -111,6 +111,7 @@ test("NetRideCash start returns the ordered opaque form action without interpret
 test("member rank facade uses thin browser and request-scoped server reads", async () => {
   const calls = [];
   const body = { data: { enabled: false, rank: null, period: null, rank_points: null,
+    point_basis: null, transferred: null, promotion_bonus: null, breakdown: null,
     next_rank: null, maintain: null, demotion_protection: null, benefits: null, as_of: null } };
   const fetch = async (url, options) => {
     calls.push({ url: String(url), options });

@@ -1,5 +1,12 @@
 # Member rank monthly worker launch preparation
 
+**Historical M3 procedure, superseded for cumulative ranks by
+[member-rank-cumulative-worker.md](member-rank-cumulative-worker.md).** Do not
+launch the old command or install the template below with cumulative Source.
+The old Source and records are retained; its public run method processes zero
+users. The historical read-time/monthly demotion descriptions below do not apply
+to the cumulative implementation.
+
 Status: source preparation only, disabled by default. No service is installed or
 enabled by this document, Composer, API startup, Compose, or Scheduler. M3 alone
 does not authorize source merge, operational migration, feature ON or a worker.

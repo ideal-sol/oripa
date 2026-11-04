@@ -85,6 +85,7 @@ final class V2MemberRankAccountingService
         ]);
         DB::table('member_rank_month_totals')->where('user_id', $payment->user_id)->where('month', $month)
             ->update(['points' => $rankPoints]);
+        $rankPoints = app(V2MemberRankCumulativePoints::class)->total((int) $payment->user_id);
         $reachedLevel = 1;
         foreach ($version['ranks'] as $index => $rank) {
             if ($index > 0 && $rankPoints >= $rank['reach_line']) {
@@ -118,18 +119,23 @@ final class V2MemberRankAccountingService
         string $basis,
         string $originPublicId,
         ?int $entryId,
-        CarbonImmutable $occurredAt
+        CarbonImmutable $occurredAt,
+        ?int $cumulativeEventId = null
     ): void {
         $this->requireTransaction();
         if (! DB::table('member_rank_settings')->where('id', 1)->value('enabled')) {
             return;
         }
         DB::table('users')->where('id', $userId)->lockForUpdate()->firstOrFail();
+        $excludedThrough = $this->excludedBonusThrough($userId);
         for ($level = 2; $level <= $reachedLevel; $level++) {
+            if ($level <= $excludedThrough) {
+                continue;
+            }
             DB::table('member_rank_entitlements')->insertOrIgnore(['user_id' => $userId, 'level' => $level]);
             $slot = DB::table('member_rank_entitlements')->where('user_id', $userId)->where('level', $level)
                 ->lockForUpdate()->firstOrFail();
-            if ($slot->achievement_id !== null) {
+            if ($slot->achievement_id !== null || DB::table('member_rank_achievements')->where('user_id', $userId)->where('level', $level)->exists()) {
                 continue;
             }
             $generation = (int) DB::table('member_rank_achievements')->where('user_id', $userId)
@@ -141,6 +147,7 @@ final class V2MemberRankAccountingService
                 'generation' => $generation, 'month' => $month, 'rank_points' => $rankPoints,
                 'setting_revision' => $version['revision'], 'basis' => $basis, 'origin_public_id' => $originPublicId,
                 'point_entry_id' => $entryId, 'bonus_amount' => $amount,
+                'cumulative_event_id' => $cumulativeEventId,
                 'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
             ]);
             $this->points->grantMemberRankPromotion($userId, $achievementId, $publicId, $amount, $occurredAt);
@@ -154,5 +161,20 @@ final class V2MemberRankAccountingService
         if (DB::transactionLevel() < 1) {
             throw new \LogicException('Member rank accounting requires the owning transaction.');
         }
+    }
+
+    public function excludedBonusThrough(int $userId): int
+    {
+        // Immutable history survives editing a transfer back to "none" and
+        // repeated manual demotions. Never infer exclusion from current rank.
+        $transferred = (int) DB::table('member_rank_manual_changes')->where('user_id', $userId)
+            ->where('kind', 'transfer')->max('to_level');
+        $demoted = (int) DB::table('member_rank_manual_changes')->where('user_id', $userId)
+            ->whereColumn('to_level', '<', 'from_level')->max('from_level');
+        $editedTransfer = (int) DB::table('member_rank_transfer_histories')->where('user_id', $userId)
+            ->whereRaw("after_value->>'status' = 'transferred'")
+            ->max(DB::raw("(after_value->>'equivalent_level')::integer"));
+
+        return max($transferred, $demoted, $editedTransfer);
     }
 }
