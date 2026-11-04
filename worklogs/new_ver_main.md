@@ -12754,7 +12754,7 @@ Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
 - Final local verification: Release102 / Policy343 / OpenAPI77 PASS; canonical validate-source/settled bundle verify, local policy/quality gates, packed runtime/header/Testkit dependency checks and six-path secret/PII/binary/submodule review PASS. Initial release1 failure was historical alpha47 fixture selection; fixed to original47 history without weakening rejection assertions, final102 PASS. Policy negative-test rejection output is expected within343 passing tests. No local package/application rebuild. Final PR HEAD/Required5/fresh review/squash and cleanup follow in PR/handoff.
 
 
-## ALPHA49-20261104 — OLD Test alpha.49 Source Authority
+## ALPHA-20261104 — OLD Test alpha.49 Source Authority
 
 Lane: Strict Change. Risk: R3. Application Runtime Activation: deferred. Issue: none.
 Runtime Task: OLDTEST-ALPHA49-20261104. Dedicated worktree preserves other Changes.
@@ -12774,3 +12774,8 @@ No Executor installation, Runtime operation, migration application, Production,
 LB or Provider operation in this Source PR. Candidate remains deferred.
 Validation: focused authority suite and required CI; exact-head fresh self-review
 required before merge. No duplicate feature suite, Browser/E2E or application build.
+
+Source CI first attempt failed because ALPHA49-20261104 was outside the existing
+Change-ID grammar. Corrected Source Change ID to ALPHA-20261104; Runtime Task
+OLDTEST-ALPHA49-20261104 stays unchanged. No validator or gate weakened.
+Focused authority tests41 PASS after initial local fixture corrections.
