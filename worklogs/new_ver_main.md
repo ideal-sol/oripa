@@ -12779,7 +12779,8 @@ Source CI first attempt failed because ALPHA49-20261104 was outside the existing
 Change-ID grammar. Corrected Source Change ID to ALPHA-20261104; Runtime Task
 OLDTEST-ALPHA49-20261104 stays unchanged. No validator or gate weakened.
 Focused authority tests41 PASS after initial local fixture corrections.
-# OLDTEST-20261104 — OLD Test speed priority v1.1
+
+## OLDTEST-20261104 — OLD Test speed priority v1.1
 
 - Human instruction: persist total-time minimization through Technical PASS,
   including HOLD/rework/recovery; relevant read-only preflight, evidence reuse,
@@ -12795,3 +12796,7 @@ Focused authority tests41 PASS after initial local fixture corrections.
 - Stop after PR, automatic CI and self-review; squash merge requires separate
   Human approval. Retain task branch/Worktree until approved merge. Rollback:
   revert this documentation change via PR; no Runtime recovery required.
+- PR #658: local policy-gate, diff whitespace, scope/secret/PII review PASS.
+  Initial automatic CI failed on PR UI Verification metadata; corrected to
+  NOT_APPLICABLE and local PR metadata validation PASS. This record update
+  triggers automatic final-head checks; no manual rerun or gate changes.
