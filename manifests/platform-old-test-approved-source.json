@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-B2POSTAL-20261102",
-  "source_pr": 649,
-  "source_sha": "e250937a2e6c6bc22b8b2a8af905ee04e780ada7",
+  "task_id": "OLDTEST-ALPHA49-20261104",
+  "source_pr": 653,
+  "source_sha": "58c79bca49353268f4ee1b2e2047f39afc51fe94",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR649 merged source for linux/amd64 normal API and Admin preparation. Build Control is fixed separately after this authority merge. No migration or public Contract change; retain Ledger103 and Client/Testkit alpha.48. Storefront PR218 is not redeployed. Preserve existing Rank ON and activation/revision/generation, UnivaPay TEST and existing worker settings, F2-B timers, Human-enabled seven-day auto-exchange ON and its existing timer, SMS/Mail/Redis/S3/GTM and ENV. No DB backup/write, payment operation or Production change. Existing Canonical Security Gates, Source/Image bindings and Recovery remain mandatory. Runtime activation requires separate Human Exact Runtime GO. B2 header/import acceptance remains pending; Issue643 stays open pending Human Acceptance. No B2 ENV changes or real shipment CSV operations.",
+  "authority": "Human-approved exact OLD Test payload: PR653 merged payload for OLD Test linux/amd64 normal API/Admin preparation. Fix Build Control to latest protected main after Source Authority merge. Coordinate Storefront PR220 ba11e00741c3857764b85c18892b9ed547e40506 with Client/Testkit alpha.49 and Public/Admin/Webhook alpha.45. Separate exact Runtime GO must cover forward-only Migration000104, old rank worker stop and new v2:member-rank:promote worker start. Preserve existing Rank ON, activation/revision/generation, UnivaPay TEST and workers, seven-day auto-exchange ON and timer, F2-B, SMS/Mail/Redis/S3/GTM, B2 Sender ENV and Provider settings. No legacy activation/backfill apply, manual accounting adjustment or bonus replay. No Production or LB changes. Retain Canonical Gate, Receipt, Source/Control/Image identity and Recovery boundaries. Source Authority grants no Runtime activation; unresolved installed Executor scope must be resolved before an executable Candidate.",
   "activation_authorized": false
 }
