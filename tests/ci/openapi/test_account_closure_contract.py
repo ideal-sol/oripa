@@ -26,8 +26,6 @@ class AccountClosureContractTest(unittest.TestCase):
 
     def test_released_history_is_not_reissued(self):
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.48')
-        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.49')
-        self.assertEqual(ledger['candidate']['release_state'], 'pending')
-        self.assertNotIn('publication', ledger['candidate'])
-        self.assertFalse(ledger['latest_immutable']['breaking_change'])
+        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.49')
+        self.assertIsNone(ledger['candidate'])
+        self.assertTrue(ledger['latest_immutable']['breaking_change'])
