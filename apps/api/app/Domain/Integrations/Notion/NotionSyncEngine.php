@@ -105,10 +105,16 @@ final class NotionSyncEngine
             'duplicate_count' => $duplicates->count(), 'missing_count' => $missing,
             'invalid_count' => DB::table('notion_sync_pages')->where('run_id', $run->id)->where('status', 'invalid')->count(),
         ]);
-        DB::table('notion_inventory_cache')->whereNotIn('external_id', DB::table('notion_sync_pages')
+        $excluded = $this->inventory->exchangeOnlyExternalIds();
+        DB::table('notion_inventory_cache')->whereNotIn('external_id', $excluded)->whereNotIn('external_id', DB::table('notion_sync_pages')
             ->select('external_id')->where('run_id', $run->id)->where('status', 'pending')->whereNotNull('external_id'))->delete();
         foreach (DB::table('notion_sync_pages')->where('run_id', $run->id)->where('status', 'pending')->lazyById(100) as $page) {
             $fence();
+            if (in_array($page->external_id, $excluded, true)) {
+                DB::table('notion_sync_pages')->where('id', $page->id)->update(['status' => 'unchanged']);
+                DB::table('notion_sync_runs')->where('id', $run->id)->increment('unchanged_count');
+                continue;
+            }
             $target = DB::table('notion_sync_snapshot')->where('run_id', $run->id)->where('external_id', $page->external_id)->first();
             $values = json_decode($page->values, true, 32, JSON_THROW_ON_ERROR);
             $properties = [];

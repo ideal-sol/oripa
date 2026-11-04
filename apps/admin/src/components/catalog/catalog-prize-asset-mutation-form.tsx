@@ -216,6 +216,7 @@ export function CatalogBannerAssetPicker({
     assetId: string | null;
     bannerId: string | null;
     externalId?: string | null;
+    exchangeOnly?: boolean;
     changed: boolean;
   }) => void;
 }) {
@@ -290,7 +291,7 @@ export function CatalogBannerAssetPicker({
   function selectBanner(banner: AdminManagedBanner) {
     selectionChanged.current = true;
     setSelectedBannerId(banner.id);
-    onSelectionChange({ assetId: banner.asset.id, bannerId: banner.id, externalId: banner.external_id ?? null, changed: true });
+    onSelectionChange({ assetId: banner.asset.id, bannerId: banner.id, externalId: banner.external_id ?? null, exchangeOnly: banner.exchange_only ?? false, changed: true });
   }
 
   return (

@@ -12779,3 +12779,124 @@ Source CI first attempt failed because ALPHA49-20261104 was outside the existing
 Change-ID grammar. Corrected Source Change ID to ALPHA-20261104; Runtime Task
 OLDTEST-ALPHA49-20261104 stays unchanged. No validator or gate weakened.
 Focused authority tests41 PASS after initial local fixture corrections.
+
+
+## EXCHANGEONLY-20261104 — Exchange-only Platform implementation (Draft-only)
+
+- Human scope: implement Platform and stop at Draft. Issue none; Risk R3;
+  Strict Change; Application Runtime Activation deferred. Ready, merge,
+  release/tag, OLD Test/Production and operational migration are prohibited.
+- Fetched latest origin/main at start; rechecked before delivery:
+  ac0c256d674c220f59c0d9557576520aab56e067. PR651 already merged. Dedicated
+  branch feat/EXCHANGEONLY-20261104 and worktree
+  /var/www/oripa-task-worktrees/EXCHANGEONLY-20261104 preserve unrelated primary
+  changes. No Source Lock: no active semantic collision found.
+- Read supplied specification v1.1 and Platform prompt, applicable AGENTS,
+  Governance REV3, Release Gates REV2 and GitHub Operations ADR REV1.
+  Source hashes and Contract/Artifact instructions are in
+  docs/implementation/EXCHANGEONLY_2026-11-04_HANDOFF.md.
+- Canonical banner flag defaults false. Laravel verifies banner/image/external
+  ID and snapshots classification through manual/CSV/composition/copy/version/
+  draw/ownership. Public history remains immutable. Banner CSV keeps its format
+  and preserves flags on update. Admin exposes the flag and selection conflicts.
+- Public/Admin reads expose exchange_only. Existing point exchange/expiry logic
+  is reused. Mixed shipping rejects the entire request with409
+  PRIZE_NOT_SHIPPABLE. DB protects economic exclusivity, positive exchange value,
+  shipping states/items and immutable snapshots; financial hold remains legal.
+- Optional stored/shipping groups filter in SQL before ID cursor/limit. Cursors
+  are scoped; default20/max100 preserved. Financial hold without shipping item
+  remains stored, shipped/delivered remain shipping. No speculative index added.
+- Notion physical inventory/warnings exclude exchange-only IDs including archived
+  banners. F6 skips PATCH/zeroing/cache deletion. Real Notion not accessed.
+  Lottery inventory and probability authority are unchanged.
+- Public/Admin OpenAPI and generated Admin/Public types, thin Client options and
+  Testkit fixture updated with canonical generators. No artifact/version/release
+  history changed. Storefront prompt/repository not executed or modified.
+- Migration000105 reserved/created under exclusive Migration Allocation Lock.
+  Prior migrations unchanged. Applied only to guarded task-owned PostgreSQL17
+  using MIG105 test-runner identity. Repeated migrate:fresh and forward-only
+  rollback refusal verified. Operational migrations0; Runtime Activation0.
+- Focused review fixed banner filter/import projection errors, preserved batch
+  CSV resolution and unchanged draft classifications, and aligned copy/input
+  contracts. No test assertion or security guard weakened. Exact final-head
+  machine-readable HOLD_DRAFT review and changed-path inventory are in the PR;
+  this is not merge-authorizing evidence.
+- Executed PASS: PHP Unit3/17 assertions, OpenAPI77, database runner67, Admin
+  focused103, Client47, Testkit55; generation checks, Admin type/lint and quality
+  gate. Final current-source results are recorded below and in the PR.
+- Initial broad V2 suite interrupted; initial focused run interrupted during
+  the existing1000-row deferred-constraint performance case. Neither is a full
+  PASS. Initial function re-creation and additive copy expectations corrected.
+  Final targeted run excludes long performance and opt-in concurrency cases.
+  Browser/E2E/visual, production capacity and real provider tests not run.
+- Auth/session/provider/infrastructure/workflow/dependency/runtime configuration
+  outside scope. Point/payment calculations and lottery probabilities unchanged.
+  Rollback retains schema/rights and uses forward correction; an older shipping
+  writer cannot be restored after activation of exchange-only rights.
+- Draft branch/worktree retained; task synthetic resources and allocation lock
+  released at handoff. Exact-path App transport policy excludes ready/merge.
+  Manual CI reruns0; Human wait0. Final head, CI, metrics and PR URL are retained
+  in the PR/final report, separate from deployment/merge status.
+- Bounded required CI integration: register migration105 in the existing exact
+  migration inventory and add missing/duplicate/unregistered rejection tests.
+  Initial policy-gate failure identified the missing registration; exactness,
+  all Required Checks and existing assertions are retained without bypass.
+- Final verification: Backend185 executed,184 PASS and1 test-fixture error
+  (idempotency key below existing minimum); fixed fixture with UUID and reran
+  all19 exchange-only/group/copy cases:19 PASS /244 assertions. This rerun also
+  covers the final classification resolver and unchanged-draft snapshot behavior.
+  Policy344 PASS; local policy/quality PASS; changed PHP26 lint PASS; secret
+  candidates0. Admin103 focused PASS, affected prize UI23 rerun PASS; type/lint
+  and generator checks PASS. Client47 PASS and Testkit55 PASS with generation,
+  type/lint/build/export/network checks. Testkit export-order mismatch fixed
+  without removing the exact export assertion. OpenAPI bundle check PASS.
+- No unresolved functional test failure in the selected coverage. Full-suite,
+  prize1000-row and prize-list load/concurrency coverage remains incomplete.
+  Existing Notion mock1000-page/100-update case passed in53.576 seconds;
+  this is synthetic test timing, not a production capacity claim.
+
+
+### PR657 Draft continuation — latest main integration
+
+- Human authorizes safe integration and CI inspection only; Draft/merge/runtime/
+  artifact prohibitions remain. Reuse existing branch/worktree, R3/Strict/deferred,
+  Issue none. Refetched main b220f5c5c61223cdb8c2a36bec4d559ca0df0796 and PR head
+  b168a407119c9da0a60b1e8562a102f6ac1228d0; worktree clean before integration.
+- Normal no-force merge; only Worklog conflicted. Both parents' append-only
+  records retained byte-for-byte. Main's approval manifest and corresponding
+  test retained exactly. No runtime operation follows from importing metadata.
+- Exchange-only implementation, contracts/generated files, all prior migrations
+  and000105 remain byte-identical to the previously tested head. No allocation,
+  migration application, added Build, full-suite or performance rerun required.
+- Focused validation: parent-delta identity, Worklog preservation, exact PR scope,
+  whitespace/conflict-marker/secret review, local policy and inherited approval
+  tests. Results and new fixed-head HOLD_DRAFT review are recorded on PR657.
+- Prior Admin component tests PASS (103 plus affected23 rerun) are reused; these
+  are NOT Browser/E2E/visual acceptance. Browser/E2E remain NOT_RUN. Backend,
+  Client/Testkit and other previous PASS evidence is reused only for identical
+  source. Prior incomplete full-suite/performance coverage is not promoted to PASS.
+- Push existing task branch through App wrapper; verify automatic Required CI5.
+  No manual workflow dispatch, rerun, workflow/permissions change, Ready, merge,
+  OLD Test/Production, artifact or runtime activation is authorized or performed.
+  Final CI status/diagnosis, head and timing are attached to PR657; branch/worktree
+  retained for Draft review. Additional Build0, Runtime Activation0, Human wait0.
+
+
+## 2026-11-04 EXCHANGEONLY-20261104 — Draft657 release-source consistency correction
+
+- Issue none; R3; Strict Change; Activation deferred. Continue exact head52435ddec23e41aedc26d4ca2046cfcf9e3d9567; fetched main remains b220f5c5c61223cdb8c2a36bec4d559ca0df0796. Existing dedicated branch/worktree retained. Human authorizes minimal canonical repair, tests/review and ordinary push; Draft HOLD remains.
+- Run41787374998 quality-gate failed at Platform Alpha Artifact foundation: six `candidate Public OpenAPI content mismatch` errors reproduced locally (102 tests,6 errors). Candidate was null, so unchanged validator correctly compared new source bytes against released alpha.49 evidence. Historical alpha45–49 tests also coupled released-ledger assertions to the live Source checkout.
+- Apply the canonical Source Task pending-candidate procedure in `docs/operations/releases/storefront-contract-artifact.md`, under exclusive Artifact Release Lock: alpha.50 Client/Testkit, additive Public/Admin46, unchanged Webhook45, Platform/Application23 and referenced Schema23; Public93 operations. Version/runtime/minimum-contract/workspace pin and generated digest metadata aligned. Candidate has no predicted merged SHA, manifest/package digest or publication evidence. No new release-state schema, validator, workflow, gate or compatibility exception.
+- Immutable ledger prefix retained byte-for-byte: all29 history records and latest alpha.49 unchanged, including every Source/Manifest/package/Public SHA and publication record. Canonical JSON history SHA256 `539cd7ed17b11503408bd4353eda221327aeb3047eefdd7b51a9645183763cb7`. Migration000105, Backend and feature behavior unchanged. Public/Admin delta from prior head is info.version only; breaking-change detector against latest main returns0.
+- Historical fixtures now reconstruct their released ledger separately from current Source; exact historical hashes, no-reissue, duplicate-history and no-pnpm/output assertions retained. Add current pending-source validation, wrong-digest rejection and rejection of unreleased Source posing as released alpha.49. Historical cumulative-rank authority fixture retains exact44->45 transition and46 rejection.
+- Executed: release suite105 PASS (3 added), Platform and Storefront validate-source PASS, OpenAPI77 PASS, release-policy4 PASS, local policy gate PASS, OpenAPI bundle/check and Client/Admin/Testkit generated checks PASS. Initial stale generated digest and historical-version fixture failures corrected. Focused immutable/contract/scope/secret/whitespace review PASS. Reuse prior Backend/Admin component/Client/Testkit behavioral PASS by unchanged behavior; Browser/E2E/visual NOT_RUN. No all-suite/performance rerun, local Build, formal Artifact generation/publication, operational migration or Runtime operation.
+- Exact final HEAD, machine-readable Focused Review and automatic Required CI readback are recorded in Draft657. No manual CI dispatch/rerun, Ready, merge, force push, protected-main push or runtime activation. Release Lock held through source validation/push then released for Human Draft wait; re-acquire and recheck candidate/main/Artifact inventory before any future publication. Storefront handoff explicitly treats alpha.50 as unpublished source intent, never an adoption pin.
+
+
+## 2026-11-04 EXCHANGEONLY-20261104 — Draft657 Policy fixture resumption
+
+- Issue none; R3; Strict Change; Activation deferred. Reuse branch/worktree and Draft657. Fetch confirms main b220f5c5c61223cdb8c2a36bec4d559ca0df0796 and previous PR head3e0fd68c0cceb5535643593fdaea7a3edcd7953d unchanged; Canonical Governance/AGENTS unchanged.
+- Run41789117533 policy job126438606072 logged Alpha identity invalid: 344 tests,28 failures/1 error. `make_workspace()` still synthesized Client49/minimumPublicApiContract45 against current pending50/Contract46. Correct only those two Fixture values to50/46; preserve assertions and production Gate implementation.
+- Policy suite344 PASS after correction. Reuse prior release105/OpenAPI77/source-validator/generated and behavioral PASS evidence because all related Source/test bytes are unchanged. No additional Build/full application suite/performance test. Logged-in Browser/E2E belongs to Human and is NOT_RUN; earlier component/UI PASS remains separate.
+- Immutable alpha.49/all29 history records, pending alpha.50 metadata, Migration000105, contracts, feature implementation and Workflows are byte-identical to the previous head. No Artifact/Runtime/operational Migration action or Release Lock needed. Focused scope/secret/whitespace review passes; final-head machine-readable review and automatic Required CI results are recorded in the PR.
+- Stop Draft regardless of CI result. No Ready, merge, force/main push, manual CI rerun/dispatch, Artifact publication or OLD Test/Production activation. Dedicated branch/worktree retained; no lock held. Current Task is limited to two-line Fixture correction plus this Worklog record.

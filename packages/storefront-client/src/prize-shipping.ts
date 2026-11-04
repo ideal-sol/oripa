@@ -4,6 +4,12 @@ import type {
   StorefrontTransport,
 } from "./types.js";
 
+export interface PrizeListOptions {
+  cursor?: string;
+  status_group?: "stored" | "shipping";
+  limit?: number;
+}
+
 type Schemas = PublicComponents["schemas"];
 
 export interface PrizeShippingMutationOptions {
@@ -47,7 +53,7 @@ export type FulfillmentMutationRetrySemantics =
 
 export interface StorefrontPrizeShippingClient {
   getShippingPolicy(signal?: AbortSignal): Promise<StorefrontResponse<Schemas["ShippingPolicy"]>>;
-  listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
+  listPrizes(cursor?: string | PrizeListOptions): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
   getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
   exchangePrizes(
     prizeIds: string[],
@@ -87,7 +93,7 @@ export interface StorefrontPrizeShippingClient {
 
 export interface BrowserStorefrontPrizeShippingClient {
   getShippingPolicy(signal?: AbortSignal): Promise<StorefrontResponse<Schemas["ShippingPolicy"]>>;
-  listPrizes(cursor?: string): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
+  listPrizes(cursor?: string | PrizeListOptions): Promise<StorefrontResponse<Schemas["UserPrizeCollection"]>>;
   getPrize(prizeId: string): Promise<StorefrontResponse<Schemas["UserPrizeDetail"]>>;
   exchangePrizes(
     prizeIds: string[],
@@ -139,6 +145,15 @@ function csrf(value: string): Record<string, string> {
   return { "X-XSRF-TOKEN": value };
 }
 
+function prizeQuery(value?: string | PrizeListOptions): string {
+  if (typeof value === "string" || value === undefined) return cursor(value);
+  const query = new URLSearchParams();
+  if (value.cursor !== undefined) query.set("cursor", value.cursor);
+  if (value.status_group !== undefined) query.set("status_group", value.status_group);
+  if (value.limit !== undefined) query.set("limit", String(value.limit));
+  return query.size === 0 ? "" : `?${query.toString()}`;
+}
+
 function cursor(value?: string): string {
   return value === undefined ? "" : `?cursor=${encodeURIComponent(value)}`;
 }
@@ -149,7 +164,7 @@ export function createStorefrontPrizeShippingClient(
   return {
     getShippingPolicy: (signal) => transport.request({ path: "/me/shipping-policy", signal }),
     listPrizes: (value) =>
-      transport.request({ path: `/me/prizes${cursor(value)}` }),
+      transport.request({ path: `/me/prizes${prizeQuery(value)}` }),
     getPrize: (id) =>
       transport.request({ path: `/me/prizes/${segment(id, "prize_id")}` }),
     exchangePrizes: (prizeIds, options) =>
@@ -227,7 +242,7 @@ export function createCsrfManagedStorefrontPrizeShippingClient(
   return {
     getShippingPolicy: (signal) => transport.request({ path: "/me/shipping-policy", signal }),
     listPrizes: (value) =>
-      transport.request({ path: `/me/prizes${cursor(value)}` }),
+      transport.request({ path: `/me/prizes${prizeQuery(value)}` }),
     getPrize: (id) =>
       transport.request({ path: `/me/prizes/${segment(id, "prize_id")}` }),
     exchangePrizes: (prizeIds, options) =>

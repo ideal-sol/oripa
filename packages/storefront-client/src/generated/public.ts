@@ -1752,6 +1752,7 @@ export interface components {
             resets_at: string | null;
         };
         LoginGachaPrize: {
+            exchange_only?: boolean;
             id: components["schemas"]["OpaqueId"];
             name: string;
             exchange_points: number;
@@ -2252,7 +2253,7 @@ export interface components {
         /** @enum {string} */
         UserPrizeStatus: "stored" | "exchange_processing" | "converted" | "shipping_requested" | "packing" | "shipped" | "delivered" | "hold" | "return_requested" | "returned" | "expired" | "canceled";
         /** @enum {string} */
-        UserPrizeActionUnavailableReason: "payment_hold" | "status_not_actionable" | "storage_expired" | "exchange_points_unavailable" | "shipping_only";
+        UserPrizeActionUnavailableReason: "payment_hold" | "status_not_actionable" | "storage_expired" | "exchange_points_unavailable" | "shipping_only" | "exchange_only";
         UserPrizeActionState: {
             allowed: boolean;
             unavailable_reason: components["schemas"]["UserPrizeActionUnavailableReason"] | null;
@@ -2270,6 +2271,8 @@ export interface components {
             rank: components["schemas"]["RankReference"];
         };
         UserPrize: {
+            /** @description バナー選択時に確定した交換限定条件。trueの場合は発送不可。 */
+            exchange_only?: boolean;
             /** @description 当選時に固定された配送専用条件。trueはポイント交換不可。自動発送や配送条件の免除を意味しない。 */
             shipping_only?: boolean;
             id: components["schemas"]["OpaqueId"];
@@ -2630,6 +2633,8 @@ export interface components {
             minimum_guarantee: components["schemas"]["MinimumGuarantee"];
         };
         GachaLineupPrize: {
+            /** @description バナー選択時に確定した交換限定条件。trueの場合は発送不可。 */
+            exchange_only?: boolean;
             /** @description 現在の公開Versionに固定された配送専用条件。trueは配送のみ・ポイント交換不可。自動発送ではない。 */
             shipping_only?: boolean;
             id: components["schemas"]["OpaqueId"];
@@ -2865,6 +2870,8 @@ export interface components {
         /** @description LINE Friend State Readの既知Code、または安全に汎用処理する未知のProblem Details。 */
         LineFriendStateReadProblemResponse: components["schemas"]["LineFriendStateReadProblemDetails"] | components["schemas"]["ProblemDetails"];
         DrawPrizeReference: {
+            /** @description 当選時の交換限定スナップショット。 */
+            exchange_only?: boolean;
             id: components["schemas"]["OpaqueId"];
             name: string;
             presentation_asset: components["schemas"]["NullablePresentationAsset"];
@@ -3954,6 +3961,8 @@ export interface operations {
     listUserPrizes: {
         parameters: {
             query?: {
+                /** @description storedは発送依頼のない決済保留も含む。shippingは発送関連holdと発送済み・配送完了を含む。カーソルはグループ専用。省略時は全状態・初期20件。 */
+                status_group?: "stored" | "shipping";
                 limit?: components["parameters"]["CatalogLimit"];
                 cursor?: components["parameters"]["CatalogCursor"];
             };

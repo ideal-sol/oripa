@@ -913,6 +913,7 @@ export const PUBLIC_CATALOG_FIXTURE = Object.freeze({
         presentation_asset: null,
         total_inventory: 4,
         shipping_only: false,
+        exchange_only: false,
         display_order: 40,
       },
     ],
@@ -1375,6 +1376,7 @@ export const PUBLIC_USER_PRIZE_FIXTURE = Object.freeze({
   },
   status: "stored",
   shipping_only: false,
+  exchange_only: false,
   exchange_points: 8000,
   acquired_at: "2026-07-30T00:00:00Z",
   storage_expires_at: "2026-09-28T00:00:00Z",
@@ -1401,6 +1403,16 @@ export const PUBLIC_SHIPPING_ONLY_PRIZE_FIXTURE = Object.freeze({
   allowed_actions: {
     shipping: { allowed: true, unavailable_reason: null },
     point_exchange: { allowed: false, unavailable_reason: "shipping_only" },
+    selection: { allowed: true, unavailable_reason: null },
+  },
+} as const satisfies PublicComponents["schemas"]["UserPrize"]);
+
+export const PUBLIC_EXCHANGE_ONLY_PRIZE_FIXTURE = Object.freeze({
+  ...PUBLIC_USER_PRIZE_FIXTURE,
+  exchange_only: true,
+  allowed_actions: {
+    shipping: { allowed: false, unavailable_reason: "exchange_only" },
+    point_exchange: { allowed: true, unavailable_reason: null },
     selection: { allowed: true, unavailable_reason: null },
   },
 } as const satisfies PublicComponents["schemas"]["UserPrize"]);

@@ -54,7 +54,10 @@ final class V2GachaCompositionService
             'ranks.*.rank_id' => 'required|uuid|distinct', 'ranks.*.rank_revision_number' => 'present|nullable|integer|min:1',
             'ranks.*.video_asset_id' => 'nullable|uuid',
             'prizes' => 'required|array|min:1|max:1000',
-            'prizes.*' => 'array:external_id,name,presentation_asset_id,rank_id,exchange_points,cost_price,initial_inventory,shipping_only,percentage',
+            'prizes.*' => 'array:source_prize_id,banner_id,exchange_only,external_id,name,presentation_asset_id,rank_id,exchange_points,cost_price,initial_inventory,shipping_only,percentage',
+            'prizes.*.banner_id' => 'nullable|uuid',
+            'prizes.*.source_prize_id' => 'nullable|uuid',
+            'prizes.*.exchange_only' => 'sometimes|boolean',
             'prizes.*.name' => 'required|string|max:191', 'prizes.*.presentation_asset_id' => 'required|uuid',
             'prizes.*.rank_id' => 'required|uuid', 'prizes.*.exchange_points' => 'required|integer|min:0|max:9007199254740991',
             'prizes.*.cost_price' => 'required|integer|min:0|max:9007199254740991',
@@ -213,10 +216,12 @@ final class V2GachaCompositionService
         $rates = [];
         foreach ($payload['prizes'] as $index => $prizeInput) {
             $prizeAsset = $this->asset($prizeInput['presentation_asset_id'], 'image');
+            $exchangeOnly = app(V2ExchangeOnlyClassification::class)->resolve($prizeInput);
             $publicId = (string) Str::uuid7();
             $content = [
                 'gacha_rank_id' => $ranks[$prizeInput['rank_id']], 'presentation_asset_id' => $prizeAsset->id,
                 'display_name' => $prizeInput['name'], 'description' => null, 'display_price' => 0,
+                'exchange_only' => $exchangeOnly,
                 'exchange_points' => $prizeInput['exchange_points'], 'shipping_only' => $prizeInput['shipping_only'],
                 'cost_price' => $prizeInput['cost_price'], 'is_visible' => true, 'created_at' => $now, 'updated_at' => $now,
             ];
