@@ -67,7 +67,7 @@ function Summary() {
     {!summary && !error ? <p>集計を取得中です。</p> : null}
     {summary ? <>
       {!summary.enabled ? <p className={styles.warning}>会員ランク機能は運用開始前です。</p> : null}
-      {summary.progress.provisional ? <p className={styles.warning} role="status">月次処理中のため暫定集計です。未処理の会員も月初判定後のランクで表示しています。未処理 {summary.progress.remaining.toLocaleString()}人</p> : null}
+      {summary.progress.provisional ? <p className={styles.warning} role="status">月次の補填・昇格処理が未完了です。現在保存されているランクを表示しています。未処理 {summary.progress.remaining.toLocaleString()}人</p> : null}
       <div className={styles.panel}><h2>有効会員のランク別人数</h2><dl className={styles.grid}>
         {summary.ranks.map((item) => <div key={item.rank}><dt>{rankName(item.rank)}</dt><dd>{item.count.toLocaleString()}人</dd></div>)}
         <div><dt>有効会員合計</dt><dd>{summary.active_total.toLocaleString()}人</dd></div>

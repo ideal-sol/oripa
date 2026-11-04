@@ -290,6 +290,10 @@ final class AdminUserReadModelApiTest extends TestCase
             $search(['user_name' => ' '.$name.' '])->assertOk()->assertJsonCount(2, 'items');
         }
         $search(['user_name' => 'DisplayOnly'])->assertOk()->assertJsonCount(0, 'items');
+        $search(['user_name' => 'registeredname', 'email' => 'example.test', 'member_rank' => 'beginner'])
+            ->assertOk()->assertJsonCount(2, 'items')->assertJsonPath('items.0.member_rank_points', 0);
+        $search(['user_name' => 'registeredname', 'member_rank' => 'vip'])->assertOk()->assertJsonCount(0, 'items');
+        $search(['user_name' => 'registeredname', 'transferred' => 'true'])->assertOk()->assertJsonCount(0, 'items');
         foreach (['EXAMPLE.TEST', '@example.test', '%_\\'] as $email) {
             $query = ['email' => ' '.$email.' ', 'user_name' => 'registeredname', 'status' => 'active'];
             $page = $search([...$query, 'limit' => 1])->assertOk()->assertJsonPath('items.0.id', $second['public_id']);

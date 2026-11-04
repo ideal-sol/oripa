@@ -3,7 +3,7 @@
 namespace Tests\V2;
 
 use App\Domain\Identity\Services\V2PreRegistrationService;
-use App\Domain\MemberRank\Services\V2MemberRankMonthlyWorker;
+use App\Domain\MemberRank\Services\V2MemberRankPromotionWorker;
 use App\Domain\MemberRank\Services\V2MemberRankResolver;
 use App\Domain\MemberRank\Services\V2MemberRankSettingsService;
 use App\Domain\Payment\V2\Services\V2PaymentService;
@@ -39,7 +39,7 @@ final class MemberRankMonthlyTest extends TestCase
 
     public static function thresholds(): array
     {
-        return [[4, 69999, 3], [4, 70000, 4], [2, 4999, 1], [2, 5000, 2], [1, 0, 1]];
+        return [[4, 69999, 4], [4, 70000, 4], [2, 4999, 2], [2, 5000, 2], [1, 0, 1]];
     }
 
     #[DataProvider('thresholds')]
@@ -57,8 +57,8 @@ final class MemberRankMonthlyTest extends TestCase
         $this->rankClock('2026-10-31T15:00:00Z');
         $projected = $resolver->project($user->id);
         self::assertSame($expected, $projected['level']);
-        self::assertSame(0, $projected['rank_points']);
-        self::assertSame('2026-11-01', $projected['last_judged_month']);
+        self::assertSame($points, $projected['rank_points']);
+        self::assertNull($projected['last_judged_month']);
         self::assertSame($before, $this->snapshot());
         $this->rankClock('2026-10-31T15:00:01Z');
         self::assertSame($projected, $resolver->project($user->id));
@@ -68,22 +68,16 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertSame($after, $this->snapshot());
         self::assertSame($points, (int) DB::table('member_rank_month_totals')->where('user_id', $user->id)->where('month', '2026-10-01')->value('points'));
         self::assertSame($expected < $level ? 1 : 0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'demotion')->count());
-        if ($expected < $level) {
-            self::assertDatabaseHas('member_rank_changes', [
-                'user_id' => $user->id, 'reason' => 'demotion', 'month' => '2026-10-01',
-                'judgment_month' => '2026-11-01', 'rank_points' => $points, 'setting_revision' => 1, 'point_entry_id' => null,
-            ]);
-        }
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
     public static function skips(): array
     {
-        return [[0, 3, 0], [1, 4, 0], [2, 4, 1]];
+        return [[0, 4, 0], [1, 4, 0], [2, 4, 0]];
     }
 
     #[DataProvider('skips')]
-    public function test_skip_consumption_and_six_month_catchup(int $skip, int $november, int $remaining): void
+    public function test_legacy_skip_is_ignored_and_six_month_absence_never_demotes(int $skip, int $november, int $remaining): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -95,17 +89,17 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertSame($november, $result['level']);
         self::assertSame($remaining, $result['skip_count']);
         $this->rankClock('2026-11-30T15:00:00Z');
-        self::assertSame($remaining > 0 ? 4 : $november - 1, $resolver->materialize($user->id)['level']);
+        self::assertSame(4, $resolver->materialize($user->id)['level']);
         $this->rankClock('2026-12-31T15:00:00Z');
-        self::assertSame($skip === 2 ? 3 : max(1, $november - 2), $resolver->materialize($user->id)['level']);
+        self::assertSame(4, $resolver->materialize($user->id)['level']);
         $vip = $this->rankUser();
         $this->seedRankState($vip, 7);
         $this->rankClock('2027-03-31T15:00:00Z');
         $projection = $resolver->project($vip->id);
-        self::assertSame(1, $projection['level']);
-        self::assertSame([6, 5, 4, 3, 2, 1], array_column($projection['judgments'], 'to_level'));
+        self::assertSame(7, $projection['level']);
+        self::assertSame([], $projection['judgments']);
         self::assertSame($projection, $resolver->materialize($vip->id));
-        self::assertSame(6, DB::table('member_rank_changes')->where('user_id', $vip->id)->count());
+        self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $vip->id)->count());
     }
 
     public function test_historical_settings_and_skip_are_independent_of_new_defaults(): void
@@ -128,13 +122,14 @@ final class MemberRankMonthlyTest extends TestCase
         $first = $resolver->materialize($user->id);
         self::assertSame(4, $first['level']);
         self::assertSame(0, $first['skip_count']);
-        self::assertSame(1, $first['judgments'][0]['setting_revision']);
-        self::assertTrue($first['judgments'][0]['skipped']);
+        self::assertSame([], $first['judgments']);
+        self::assertSame(70000, $first['rank_points']);
         $this->settleRankPayment($user, 80000);
         $this->rankClock('2026-11-30T15:00:00Z');
         $second = $resolver->materialize($user->id);
-        self::assertSame(3, $second['level']);
-        self::assertSame(2, $second['judgments'][0]['setting_revision']);
+        self::assertSame(4, $second['level']);
+        self::assertSame([], $second['judgments']);
+        self::assertSame(150000, $second['rank_points']);
         self::assertSame(0, $second['skip_count']);
     }
 
@@ -152,10 +147,10 @@ final class MemberRankMonthlyTest extends TestCase
         [$payment, $event] = $this->rankPayment($user, 100000);
         $this->rankClock('2026-11-30T15:00:01Z');
         $resolver = app(V2MemberRankResolver::class);
-        $worker = app(V2MemberRankMonthlyWorker::class);
+        $worker = app(V2MemberRankPromotionWorker::class);
         if ($order === 'read') {
             $before = $this->snapshot();
-            self::assertSame(3, $resolver->project($user->id)['level']);
+            self::assertSame(4, $resolver->project($user->id)['level']);
             self::assertSame($before, $this->snapshot());
         } elseif ($order === 'worker') {
             self::assertSame(1, $worker->run('synthetic-worker'));
@@ -165,12 +160,12 @@ final class MemberRankMonthlyTest extends TestCase
         $payments->confirmSucceeded($event->id);
         $worker->run('synthetic-worker');
         self::assertSame(4, $resolver->project($user->id)['level']);
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'baseline_month' => '2026-12-01', 'baseline_level' => 3, 'last_judged_month' => '2026-12-01']);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'baseline_month' => '2026-10-01', 'baseline_level' => 1, 'last_judged_month' => null]);
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-12-01', 'points' => 100000]);
         self::assertSame(3, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
-        self::assertSame(['promotion', 'demotion', 'promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 8500]);
-        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 3, 'bonus_amount' => 1000]);
+        self::assertSame(['promotion'], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('reason')->all());
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 200000, 'free_balance' => 9000]);
+        self::assertDatabaseHas('member_rank_purchase_bonuses', ['payment_id' => $payment->id, 'rank_level' => 4, 'bonus_amount' => 1500]);
         $before = $this->snapshot();
         self::assertSame(0, $worker->run('synthetic-worker'));
         self::assertSame($before, $this->snapshot());
@@ -203,7 +198,7 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $payment->id)->count());
         app(V2PaymentService::class)->confirmSucceeded($event->id);
         self::assertSame(4, app(V2MemberRankResolver::class)->project($user->id)['level']);
-        self::assertSame(1, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'demotion')->count());
+        self::assertSame(0, DB::table('member_rank_changes')->where('user_id', $user->id)->where('reason', 'demotion')->count());
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -212,10 +207,10 @@ final class MemberRankMonthlyTest extends TestCase
         $user = $this->rankUser(true);
         $this->settleRankPayment($user, 10000);
         $resolver = app(V2MemberRankResolver::class);
-        $worker = app(V2MemberRankMonthlyWorker::class);
+        $worker = app(V2MemberRankPromotionWorker::class);
         self::assertFalse($resolver->project($user->id)['enabled']);
         self::assertSame(0, $worker->run('synthetic-off'));
-        self::assertSame(0, DB::table('member_rank_monthly_jobs')->count());
+        self::assertSame(0, DB::table('member_rank_promotion_jobs')->count());
         self::assertSame(0, DB::table('member_rank_states')->count());
         $this->enableRankFixture();
         $this->seedRankState($user, 4);
@@ -229,7 +224,7 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertFalse($createdAt->equalTo($user->fresh()->created_at));
         self::assertSame($before, $this->snapshot());
         self::assertSame($projection, $resolver->project($user->id));
-        self::assertSame(3, $projection['level']);
+        self::assertSame(4, $projection['level']);
         self::assertSame(500, (int) DB::table('point_lots')->whereIn('grant_operation_id',
             DB::table('point_operations')->where('user_id', $user->id)->where('source_type', 'pre_registration')->select('id')
         )->sum('granted_amount'));
@@ -242,11 +237,11 @@ final class MemberRankMonthlyTest extends TestCase
             $this->seedRankState($this->rankUser(), $level);
         }
         $this->rankClock('2026-10-31T15:00:01Z');
-        $worker = app(V2MemberRankMonthlyWorker::class);
+        $worker = app(V2MemberRankPromotionWorker::class);
         self::assertSame(3, $worker->progress()['remaining']);
         self::assertSame(1, $worker->run('worker-a', 1));
         self::assertSame(2, $worker->progress()['remaining']);
-        DB::table('member_rank_monthly_jobs')->update([
+        DB::table('member_rank_promotion_jobs')->update([
             'status' => 'processing', 'lease_owner' => str_repeat('a', 64), 'lease_expires_at' => now()->addSeconds(60),
         ]);
         self::assertSame(0, $worker->run('worker-b', 1));
@@ -256,25 +251,24 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertFalse($worker->progress()['provisional']);
         self::assertSame('2026-11-01', $worker->progress()['last_completed_month']);
         self::assertSame(3, (int) $worker->progress()['job']->processed_count);
-        self::assertSame(3, DB::table('member_rank_changes')->where('reason', 'demotion')->count());
-        $this->artisan('v2:member-rank:work', ['--worker' => 'command-test', '--limit' => '1'])->assertSuccessful();
-        $this->artisan('v2:member-rank:work', ['--worker' => 'command-test', '--limit' => '0'])->assertExitCode(2);
+        self::assertSame(0, DB::table('member_rank_changes')->where('reason', 'demotion')->count());
+        self::assertSame(3, DB::table('member_rank_cumulative_events')->where('kind', 'monthly')->count());
+        $this->artisan('v2:member-rank:promote', ['--worker' => 'command-test', '--limit' => '1'])->assertSuccessful();
+        $this->artisan('v2:member-rank:promote', ['--worker' => 'command-test', '--limit' => '0'])->assertExitCode(2);
     }
 
     public function test_database_guards_reject_invalid_demotion_and_backward_cursor(): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
-        $this->seedRankState($user, 4);
-        $this->rankClock('2026-10-31T15:00:00Z');
-        app(V2MemberRankResolver::class)->materialize($user->id);
+        $this->settleRankPayment($user, 100000);
         $row = (array) DB::table('member_rank_changes')->where('user_id', $user->id)->firstOrFail();
         unset($row['id']);
         foreach ([
             fn () => DB::table('member_rank_changes')->insert($row),
-            fn () => DB::table('member_rank_changes')->insert([...$row, 'to_level' => 1, 'judgment_month' => '2026-12-01']),
+            fn () => DB::table('member_rank_changes')->insert([...$row, 'reason' => 'demotion', 'to_level' => 1, 'judgment_month' => '2026-12-01']),
             fn () => DB::table('member_rank_changes')->where('user_id', $user->id)->update(['rank_points' => 5]),
-            fn () => DB::table('member_rank_states')->where('user_id', $user->id)->update(['baseline_month' => '2026-10-01', 'last_judged_month' => null]),
+            fn () => DB::table('member_rank_states')->where('user_id', $user->id)->update(['baseline_month' => '2026-09-01']),
         ] as $operation) {
             try {
                 DB::transaction($operation);
@@ -308,10 +302,10 @@ final class MemberRankMonthlyTest extends TestCase
         ]);
         [$payment, $event] = $this->rankPayment($user, 80000);
         $this->rankClock('2026-10-31T15:00:01Z');
-        self::assertSame(3, app(V2MemberRankResolver::class)->project($user->id)['level']);
+        self::assertSame(4, app(V2MemberRankResolver::class)->project($user->id)['level']);
         app(V2PaymentService::class)->confirmSucceeded($event->id);
         self::assertSame(4, app(V2MemberRankResolver::class)->project($user->id)['level']);
-        self::assertSame([1, 5], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('setting_revision')->all());
+        self::assertSame([], DB::table('member_rank_changes')->where('user_id', $user->id)->orderBy('id')->pluck('setting_revision')->all());
     }
 
     public function test_worker_failure_rolls_back_cursor_and_has_bounded_sanitized_retry(): void
@@ -322,11 +316,11 @@ final class MemberRankMonthlyTest extends TestCase
         $this->rankClock('2026-10-31T15:00:01Z');
         $fail = true;
         DB::listen(function ($query) use (&$fail): void {
-            if ($fail && str_contains($query->sql, 'update "member_rank_states"')) {
+            if ($fail && str_contains($query->sql, 'insert into "member_rank_cumulative_events"')) {
                 throw new \RuntimeException('Synthetic private detail must not be retained');
             }
         });
-        $worker = app(V2MemberRankMonthlyWorker::class);
+        $worker = app(V2MemberRankPromotionWorker::class);
         foreach ([1, 2, 3] as $attempt) {
             self::assertSame(0, $worker->run('failure-test', 1));
             $job = $worker->progress()['job'];
@@ -350,8 +344,8 @@ final class MemberRankMonthlyTest extends TestCase
         $this->seedRankState($user, 4);
         $this->rankClock('2026-10-31T15:00:01Z');
         $this->rankPayment($user, 10000);
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 3, 'last_judged_month' => '2026-11-01']);
-        self::assertSame(0, DB::table('member_rank_monthly_jobs')->count());
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 4, 'last_judged_month' => null]);
+        self::assertSame(0, DB::table('member_rank_promotion_jobs')->count());
         self::assertSame(0, DB::table('member_rank_point_entries')->where('user_id', $user->id)->count());
     }
 

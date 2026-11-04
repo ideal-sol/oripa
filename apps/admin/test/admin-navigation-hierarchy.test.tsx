@@ -75,7 +75,7 @@ describe("Admin sidebar hierarchy", () => {
 
     const expectedChildren = new Map([
       ["代理店管理", ["代理店一覧", "ユーザー集計", "売上集計"]],
-      ["ユーザー", ["一覧", "会員ランク", "会員タグ", "履歴"]],
+      ["ユーザー", ["一覧", "会員ランク", "会員タグ", "ランク変動"]],
       ["ガチャ", ["一覧", "登録", "シミュレーション", "カテゴリ", "タグ", "履歴"]],
       ["決済", ["決済状況"]],
       ["配送", ["一覧"]],
@@ -156,7 +156,7 @@ describe("Admin sidebar hierarchy", () => {
     const userGroup = document.getElementById("admin-nav-users")!;
     expect(within(userGroup).getByRole("link", { name: "一覧" })).toBeVisible();
     expect(within(userGroup).getByRole("link", { name: "会員タグ" })).toBeVisible();
-    expect(within(userGroup).queryByRole("link", { name: "履歴" })).toBeNull();
+    expect(within(userGroup).queryByRole("link", { name: "ランク変動" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "ポイント購入" }));
     const purchaseGroup = document.getElementById("admin-nav-purchase")!;
     expect(within(purchaseGroup).getByRole("link", { name: "一覧" })).toBeVisible();
@@ -186,9 +186,9 @@ describe("Admin sidebar hierarchy", () => {
 
   it("renders a breadcrumb and exact scaffold empty state", () => {
     render(<ModulePlaceholder item={navigationItem("users-history")} />);
-    expect(screen.getByRole("heading", { name: "ユーザー 履歴", level: 1 })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "ユーザー ランク変動", level: 1 })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "パンくず" })).toHaveTextContent(
-      "ダッシュボードユーザー履歴",
+      "ダッシュボードユーザーランク変動",
     );
     expect(screen.getByText("詳細画面は後続Taskで実装します。")).toBeVisible();
   });

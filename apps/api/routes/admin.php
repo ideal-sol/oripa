@@ -124,11 +124,15 @@ Route::prefix('v2')
         Route::get('/users', [V2AdminUserController::class, 'index'])
             ->name('v2.admin.users.index');
         Route::get('/member-ranks/summary', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'summary']);
+        Route::get('/member-ranks/discrepancies', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'discrepancies']);
         Route::get('/member-ranks/manual-changes', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'manualChanges']);
         Route::get('/users/{userId}/member-rank/preview', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'preview'])->whereUuid('userId');
         Route::get('/users/{userId}/member-rank-history', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'history'])->whereUuid('userId');
         Route::put('/users/{userId}/member-rank', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'changeRank'])->whereUuid('userId');
         Route::post('/users/{userId}/member-rank-point-adjustments', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'adjustPoints'])->whereUuid('userId');
+        Route::put('/users/{userId}/member-rank-transfer', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'updateTransfer'])->whereUuid('userId');
+        Route::get('/users/{userId}/member-rank-transfer', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'transferHistory'])->whereUuid('userId');
+        Route::get('/users/{userId}/member-rank-compensation-history', [\App\Http\Controllers\V2\V2AdminMemberRankController::class, 'compensationHistory'])->whereUuid('userId');
         Route::get('/user-tags', [V2AdminUserTagController::class, 'index'])
             ->name('v2.admin.user-tags.index');
         Route::post('/user-tags', [V2AdminUserTagController::class, 'store'])

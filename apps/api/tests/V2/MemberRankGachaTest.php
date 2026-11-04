@@ -130,12 +130,12 @@ final class MemberRankGachaTest extends TestCase
         self::assertSame([], app(V2CatalogReadService::class)->list(10, null, null, null, $user, true)['data']);
     }
 
-    public function test_month_boundary_uses_lazy_rank_and_filter_keeps_cursor_correct(): void
+    public function test_month_boundary_preserves_rank_and_filter_keeps_cursor_correct(): void
     {
         $this->enableRankFixture();
         $user = $this->fundedRankUser(4);
         $gold = $this->rankGacha('standard', 'at_least', 4);
-        $silver = $this->rankGacha('standard', 'only', 3);
+        $silver = $this->rankGacha('standard', 'only', 4);
         $another = $this->rankGacha('standard', 'at_most', 3);
         $this->rankClock('2026-10-31T15:00:00Z');
         $catalog = app(V2CatalogReadService::class);
@@ -143,11 +143,11 @@ final class MemberRankGachaTest extends TestCase
         self::assertCount(1, $first['data']);
         self::assertTrue($first['meta']['has_more']);
         $next = $catalog->list(1, $first['meta']['next_cursor'], null, null, $user, true);
-        self::assertEqualsCanonicalizing([$silver->public_id, $another->public_id], [$first['data'][0]['id'], $next['data'][0]['id']]);
+        self::assertEqualsCanonicalizing([$gold->public_id, $silver->public_id], [$first['data'][0]['id'], $next['data'][0]['id']]);
         self::assertFalse($next['meta']['has_more']);
-        $this->assertDrawDenied($user, $gold, 'GACHA_MEMBER_RANK_NOT_ELIGIBLE');
-        self::assertSame(3, $this->rankDraw($user, $silver)['member_rank']['level']);
-        self::assertSame(3, app(V2MemberRankResolver::class)->project($user->id)['level']);
+        $this->assertDrawDenied($user, $another, 'GACHA_MEMBER_RANK_NOT_ELIGIBLE');
+        self::assertSame(4, $this->rankDraw($user, $silver)['member_rank']['level']);
+        self::assertSame(4, app(V2MemberRankResolver::class)->project($user->id)['level']);
     }
 
     public function test_copy_retains_condition_and_signup_cannot_receive_it(): void

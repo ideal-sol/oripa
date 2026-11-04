@@ -54,6 +54,7 @@ final class V2AdminPaymentAdjustmentService
                 ->map(fn ($adjustment): array => $this->present($adjustment))->all(),
             'refund_eligibility' => $eligibility,
             'rank_adjustment_pending' => $this->rankPending($payment),
+            'rank_change' => $this->rankChoice($payment),
         ];
         $this->audit->record('admin.payment.detail.viewed', $this->auditContext($context, $payment->public_id));
 
@@ -71,7 +72,8 @@ final class V2AdminPaymentAdjustmentService
                 $payment = DB::table('payments')->where('id', $view->id)->sharedLock()->firstOrFail();
                 DB::table('wallets')->where('user_id', $payment->user_id)->sharedLock()->first();
 
-                return ['data' => ['impact' => $this->payments->previewChargeback($payment), 'rank_adjustment_pending' => false], 'request_id' => $context->requestId];
+                return ['data' => ['impact' => $this->payments->previewChargeback($payment), 'rank_adjustment_pending' => false,
+                    'rank_change' => $this->rankChoice($payment)], 'request_id' => $context->requestId];
             });
         } catch (V2PaymentException $exception) {
             throw $this->conflict($exception->getMessage());
@@ -82,6 +84,9 @@ final class V2AdminPaymentAdjustmentService
     {
         $this->authorization->authorizePermission($context, V2Permission::ManagePaymentAdjustment);
         $this->validate($input, $operation);
+        if (isset($input['rank_after'])) {
+            $this->authorization->authorizePermission($context, V2Permission::ManageMemberRankUser);
+        }
         if (! preg_match('/\A[\x21-\x7e]{16,128}\z/', $key)) {
             throw new V2AdminPaymentReadException('PAYMENT_ADJUSTMENT_INPUT_INVALID', 422, 'Idempotency-Keyを指定してください。');
         }
@@ -106,6 +111,12 @@ final class V2AdminPaymentAdjustmentService
                     throw $this->conflict('REFUND_TERMINAL_STATE');
                 }
                 $before = $parent?->status;
+                if (isset($input['rank_after'])) {
+                    $choice = $this->rankChoice($payment);
+                    if ($choice === null || ! hash_equals($choice['preview_token'], $input['rank_preview_token'])) {
+                        throw $this->conflict('MEMBER_RANK_REVISION_CONFLICT');
+                    }
+                }
                 $adjustment = match ($operation) {
                     'refund' => $this->payments->reserveFullRefund((int) $payment->id, $key, $context->adminId, $input['reason']),
                     'complete', 'cancel' => $this->payments->resolveRefund((int) $parent->id, $operation === 'complete' ? 'succeeded' : 'canceled', $context->adminId, $input['reason']),
@@ -113,6 +124,16 @@ final class V2AdminPaymentAdjustmentService
                     'reversal' => $this->payments->recordManualReversal($payment, $parent, $context->adminId, $input['reason']),
                     default => throw $this->conflict('PAYMENT_ADJUSTMENT_INVALID'),
                 };
+                if (isset($input['rank_after'])) {
+                    $userId = DB::table('users')->where('id', $payment->user_id)->value('public_id');
+                    $ranks = app(\App\Domain\MemberRank\Services\V2MemberRankAdminService::class);
+                    $rankInput = ['rank' => $input['rank_after'], 'kind' => 'payment_incident',
+                        'reason' => $input['reason'], 'skip_count' => 0, 'grant_bonus' => false];
+                    $preview = $ranks->preview($context, $userId, 'rank', $rankInput);
+                    $ranks->write($context, $userId, 'rank', [...$rankInput,
+                        'expected_revision' => $preview['expected_revision'], 'preview_token' => $preview['preview_token']],
+                        'payment-rank:'.$adjustment->public_id);
+                }
                 $references = array_intersect_key($input, array_flip(['provider_case_id', 'provider_adjustment_id']));
                 if ($references !== []) DB::table('payment_adjustments')->where('id', $adjustment->id)->update($references);
                 $adjustment = DB::table('payment_adjustments')->where('id', $adjustment->id)->firstOrFail();
@@ -122,6 +143,7 @@ final class V2AdminPaymentAdjustmentService
                     'reason_text' => $input['reason'],
                     'before' => ['status' => $before], 'after' => ['status' => $adjustment->status],
                     'metadata' => ['adjustment_id' => $adjustment->public_id, 'amount' => (int) $adjustment->amount,
+                        'rank_after' => $input['rank_after'] ?? null,
                         ...array_filter($presented['impact'] ?? [], fn ($value): bool => is_int($value))],
                 ]);
                 $response = ['data' => $presented, 'rank_adjustment_pending' => $this->rankPending($payment), 'idempotent_replay' => false];
@@ -131,6 +153,8 @@ final class V2AdminPaymentAdjustmentService
             });
         } catch (V2PaymentException|V2PointException $exception) {
             throw $this->conflict($exception->getMessage());
+        } catch (\App\Domain\MemberRank\Exceptions\V2MemberRankException $exception) {
+            throw new V2AdminPaymentReadException($exception->errorCode, $exception->status, $exception->getMessage());
         }
     }
 
@@ -163,6 +187,15 @@ final class V2AdminPaymentAdjustmentService
     private function validate(array $input, string $operation): void
     {
         $allowed = $operation === 'complete' ? ['reason', 'provider_refund_confirmed', 'provider_adjustment_id'] : ['reason', 'provider_case_id'];
+        if (in_array($operation, ['complete', 'chargeback'], true)) {
+            $allowed = [...$allowed, 'rank_after', 'rank_preview_token'];
+        }
+        if (array_key_exists('rank_after', $input) || array_key_exists('rank_preview_token', $input)) {
+            if (! in_array($input['rank_after'] ?? null, \App\Domain\MemberRank\Services\V2MemberRankSettingsService::CODES, true)
+                || ! is_string($input['rank_preview_token'] ?? null) || preg_match('/\A[0-9a-f]{64}\z/', $input['rank_preview_token']) !== 1) {
+                throw new V2AdminPaymentReadException('PAYMENT_ADJUSTMENT_INPUT_INVALID', 422, '変更後のランクと最新の確認情報を指定してください。');
+            }
+        }
         if (array_diff(array_keys($input), $allowed) !== [] || ! is_string($input['reason'] ?? null)
             || trim($input['reason']) === '' || mb_strlen($input['reason']) > 500
             || ($operation === 'complete' && ($input['provider_refund_confirmed'] ?? null) !== true)) {
@@ -183,6 +216,33 @@ final class V2AdminPaymentAdjustmentService
             return false;
         } catch (V2PaymentException) {
             return true;
+        }
+    }
+
+    private function rankChoice(object $payment): ?array
+    {
+        if ($payment->status !== 'succeeded' || DB::table('payment_adjustments')->where('payment_id', $payment->id)
+            ->whereIn('type', ['refund', 'chargeback'])->where('status', 'succeeded')->exists()) return null;
+        $state = DB::table('member_rank_states')->where('user_id', $payment->user_id)->first();
+        if ($state === null || $state->frozen_at !== null
+            || ! DB::table('users')->where('id', $payment->user_id)->where('state', 'active')->exists()) return null;
+        try {
+            $projection = app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)->project((int) $payment->user_id);
+            if (! $projection['enabled']) return null;
+            $plan = app(V2MemberRankPaymentAdjustmentService::class)->preview($payment, CarbonImmutable::now());
+            if ($plan['effect'] === 'none') return null;
+            $version = app(\App\Domain\MemberRank\Services\V2MemberRankSettingsService::class)->effectiveAt(CarbonImmutable::now());
+            $after = max(0, $projection['rank_points'] - $plan['applied_points']);
+            $line = (int) $version['ranks'][$projection['level'] - 1]['reach_line'];
+            if ($after >= $line) return null;
+            $result = ['current_rank' => \App\Domain\MemberRank\Services\V2MemberRankSettingsService::CODES[$projection['level'] - 1],
+                'rank_points_after' => $after, 'reach_line' => $line];
+
+            return [...$result, 'preview_token' => hash('sha256', json_encode([
+                $payment->id, $state->revision, $version['revision'], $projection['rank_points'], $plan, $result,
+            ], JSON_THROW_ON_ERROR))];
+        } catch (V2PaymentException) {
+            return null;
         }
     }
 

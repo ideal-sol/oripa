@@ -64,10 +64,13 @@ final class ZMemberRankPaymentAdjustmentConcurrencyTest extends TestCase
                 $attempts = 0;
                 $key = (string) Str::uuid7();
                 try {
+                    if ($mode === 'serializable') {
+                        // Admission performs a query before the callback; set isolation before BEGIN.
+                        DB::statement('SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+                    }
                     app(\App\Domain\Point\Services\V2PointTransactionRunner::class)->run(function () use ($mode, $users, $payments, $contexts, $index, $marker, $key, &$attempts): void {
                         $attempts++;
                         if ($mode === 'serializable') {
-                            DB::statement('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
                             DB::table('wallets')->whereIn('user_id', array_map(fn ($user) => $user->id, $users))->sum('paid_balance');
                         } else {
                             DB::table('users')->where('id', $users[$index]->id)->lockForUpdate()->firstOrFail();

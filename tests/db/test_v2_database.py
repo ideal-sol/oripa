@@ -20,6 +20,24 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_cumulative104_inventory_and_forward_only_rejection_preserve_all_history(self):
+        filename = "2026_11_02_000104_add_v2_member_rank_cumulative.php"
+        tables = ['member_rank_compensation_entries', 'member_rank_cumulative_events', 'member_rank_promotion_jobs',
+                  'member_rank_transfer_allowances', 'member_rank_transfer_histories']
+        source = (MODULE_PATH.parents[2] / v2_database.MIGRATION_PATH / filename).read_text()
+        for table in tables:
+            self.assertIn('CREATE TABLE ' + table, source)
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory([item for item in v2_database.EXPECTED_V2_SCHEMA_INVENTORY if item != 'public.' + table])
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        with mock.patch.object(v2_database, "migration_rows", return_value=b"104") as ledger, mock.patch.object(
+            v2_database, "schema_dump", return_value=b"schema"
+        ) as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as command:
+            self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, True), "FORWARD_ONLY_REJECTION_PASS")
+            self.assertEqual(ledger.call_count, 2)
+            self.assertEqual(schema.call_count, 2)
+            self.assertIn("Cumulative member rank history requires a forward-only migration.", command.call_args.args[0][-1])
+
     def test_protected_history103_is_forward_only_and_preserves_merged102(self):
         import hashlib
         filename = "2026_10_29_000103_scope_v2_prelaunch_protected_history.php"

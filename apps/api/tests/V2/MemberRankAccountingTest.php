@@ -340,7 +340,7 @@ final class MemberRankAccountingTest extends TestCase
         self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'points' => 10000]);
     }
 
-    public function test_fully_recovered_entitlement_preserves_old_achievement_and_uses_new_key(): void
+    public function test_point_decrease_preserves_achievement_and_never_creates_a_second_bonus_key(): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -354,12 +354,11 @@ final class MemberRankAccountingTest extends TestCase
             'preview_token' => $preview['preview_token']], (string) Str::uuid7());
         $this->settleRankPayment($user, 10000);
         $keys = DB::table('point_operations')->where('user_id', $user->id)->where('source_type', 'member_rank_promotion')->pluck('business_key');
-        self::assertCount(2, $keys);
-        self::assertNotSame($keys[0], $keys[1]);
+        self::assertCount(1, $keys);
         self::assertSame((array) $first, (array) DB::table('member_rank_achievements')->where('id', $first->id)->sole());
-        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'level' => 2, 'generation' => 2]);
-        self::assertSame(3, DB::table('member_rank_changes')->where('user_id', $user->id)->count());
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['achievement_id' => $first->id, 'recovered_amount' => 500, 'shortfall_amount' => 0]);
+        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'level' => 2, 'generation' => 1]);
+        self::assertSame(1, DB::table('member_rank_changes')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('achievement_id', $first->id)->count());
     }
 
     public function test_settlement_latency_with_three_promotion_bonuses_is_measured(): void

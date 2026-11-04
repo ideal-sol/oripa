@@ -735,6 +735,36 @@ def generate_bundles(repository: Path, output_root: Path) -> dict[str, Path]:
     return generated
 
 
+def is_authorized_member_rank_cumulative_break(surface: str, previous: dict, current: dict) -> bool:
+    """Human 2026-11-02 approves only the cumulative rank contract transition."""
+    if surface not in {"public", "admin"} or current.get("info", {}).get("version") != "2.0.0-alpha.45":
+        return False
+    if current.get("x-oripa-member-rank-cumulative") != {
+        "authority": "human_member_rank_cumulative_2026-11-02",
+        "change_id": "MEMBERRANK-CUMULATIVE-20261102", "point_basis": "cumulative",
+    }:
+        return False
+    if previous.get("info", {}).get("version") != "2.0.0-alpha.44":
+        return False
+    prefix = "components.schemas."
+    if surface == "admin":
+        expected = {prefix + "AdminMemberRankDetail: required field added: " + field
+                    for field in ["components", "point_basis", "transfer"]}
+    else:
+        expected = {prefix + "MemberRankPublicSetting.maintain_line: type changed"}
+        expected |= {prefix + schema + ": required field added: " + field
+                     for schema in ["MyMemberRankEnabled", "MyMemberRankDisabled"]
+                     for field in ["breakdown", "point_basis", "promotion_bonus", "transferred"]}
+        for field, properties in {"period": ["month", "resets_at"], "maintain": ["achieved", "line", "remaining"],
+                                  "demotion_protection": ["guaranteed_until", "remaining_judgments"]}.items():
+            path = prefix + "MyMemberRankEnabled." + field
+            expected.add(path + ": type changed")
+            expected |= {path + ": property removed: " + name for name in properties}
+            if current["components"]["schemas"]["MyMemberRankEnabled"]["properties"][field] != {"type": "null"}:
+                return False
+    return set(breaking_changes(previous, current)) == expected
+
+
 def validate_generated(
     repository: Path,
     generated: dict[str, Path],
@@ -773,7 +803,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document) and not is_authorized_univapay_inline_extension(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document) and not is_authorized_univapay_inline_extension(surface, previous, document) and not is_authorized_member_rank_cumulative_break(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

@@ -101,18 +101,18 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
-    public function test_current_month_reversal_recovers_promotion_and_allows_only_future_reachievement(): void
+    public function test_current_month_reversal_preserves_rank_bonus_and_lifetime_entitlement(): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
         $payment = $this->settleRankPayment($user, 10000);
         $result = $this->chargeback($payment);
-        self::assertSame(500, $result['data']['impact']['rank_adjustment']['recoveries'][0]['recovered_amount']);
-        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 1]);
-        self::assertDatabaseHas('member_rank_entitlements', ['user_id' => $user->id, 'level' => 2, 'achievement_id' => null]);
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 0, 'paid_balance' => 0]);
+        self::assertSame([], $result['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertDatabaseHas('member_rank_states', ['user_id' => $user->id, 'level' => 2]);
+        self::assertNotNull(DB::table('member_rank_entitlements')->where('user_id', $user->id)->where('level', 2)->value('achievement_id'));
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 500, 'paid_balance' => 0]);
         $this->settleRankPayment($user, 10000);
-        self::assertSame(2, DB::table('member_rank_achievements')->where('user_id', $user->id)->where('level', 2)->count());
+        self::assertSame(1, DB::table('member_rank_achievements')->where('user_id', $user->id)->where('level', 2)->count());
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -193,8 +193,8 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         self::assertSame(0, $result['data']['impact']['shortfall_free_amount']);
         self::assertSame(4170, (int) DB::table('point_lots')->whereIn('id', $expiredIds)->sum('remaining_amount'));
         self::assertSame(0, DB::table('point_ledger_entries')->whereIn('point_lot_id', $expiredIds)->where('entry_type', 'reverse')->count());
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => 270,
-            'paid_reserved_balance' => 1000, 'free_reserved_balance' => 100]);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 5000, 'free_balance' => 275,
+            'paid_reserved_balance' => 1000, 'free_reserved_balance' => 105]);
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -222,6 +222,63 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         self::assertSame([], $result['data']['impact']['rank_adjustment']['recoveries']);
         self::assertSame($revision + ($remaining > 0 ? 1 : 0), (int) DB::table('member_rank_states')->where('user_id', $user->id)->value('revision'));
         self::assertDatabaseHas('member_rank_point_entries', ['origin_payment_id' => $payment->id, 'requested_delta' => -4000, 'applied_delta' => -$remaining]);
+        DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
+    }
+
+    public static function signedRefundMonths(): array
+    {
+        return [['complete', false], ['complete', true], ['chargeback', false], ['chargeback', true]];
+    }
+
+    #[DataProvider('signedRefundMonths')]
+    public function test_refund_debits_cumulative_points_even_when_original_month_is_negative(string $operation, bool $past): void
+    {
+        $this->enableRankFixture();
+        $user = $this->rankUser();
+        $this->settleRankPayment($user, 30000);
+        $this->rankClock('2026-11-02T00:00:00Z');
+        $payment = $this->settleRankPayment($user, 10000, 100);
+        $admin = $this->rankAdmin();
+        $ranks = app(V2MemberRankAdminService::class);
+        $input = ['delta' => -20000, 'reason' => 'Synthetic signed month regression'];
+        $preview = $ranks->preview($admin, $user->public_id, 'points', $input);
+        $ranks->write($admin, $user->public_id, 'points', [...$input,
+            'expected_revision' => $preview['expected_revision'], 'preview_token' => $preview['preview_token']], (string) Str::uuid7());
+        $points = app(\App\Domain\MemberRank\Services\V2MemberRankCumulativePoints::class);
+        self::assertSame(20000, $points->total($user->id));
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => -10000]);
+        $level = DB::table('member_rank_states')->where('user_id', $user->id)->value('level');
+        $achievements = DB::table('member_rank_achievements')->where('user_id', $user->id)->count();
+        if ($past) {
+            $this->rankClock('2026-12-02T00:00:00Z');
+            $admin = $this->rankAdmin();
+        }
+        $service = app(V2AdminPaymentAdjustmentService::class);
+        $adjustmentId = null;
+        if ($operation === 'complete') {
+            $prepared = $service->write($admin, $payment->public_id, 'refund', ['reason' => 'Synthetic refund'], (string) Str::uuid7());
+            $adjustmentId = $prepared['data']['id'];
+        }
+        $key = (string) Str::uuid7();
+        $payload = ['reason' => 'Synthetic completion', ...($operation === 'complete' ? ['provider_refund_confirmed' => true] : [])];
+        $result = $service->write($admin, $payment->public_id, $operation, $payload, $key, $adjustmentId);
+        self::assertSame(10000, $result['data']['impact']['rank_adjustment']['applied_points']);
+        self::assertSame([], $result['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertSame(10000, $points->total($user->id));
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-10-01', 'points' => 30000]);
+        self::assertDatabaseHas('member_rank_month_totals', ['user_id' => $user->id, 'month' => '2026-11-01', 'points' => -20000]);
+        self::assertDatabaseHas('member_rank_point_entries', ['origin_payment_id' => $payment->id,
+            'reason' => 'payment_adjustment', 'month' => '2026-11-01', 'requested_delta' => -10000, 'applied_delta' => -10000,
+            'cumulative_balance_before' => 20000]);
+        self::assertSame((int) $level, (int) DB::table('member_rank_states')->where('user_id', $user->id)->value('level'));
+        self::assertSame($achievements, DB::table('member_rank_achievements')->where('user_id', $user->id)->count());
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertSame(100, $result['data']['impact']['purchase_bonus']['reversed_amount']);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 30000, 'free_balance' => 2500,
+            'paid_reserved_balance' => 0, 'free_reserved_balance' => 0]);
+        $service->write($admin, $payment->public_id, $operation, $payload, $key, $adjustmentId);
+        self::assertSame(10000, $points->total($user->id));
+        self::assertSame(1, DB::table('member_rank_point_entries')->where('origin_payment_id', $payment->id)->where('reason', 'payment_adjustment')->count());
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -268,7 +325,7 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
     }
 
     #[DataProvider('manualBonuses')]
-    public function test_manual_rank_direct_bonus_is_preserved_but_self_reach_bonus_is_recovered(bool $grant): void
+    public function test_manual_and_self_reach_promotion_bonuses_are_preserved(bool $grant): void
     {
         $this->enableRankFixture();
         $user = $this->rankUser();
@@ -282,8 +339,8 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         $result = $this->chargeback($payment);
         self::assertSame('bronze', $result['data']['impact']['rank_adjustment']['before_rank']);
         self::assertSame('bronze', $result['data']['impact']['rank_adjustment']['after_rank']);
-        self::assertCount($grant ? 0 : 1, $result['data']['impact']['rank_adjustment']['recoveries']);
-        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => $grant ? 500 : 0]);
+        self::assertCount(0, $result['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 500]);
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -387,7 +444,7 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
     public static function rollbackStages(): array
     {
         return [['point_ledger_entries', 'INSERT'], ['member_rank_point_entries', 'INSERT'],
-            ['member_rank_bonus_recoveries', 'INSERT'], ['payment_adjustments', 'UPDATE'], ['outbox_messages', 'INSERT']];
+            ['member_rank_payment_adjustments', 'INSERT'], ['payment_adjustments', 'UPDATE'], ['outbox_messages', 'INSERT']];
     }
 
     public static function recoveryBalances(): array
@@ -396,7 +453,7 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
     }
 
     #[DataProvider('recoveryBalances')]
-    public function test_payment_cancellation_precedes_recovery_and_partial_recovery_retains_entitlement(
+    public function test_payment_cancellation_preserves_every_remaining_promotion_bonus_balance(
         int $balance
     ): void {
         $this->enableRankFixture();
@@ -409,10 +466,9 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         $result = $this->chargeback($payment);
         self::assertSame(150, $result['data']['impact']['reversed_free_from_free']);
         self::assertSame(0, $result['data']['impact']['reversed_paid_shortage_from_free']);
-        self::assertSame($balance, $result['data']['impact']['rank_adjustment']['recoveries'][0]['recovered_amount']);
-        self::assertSame(500 - $balance, $result['data']['impact']['rank_adjustment']['recoveries'][0]['shortfall_amount']);
-        self::assertSame($balance === 500,
-            DB::table('member_rank_entitlements')->where('user_id', $user->id)->where('level', 2)->value('achievement_id') === null);
+        self::assertSame([], $result['data']['impact']['rank_adjustment']['recoveries']);
+        self::assertSame($balance, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
+        self::assertNotNull(DB::table('member_rank_entitlements')->where('user_id', $user->id)->where('level', 2)->value('achievement_id'));
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 
@@ -507,7 +563,7 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
             ->delete(), 'immutable');
     }
 
-    public function test_zero_promotion_bonus_releases_entitlement_without_a_point_operation(): void
+    public function test_zero_promotion_bonus_keeps_consumed_entitlement_without_regrant(): void
     {
         $this->enableRankFixture();
         $settings = app(\App\Domain\MemberRank\Services\V2MemberRankSettingsService::class);
@@ -520,11 +576,10 @@ final class MemberRankPaymentAdjustmentTest extends TestCase
         $user = $this->rankUser();
         $payment = $this->settleRankPayment($user, 10000);
         $this->chargeback($payment);
-        self::assertDatabaseHas('member_rank_bonus_recoveries', ['user_id' => $user->id,
-            'requested_amount' => 0, 'recovered_amount' => 0, 'shortfall_amount' => 0, 'point_operation_id' => null]);
-        self::assertDatabaseHas('member_rank_entitlements', ['user_id' => $user->id, 'level' => 2, 'achievement_id' => null]);
+        self::assertSame(0, DB::table('member_rank_bonus_recoveries')->where('user_id', $user->id)->count());
+        self::assertNotNull(DB::table('member_rank_entitlements')->where('user_id', $user->id)->where('level', 2)->value('achievement_id'));
         $this->settleRankPayment($user, 10000);
-        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'generation' => 2, 'bonus_amount' => 0]);
+        self::assertDatabaseHas('member_rank_achievements', ['user_id' => $user->id, 'generation' => 1, 'bonus_amount' => 0]);
         DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
     }
 

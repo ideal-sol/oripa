@@ -62,7 +62,7 @@ final class V2MemberRankCorrectionService
             throw new \LogicException('Member rank increase requires a positive entry.');
         }
         $state = DB::table('member_rank_states')->where('user_id', $userId)->firstOrFail();
-        $total = (int) DB::table('member_rank_month_totals')->where('user_id', $userId)->where('month', $entry->month)->value('points');
+        $total = app(V2MemberRankCumulativePoints::class)->total($userId);
         $reached = $this->reachedLevel($total, $version);
         if ($reached > (int) $state->level) {
             $this->change($userId, $entryId, $state, $reached, 'promotion', $total, $version, $instant);
@@ -72,6 +72,18 @@ final class V2MemberRankCorrectionService
     }
 
     public function applyDecrease(int $userId, int $entryId, array $version, CarbonImmutable $instant): array
+    {
+        $entry = $this->entry($userId, $entryId);
+        if ((int) $entry->applied_delta >= 0) {
+            throw new \LogicException('Member rank decrease requires a negative entry.');
+        }
+
+        // Point corrections never lower rank or reclaim promotion bonuses.
+        return [];
+    }
+
+    /** Retained historical correction logic, never called by live flows. */
+    private function applyLegacyDecrease(int $userId, int $entryId, array $version, CarbonImmutable $instant): array
     {
         $entry = $this->entry($userId, $entryId);
         if ((int) $entry->applied_delta >= 0 || $entry->month !== $instant->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString()) {
@@ -124,7 +136,7 @@ final class V2MemberRankCorrectionService
     {
         DB::table('member_rank_changes')->insert([
             'user_id' => $userId, 'from_level' => $state->level, 'to_level' => $level, 'reason' => $reason,
-            'month' => $state->baseline_month, 'rank_points' => $total, 'setting_revision' => $version['revision'],
+            'month' => $this->entry($userId, $entryId)->month, 'rank_points' => $total, 'setting_revision' => $version['revision'],
             'point_entry_id' => $entryId, 'occurred_at' => V2DatabaseTimestamp::format($instant),
         ]);
         DB::table('member_rank_states')->where('user_id', $userId)->update(['level' => $level]);

@@ -60,6 +60,8 @@ describe("AdminAuthenticationSettings", () => {
   it("updates invitation policy without a password and preserves the MFA toggle", async () => {
     render(<AdminAuthenticationSettings />);
 
+    // Let the scheduled load complete before the expensive accessibility query.
+    await waitFor(() => expect(api.getAuthenticationPolicy).toHaveBeenCalledOnce());
     expect(await screen.findByRole("heading", { name: "ログイン要件" })).toBeInTheDocument();
     expect(screen.getAllByText("1人", { selector: "dd" })).toHaveLength(2);
     fireEvent.click(screen.getByRole("checkbox", { name: "招待トークンを必須にする" }));
