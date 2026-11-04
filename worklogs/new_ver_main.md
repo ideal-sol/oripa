@@ -12900,6 +12900,27 @@ Focused authority tests41 PASS after initial local fixture corrections.
 - Policy suite344 PASS after correction. Reuse prior release105/OpenAPI77/source-validator/generated and behavioral PASS evidence because all related Source/test bytes are unchanged. No additional Build/full application suite/performance test. Logged-in Browser/E2E belongs to Human and is NOT_RUN; earlier component/UI PASS remains separate.
 - Immutable alpha.49/all29 history records, pending alpha.50 metadata, Migration000105, contracts, feature implementation and Workflows are byte-identical to the previous head. No Artifact/Runtime/operational Migration action or Release Lock needed. Focused scope/secret/whitespace review passes; final-head machine-readable review and automatic Required CI results are recorded in the PR.
 - Stop Draft regardless of CI result. No Ready, merge, force/main push, manual CI rerun/dispatch, Artifact publication or OLD Test/Production activation. Dedicated branch/worktree retained; no lock held. Current Task is limited to two-line Fixture correction plus this Worklog record.
+
+## OLDTEST-20261104 — OLD Test speed priority v1.1
+
+- Human instruction: persist total-time minimization through Technical PASS,
+  including HOLD/rework/recovery; relevant read-only preflight, evidence reuse,
+  focused/batched approved fixes, unchanged mandatory gates and approved state.
+- Issue none; Risk R2; Lane Strict Change; Activation none. Base
+  b220f5c5c61223cdb8c2a36bec4d559ca0df0796. Dedicated Worktree isolates the
+  unrelated dirty primary Worklog; exact scope AGENTS.md and this log.
+- Source, Migration, Contract, Workflow, ENV, other Repository and Runtime changes
+  excluded. Migrations created/applied 0; Build 0; Runtime Activation 0.
+- Validation: diff/whitespace, policy and added text secret/PII review; automatic
+  CI and final-head machine-readable self-review recorded in PR. Backend/Frontend/
+  Browser/E2E/build not run: documentation only. No manual CI rerun planned.
+- Stop after PR, automatic CI and self-review; squash merge requires separate
+  Human approval. Retain task branch/Worktree until approved merge. Rollback:
+  revert this documentation change via PR; no Runtime recovery required.
+- PR #658: local policy-gate, diff whitespace, scope/secret/PII review PASS.
+  Initial automatic CI failed on PR UI Verification metadata; corrected to
+  NOT_APPLICABLE and local PR metadata validation PASS. This record update
+  triggers automatic final-head checks; no manual rerun or gate changes.
 ## BANNER-MODEL-20261104 — CSV model numbers / shipping detail (2026-11-04)
 
 - Human authorizes implementation, isolated verification, commit/push and Draft PR only. Issue none; R3 / Strict Change / deferred. Base `db89dd7e4ae74bfa7fc88e28a63c0ddcb46a999a`; PR657 merged confirmed. Dedicated `feat/BANNER-MODEL-20261104` worktree protects the unrelated dirty primary checkout. Exact-path Task Policy is used for canonical App transport, with no Ready/Merge permission. No active source collision identified; Source Lock none.
@@ -12914,3 +12935,11 @@ Focused authority tests41 PASS after initial local fixture corrections.
 - Bounded delivery blocker: the legacy Task ID pattern rejected this explicitly authorized compound ID. Added only exact BANNER-MODEL-20261104 to the existing exception set, with positive/near-match rejection regression PASS. No general pattern, permission or check weakened. Policy local tests total 259.
 - Initial Draft CI policy failed because the new shipping browser test was absent from the exact Admin file inventory. Registered that exact test path and added current tracked-tree validation to the Change regression. Other gates were skipped by dependency; no bypass. Corrected head re-runs normal Required CI. Runtime remains deferred.
 - Second CI quality check found the generated Admin contract fingerprint stale: generation had preceded completion of bundle generation. Re-executed the canonical generator after the bundle; only its SHA-256 comment changed and generate:check now PASS. The earlier pending local generate:check was incorrectly summarized as PASS; this entry corrects that record. Final head receives normal CI again; no application behavior or assertions changed.
+
+
+## BANNER-MODEL-20261104 — PR659 Draft main integration
+
+- Human authorizes latest-main integration and conflict resolution only; reuse existing branch/worktree, R3 / Strict Change / deferred, Issue none. Fetch confirmed main cc2eacc1967e015969c98de936a185776e409f44 and prior head5ec305d4c9f059da3c15b22b3dcfc1dce4d2d87c; worktree was clean.
+- Normal no-force merge; only Worklog conflicted. Preserve both append-only histories byte-for-byte and retain PR658 AGENTS.md exactly from main. All feature Source, Migration000106, OpenAPI, generator and generated artifacts remain byte-identical to prior tested head. No specification change or new implementation defect identified.
+- Focused validation: parent-delta/path identity, both Worklog histories, current-main AGENTS identity, whitespace/conflict-marker/secret review and local policy gate. Reuse prior applicable behavioral validation by identical Source bytes; no local all-suite rerun or added Build. Automatic Required CI and fresh exact-head review are recorded on Draft659 after push; prior base-drift finding is resolved by integration.
+- Migration000106 remains reserved by this Draft; no new allocation, migration creation or application. No Source/Migration lock needed for this documentation-only integration. Branch/worktree retained. No manual CI rerun/dispatch, Ready, merge to main, auto-merge, Runtime/ENV/Worker/Timer, OLD Test/NEW Production or Release action. Additional local Build0 and Runtime Activation0.

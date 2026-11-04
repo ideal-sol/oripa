@@ -176,6 +176,40 @@ judgments remain human decisions.
 - Do not expose Admin, provider, probability-internal, secret, or infrastructure
   data through Public contracts.
 
+## OLD Test Speed Priority
+
+- Minimize total elapsed time from investigation through Runtime activation and
+  Technical PASS, including preparation, dependency/artifact checks, Canonical
+  Prepare/dry-run, switch, health/acceptance, HOLD, fixes, re-preparation, Human
+  clarification, recovery, and retries. Optimize completed Technical PASS, not
+  merely GO READY or verification duration. Omitting necessary checks and causing
+  HOLD or rework violates this priority.
+- Treat all OLD Test data as test data, distinct from commercial Production data.
+  Do not add Production-equivalent reviews, audits, or protections. Preserve all
+  existing Governance, Canonical Release Gate, Required Checks, Source/Artifact
+  Identity, Security Gate, and Runtime GO requirements without bypass.
+- Reuse applicable successful artifacts, CI, verification evidence, and proven
+  Canonical procedures after confirming validity and identity. Avoid redundant
+  builds, tests, manual CI reruns, and additional audits; prefer focused checks.
+- Before Canonical Prepare or Runtime GO, use source differences, Runtime scope,
+  and prior HOLD history to select sufficient relevant checks, preferably
+  read-only. Consider Source/Tree/Artifact/Image identity, Candidate/Envelope
+  validity/reusability, Executor Task/service support, Compose/container ENV,
+  Docker inspect Mounts ordering, Storefront dependency ownership/readability,
+  systemd unit/User/Port, Client/Testkit/API Contract compatibility, Migration
+  Ledger/planned application, and Worker/Timer preservation/recovery. Audit only
+  relevant items; prefer a small preflight that prevents HOLD over repeated
+  recovery.
+- Identify root causes and impact together; batch minor fixes within approved
+  scope, focused verification, and re-preparation to permit one fresh
+  Candidate/Envelope generation where possible. Confirm mandatory conditions
+  before switching Runtime and consolidate related required Human approvals.
+  Avoid one-at-a-time HOLD cycles, new frameworks, or large Executor redesigns.
+- Preserve Human-approved feature switches, payment Provider, ENV, Workers,
+  Timers, and operating state according to measured state and latest Human
+  instructions. Never infer authorization for Runtime/ENV changes, migrations,
+  or financial operations, or disable a Canonical gate to avoid HOLD.
+
 ## Task Start Procedure
 
 For NEW Production release work, first read the
