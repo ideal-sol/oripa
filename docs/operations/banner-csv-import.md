@@ -1,5 +1,24 @@
 # Banner CSV import: F2-B Source / deferred activation
 
+## Model numbers — BANNER-MODEL-20261104
+
+The optional `型番` header (including configured aliases) stores an Admin-only
+model number. NFC normalization and surrounding whitespace removal precede the
+64-character limit; control characters and angle brackets are rejected with
+`MODEL_NUMBER_INVALID`. Duplicate model numbers across management IDs are allowed.
+Omitting the column preserves existing values; an empty cell explicitly clears
+the value. New banners default to NULL. Model-only updates produce `updated`
+and an existing banner audit with before/after values, without a content version.
+Ordinary banner create/edit input does not accept model numbers.
+
+Failure CSV includes `型番` only when the original import had the column, and
+exports its normalized value (Human clarification 2026-11-04). Image URLs remain
+blank and formula escaping remains active. No raw-input storage is added.
+Shipping detail shows current catalog management ID and current non-archived
+banner model number alongside the draw-time image. Delivery CSV formats and
+Public contracts remain unchanged. Migration 000106 and runtime activation are
+deferred; this Source change authorizes only isolated synthetic verification.
+
 Authority: `BANNERCSV_F2B_HUMAN_SPEC_APPROVED_20261013`,
 `BANNERCSV_F2B_SOURCE_IMPLEMENTATION_GO_20261013`, superseded only for row limit
 and automatic deletion by

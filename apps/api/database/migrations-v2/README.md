@@ -1,5 +1,14 @@
 # V2 Migration Root
 
+## Banner model numbers (000106)
+
+`2026_11_04_000106_add_v2_banner_model_numbers.php` is allocated to
+`BANNER-MODEL-20261104` under the Migration Allocation Lock. It adds nullable
+64-character model numbers to banners and import rows, plus a false-default
+column-presence flag. No backfill, index, unique constraint or version data.
+Only isolated synthetic test application is authorized. Retain additive schema
+on application rollback; `down()` refuses. Runtime application remains deferred.
+
 ## Exchange-only prizes (000105)
 
 `2026_11_04_000105_add_v2_exchange_only_prizes.php` is allocated to

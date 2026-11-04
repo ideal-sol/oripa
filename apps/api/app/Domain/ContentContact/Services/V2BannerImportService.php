@@ -105,16 +105,21 @@ final class V2BannerImportService
     public function failureCsv(V2AdminAuthorizationContext $context, string $publicId): string
     {
         $job = $this->show($context, $publicId);
+        $modelNumberProvided = DB::table('content_banner_import_rows')
+            ->where('job_id', DB::table('content_banner_import_jobs')->select('id')->where('public_id', $publicId))
+            ->where('model_number_provided', true)->exists();
         $stream = fopen('php://temp', 'w+');
         try {
             $rows = [];
             foreach ($job['rows'] as $row) {
                 if ($row['status'] === 'failed') {
                     $rows[] = ['管理ID' => $row['external_id'], 'タイトル' => $row['title'], '画像URL' => '',
-                        'カテゴリ' => $row['category'], '失敗理由' => $row['error_code']];
+                        'カテゴリ' => $row['category'],
+                        ...($modelNumberProvided ? ['型番' => $row['model_number']] : []),
+                        '失敗理由' => $row['error_code']];
                 }
             }
-            app(V2CsvWriter::class)->write($stream, ['管理ID', 'タイトル', '画像URL', 'カテゴリ', '失敗理由'], $rows);
+            app(V2CsvWriter::class)->write($stream, ['管理ID', 'タイトル', '画像URL', 'カテゴリ', ...($modelNumberProvided ? ['型番'] : []), '失敗理由'], $rows);
             rewind($stream);
             return stream_get_contents($stream);
         } finally {
@@ -130,7 +135,7 @@ final class V2BannerImportService
             throw new V2ContentContactException('BANNER_IMPORT_NOT_FOUND', 404, '取込履歴が見つかりません。');
         }
         $rows = DB::table('content_banner_import_rows')->where('job_id', $job->id)->orderBy('row_number')
-            ->get(['row_number', 'external_id', 'title', 'category_name', 'status', 'result', 'error_code']);
+            ->get(['row_number', 'external_id', 'title', 'model_number', 'category_name', 'status', 'result', 'error_code']);
         return ['id' => $job->public_id, 'status' => $job->status, 'total' => (int) $job->total,
             'processed' => $rows->whereIn('status', ['completed', 'failed'])->count(),
             'created' => $rows->where('result', 'created')->count(), 'updated' => $rows->where('result', 'updated')->count(),
@@ -139,6 +144,7 @@ final class V2BannerImportService
             'completed_at' => $job->completed_at === null ? null : CarbonImmutable::parse($job->completed_at)->toIso8601String(),
             'rows' => $includeRows ? $rows->map(static fn (object $row): array => [
                 'row' => (int) $row->row_number, 'external_id' => $row->external_id, 'title' => $row->title,
+                'model_number' => $row->model_number,
                 'category' => $row->category_name, 'status' => $row->status, 'result' => $row->result, 'error_code' => $row->error_code,
             ])->all() : []];
     }

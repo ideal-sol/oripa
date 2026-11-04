@@ -1431,10 +1431,17 @@ final class V2PrizeShippingService
         return DB::table('shipping_request_items as item')
             ->join('user_prizes as ownership', 'ownership.id', '=', 'item.user_prize_id')
             ->join('draw_results as result', 'result.id', '=', 'ownership.draw_result_id')
+            ->leftJoin('catalog_gacha_version_prizes as version_prize', 'version_prize.id', '=', 'ownership.gacha_version_prize_id')
+            ->leftJoin('catalog_prizes as catalog_prize', 'catalog_prize.id', '=', 'version_prize.prize_id')
+            ->leftJoin('content_banners as banner', function ($join): void {
+                $join->on('banner.external_id', '=', 'catalog_prize.external_id')->where('banner.status', '<>', 'archived');
+            })
             ->whereIn('item.shipping_request_id', $shippingRequestIds)
             ->orderBy('item.id')
             ->get([
                 'item.shipping_request_id',
+                'catalog_prize.external_id',
+                'banner.model_number',
                 'ownership.public_id as user_prize_id',
                 'result.display_snapshot',
             ])
@@ -1457,6 +1464,11 @@ final class V2PrizeShippingService
 
                 return [
                     'shipping_request_id' => (int) $item->shipping_request_id,
+                    'external_id' => $item->external_id,
+                    'model_number' => $item->model_number,
+                    'image' => V2AdminPrizeSnapshotAsset::fromSnapshot(
+                        is_array($prize['presentation_asset'] ?? null) ? $prize['presentation_asset'] : null
+                    ),
                     'user_prize_id' => (string) $item->user_prize_id,
                     'product_id' => $prize['id'],
                     'name' => $prize['name'],
@@ -1468,6 +1480,9 @@ final class V2PrizeShippingService
                     'user_prize_id' => $item['user_prize_id'],
                     'product_id' => $item['product_id'],
                     'name' => $item['name'],
+                    'external_id' => $item['external_id'],
+                    'model_number' => $item['model_number'],
+                    'image' => $item['image'],
                 ]
             ));
     }

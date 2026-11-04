@@ -1407,6 +1407,47 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame($inventory, DB::table('prize_inventories')->sum('available_quantity'));
     }
 
+    public function test_shipping_models_are_current_and_assets_are_snapshots_without_per_item_queries(): void
+    {
+        [$user, $prizes] = $this->fixture(10);
+        $service = app(V2PrizeShippingService::class);
+        $address = $service->createAddress($user, $this->address(), (string) Str::uuid7());
+        $shipping = $service->createShippingRequest($user, $address['id'], $prizes, (string) Str::uuid7(), (string) Str::uuid7());
+        $admin = $this->admin();
+        $read = fn (): array => $service->adminShippingDetail($admin, $shipping['id'], (string) Str::uuid7());
+        $before = $read();
+        $csvBefore = $service->adminShippingCsvRows($admin, [$shipping['id']], (string) Str::uuid7());
+        self::assertCount(10, $before['items']);
+        self::assertNull($before['items'][0]['external_id']);
+        self::assertNull($before['items'][0]['model_number']);
+        $snapshot = json_decode(DB::table('draw_results')->orderBy('id')->value('display_snapshot'), true);
+        self::assertNotNull($snapshot['prize']['presentation_asset']);
+        self::assertSame(\App\Domain\PrizeShipping\Services\V2AdminPrizeSnapshotAsset::fromSnapshot($snapshot['prize']['presentation_asset'] ?? null), $before['items'][0]['image']);
+        DB::table('catalog_prizes')->update(['external_id' => 'CURRENT-1', 'revision' => DB::raw('revision + 1')]);
+        self::assertSame('CURRENT-1', $read()['items'][0]['external_id']);
+        self::assertNull($read()['items'][0]['model_number']);
+        DB::table('content_banners')->insert([
+            'public_id' => (string) Str::uuid7(), 'code' => 'synthetic-model', 'external_id' => 'CURRENT-1',
+            'model_number' => 'MODEL-1', 'status' => 'draft', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $after = $read();
+        $queries = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'shipping_request_items') && str_contains($query['query'], 'version_prize'));
+        DB::disableQueryLog();
+        self::assertCount(1, $queries);
+        self::assertSame('MODEL-1', $after['items'][0]['model_number']);
+        self::assertSame($csvBefore, $service->adminShippingCsvRows($admin, [$shipping['id']], (string) Str::uuid7()));
+        self::assertSame($before['items'][0]['image'], $after['items'][0]['image']);
+        self::assertSame($before['items'][0]['name'], $after['items'][0]['name']);
+        DB::table('content_banners')->update(['model_number' => 'MODEL-2']);
+        self::assertSame('MODEL-2', $read()['items'][0]['model_number']);
+        DB::table('content_banners')->update(['status' => 'archived']);
+        self::assertNull($read()['items'][0]['model_number']);
+        self::assertNull(\App\Domain\PrizeShipping\Services\V2AdminPrizeSnapshotAsset::fromSnapshot(null));
+        self::assertNull(\App\Domain\PrizeShipping\Services\V2AdminPrizeSnapshotAsset::fromSnapshot([]));
+    }
+
     private function fixture(int $prizeCount, int $exchangePoints = 8000, bool $shippingOnly = false, bool $uniformPoints = false, bool $mixedGachas = false, bool $exchangeOnly = false): array
     {
         $fixture = json_decode(

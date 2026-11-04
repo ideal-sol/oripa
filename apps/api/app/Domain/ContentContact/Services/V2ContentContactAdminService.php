@@ -557,6 +557,7 @@ final class V2ContentContactAdminService
                 'code' => 'banner-'.str_replace('-', '', $publicId),
                 'external_id' => $payload['external_id'] ?? null,
                 'exchange_only' => $payload['exchange_only'] ?? false,
+                'model_number' => $context instanceof V2BannerImportExecution ? $context->row->model_number : null,
                 'status' => 'draft',
                 'created_at' => V2DatabaseTimestamp::format($now),
                 'updated_at' => V2DatabaseTimestamp::format($now),
@@ -577,6 +578,10 @@ final class V2ContentContactAdminService
                 'external_id_after' => $payload['external_id'] ?? null,
                 'exchange_only_before' => null,
                 'exchange_only_after' => $payload['exchange_only'] ?? false,
+                ...($context instanceof V2BannerImportExecution ? [
+                    'model_number_before' => null,
+                    'model_number_after' => $context->row->model_number,
+                ] : []),
             ]);
             $result = $this->managedBannerByPublicId($publicId);
             $this->completeBannerMutation($claim, 'content_banner', $publicId, $result, 201);
@@ -2409,27 +2414,33 @@ final class V2ContentContactAdminService
         if ($replace && $row->asset_public_id === null) {
             throw $this->conflict('BANNER_IMPORT_ASSET_STATE_INVALID');
         }
-        if ($latest->title === $row->title && (int) $latest->banner_category_id === (int) $row->category_id && ! $replace) {
+        $modelNumber = $row->model_number_provided ? $row->model_number : $parent->model_number;
+        $versionChanged = $latest->title !== $row->title || (int) $latest->banner_category_id !== (int) $row->category_id || $replace;
+        if (! $versionChanged && $modelNumber === $parent->model_number) {
             return ['id' => $parent->public_id, 'result' => 'unchanged'];
         }
         $claim = $this->claimBannerMutation($execution->admin, $key, [
             'action' => 'banner.import', 'row_id' => $row->public_id,
+            'model_number' => $row->model_number, 'model_number_provided' => (bool) $row->model_number_provided,
             'external_id' => $row->external_id, 'title' => $row->title, 'category_id' => $category->public_id,
             'image_sha256' => $row->image_sha256,
         ]);
         if ($claim->replay) {
             return ['id' => $parent->public_id, 'result' => 'updated'];
         }
-        $version = $this->createVersionRow('banner', 'banner_id', (int) $parent->id, (int) $latest->version_number + 1, [
+        $version = $versionChanged ? $this->createVersionRow('banner', 'banner_id', (int) $parent->id, (int) $latest->version_number + 1, [
             'title' => $row->title, 'category_id' => $category->public_id,
             'asset_id' => $replace ? $row->asset_public_id : $asset->public_id,
             'link_url' => $latest->link_url, 'show_on_top' => (bool) $latest->show_on_top,
             'sort_order' => (int) $latest->sort_order,
             'publish_start_at' => $latest->publish_start_at, 'publish_end_at' => $latest->publish_end_at,
-        ], $execution->admin);
-        DB::table('content_banners')->where('id', $parent->id)->update(['updated_at' => V2DatabaseTimestamp::format(now())]);
+        ], $execution->admin) : ['id' => $latest->public_id];
+        DB::table('content_banners')->where('id', $parent->id)->update([
+            'model_number' => $modelNumber, 'updated_at' => V2DatabaseTimestamp::format(now()),
+        ]);
         $this->auditContent('content.banner_updated', $execution, 'banner', $parent->public_id, [
             'version_public_id' => $version['id'], 'import_id' => $execution->job->public_id,
+            'model_number_before' => $parent->model_number, 'model_number_after' => $modelNumber,
             'row_id' => $row->public_id,
         ]);
         $result = ['id' => $parent->public_id, 'result' => 'updated'];

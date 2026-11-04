@@ -3,7 +3,10 @@ import { expect, test } from "@playwright/test";
 test("synthetic Banner import acceptance, progress and redacted failures", async ({ page }) => {
   const category = "00000000-0000-4000-8000-000000000001";
   const job = { id: "00000000-0000-4000-8000-000000000002", status: "completed", total: 2, processed: 2,
-    created: 1, updated: 0, unchanged: 0, failed: 1, rows: [], created_at: "2026-10-11T00:00:00Z", completed_at: "2026-10-11T00:00:01Z" };
+    created: 1, updated: 0, unchanged: 0, failed: 1, rows: [
+      { row: 2, external_id: "CARD-1", title: "商品1", model_number: "MODEL-1", category: "カード", status: "completed", result: "created", error_code: null },
+      { row: 3, external_id: "CARD-2", title: "商品2", model_number: null, category: "カード", status: "failed", result: "failed", error_code: "SYNTHETIC_FAILURE" },
+    ], created_at: "2026-10-11T00:00:00Z", completed_at: "2026-10-11T00:00:01Z" };
   let requests = 0;
   await page.addInitScript(() => Object.defineProperty(Document.prototype, "cookie", {
     configurable: true, get: () => `__Host-oripa_admin_xsrf=${"a".repeat(64)}`, set: () => undefined,
@@ -33,6 +36,9 @@ test("synthetic Banner import acceptance, progress and redacted failures", async
   await expect(page.getByLabel("既存画像を再取得する")).not.toBeChecked();
   await page.getByRole("button", { name: "CSVを取り込む" }).click();
   await expect(page.getByText("新規 1 / 更新 0 / 変更なし 0 / 失敗 1")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "型番" })).toBeVisible();
+  await expect(page.getByText("MODEL-1")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "-", exact: true })).toBeVisible();
   await expect(page.getByText(/新しい署名付きURLを取得・再入力/)).toBeVisible();
   expect(requests).toBe(1);
 });

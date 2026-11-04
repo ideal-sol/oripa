@@ -25768,6 +25768,13 @@
           "error_code"
         ],
         "properties": {
+          "model_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
           "row": {
             "type": "integer",
             "minimum": 2
@@ -28573,6 +28580,33 @@
           "name"
         ],
         "properties": {
+          "external_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64,
+            "description": "Current catalog prize management ID, not the draw-time snapshot."
+          },
+          "model_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64,
+            "description": "Current non-archived banner model number, not the draw-time snapshot."
+          },
+          "image": {
+            "description": "Prize image from the draw-time presentation snapshot.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminCatalogAssetReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "user_prize_id": {
             "$ref": "#/components/schemas/OpaqueId"
           },

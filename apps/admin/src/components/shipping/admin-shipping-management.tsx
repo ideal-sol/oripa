@@ -14,6 +14,7 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
+import { PublicAssetPreview } from "@/components/catalog/public-asset-preview";
 import {
   AdminApiClient,
   AdminApiError,
@@ -468,8 +469,8 @@ export function AdminShippingDetail({ shippingRequestId }: { shippingRequestId: 
         <div className="admin-user-prize-detail-heading"><div><h2 id="shipping-items-heading">配送対象商品</h2><p>{items.length}商品を同一配送で処理します。</p></div></div>
         <div className="admin-user-prize-table-region" tabIndex={0}>
           <table className="admin-user-prize-history-table">
-            <thead><tr><th>商品名</th><th>商品ID</th><th>保有景品ID</th></tr></thead>
-            <tbody>{items.map((item) => <tr key={item.user_prize_id}><td>{item.name}</td><td><code>{item.product_id}</code></td><td><code>{item.user_prize_id}</code></td></tr>)}</tbody>
+            <thead><tr><th>画像</th><th>商品名</th><th>管理ID</th><th>型番</th><th>商品ID</th><th>保有景品ID</th></tr></thead>
+            <tbody>{items.map((item) => <tr key={item.user_prize_id}><td><div className="admin-user-prize-thumbnail"><PublicAssetPreview asset={item.image ?? null} /></div></td><td>{item.name}</td><td><code>{item.external_id ?? "-"}</code></td><td><code>{item.model_number ?? "-"}</code></td><td><code>{item.product_id}</code></td><td><code>{item.user_prize_id}</code></td></tr>)}</tbody>
           </table>
         </div>
       </section>
