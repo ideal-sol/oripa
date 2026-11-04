@@ -12779,3 +12779,19 @@ Source CI first attempt failed because ALPHA49-20261104 was outside the existing
 Change-ID grammar. Corrected Source Change ID to ALPHA-20261104; Runtime Task
 OLDTEST-ALPHA49-20261104 stays unchanged. No validator or gate weakened.
 Focused authority tests41 PASS after initial local fixture corrections.
+# OLDTEST-20261104 — OLD Test speed priority v1.1
+
+- Human instruction: persist total-time minimization through Technical PASS,
+  including HOLD/rework/recovery; relevant read-only preflight, evidence reuse,
+  focused/batched approved fixes, unchanged mandatory gates and approved state.
+- Issue none; Risk R2; Lane Strict Change; Activation none. Base
+  b220f5c5c61223cdb8c2a36bec4d559ca0df0796. Dedicated Worktree isolates the
+  unrelated dirty primary Worklog; exact scope AGENTS.md and this log.
+- Source, Migration, Contract, Workflow, ENV, other Repository and Runtime changes
+  excluded. Migrations created/applied 0; Build 0; Runtime Activation 0.
+- Validation: diff/whitespace, policy and added text secret/PII review; automatic
+  CI and final-head machine-readable self-review recorded in PR. Backend/Frontend/
+  Browser/E2E/build not run: documentation only. No manual CI rerun planned.
+- Stop after PR, automatic CI and self-review; squash merge requires separate
+  Human approval. Retain task branch/Worktree until approved merge. Rollback:
+  revert this documentation change via PR; no Runtime recovery required.
