@@ -1192,6 +1192,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/banners/banner-import.module.css",
     "apps/admin/test/banner-import.test.tsx",
     "apps/admin/e2e/admin-banner-import.spec.ts",
+    "apps/admin/e2e/admin-shipping-model.spec.ts",
     *MIG_061Q_ADMIN_SKELETON_FILES,
     *MIG_061R_ADMIN_SKELETON_FILES,
     *MIG_061S_ADMIN_SKELETON_FILES,

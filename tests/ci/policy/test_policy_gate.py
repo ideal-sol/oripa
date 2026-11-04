@@ -94,6 +94,8 @@ class PolicyGateTest(unittest.TestCase):
                 )
 
     def test_banner_model_task_id_is_exact(self):
+        policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
+        self.assertIn("apps/admin/e2e/admin-shipping-model.spec.ts", policy_gate.ADMIN_SKELETON_FILES)
         data = fixture("positive.json")
         task_id = "BANNER-MODEL-20261104"
         policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
