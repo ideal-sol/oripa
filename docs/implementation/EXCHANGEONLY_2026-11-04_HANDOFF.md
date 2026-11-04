@@ -45,12 +45,18 @@ Regenerate with `pnpm openapi:bundle`, `pnpm admin:generate`,
 `pnpm storefront:generate`, and `pnpm testkit:generate`.
 No new artifact has been published. Existing alpha.49 artifacts do not contain
 this change and must not be overwritten or represented as supporting it.
-After separate release approval, allocate a new immutable Client/Testkit version
-through the canonical release tooling, record the exact source SHA, contract
-hashes, package hashes and release artifact in
-`manifests/storefront-contract-releases.json`. The Site must verify that manifest
-and pin the actual published versions and integrity hashes. No speculative
-version is assigned here.
+The canonical ledger now records an **unreleased pending** alpha.50 candidate:
+Client/Testkit alpha.50, Public/Admin Contract alpha.46, Webhook alpha.45,
+93 Public operations, unchanged referenced Site Schema alpha.23. Public digest:
+`c5cbb72aa0b5a2fa8a76d9e034ae223d2209ea468dcba68de8a8dad2b58eb2a3`.
+This source/version intent fixes the release gate's comparison against published
+alpha.49; it is not an Artifact, release authorization or Site adoption pin.
+All immutable history, latest alpha.49 evidence and existing digests are preserved.
+After separate Human merge/release approval, recheck main, candidate conflicts,
+Artifact inventory and Release Lock, then use the canonical exact merged-main
+publication workflow. Record the actual source SHA, manifest/package hashes and
+Artifact evidence in a separate release-ledger reconciliation PR. The Site must
+verify that published manifest and pin actual versions/integrity hashes.
 
 ## Migration and rollback
 

@@ -26,6 +26,8 @@ class OpenApiContractGateTest(unittest.TestCase):
     def test_cumulative_rank_authority_rejects_unrelated_breaks_and_marker_drift(self):
         for surface in ['public', 'admin']:
             current = json.loads((ROOT / f'openapi/bundled/{surface}.openapi.json').read_text())
+            # This authority is confined to the historical alpha.44 -> alpha.45 cutover.
+            current['info']['version'] = '2.0.0-alpha.45'
             previous = copy.deepcopy(current)
             previous['info']['version'] = '2.0.0-alpha.44'
             schemas = previous['components']['schemas']
@@ -330,7 +332,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.45", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.46", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):
