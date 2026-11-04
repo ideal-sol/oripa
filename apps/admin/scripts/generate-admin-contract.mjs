@@ -1245,6 +1245,7 @@ export interface AdminUserPrizeActionState {
     | "storage_expired"
     | "exchange_points_unavailable"
     | "shipping_only"
+    | "exchange_only"
     | null;
 }
 
@@ -1266,6 +1267,7 @@ export interface AdminUserPrizeSummary {
   exchange_points: number;
   exchanged_points: number | null;
   shipping_only?: boolean;
+  exchange_only?: boolean;
   acquired_at: string;
   storage_expires_at: string;
   terminal_at: string | null;
@@ -2203,6 +2205,7 @@ export interface AdminCatalogPrize {
   display_price: number;
   exchange_points: number;
   shipping_only?: boolean;
+  exchange_only?: boolean;
   cost_price: number;
   is_visible: boolean;
   rank: AdminCatalogRankReference;
@@ -2396,6 +2399,7 @@ export interface AdminGachaVersionPrizeCreate {
   total_inventory: number;
   exchange_points: number;
   shipping_only?: boolean;
+  banner_id?: string;
   cost_price: number;
   is_active: boolean;
   expected_version_revision: number;
@@ -2462,6 +2466,7 @@ export interface AdminCompositionRank {
 }
 
 export interface AdminCompositionPrize {
+  source_prize_id?: string;
   external_id?: string | null;
   name: string;
   presentation_asset_id: string;
@@ -2470,6 +2475,8 @@ export interface AdminCompositionPrize {
   cost_price: number;
   initial_inventory: number;
   shipping_only: boolean;
+  exchange_only?: boolean;
+  banner_id?: string;
   percentage: string | null;
 }
 
@@ -3433,6 +3440,7 @@ export interface AdminBannerAssetMutationResult {
 }
 
 export interface AdminManagedBannerInput {
+  exchange_only?: boolean;
   external_id?: string | null;
   category_id: string;
   title: string;
@@ -3448,6 +3456,7 @@ export interface AdminManagedBannerCreate extends AdminManagedBannerInput {
 export type AdminManagedBannerUpdate = AdminManagedBannerInput;
 
 export interface AdminManagedBanner {
+  exchange_only?: boolean;
   external_id?: string | null;
   id: string;
   title: string;

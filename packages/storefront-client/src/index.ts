@@ -80,6 +80,7 @@ export type {
   StorefrontDrawClient,
 } from "./draw.js";
 export type {
+  PrizeListOptions,
   PrizeShippingMutationOptions,
   BrowserPrizeShippingMutationOptions,
   BrowserPrizeShippingNonRetryableMutationOptions,

@@ -156,6 +156,7 @@ class BannerImportTest extends TestCase
     {
         $unmanaged = $this->banner(null);
         $banner = $this->banner('CARD-1', true);
+        DB::table('content_banners')->where('public_id', $banner['id'])->update(['exchange_only' => true]);
         $version = DB::table('content_versions')->where('public_id', $banner['version_id'])->first();
         $this->banners->publish($this->context, 'banner', $banner['id'], $version->public_id);
         $before = DB::table('content_banners')->where('public_id', $banner['id'])->first();
@@ -171,6 +172,7 @@ class BannerImportTest extends TestCase
         self::assertSame(1, $this->imports->result($job['id'])['updated']);
         $after = DB::table('content_banners')->where('public_id', $banner['id'])->first();
         self::assertSame($before->status, $after->status);
+        self::assertTrue($after->exchange_only);
         self::assertSame($before->published_version_id, $after->published_version_id);
         $latest = DB::table('content_versions')->where('banner_id', $after->id)->orderByDesc('version_number')->first();
         foreach (['link_url', 'show_on_top', 'sort_order', 'publish_start_at', 'publish_end_at'] as $field) {

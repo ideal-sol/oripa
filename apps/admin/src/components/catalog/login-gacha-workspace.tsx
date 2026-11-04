@@ -302,21 +302,21 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
         </fieldset>
         <fieldset disabled={locked || busy}><legend>景品と演出</legend>
           {draft.prizes.map((prize, index) => <section className="catalog-prize-fieldset" key={prizeKeys[index]}>
-            <h3>景品 {index + 1}</h3>
+            <h3>景品 {index + 1}</h3>{prize.exchange_only ? <p>コイン交換限定（発送不可）</p> : null}
             <ExternalIdField value={prize.external_id ?? ""} onChange={(value) => { externalIdTouched.current.add(prizeKeys[index]); updatePrize(index, { external_id: value }); }} />
             <label>景品名<input required maxLength={191} value={prize.name} onChange={(event) => updatePrize(index, { name: event.target.value })} /></label>
             <CatalogBannerAssetPicker assetId={prize.presentation_asset_id || null} disabled={locked || busy}
-              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "", ...(!externalIdTouched.current.has(prizeKeys[index]) ? { external_id: selection.externalId ?? "" } : {}) })} />
+              onSelectionChange={(selection) => updatePrize(index, { presentation_asset_id: selection.assetId ?? "", banner_id: selection.bannerId ?? undefined, source_prize_id: undefined, exchange_only: selection.exchangeOnly ?? false, ...(selection.exchangeOnly ? { shipping_only: false } : {}), ...(!externalIdTouched.current.has(prizeKeys[index]) ? { external_id: selection.externalId ?? "" } : {}) })} />
             <label>ランク<select aria-label="ランク" required value={prize.rank_id} onChange={(event) => {
               const rankId = event.target.value;
               setDraft((current) => ({ ...current, prizes: current.prizes.map((item, position) => position === index ? { ...item, rank_id: rankId } : item),
                 ranks: current.ranks.some((rank) => rank.rank_id === rankId) ? current.ranks : [...current.ranks, { rank_id: rankId, rank_revision_number: null, video_asset_id: defaultVideoId }] }));
             }}>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{draft.ranks.find((item) => item.rank_id === rank.id)?.presentation?.name ?? rank.rank_name}</option>)}</select></label>
-            <label>交換ポイント<input required type="number" min={draft.minimum_exchange_points ?? 0} step={1} value={prize.exchange_points} onChange={(event) => updatePrize(index, { exchange_points: Number(event.target.value) })} /></label>
+            <label>交換ポイント<input required type="number" min={Math.max(draft.minimum_exchange_points ?? 0, prize.exchange_only ? 1 : 0)} step={1} value={prize.exchange_points} onChange={(event) => updatePrize(index, { exchange_points: Number(event.target.value) })} /></label>
             <label>原価<input required type="number" min={0} step={1} value={prize.cost_price} onChange={(event) => updatePrize(index, { cost_price: Number(event.target.value) })} /></label>
             <label>初期在庫<input required type="number" min={0} max={2147483647} step={1} value={prize.initial_inventory} onChange={(event) => updatePrize(index, { initial_inventory: Number(event.target.value) })} /></label>
             {login ? <label>固定当選確率（%・小数10桁まで）<input required type="text" inputMode="decimal" value={prize.percentage ?? ""} onChange={(event) => updatePrize(index, { percentage: event.target.value })} /></label>
-              : <label><input type="checkbox" checked={prize.shipping_only} onChange={(event) => updatePrize(index, { shipping_only: event.target.checked })} />発送専用</label>}
+              : <label><input type="checkbox" disabled={prize.exchange_only} checked={prize.shipping_only} onChange={(event) => updatePrize(index, { shipping_only: event.target.checked })} />発送専用</label>}
             {!locked ? <button type="button" className="secondary-button" onClick={() => {
               setPrizeKeys((current) => current.filter((_, position) => position !== index));
               setDraft({ ...draft, prizes: draft.prizes.filter((_, position) => position !== index) });

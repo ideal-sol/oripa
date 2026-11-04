@@ -39,6 +39,7 @@ interface BannerDraft {
   categoryId: string;
   file: File | null;
   linkUrl: string;
+  exchangeOnly: boolean;
   showOnTop: boolean;
   title: string;
 }
@@ -48,6 +49,7 @@ const EMPTY_DRAFT: BannerDraft = {
   categoryId: "",
   file: null,
   linkUrl: "",
+  exchangeOnly: false,
   showOnTop: false,
   title: "",
 };
@@ -132,6 +134,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
           category_id: draft.categoryId,
           link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null,
           show_on_top: draft.showOnTop,
+          exchange_only: draft.exchangeOnly,
           external_id: draft.externalId.trim() || null, title: draft.title.normalize("NFC").trim(),
         },
         crypto.randomUUID(),
@@ -194,7 +197,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
           <label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
           <label>画像<input accept="image/gif,image/jpeg,image/png,image/webp" required type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label>
           {previewUrl ? <Image alt="登録するバナー画像のプレビュー" height={120} src={previewUrl} unoptimized width={320} /> : null}
-          <label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>
+          <label className="check-row"><input checked={draft.exchangeOnly} onChange={(event) => setDraft({ ...draft, exchangeOnly: event.target.checked })} type="checkbox" /><span>コイン交換限定（発送不可）</span><small>このバナーをガチャ景品に選択すると、コイン交換のみ可能な景品になります。発送はできません。</small></label><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>
           {draft.showOnTop ? <label>クリック先URL<input maxLength={2048} placeholder="/gachas または https://..." required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}
           <div className="announcement-form-actions">
             <button className="primary-button" disabled={submitting} type="submit">
@@ -239,7 +242,7 @@ function BannerManagement({ initialStatus }: { initialStatus: "all" | "draft" | 
               <tbody>{items.map((item) => (
                 <tr key={item.id}>
                   <td><Image alt={item.title} className="announcement-thumbnail" height={48} src={item.asset.public_url} unoptimized width={88} /></td>
-                  <td><strong>{item.title}</strong></td><td>{item.external_id ?? "—"}</td><td>{item.category.name}</td><td><StatusBadge status={item.status} /></td><td><span>v{item.version_number}</span><br /><code className="table-compact-id" title={item.version_id}>{`${item.version_id.slice(0, 8)}…${item.version_id.slice(-8)}`}</code></td><td>{item.show_on_top ? <span>ON<br /><small className="table-truncated-url" title={item.link_url ?? undefined}>{item.link_url}</small></span> : "OFF"}</td>
+                  <td><strong>{item.title}</strong>{item.exchange_only ? <small>交換限定</small> : null}</td><td>{item.external_id ?? "—"}</td><td>{item.category.name}</td><td><StatusBadge status={item.status} /></td><td><span>v{item.version_number}</span><br /><code className="table-compact-id" title={item.version_id}>{`${item.version_id.slice(0, 8)}…${item.version_id.slice(-8)}`}</code></td><td>{item.show_on_top ? <span>ON<br /><small className="table-truncated-url" title={item.link_url ?? undefined}>{item.link_url}</small></span> : "OFF"}</td>
                   <td><div className="banner-url-actions"><code className="table-truncated-url" title={item.asset.public_url}>{item.asset.public_url}</code><button aria-label={`${item.title}の画像URLをコピー`} className="icon-button" onClick={() => void navigator.clipboard.writeText(item.asset.public_url)} title="URLをコピー" type="button"><Clipboard aria-hidden="true" size={16} /></button><a aria-label={`${item.title}の画像を新しいタブで開く`} className="icon-button" href={item.asset.public_url} rel="noreferrer" target="_blank" title="画像を開く"><ExternalLink aria-hidden="true" size={16} /></a></div></td>
                   <td>{formatJst(item.created_at)}</td>
                   <td>{canPublish ? <button className="primary-button" disabled={publishingId !== null} onClick={() => void publishBanner(item)} type="button">{publishingId === item.id ? <LoaderCircle className="spin" aria-hidden="true" size={16} /> : <Send aria-hidden="true" size={16} />}{publishingId === item.id ? "公開中" : item.status === "published" ? "最新内容を公開に反映" : "公開する"}</button> : item.status === "published" ? <span className="muted-text">公開済み</span> : <span className="muted-text">参照のみ</span>}</td>
@@ -274,7 +277,7 @@ function EditDialog({ banner, categories, onClose, onSaved, onVersionSaved }: { 
   const [savedVersionId, setSavedVersionId] = useState<string | null>(null);
   const submittingRef = useRef(false);
   const closeDialog = () => { if (!submittingRef.current) onClose(); };
-  const [draft, setDraft] = useState<BannerDraft>({ externalId: banner.external_id ?? "", categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(closeDialog); const preview = useLocalImagePreview(draft.file) ?? banner.asset.public_url;
+  const [draft, setDraft] = useState<BannerDraft>({ externalId: banner.external_id ?? "", categoryId: banner.category.id, file: null, linkUrl: banner.link_url ?? "", exchangeOnly: banner.exchange_only ?? false, showOnTop: banner.show_on_top, title: banner.title }); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const close = useDialogFocus(closeDialog); const preview = useLocalImagePreview(draft.file) ?? banner.asset.public_url;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current || !permissions.has("content.manage") || (banner.status === "published" && !permissions.has("content.publish"))) return;
@@ -295,6 +298,7 @@ function EditDialog({ banner, categories, onClose, onSaved, onVersionSaved }: { 
           category_id: draft.categoryId,
           link_url: draft.showOnTop ? draft.linkUrl.normalize("NFC").trim() : null,
           show_on_top: draft.showOnTop,
+          exchange_only: draft.exchangeOnly,
           external_id: draft.externalId.trim() || null,
           title: draft.title.normalize("NFC").trim(),
         }, crypto.randomUUID());
@@ -313,7 +317,7 @@ function EditDialog({ banner, categories, onClose, onSaved, onVersionSaved }: { 
       setBusy(false);
     }
   }
-  return <Dialog closeRef={close} id="banner-edit-title" onClose={closeDialog} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<fieldset disabled={busy || savedVersionId !== null} style={{ border: 0, display: "grid", gap: 16, margin: 0, minWidth: 0, padding: 0 }}><label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><ExternalIdField disabled={busy} value={draft.externalId} onChange={(externalId) => setDraft({ ...draft, externalId })} /><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}</fieldset><div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={closeDialog} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : savedVersionId ? "公開反映を再試行" : "更新"}</button></div></form></Dialog>;
+  return <Dialog closeRef={close} id="banner-edit-title" onClose={closeDialog} title="バナー編集"><form className="announcement-form" onSubmit={submit}>{error ? <div className="form-error" role="alert">{error}</div> : null}<fieldset disabled={busy || savedVersionId !== null} style={{ border: 0, display: "grid", gap: 16, margin: 0, minWidth: 0, padding: 0 }}><label>カテゴリ<select required value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><ExternalIdField disabled={busy} value={draft.externalId} onChange={(externalId) => setDraft({ ...draft, externalId })} /><label>タイトル<input maxLength={191} required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>画像（変更する場合のみ）<input accept="image/gif,image/jpeg,image/png,image/webp" type="file" onChange={(event) => setDraft({ ...draft, file: event.target.files?.[0] ?? null })} /></label><Image alt="編集するバナー画像" height={120} src={preview} unoptimized width={320} /><label className="check-row"><input checked={draft.exchangeOnly} onChange={(event) => setDraft({ ...draft, exchangeOnly: event.target.checked })} type="checkbox" /><span>コイン交換限定（発送不可）</span><small>このバナーをガチャ景品に選択すると、コイン交換のみ可能な景品になります。発送はできません。</small></label><label className="check-row"><input checked={draft.showOnTop} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.checked ? draft.linkUrl : "", showOnTop: event.target.checked })} type="checkbox" /><span>トップに表示</span></label>{draft.showOnTop ? <label>クリック先URL<input maxLength={2048} required value={draft.linkUrl} onChange={(event) => setDraft({ ...draft, linkUrl: event.target.value })} /></label> : null}</fieldset><div className="announcement-form-actions"><button className="secondary-button" disabled={busy} onClick={closeDialog} type="button">キャンセル</button><button className="primary-button" disabled={busy} type="submit"><Save aria-hidden="true" size={16} />{busy ? "更新中" : savedVersionId ? "公開反映を再試行" : "更新"}</button></div></form></Dialog>;
 }
 
 function DeleteDialog({ banner, onClose, onDeleted }: { banner: AdminManagedBanner; onClose: () => void; onDeleted: () => void }) {

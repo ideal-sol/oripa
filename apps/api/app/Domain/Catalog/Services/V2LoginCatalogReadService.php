@@ -51,6 +51,7 @@ final class V2LoginCatalogReadService
                 'id' => $relation->prize_public_id, 'name' => $relation->display_name,
                 'exchange_points' => (int) $relation->exchange_points, 'rank_id' => $relation->rank_public_id,
                 'asset' => $this->asset($relation->presentation_asset_id),
+                'exchange_only' => (bool) $relation->exchange_only,
             ];
             $ranks[$relation->rank_public_id] = [
                 'id' => $relation->rank_public_id, 'name' => $relation->rank_name,

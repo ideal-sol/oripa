@@ -27,6 +27,7 @@ final class UserPrize extends Model
     {
         return [
             'shipping_only_snapshot' => 'boolean',
+            'exchange_only_snapshot' => 'boolean',
             'acquired_at' => 'immutable_datetime',
             'storage_expires_at' => 'immutable_datetime',
             'terminal_at' => 'immutable_datetime',

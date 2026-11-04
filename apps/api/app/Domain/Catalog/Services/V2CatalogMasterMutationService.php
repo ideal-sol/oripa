@@ -1796,6 +1796,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'exchange_only' => app(V2ExchangeOnlyClassification::class)->resolve($payload),
                     'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
@@ -1821,6 +1822,7 @@ final class V2CatalogMasterMutationService
                     'description' => null,
                     'display_price' => 0,
                     'exchange_points' => $payload['exchange_points'],
+                    'exchange_only' => app(V2ExchangeOnlyClassification::class)->resolve($payload),
                     'shipping_only' => $payload['shipping_only'] ?? false,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
@@ -1980,6 +1982,7 @@ final class V2CatalogMasterMutationService
                 if (array_key_exists('external_id', $payload)) {
                     app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
                 }
+                app(V2ExchangeOnlyClassification::class)->assertPublishedSelection($payload, $prize, $relation, $gacha);
                 if ($this->isPublishedDraftExternalIdOnlyEdit($gacha, $version, $prize, $relation, $payload)
                     && DB::table('catalog_ranks')->where('id', $relation->rank_id)->value('public_id') === $payload['rank_id']) {
                     $this->updatePrizeExternalIdOnly($version, $prize, $payload);
@@ -2045,6 +2048,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'exchange_only' => $gacha->first_published_at === null ? app(V2ExchangeOnlyClassification::class)->resolve($payload, $prize) : (bool) $relation->exchange_only,
                     'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
@@ -2059,6 +2063,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'exchange_only' => $gacha->first_published_at === null ? app(V2ExchangeOnlyClassification::class)->resolve($payload, $prize) : (bool) $relation->exchange_only,
                     'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
@@ -2275,6 +2280,7 @@ final class V2CatalogMasterMutationService
                 if ($relation === null) {
                     throw $this->notFound();
                 }
+                app(V2ExchangeOnlyClassification::class)->assertPublishedSelection($payload, $prize, $relation, $gacha);
                 $externalIdOnly = $this->isPublishedDraftExternalIdOnlyEdit($gacha, $version, $prize, $relation, $payload);
                 if (array_key_exists('external_id', $payload)) {
                     app(V2PrizeExternalIdService::class)->checkAndAudit($gacha, $version, $prize, $payload['external_id'], $context);
@@ -2336,6 +2342,7 @@ final class V2CatalogMasterMutationService
                     'presentation_asset_id' => $asset?->id,
                     'display_name' => $payload['name'],
                     'exchange_points' => $payload['exchange_points'],
+                    'exchange_only' => $gacha->first_published_at === null ? app(V2ExchangeOnlyClassification::class)->resolve($payload, $prize) : (bool) $relation->exchange_only,
                     'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                     'cost_price' => $payload['cost_price'],
                     'is_visible' => $payload['is_active'],
@@ -2347,6 +2354,7 @@ final class V2CatalogMasterMutationService
                         'presentation_asset_id' => $asset?->id,
                         'display_name' => $payload['name'],
                         'exchange_points' => $payload['exchange_points'],
+                        'exchange_only' => $gacha->first_published_at === null ? app(V2ExchangeOnlyClassification::class)->resolve($payload, $prize) : (bool) $relation->exchange_only,
                         'shipping_only' => $payload['shipping_only'] ?? (bool) $relation->shipping_only,
                         'cost_price' => $payload['cost_price'],
                         'is_visible' => $payload['is_active'],
@@ -5853,7 +5861,7 @@ final class V2CatalogMasterMutationService
             'cost_price',
             'is_active',
         ];
-        $allowed = [...$required, 'shipping_only', 'external_id'];
+        $allowed = [...$required, 'shipping_only', 'external_id', 'banner_id'];
         $adjustInventory = false;
         if ($updating) {
             $required[] = 'expected_revision';
@@ -5892,6 +5900,7 @@ final class V2CatalogMasterMutationService
             'name' => $this->plainText($input['name'], 1, 191),
             'total_inventory' => $this->nonNegativeInteger($input['total_inventory']),
             'adjust_inventory' => $adjustInventory,
+            ...(isset($input['banner_id']) ? ['banner_id' => $this->uuid($input['banner_id'])] : []),
             ...(array_key_exists('external_id', $input) ? [
                 'external_id' => \App\Support\V2ExternalId::normalize($input['external_id'], $this->validationException()),
             ] : []),
@@ -6429,6 +6438,7 @@ final class V2CatalogMasterMutationService
                 'display_price' => (int) $snapshot->display_price,
                 'exchange_points' => (int) $snapshot->exchange_points,
                 'shipping_only' => (bool) $snapshot->shipping_only,
+                'exchange_only' => (bool) $snapshot->exchange_only,
                 'cost_price' => (int) $snapshot->cost_price,
                 'is_visible' => (bool) $snapshot->is_visible,
                 'initial_inventory' => $relation['initial_inventory'],
@@ -9641,6 +9651,7 @@ final class V2CatalogMasterMutationService
             'display_price' => (int) $row->display_price,
             'exchange_points' => (int) $row->exchange_points,
             'shipping_only' => (bool) $row->shipping_only,
+            'exchange_only' => (bool) $row->exchange_only,
             'cost_price' => (int) $row->cost_price,
             'is_visible' => (bool) $row->is_visible,
             'rank' => [

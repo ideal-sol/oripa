@@ -409,9 +409,9 @@ describe("Prize Banner eligibility", () => {
     vi.mocked(AdminApiClient.prototype.listBannerCategories).mockResolvedValue({ items: [category] });
   });
 
-  it("finishes pagination even when the first page contains only no-ID Banners", async () => {
+  it.each([false, true])("finishes pagination and conveys banner classification %s", async (exchangeOnly) => {
     const list = vi.spyOn(AdminApiClient.prototype, "listManagedBanners").mockImplementation(async (query) => ({
-      items: query?.cursor ? [banner("Eligible", "CARD-001")] : [banner("No ID", null)],
+      items: query?.cursor ? [{ ...banner("Eligible", "CARD-001"), exchange_only: exchangeOnly }] : [banner("No ID", null)],
       next_cursor: query?.cursor ? null : "page-2",
     }));
     const selection = vi.fn();
@@ -422,7 +422,7 @@ describe("Prize Banner eligibility", () => {
     expect(screen.queryByRole("button", { name: "No ID" })).not.toBeInTheDocument();
     expect(list).toHaveBeenCalledTimes(2);
     expect(list).toHaveBeenLastCalledWith({ category_id: category.id, cursor: "page-2" }, expect.any(AbortSignal));
-    expect(selection).toHaveBeenLastCalledWith({ assetId: "asset-Eligible", bannerId: "Eligible", externalId: "CARD-001", changed: true });
+    expect(selection).toHaveBeenLastCalledWith({ assetId: "asset-Eligible", bannerId: "Eligible", externalId: "CARD-001", exchangeOnly, changed: true });
   });
 
   it("explains a Category with no eligible Banners and offers no choices", async () => {

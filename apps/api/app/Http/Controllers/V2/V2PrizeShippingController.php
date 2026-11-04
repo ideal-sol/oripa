@@ -21,7 +21,8 @@ final class V2PrizeShippingController
         return $this->handle($request, fn (): array => $this->service->prizes(
             $this->user(),
             $request->query('cursor'),
-            (int) $request->query('limit', config('v2_prize_shipping.cursor_page_size', 20))
+            (int) $request->query('limit', config('v2_prize_shipping.cursor_page_size', 20)),
+            $request->query('status_group')
         ));
     }
 

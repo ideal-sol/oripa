@@ -14153,6 +14153,16 @@
           "percentage"
         ],
         "properties": {
+          "source_prize_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "コピー元景品。サーバーが画像と管理IDを検証して分類を継承。"
+          },
+          "banner_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "選択バナー。画像Assetと管理IDとの一致をサーバーで検証。"
+          },
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
           },
@@ -14183,6 +14193,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 2147483647
+          },
+          "exchange_only": {
+            "type": "boolean",
+            "description": "交換限定景品。発送不可。"
           },
           "shipping_only": {
             "type": "boolean"
@@ -19562,6 +19576,11 @@
           "expected_version_revision"
         ],
         "properties": {
+          "banner_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "選択バナー。画像Assetと管理IDとの一致をサーバーで検証。"
+          },
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
           },
@@ -19621,6 +19640,11 @@
           "expected_version_revision"
         ],
         "properties": {
+          "banner_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "選択バナー。画像Assetと管理IDとの一致をサーバーで検証。"
+          },
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
           },
@@ -20068,6 +20092,10 @@
         "properties": {
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
+          },
+          "exchange_only": {
+            "type": "boolean",
+            "description": "交換限定景品。発送不可。"
           },
           "shipping_only": {
             "type": "boolean"
@@ -20517,6 +20545,10 @@
         "properties": {
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
+          },
+          "exchange_only": {
+            "type": "boolean",
+            "description": "交換限定景品。発送不可。"
           },
           "shipping_only": {
             "type": "boolean"
@@ -25953,6 +25985,11 @@
           "title"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "コイン交換限定（発送不可）。"
+          },
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
           },
@@ -26022,6 +26059,11 @@
           "updated_at"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "コイン交換限定（発送不可）。"
+          },
           "external_id": {
             "$ref": "#/components/schemas/AdminExternalId"
           },
@@ -28701,6 +28743,7 @@
               "storage_expired",
               "exchange_points_unavailable",
               "shipping_only",
+              "exchange_only",
               null
             ]
           }
@@ -28783,6 +28826,10 @@
           "allowed_actions"
         ],
         "properties": {
+          "exchange_only": {
+            "type": "boolean",
+            "description": "交換限定景品。発送不可。"
+          },
           "shipping_only": {
             "type": "boolean",
             "description": "当選時に固定された配送専用条件。"

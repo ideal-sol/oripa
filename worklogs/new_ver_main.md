@@ -12752,3 +12752,78 @@ Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
 - Local release/policy/OpenAPI checks and final-head Required5/self-review are recorded on the PR. Source, contracts, generated packages, dependencies, workflows, migrations and runtime settings untouched. No Backend/Browser/E2E/visual/provider/runtime test claimed; these are outside metadata scope.
 - Runtime Activation0; migration creation/application0; OLD Test/Production0; Backfill/Worker/Timer/ENV/feature toggle0; Stable Tag/Release0; Storefront source/PR220 ready/merge0. No local Artifact or application rebuild. Rollback uses reviewed metadata correction/new immutable version, never replace/delete/reissue49 or predecessors. Post-merge exact-ID readback and cleanup are recorded in final handoff.
 - Final local verification: Release102 / Policy343 / OpenAPI77 PASS; canonical validate-source/settled bundle verify, local policy/quality gates, packed runtime/header/Testkit dependency checks and six-path secret/PII/binary/submodule review PASS. Initial release1 failure was historical alpha47 fixture selection; fixed to original47 history without weakening rejection assertions, final102 PASS. Policy negative-test rejection output is expected within343 passing tests. No local package/application rebuild. Final PR HEAD/Required5/fresh review/squash and cleanup follow in PR/handoff.
+
+
+## EXCHANGEONLY-20261104 — Exchange-only Platform implementation (Draft-only)
+
+- Human scope: implement Platform and stop at Draft. Issue none; Risk R3;
+  Strict Change; Application Runtime Activation deferred. Ready, merge,
+  release/tag, OLD Test/Production and operational migration are prohibited.
+- Fetched latest origin/main at start; rechecked before delivery:
+  ac0c256d674c220f59c0d9557576520aab56e067. PR651 already merged. Dedicated
+  branch feat/EXCHANGEONLY-20261104 and worktree
+  /var/www/oripa-task-worktrees/EXCHANGEONLY-20261104 preserve unrelated primary
+  changes. No Source Lock: no active semantic collision found.
+- Read supplied specification v1.1 and Platform prompt, applicable AGENTS,
+  Governance REV3, Release Gates REV2 and GitHub Operations ADR REV1.
+  Source hashes and Contract/Artifact instructions are in
+  docs/implementation/EXCHANGEONLY_2026-11-04_HANDOFF.md.
+- Canonical banner flag defaults false. Laravel verifies banner/image/external
+  ID and snapshots classification through manual/CSV/composition/copy/version/
+  draw/ownership. Public history remains immutable. Banner CSV keeps its format
+  and preserves flags on update. Admin exposes the flag and selection conflicts.
+- Public/Admin reads expose exchange_only. Existing point exchange/expiry logic
+  is reused. Mixed shipping rejects the entire request with409
+  PRIZE_NOT_SHIPPABLE. DB protects economic exclusivity, positive exchange value,
+  shipping states/items and immutable snapshots; financial hold remains legal.
+- Optional stored/shipping groups filter in SQL before ID cursor/limit. Cursors
+  are scoped; default20/max100 preserved. Financial hold without shipping item
+  remains stored, shipped/delivered remain shipping. No speculative index added.
+- Notion physical inventory/warnings exclude exchange-only IDs including archived
+  banners. F6 skips PATCH/zeroing/cache deletion. Real Notion not accessed.
+  Lottery inventory and probability authority are unchanged.
+- Public/Admin OpenAPI and generated Admin/Public types, thin Client options and
+  Testkit fixture updated with canonical generators. No artifact/version/release
+  history changed. Storefront prompt/repository not executed or modified.
+- Migration000105 reserved/created under exclusive Migration Allocation Lock.
+  Prior migrations unchanged. Applied only to guarded task-owned PostgreSQL17
+  using MIG105 test-runner identity. Repeated migrate:fresh and forward-only
+  rollback refusal verified. Operational migrations0; Runtime Activation0.
+- Focused review fixed banner filter/import projection errors, preserved batch
+  CSV resolution and unchanged draft classifications, and aligned copy/input
+  contracts. No test assertion or security guard weakened. Exact final-head
+  machine-readable HOLD_DRAFT review and changed-path inventory are in the PR;
+  this is not merge-authorizing evidence.
+- Executed PASS: PHP Unit3/17 assertions, OpenAPI77, database runner67, Admin
+  focused103, Client47, Testkit55; generation checks, Admin type/lint and quality
+  gate. Final current-source results are recorded below and in the PR.
+- Initial broad V2 suite interrupted; initial focused run interrupted during
+  the existing1000-row deferred-constraint performance case. Neither is a full
+  PASS. Initial function re-creation and additive copy expectations corrected.
+  Final targeted run excludes long performance and opt-in concurrency cases.
+  Browser/E2E/visual, production capacity and real provider tests not run.
+- Auth/session/provider/infrastructure/workflow/dependency/runtime configuration
+  outside scope. Point/payment calculations and lottery probabilities unchanged.
+  Rollback retains schema/rights and uses forward correction; an older shipping
+  writer cannot be restored after activation of exchange-only rights.
+- Draft branch/worktree retained; task synthetic resources and allocation lock
+  released at handoff. Exact-path App transport policy excludes ready/merge.
+  Manual CI reruns0; Human wait0. Final head, CI, metrics and PR URL are retained
+  in the PR/final report, separate from deployment/merge status.
+- Bounded required CI integration: register migration105 in the existing exact
+  migration inventory and add missing/duplicate/unregistered rejection tests.
+  Initial policy-gate failure identified the missing registration; exactness,
+  all Required Checks and existing assertions are retained without bypass.
+- Final verification: Backend185 executed,184 PASS and1 test-fixture error
+  (idempotency key below existing minimum); fixed fixture with UUID and reran
+  all19 exchange-only/group/copy cases:19 PASS /244 assertions. This rerun also
+  covers the final classification resolver and unchanged-draft snapshot behavior.
+  Policy344 PASS; local policy/quality PASS; changed PHP26 lint PASS; secret
+  candidates0. Admin103 focused PASS, affected prize UI23 rerun PASS; type/lint
+  and generator checks PASS. Client47 PASS and Testkit55 PASS with generation,
+  type/lint/build/export/network checks. Testkit export-order mismatch fixed
+  without removing the exact export assertion. OpenAPI bundle check PASS.
+- No unresolved functional test failure in the selected coverage. Full-suite,
+  prize1000-row and prize-list load/concurrency coverage remains incomplete.
+  Existing Notion mock1000-page/100-update case passed in53.576 seconds;
+  this is synthetic test timing, not a production capacity claim.

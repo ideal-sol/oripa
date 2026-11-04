@@ -93,6 +93,23 @@ class PolicyGateTest(unittest.TestCase):
                     data["changed_paths"], data["base_sha"],
                 )
 
+    def test_exchange_only_migration_inventory_remains_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_11_04_000105_add_v2_exchange_only_prizes.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000105" if change == "duplicate_number" else "000106"
+                    shutil.copy2(migration, migration.with_name(f"2026_11_04_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
     def test_shipping_minimum_migration_inventory_remains_exact(self):
         relative = "apps/api/database/migrations-v2/2026_10_23_000098_add_v2_shipping_minimum_points.php"
         self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
