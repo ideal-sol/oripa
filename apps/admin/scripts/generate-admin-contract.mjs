@@ -1184,6 +1184,9 @@ export interface AdminShippingRequestSummary {
 }
 
 export interface AdminShippingItem {
+  external_id?: string | null;
+  model_number?: string | null;
+  image?: AdminCatalogAssetReference | null;
   user_prize_id: string;
   product_id: string;
   name: string;
@@ -3395,6 +3398,7 @@ export interface AdminBannerImportInput {
   refresh_existing_images?: boolean;
 }
 export interface AdminBannerImportRow {
+  model_number?: string | null;
   row: number;
   external_id: string;
   title: string;

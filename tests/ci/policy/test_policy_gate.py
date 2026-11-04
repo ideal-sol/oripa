@@ -93,6 +93,18 @@ class PolicyGateTest(unittest.TestCase):
                     data["changed_paths"], data["base_sha"],
                 )
 
+    def test_banner_model_task_id_is_exact(self):
+        policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
+        self.assertIn("apps/admin/e2e/admin-shipping-model.spec.ts", policy_gate.ADMIN_SKELETON_FILES)
+        data = fixture("positive.json")
+        task_id = "BANNER-MODEL-20261104"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                     data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "BANNER-MODEL-20261105", "BANNER-MODEL-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                             data["changed_paths"], data["base_sha"])
+
     def test_exchange_only_migration_inventory_remains_exact(self):
         relative = "apps/api/database/migrations-v2/2026_11_04_000105_add_v2_exchange_only_prizes.php"
         self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)

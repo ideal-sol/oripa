@@ -26,11 +26,16 @@ final class V2BannerImportPlan
         $rows = [];
         foreach ($parsed['rows'] as $record) {
             $values = $record['values'];
+            $modelNumber = Normalizer::normalize($values['型番'] ?? '', Normalizer::FORM_C);
+            $modelNumber = is_string($modelNumber) ? preg_replace('/^\s+|\s+$/u', '', $modelNumber) : false;
             $externalId = $values['管理ID'] ?? '';
             $title = Normalizer::normalize($values['タイトル'] ?? '', Normalizer::FORM_C);
             $categoryName = Normalizer::normalize($values['カテゴリ'] ?? '', Normalizer::FORM_C);
             $category = $categoryName === '' ? $default : $categories->firstWhere('normalized_name', mb_strtolower($categoryName));
             $rowErrors = [];
+            if (! is_string($modelNumber) || mb_strlen($modelNumber) > 64 || preg_match('/[<>\p{Cc}]/u', $modelNumber)) {
+                $rowErrors['型番'] = 'MODEL_NUMBER_INVALID';
+            }
             if (preg_match('/\A[A-Za-z0-9._-]{1,64}\z/', $externalId) !== 1) {
                 $rowErrors['管理ID'] = 'EXTERNAL_ID_INVALID';
             } elseif (isset($seen[$externalId])) {
@@ -57,6 +62,8 @@ final class V2BannerImportPlan
                 $errors[] = ['row' => $record['row'], 'column' => $column, 'code' => $code, 'message' => '指定された項目を確認してください。'];
             }
             $rows[] = ['row_number' => $record['row'], 'external_id' => $externalId, 'title' => $title,
+                'model_number' => $modelNumber === '' ? null : $modelNumber,
+                'model_number_provided' => array_key_exists('型番', $values),
                 'category_id' => $category?->id, 'category_name' => $category?->name,
                 'fetch_image' => $fetch, 'url' => $url];
         }

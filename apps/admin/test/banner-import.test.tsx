@@ -48,6 +48,20 @@ describe("Banner CSV import", () => {
     expect(await screen.findByText(/新しい署名付きURLを取得・再入力/)).toBeVisible();
   });
 
+  it("renders model numbers and old null history", async () => {
+    const completed: AdminBannerImportJob = { ...job, rows: [
+      { row: 2, external_id: "CARD-1", title: "商品1", category: "カード", model_number: "MODEL-1", status: "completed", result: "created", error_code: null },
+      { row: 3, external_id: "CARD-2", title: "商品2", category: "カード", model_number: null, status: "completed", result: "unchanged", error_code: null },
+    ] };
+    vi.spyOn(AdminApiClient.prototype, "listBannerImports").mockResolvedValue({ enabled: true, items: [completed] });
+    vi.spyOn(AdminApiClient.prototype, "bannerImport").mockResolvedValue(completed);
+    render(<BannerImportWorkspace categories={[category]} canManage={false} />);
+    fireEvent.click(await screen.findByRole("button", { name: /completed/ }));
+    expect(await screen.findByRole("columnheader", { name: "型番" })).toBeVisible();
+    expect(screen.getByText("MODEL-1")).toBeVisible();
+    expect(screen.getByText("-")).toBeVisible();
+  });
+
   it("does not expose arbitrary backend exception text", () => {
     const error = new AdminApiError(503, "BANNER_IMPORT_FAILED", null, null, true);
     expect(error.message).toBe("管理APIで処理できませんでした。");

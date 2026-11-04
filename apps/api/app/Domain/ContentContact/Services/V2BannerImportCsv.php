@@ -7,7 +7,7 @@ use SensitiveParameter;
 
 final class V2BannerImportCsv
 {
-    public const HEADERS = ['管理ID', 'タイトル', '画像URL', 'カテゴリ'];
+    public const HEADERS = ['管理ID', 'タイトル', '画像URL', 'カテゴリ', '型番'];
 
     public function parse(#[SensitiveParameter] array $input): array
     {
