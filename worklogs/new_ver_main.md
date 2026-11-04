@@ -12900,3 +12900,24 @@ Focused authority tests41 PASS after initial local fixture corrections.
 - Policy suite344 PASS after correction. Reuse prior release105/OpenAPI77/source-validator/generated and behavioral PASS evidence because all related Source/test bytes are unchanged. No additional Build/full application suite/performance test. Logged-in Browser/E2E belongs to Human and is NOT_RUN; earlier component/UI PASS remains separate.
 - Immutable alpha.49/all29 history records, pending alpha.50 metadata, Migration000105, contracts, feature implementation and Workflows are byte-identical to the previous head. No Artifact/Runtime/operational Migration action or Release Lock needed. Focused scope/secret/whitespace review passes; final-head machine-readable review and automatic Required CI results are recorded in the PR.
 - Stop Draft regardless of CI result. No Ready, merge, force/main push, manual CI rerun/dispatch, Artifact publication or OLD Test/Production activation. Dedicated branch/worktree retained; no lock held. Current Task is limited to two-line Fixture correction plus this Worklog record.
+
+## OLDTEST-20261104 — OLD Test speed priority v1.1
+
+- Human instruction: persist total-time minimization through Technical PASS,
+  including HOLD/rework/recovery; relevant read-only preflight, evidence reuse,
+  focused/batched approved fixes, unchanged mandatory gates and approved state.
+- Issue none; Risk R2; Lane Strict Change; Activation none. Base
+  b220f5c5c61223cdb8c2a36bec4d559ca0df0796. Dedicated Worktree isolates the
+  unrelated dirty primary Worklog; exact scope AGENTS.md and this log.
+- Source, Migration, Contract, Workflow, ENV, other Repository and Runtime changes
+  excluded. Migrations created/applied 0; Build 0; Runtime Activation 0.
+- Validation: diff/whitespace, policy and added text secret/PII review; automatic
+  CI and final-head machine-readable self-review recorded in PR. Backend/Frontend/
+  Browser/E2E/build not run: documentation only. No manual CI rerun planned.
+- Stop after PR, automatic CI and self-review; squash merge requires separate
+  Human approval. Retain task branch/Worktree until approved merge. Rollback:
+  revert this documentation change via PR; no Runtime recovery required.
+- PR #658: local policy-gate, diff whitespace, scope/secret/PII review PASS.
+  Initial automatic CI failed on PR UI Verification metadata; corrected to
+  NOT_APPLICABLE and local PR metadata validation PASS. This record update
+  triggers automatic final-head checks; no manual rerun or gate changes.
