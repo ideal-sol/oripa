@@ -51,13 +51,47 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         value['candidate'] = None
         return value
 
+    def test_released_alpha_49_authority_history_and_no_reissue(self):
+        value = artifact.governance(ROOT)
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(len(value['immutable_history']), 29)
+        released = value['latest_immutable']
+        self.assertEqual(released, value['immutable_history'][-1])
+        self.assertEqual(released['bundle_version'], '2.0.0-alpha.49')
+        self.assertEqual(released['source_commit'], '58c79bca49353268f4ee1b2e2047f39afc51fe94')
+        self.assertEqual(released['manifest_sha256'], '3a893845663a9de6cc07254632f2148c5cac21a58271f3f74c8d09a0d90eb66e')
+        self.assertEqual(released['handoff_status'], 'released')
+        self.assertEqual(released['release_mode'], 'contract-breaking')
+        self.assertTrue(released['breaking_change'])
+        self.assertEqual(set(released['contract_versions'].values()), {'2.0.0-alpha.45'})
+        self.assertEqual(released['public_openapi']['operation_count'], 93)
+        self.assertEqual(released['public_openapi']['sha256'], '8612273ffe9e32d7508bb1bf14145fa052babc4a8f117d8db8928ef7a2232263')
+        self.assertEqual(released['packages']['@oripa/storefront-client']['sha256'], '244fab4a035a477ca6151a53d5c8287084ac463801f3b2f762c1173abe8c7ae8')
+        self.assertEqual(released['packages']['@oripa/storefront-testkit']['sha256'], '70b094b5ee0b9994811c7f0f43384ef858e456d8d032a700bbcc51ea583b4ff6')
+        self.assertEqual(released['publication'], {'workflow_run_id': 41774049916, 'workflow_run_attempt': 1, 'artifact_id': 13295779119, 'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.49', 'github_digest': 'sha256:fd3cf292c597e13117b5708236b3a884fd3afb32b5d187d685f5e1493bec7dbd', 'sha256sums_sha256': '30125c5f7cf0fa5dba1f854b741cb0ba2f63b8a4d859407b69e559961cc72cd7'})
+        self.assertEqual(hashlib.sha256(json.dumps(value['immutable_history'][:-1], sort_keys=True, separators=(',', ':')).encode()).hexdigest(), 'aa847be369567a4d7ea521e1aa58a3715ed62879e45cc057ab1fa06b74707a44')
+        self.assertTrue(artifact.verification_target(value)['breaking_change'])
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+            artifact.pending_candidate(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'must-not-exist'
+            head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
+            with mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
+                with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+                    artifact.build(ROOT, output, head)
+            self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
+            self.assertFalse(output.exists())
+        invalid = copy.deepcopy(value)
+        invalid['immutable_history'].append(copy.deepcopy(released))
+        with self.assertRaisesRegex(artifact.ArtifactError, 'immutable history version inventory invalid'):
+            artifact.validate_governance(invalid)
+
     def test_released_alpha_48_authority_history_and_no_reissue(self):
         value = artifact.governance(ROOT)
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.49')
-        self.assertEqual(value['candidate']['release_state'], 'pending')
-        self.assertTrue(value['candidate']['breaking_change'])
-        self.assertNotIn('publication', value['candidate'])
-        value['candidate'] = None  # Test the immutable alpha.48 release without the new candidate.
+        self.assertIsNone(value['candidate'])
+        value['immutable_history'] = value['immutable_history'][:-1]
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 28)
         expected = {'bundle_version': '2.0.0-alpha.48',
          'manifest_sha256': '9affb95def4858a748a5343614dcdf4d8e0ca20705d5d227cc48e976f01df60f',
@@ -105,7 +139,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(value['immutable_history'][-1], expected)
         self.assertEqual(hashlib.sha256(json.dumps(value['immutable_history'][:-1], sort_keys=True, separators=(',', ':')).encode()).hexdigest(), '074b827e4a288f06c67091aa737b1c11f648fb2f6929de47b0edb91e384a078c')
         self.assertEqual(sum(r['bundle_version'] == '2.0.0-alpha.48' for r in value['immutable_history']), 1)
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'pending')
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
         with mock.patch.object(artifact, 'governance', return_value=value), self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
             artifact.pending_candidate(ROOT)
         with mock.patch.object(artifact, 'governance', return_value=value), tempfile.TemporaryDirectory() as temporary:
@@ -123,7 +157,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
 
     def test_released_alpha_47_has_exact_publication_authority_and_preserves_history(self):
         value = artifact.governance(ROOT)
-        value['immutable_history'] = value['immutable_history'][:-1]
+        value['immutable_history'] = [row for row in value['immutable_history']
+                                      if int(row['bundle_version'].rsplit('.', 1)[1]) <= 47]
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         value['candidate'] = None  # Preserve exact historical alpha.47 assertions.
         self.assertEqual(len(value['immutable_history']), 27)
@@ -184,11 +219,12 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['public_api_operation_count'], 90)
         self.assertEqual(target['source_commit'], expected['source_commit'])
         self.assertFalse(target['breaking_change'])
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'pending')
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
 
     def test_released_alpha_47_rejects_reissue_and_duplicate_history(self):
         released = copy.deepcopy(artifact.governance(ROOT))
-        released['immutable_history'].pop()
+        released['immutable_history'] = [row for row in released['immutable_history']
+                                       if int(row['bundle_version'].rsplit('.', 1)[1]) <= 47]
         released['latest_immutable'] = copy.deepcopy(released['immutable_history'][-1])
         released['candidate'] = None
         with mock.patch.object(artifact, 'governance', return_value=released):
@@ -566,7 +602,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(target['predecessor_bundle_version'], '2.0.0-alpha.45')
         self.assertEqual(target['public_api_operation_count'], 84)
         self.assertFalse(target['breaking_change'])
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'pending')
+        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
 
     def test_released_alpha_46_rejects_build_reissue_and_duplicate_history(self):
         with mock.patch.object(artifact, 'governance', return_value=self.governance()), self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
@@ -667,7 +703,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertFalse(target['breaking_change'])
         source = artifact.validate_source(ROOT)
         self.assertEqual(source['bundle_version'], '2.0.0-alpha.49')
-        self.assertEqual(source['release_state'], 'pending')
+        self.assertEqual(source['release_state'], 'released')
 
     def test_released_alpha_45_cannot_be_republished_or_duplicated(self):
         with mock.patch.object(artifact, 'governance', return_value=self.governance()):
