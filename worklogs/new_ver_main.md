@@ -12754,6 +12754,33 @@ Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
 - Final local verification: Release102 / Policy343 / OpenAPI77 PASS; canonical validate-source/settled bundle verify, local policy/quality gates, packed runtime/header/Testkit dependency checks and six-path secret/PII/binary/submodule review PASS. Initial release1 failure was historical alpha47 fixture selection; fixed to original47 history without weakening rejection assertions, final102 PASS. Policy negative-test rejection output is expected within343 passing tests. No local package/application rebuild. Final PR HEAD/Required5/fresh review/squash and cleanup follow in PR/handoff.
 
 
+## ALPHA-20261104 — OLD Test alpha.49 Source Authority
+
+Lane: Strict Change. Risk: R3. Application Runtime Activation: deferred. Issue: none.
+Runtime Task: OLDTEST-ALPHA49-20261104. Dedicated worktree preserves other Changes.
+Pin PR653 payload 58c79bca49353268f4ee1b2e2047f39afc51fe94; PR654 is metadata-only.
+Build Control is fixed after authority merge. Normal AMD64 API/Admin must be
+coordinated with Storefront PR220 ba11e00741c3857764b85c18892b9ed547e40506.
+Reuse merged Required Checks5/5. Client/Testkit alpha.49; all API contracts alpha.45.
+Only forward migration000104 is proposed; historical103 files remain unchanged.
+Stop old monthly rank Worker and initialize the new promotion Worker only after
+Exact Runtime GO. Preserve Rank ON/activation and all previously approved settings,
+UnivaPay TEST, seven-day auto-exchange ON, F2-B and existing workers/timers.
+No backfill apply, initial activation, manual accounting correction or bonus replay.
+Installed Canonical Executor currently restricts retained-worker support to prior
+exact tasks and its migration preservation checks target Ledger101 to103; this
+is a Runtime preparation blocker, not authority to bypass or broaden those gates.
+No Executor installation, Runtime operation, migration application, Production,
+LB or Provider operation in this Source PR. Candidate remains deferred.
+Validation: focused authority suite and required CI; exact-head fresh self-review
+required before merge. No duplicate feature suite, Browser/E2E or application build.
+
+Source CI first attempt failed because ALPHA49-20261104 was outside the existing
+Change-ID grammar. Corrected Source Change ID to ALPHA-20261104; Runtime Task
+OLDTEST-ALPHA49-20261104 stays unchanged. No validator or gate weakened.
+Focused authority tests41 PASS after initial local fixture corrections.
+
+
 ## EXCHANGEONLY-20261104 — Exchange-only Platform implementation (Draft-only)
 
 - Human scope: implement Platform and stop at Draft. Issue none; Risk R3;
@@ -12827,3 +12854,29 @@ Final exact-head CI/review, merge and cleanup evidence is recorded on the PR.
   prize1000-row and prize-list load/concurrency coverage remains incomplete.
   Existing Notion mock1000-page/100-update case passed in53.576 seconds;
   this is synthetic test timing, not a production capacity claim.
+
+
+### PR657 Draft continuation — latest main integration
+
+- Human authorizes safe integration and CI inspection only; Draft/merge/runtime/
+  artifact prohibitions remain. Reuse existing branch/worktree, R3/Strict/deferred,
+  Issue none. Refetched main b220f5c5c61223cdb8c2a36bec4d559ca0df0796 and PR head
+  b168a407119c9da0a60b1e8562a102f6ac1228d0; worktree clean before integration.
+- Normal no-force merge; only Worklog conflicted. Both parents' append-only
+  records retained byte-for-byte. Main's approval manifest and corresponding
+  test retained exactly. No runtime operation follows from importing metadata.
+- Exchange-only implementation, contracts/generated files, all prior migrations
+  and000105 remain byte-identical to the previously tested head. No allocation,
+  migration application, added Build, full-suite or performance rerun required.
+- Focused validation: parent-delta identity, Worklog preservation, exact PR scope,
+  whitespace/conflict-marker/secret review, local policy and inherited approval
+  tests. Results and new fixed-head HOLD_DRAFT review are recorded on PR657.
+- Prior Admin component tests PASS (103 plus affected23 rerun) are reused; these
+  are NOT Browser/E2E/visual acceptance. Browser/E2E remain NOT_RUN. Backend,
+  Client/Testkit and other previous PASS evidence is reused only for identical
+  source. Prior incomplete full-suite/performance coverage is not promoted to PASS.
+- Push existing task branch through App wrapper; verify automatic Required CI5.
+  No manual workflow dispatch, rerun, workflow/permissions change, Ready, merge,
+  OLD Test/Production, artifact or runtime activation is authorized or performed.
+  Final CI status/diagnosis, head and timing are attached to PR657; branch/worktree
+  retained for Draft review. Additional Build0, Runtime Activation0, Human wait0.
