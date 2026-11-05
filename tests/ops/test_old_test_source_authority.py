@@ -15,6 +15,7 @@ import zipfile
 from tests.ops.test_preview_image_pipeline import (
     ROOT, TASK, PR, HEAD, artifact, wrapper, create_artifact, create_docker_archive,
 )
+from tests.ops.test_old_test_pr666_payload import Pr666PayloadTest  # existing CI entrypoint
 
 
 PAYLOAD = "c4eaca6cc2a851a7da937bf0b499bd3bfb6af5e7"
