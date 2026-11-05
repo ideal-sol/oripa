@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-ALPHA49-20261104",
-  "source_pr": 653,
-  "source_sha": "58c79bca49353268f4ee1b2e2047f39afc51fe94",
+  "task_id": "OLDTEST-ALPHA50-20261105",
+  "source_pr": 659,
+  "source_sha": "14f7819c72c5908aa6e5778303b87dc4b1202493",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
-  "authority": "Human-approved exact OLD Test payload: PR653 merged payload for OLD Test linux/amd64 normal API/Admin preparation. Fix Build Control to latest protected main after Source Authority merge. Coordinate Storefront PR220 ba11e00741c3857764b85c18892b9ed547e40506 with Client/Testkit alpha.49 and Public/Admin/Webhook alpha.45. Separate exact Runtime GO must cover forward-only Migration000104, old rank worker stop and new v2:member-rank:promote worker start. Preserve existing Rank ON, activation/revision/generation, UnivaPay TEST and workers, seven-day auto-exchange ON and timer, F2-B, SMS/Mail/Redis/S3/GTM, B2 Sender ENV and Provider settings. No legacy activation/backfill apply, manual accounting adjustment or bonus replay. No Production or LB changes. Retain Canonical Gate, Receipt, Source/Control/Image identity and Recovery boundaries. Source Authority grants no Runtime activation; unresolved installed Executor scope must be resolved before an executable Candidate.",
+  "authority": "Human-approved exact OLD Test payload: PR659 merged payload, including PR657. PR660 is metadata-only. Fix Build Control after this Source Authority merge. Coordinate Storefront PR221 1e3ba92780825a12485f651ea79025ad47f1321b with Client/Testkit alpha.50, Public/Admin alpha.46, Webhook alpha.45. Only forward-only Migration000105 then Migration000106; never replay104. Preserve v2:member-rank:promote worker through bounded stop/rebind/resume and keep old monthly worker absent. Preserve Rank ON/activation, UnivaPay TEST and existing workers, seven-day auto-exchange ON/timer, F2-B, SMS/Mail/Redis/S3/GTM, B2 Sender ENV and Provider settings. Exact Runtime GO required. No initial activation, backfill apply, manual accounting, bonus replay, Production or LB. Source Authority grants no Runtime activation; Canonical Gate/Receipt/Guard/Recovery and separate host installation boundary retained.",
   "activation_authorized": false
 }
