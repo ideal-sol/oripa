@@ -143,6 +143,9 @@ def validate_authority(repository, revision, path, base_sha):
     old = path.endswith("old-test-approved-source.json")
     expected = {"schema_version", "repository", "source_sha", "authority", "activation_authorized"}
     expected |= {"task_id", "source_pr", "target", "platform", "image_mode"} if old else {"change_id", "pr_number"}
+    limited = not old and record.get("source_sha") == "cad8be03cbab8b7fba18825a4a9b2a276f402010"
+    if limited:
+        expected.add("payload_manifest_sha256")
     require(isinstance(record, dict) and set(record) == expected, "AUTHORITY_STRUCTURE_INVALID")
     require(record["schema_version"] == "1.0" and record["repository"] == "ideal-sol/oripa"
             and record["activation_authorized"] is False, "AUTHORITY_BOUNDARY_INVALID")
@@ -156,6 +159,32 @@ def validate_authority(repository, revision, path, base_sha):
     if old:
         require(record["target"] == "old-test" and record["platform"] == "linux/amd64"
                 and record["image_mode"] in {"normal", "api-only"}, "AUTHORITY_SCOPE_INVALID")
+    if limited:
+        import runpy
+        import tempfile
+        helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ops/production_pr666_payload.py"))
+        require(git(repository, "rev-parse", "HEAD").decode().strip() == revision,
+                "AUTHORITY_CHECKOUT_MISMATCH")
+        spec = helper["specification"](repository)
+        require(record["change_id"] == helper["CHANGE"] and record["pr_number"] == 666
+                and record["payload_manifest_sha256"] == helper["MANIFEST_DIGEST"],
+                "AUTHORITY_LIMITED_IDENTITY_INVALID")
+        sources = []
+        for kind in ("base", "fix"):
+            sha = spec[kind + "_sha"]
+            git(repository, "merge-base", "--is-ancestor", sha, base_sha)
+            sources.append({"source_sha": sha, "source_pr": spec[kind + "_pr"],
+                            "source_tree": git(repository, "rev-parse", sha + "^{tree}").decode().strip()})
+        with tempfile.TemporaryDirectory(prefix="production-authority-classification-") as temporary:
+            payload = Path(temporary) / "payload"
+            git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(Path(repository).resolve()), str(payload))
+            git(payload, "checkout", "--quiet", "--detach", spec["base_sha"])
+            helper["materialize"](repository, payload, {**record, "composition": spec, "source_tree": spec["source_tree"]})
+        return {"path": path, "source_sha": spec["source_sha"], "source_pr": 666,
+                "source_tree": spec["source_tree"], "inventory_sha256": spec["inventory_sha256"],
+                "reviewed_sources": sources, "record_digest": digest(record, None),
+                "provenance": "EXACT_PR666_DERIVED_PAYLOAD", "human_approval": "PR_REVIEW_REQUIRED",
+                "activation_authorized": False}
     git(repository, "merge-base", "--is-ancestor", record["source_sha"], base_sha)
     return {"path": path, "source_sha": record["source_sha"],
             "source_pr": record["source_pr" if old else "pr_number"],

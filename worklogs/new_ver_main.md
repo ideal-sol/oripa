@@ -13080,6 +13080,48 @@ synthetic DB/network removed; task branch/worktree retained for Draft review.
 - Final local results: Backend selected204 coverage completed (203 initial PASS; new security fixture rerun1 PASS/10 assertions). Intermediate fixture attempts rejected immutable Asset identity and duplicate public_path; corrected to a separate synthetic Asset with unique identity/path, retaining every DB guard and assertion. Admin42, Policy260, typecheck/lint and changed production PHP syntax PASS. Initial reproduction2 failures remain RED evidence; no unresolved functional failure. Build0, operational application0, Runtime0.
 
 
+
+## NEWPROD-PR666-20261105 — Production limited payload Draft preparation
+
+NEWPROD-PR666-20261105 — R3 / Strict Change / Activation none
+
+Issue: none. Draft only; Human approval is required separately for merge, formal artifact dispatch/build, and runtime activation. OLD Test PR666 Technical PASS is pending.
+
+Reproduce the exact alpha.50 plus two PR666 normalizer blobs on the hosted ARM64 runner. Verify both merged source PRs, reviewed trees and existing Required CI, fixed manifest digest, blob modes/identities, exact two-file delta, derived SHA/tree/inventory. The normal ancestor/merged-source path retains its gates. No application files change in this PR. Policy-gate follows the base checkout plus exact final SHA assertion without relaxing source checks.
+
+Base: 24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc
+Runtime: cad8be03cbab8b7fba18825a4a9b2a276f402010
+Tree: 0978c97a3a1d90036f5173aff4409398b93c5a87
+Inventory SHA256: a98161e34cf90e8b075fbdf9b25812cde884577846c33c7a292676b1facaf4f1
+
+Validation: 35 focused tests PASS; local policy-gate PASS; Required CI pending. No formal Build/Dispatch, Runtime activation, migration creation/application, Production connection or Browser/E2E execution.
+
+Storefront follow-up after actual approved Platform merge: docs/production-approved-source.json platform_runtime_source_sha and platform_authority_merge_sha; scripts/production-provenance.mjs exact pins; provenance regression tests and docs/production-build-provenance.md. Keep application #221 at 1e3ba92780825a12485f651ea79025ad47f1321b, platform_source_sha at 14f7819c72c5908aa6e5778303b87dc4b1202493, alpha.50 vendor and contract digests unchanged. Verify stale/missing/incorrect pins reject, exact runtime and new merged authority pass, contract digest/source still match. No Storefront files modified or placeholder committed.
+
+Remaining: compare OLD Test final handoff SHA/tree/inventory and Technical PASS; explicit Human merge approval; fresh Strict review and all gates at merge; Storefront follow-up with actual squash SHA; separately authorized artifact build and runtime process. Rollback: abandon Draft with no runtime effect, or reviewed revert before any subsequent dispatch. Task branch/worktree retained for review. OLD Test wrapper/executor untouched; independent append-only worklog entry.
+
+Changed files:
+- .github/workflows/platform-production-arm64-artifact.yml
+- manifests/platform-production-approved-source.json
+- scripts/ops/production_source_authority.py
+- scripts/ops/production_pr666_payload.py
+- scripts/ci/policy_gate.py
+- tests/ops/test_production_source_authority.py
+- tests/ops/test_production_pr666_payload.py
+- worklogs/new_ver_main.md
+
+Draft PR #669 created. Initial CI stopped at missing structured Lane metadata in the PR body; corrected Lane, Application Runtime Activation and UI Verification fields. Added explicit main-movement and pinned-manifest tampering regressions before fixing the final review head. Existing PR659/666 reviewed-tree and Required CI 5/5 evidence verified live (no source CI reruns). Focused suite: 36 tests PASS. Final-head CI and review recorded in PR; no merge or dispatch authority.
+
+CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancestor-only authority model. Extend scripts/release/readiness/change.py and adapters.py for the exact digest-pinned payload, with local materialization and both reviewed source checks. Added classifier/adapter regressions; NORMAL_STRICT_CI remains mandatory. Initial metadata failure and classifier failure are recorded separately from final validation. No manual rerun or artifact build.
+
+Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR body metadata and changed-path schema PASS. CI also enforces canonical PR headings and the fixed Change ID grammar; restored complete template fields and registered only this exact Change ID. Earlier CI failures were metadata/classification blockers, not successful CI. Final-head Required CI and Strict review remain separately recorded in PR #669.
+
+Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
+
+Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
+
+Quality CI detected another old direct-checkout assertion in tests/ops/test_preview_image_pipeline.py. Updated it to require base checkout, exact materialization and final source SHA assertion. New limited-payload regressions are included through the existing Production authority CI test entrypoint. Assertions and all Required contexts retained.
+
 ## OLDTEST-PR666-20261105 — limited derived payload preparation
 
 Issue none; R3; Strict Change; Application Runtime Activation deferred. Dedicated clean worktree protects unrelated CONTACT worklog and other Tasks. Base a6affd68253a0bb162fb480159778f4c79dd51ab. Human authorizes Source, focused validation and Draft PR only: no Ready/merge, host installation, formal Runtime Build/publication or activation.
