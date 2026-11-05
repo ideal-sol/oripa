@@ -103,6 +103,16 @@ class PolicyGateTest(unittest.TestCase):
                 policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
                                              data["changed_paths"], data["base_sha"])
 
+    def test_oldtest_pr666_cdn_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "OLDTEST-PR666-20261105"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                     data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "OLDTEST-PR666-20261106", "OLDTEST-PR666-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                             data["changed_paths"], data["base_sha"])
+
     def test_banner_model_task_id_is_exact(self):
         policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
         self.assertIn("apps/admin/e2e/admin-shipping-model.spec.ts", policy_gate.ADMIN_SKELETON_FILES)

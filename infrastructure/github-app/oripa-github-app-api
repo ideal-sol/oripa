@@ -351,8 +351,71 @@ def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> di
     return {"build_recipe": {**recipe, "reviewed_sha": reviewed_sha, "tree": tree}}
 
 
+PR666_TASK = "OLDTEST-PR666-20261105"
+PR666_SOURCE = "cad8be03cbab8b7fba18825a4a9b2a276f402010"
+PR666_MANIFEST = "manifests/old-test-pr666-payload.json"
+PR666_MANIFEST_DIGEST = "d6d8bb82da2659db225f267f5562ca9348c1ed59c3bee673bb89c95b0832cfc8"
+
+
+def pr666_manifest(raw: bytes) -> dict:
+    if hashlib.sha256(raw).hexdigest() != PR666_MANIFEST_DIGEST:
+        fail("pr666_manifest_mismatch")
+    return json.loads(raw)
+
+
+def authorize_pr666(task_id, pr_number, source_sha, control_sha, get):
+    if (task_id != PR666_TASK or pr_number != "666" or source_sha != PR666_SOURCE
+            or not FULL_SHA.fullmatch(control_sha)):
+        fail("pr666_identity_mismatch")
+    main_path = f"/repos/{REPOSITORY}/branches/main"
+    def main_check():
+        main = get(main_path)
+        if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
+            fail("old_test_control_not_current_protected_main")
+    main_check()
+    content = get(f"/repos/{REPOSITORY}/contents/{PR666_MANIFEST}?ref={control_sha}")
+    if content.get("encoding") != "base64":
+        fail("pr666_manifest_encoding")
+    manifest = pr666_manifest(base64.b64decode(content["content"]))
+    reviewed = {}
+    for kind in ("base", "fix"):
+        revision = manifest[kind + "_sha"]
+        comparison = api_compare(REPOSITORY, revision, control_sha, get=get)
+        if (comparison.get("status") not in {"ahead", "identical"}
+                or comparison.get("merge_base_commit", {}).get("sha") != revision
+                or comparison.get("base_commit", {}).get("sha") != revision):
+            fail("pr666_source_not_main_ancestor")
+        pull = get(f"/repos/{REPOSITORY}/pulls/{manifest[kind + '_pr']}")
+        head = pull.get("head") or {}
+        if (pull.get("merged") is not True or pull.get("state") != "closed"
+                or pull.get("merge_commit_sha") != revision
+                or pull.get("base", {}).get("ref") != "main"
+                or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+                or head.get("repo", {}).get("full_name") != REPOSITORY
+                or not FULL_SHA.fullmatch(str(head.get("sha", "")))):
+            fail("pr666_merged_pr_mismatch")
+        merged = get(f"/repos/{REPOSITORY}/git/commits/{revision}")
+        review = get(f"/repos/{REPOSITORY}/git/commits/{head['sha']}")
+        if (merged.get("sha") != revision or review.get("sha") != head["sha"]
+                or not FULL_SHA.fullmatch(str(merged.get("tree", {}).get("sha", "")))
+                or merged["tree"] != review.get("tree")):
+            fail("pr666_reviewed_tree_mismatch")
+        validate_required_checks(head["sha"], get)
+        reviewed[kind] = head["sha"]
+    validate_required_checks(control_sha, get)
+    main_check()
+    return {"task_id": task_id, "source_pr": 666, "source_sha": source_sha,
+            "source_tree": manifest["source_tree"], "reviewed_sha": reviewed["fix"],
+            "control_sha": control_sha, "target": "old-test", "platform": "linux/amd64",
+            "image_mode": "api-only", "authority_path": PR666_MANIFEST,
+            "payload_kind": manifest["kind"], "composition": manifest,
+            "reviewed_sources": reviewed}
+
+
 def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
                               control_sha: str, *, get=None) -> dict:
+    if task_id == PR666_TASK or source_sha == PR666_SOURCE:
+        return authorize_pr666(task_id, pr_number, source_sha, control_sha, get or api_get)
     compare_get = get
     get = get or api_get
     if (
