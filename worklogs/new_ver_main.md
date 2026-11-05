@@ -13118,6 +13118,8 @@ Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR
 
 Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
 
+Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
+
 ## OLDTEST-PR666-20261105 — limited derived payload preparation
 
 Issue none; R3; Strict Change; Application Runtime Activation deferred. Dedicated clean worktree protects unrelated CONTACT worklog and other Tasks. Base a6affd68253a0bb162fb480159778f4c79dd51ab. Human authorizes Source, focused validation and Draft PR only: no Ready/merge, host installation, formal Runtime Build/publication or activation.
