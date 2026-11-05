@@ -37,6 +37,9 @@ const TEMPLATE_KEYS = new Set<MailTemplateKey>([
   "email_change_verification",
   "email_change_completed",
   "password_changed",
+  "phone_changed",
+  "account_closure_payment",
+  "account_closure_code",
 ]);
 
 const PREVIEW_TAGS = new Set([

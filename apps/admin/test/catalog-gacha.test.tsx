@@ -32,6 +32,8 @@ describe("Admin Gacha Draft management", () => {
       .mockResolvedValue({ items: [], next_cursor: null });
     const { unmount } = render(<CatalogGachaWorkspace />);
     expect(await screen.findByLabelText("公開ステータス")).toHaveValue("published,draft");
+    expect(screen.getByLabelText("公開ステータス")).toHaveClass("admin-ui-control");
+    expect(screen.getByLabelText("ガチャ種別")).toHaveClass("admin-ui-control");
     expect(list).toHaveBeenCalledWith(
       expect.objectContaining({ management_status: "published,draft" }),
       expect.any(AbortSignal),

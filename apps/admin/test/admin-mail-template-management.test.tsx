@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,7 +13,8 @@ import type {
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/components/shell/admin-shell", () => ({ AdminShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/permissions/protected-admin-route", () => ({ ProtectedAdminRoute: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
-vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ permissions: new Set(["content.read", "content.manage"]), role: "admin", status: "ready" }) }));
+const access = vi.hoisted(() => ({ manage: true }));
+vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ permissions: new Set(access.manage ? ["content.read", "content.manage"] : ["content.read"]), role: "admin", status: "ready" }) }));
 
 const variables: AdminMailTemplateVariable[] = [
   ["user_name", "ユーザー名"],
@@ -59,6 +61,7 @@ const keys: MailTemplateKey[] = [
 ];
 
 beforeEach(() => {
+  access.manage = true;
   vi.spyOn(AdminApiClient.prototype, "listMailTemplates").mockResolvedValue({
     items: keys.map((key, index) => template(key, `メール${index + 1}`)),
   });
@@ -69,6 +72,52 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Mail Template management", () => {
+  it("covers exactly the nineteen authoritative API template keys", () => {
+    const config = readFileSync("../api/config/v2_mail_templates.php", "utf8").split("'variables' =>")[0];
+    const apiKeys = [...config.matchAll(/^        '([a-z_]+)' =>/gmu)].map(match => match[1]);
+    expect([...keys].sort()).toEqual(apiKeys.sort());
+    expect(apiKeys).toHaveLength(19);
+  });
+  it.each(keys)("opens the existing API editor for %s", async (key) => {
+    vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue(template(key, key));
+    render(<MailTemplateWorkspace templateKey={key} />);
+    expect(await screen.findByLabelText("件名")).toHaveValue("発送依頼を受け付けました");
+    expect(screen.getByLabelText("メール本文")).toHaveTextContent("{{user_name}}");
+    expect(AdminApiClient.prototype.getMailTemplate).toHaveBeenCalledWith(key, expect.any(AbortSignal));
+    expect(screen.queryByText("メールTemplateが見つかりません。")).not.toBeInTheDocument();
+  });
+
+  it.each(["phone_changed", "account_closure_payment", "account_closure_code"] as const)("previews and saves %s through the existing endpoints", async (key) => {
+    vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue(template(key, key));
+    const preview = vi.spyOn(AdminApiClient.prototype, "previewMailTemplate").mockResolvedValue({ body_html: "<p>確認</p>" });
+    const update = vi.spyOn(AdminApiClient.prototype, "updateMailTemplate").mockImplementation(async (_, input) => ({ ...template(key, key), ...input, revision: 2, idempotent_replay: false }));
+    const doc = document.implementation.createHTMLDocument("preview");
+    vi.spyOn(window, "open").mockReturnValue({ document: doc, close: vi.fn() } as unknown as Window);
+    render(<MailTemplateWorkspace templateKey={key} />);
+    fireEvent.change(await screen.findByLabelText("件名"), { target: { value: "変更済み件名" } });
+    fireEvent.click(screen.getByRole("button", { name: "プレビュー" }));
+    await waitFor(() => expect(doc.body.textContent).toContain("確認"));
+    expect(preview.mock.calls[0][0]).toBe(key);
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await screen.findByText("メールTemplateを保存しました。");
+    expect(update.mock.calls[0][0]).toBe(key);
+    expect(update.mock.calls[0][1]).toMatchObject({ subject: "変更済み件名", expected_revision: 1 });
+  });
+
+  it.each(["phone_changed", "account_closure_payment", "account_closure_code"] as const)("keeps %s read only without content.manage", async (key) => {
+    access.manage = false;
+    vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue(template(key, key));
+    render(<MailTemplateWorkspace templateKey={key} />);
+    expect(await screen.findByLabelText("件名")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "保存" })).not.toBeInTheDocument();
+  });
+
+  it.each(["unknown", "toString", "__proto__"])("rejects invalid key %s before an API read", (key) => {
+    render(<MailTemplateWorkspace templateKey={key} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("メールTemplateが見つかりません。");
+    expect(AdminApiClient.prototype.getMailTemplate).not.toHaveBeenCalled();
+  });
+
   it("shows exactly nineteen fixed templates without create or delete controls", async () => {
     render(<MailTemplateWorkspace />);
 

@@ -165,7 +165,7 @@ export function AdminUserPrizeList() {
           <button className="secondary-button" type="submit">
             <Search aria-hidden="true" size={16} />検索
           </button>
-          <button className="text-button" onClick={resetFilters} type="button">条件を解除</button>
+          <button className="secondary-button" onClick={resetFilters} type="button">条件を解除</button>
         </div>
       </form>
 

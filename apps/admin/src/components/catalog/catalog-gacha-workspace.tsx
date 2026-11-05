@@ -491,7 +491,7 @@ export function CatalogGachaWorkspace({
               </label>
               <label>
                 公開ステータス
-                <select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursorHistory([null]); setCursorIndex(0); }}>
+                <select className="admin-ui-control" value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setCursorHistory([null]); setCursorIndex(0); }}>
                   <option value="published,draft">公開 + 下書き</option>
                   <option value="published">公開</option>
                   <option value="draft">下書き</option>
@@ -500,7 +500,7 @@ export function CatalogGachaWorkspace({
                   <option value="all">すべて</option>
                 </select>
               </label>
-              <label>ガチャ種別<select value={gachaType} onChange={(event) => { setGachaType(event.target.value as typeof gachaType); setCursorHistory([null]); setCursorIndex(0); }}>
+              <label>ガチャ種別<select className="admin-ui-control" value={gachaType} onChange={(event) => { setGachaType(event.target.value as typeof gachaType); setCursorHistory([null]); setCursorIndex(0); }}>
                 <option value="all">すべて</option>
                 <option value="standard">通常ガチャ</option>
                 <option value="signup_once">新規登録限定ガチャ</option>

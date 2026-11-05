@@ -1,10 +1,29 @@
 import { expect, test, type Page } from "@playwright/test";
 import { adjustment, detail, impact, paymentId } from "../test/payment-adjustment-fixture";
 
+test("ADMIN-UI-002 small viewport dialog scrolls and Escape closes without a mutation", async ({ page }) => {
+  const writes = await installApi(page);
+  await page.setViewportSize({ width: 390, height: 350 });
+  await page.goto(`/payments/${paymentId}`);
+  await page.getByRole("button", { name: "返金の準備", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const box = (await dialog.boundingBox())!;
+  expect(box.height).toBeLessThanOrEqual(318);
+  expect(await dialog.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  expect(writes).toHaveLength(0);
+});
+
 test("refund preparation, explicit cancellation, preparation again and confirmed completion", async ({ page }) => {
   const writes = await installApi(page);
   await page.goto(`/payments/${paymentId}`);
   await page.getByRole("button", { name: "返金の準備", exact: true }).click();
+  await expect(page.getByRole("region", { name: "決済情報", exact: true })).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveCSS("overflow-y", "auto");
+  await expect(dialog.getByRole("button", { name: "閉じる" })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "確認して記録" })).toBeDisabled();
   await page.getByLabel("理由（必須）").fill("全額返金準備");
   await page.getByRole("button", { name: "確認して記録" }).click();
   await page.getByRole("button", { name: "取りやめる", exact: true }).click();

@@ -16,3 +16,8 @@
   .filters { align-items: stretch; flex-direction: column; }
   .filters label { width: 100%; }
 }
+
+.workspace { display: grid; gap: 18px; }
+.panel, .notice { background: #fff; border: 1px solid #e4e7ec; border-radius: 8px; padding: 16px; min-width: 0; }
+.tableScroll { background: #fff; }
+.tableScroll th { background: #f9fafb; }

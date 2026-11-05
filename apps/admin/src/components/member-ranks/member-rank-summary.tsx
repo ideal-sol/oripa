@@ -86,7 +86,7 @@ function Summary() {
           <tbody>{summary.reviews.map((item) => <tr key={item.id}><td>{rankDate(item.occurred_at)}</td><td><Link href={`/users/${item.user_id}`}>{item.user_id}</Link></td><td>{rankName(item.rank)}</td><td>{item.recovered_amount.toLocaleString()}pt</td><td>{item.shortfall_amount.toLocaleString()}pt</td></tr>)}</tbody>
         </table></div>}
       </div>
-      <div className={styles.panel}><h2>要確認 — 決済取消・購入ボーナス不足</h2>
+      <div className={`${styles.panel} ${styles.form}`}><h2>要確認 — 決済取消・購入ボーナス不足</h2>
         <label>決済取消を検索<input value={reviewSearch} onChange={event => setReviewSearch(event.target.value)} placeholder="会員ID・決済ID・調整ID・元月" /></label>
         <label>確認分類<select value={reviewKind} onChange={event => setReviewKind(event.target.value)}><option value="">すべて</option><option value="past">過去月取消</option><option value="bonus">購入ボーナス不足</option></select></label>
         <div className={styles.scroll} tabIndex={0}><table className={styles.table}>

@@ -46,7 +46,7 @@ for (const width of [1440, 390]) {
         await page.getByLabel("景品名", { exact: true }).fill("QA prize");
         await page.getByRole("combobox", { name: "Banner Category", exact: true }).selectOption(identity);
         await page.getByRole("button", { name: "QA Banner", exact: true }).click();
-        await page.getByRole("combobox", { name: "QAの演出動画", exact: true }).selectOption(videoId);
+        await page.getByRole("combobox", { name: "QAの動画1", exact: true }).selectOption(videoId);
         await page.getByLabel("固定当選確率（%・小数10桁まで）").fill("100");
       }
       await page.getByRole("button", { name: type === "standard" ? "下書きを登録" : "構成を一括保存", exact: true }).click();
@@ -93,13 +93,15 @@ async function installApi(page: Page, type: "standard" | "login_daily" | "signup
     }
     if (path.endsWith("/catalog/categories")) return json({ items: [category], next_cursor: null });
     if (path.endsWith("/catalog/gachas")) return json({ items: state.saved ? [gacha()] : [], next_cursor: null });
-    if (path.endsWith("/catalog/tags") || path.endsWith("/catalog/rank-effects")) return json({ items: [], next_cursor: null });
+    if (path.endsWith("/catalog/tags")) return json({ items: [], next_cursor: null });
+    if (path.endsWith("/catalog/rank-effects")) return json({ items: [{ id: videoId, media_type: "video", mime_type: "video/webm", is_public: true, is_default: true, public_path: null, alt_text: "QA video" }], next_cursor: null });
     if (path.endsWith("/catalog/ranks")) return json({ items: [{ id: identity, rank_name: "QA", status: "active" }], next_cursor: null });
     if (path.endsWith(`/catalog/presentation-assets/${videoId}/content`)) return route.fulfill({ contentType: "video/webm", body: videoBytes });
+    if (path.endsWith(`/catalog/presentation-assets/${imageId}`)) return json({ data: asset });
     if (path.endsWith("/catalog/presentation-assets")) return json({ items: [asset, { id: videoId, media_type: "video", mime_type: "video/webm", is_public: true, public_path: null, alt_text: "QA video" }], next_cursor: null });
     if (path.endsWith("/catalog/gacha-thumbnails")) return json({ data: asset, idempotent_replay: false });
     if (path.endsWith("/banner-management/categories")) return json({ items: [category] });
-    if (path.endsWith("/banner-management/banners")) return json({ items: [{ id: identity, title: "QA Banner", category, asset: { id: imageId, public_url: "/qa-notice.png" } }], next_cursor: null });
+    if (path.endsWith("/banner-management/banners")) return json({ items: [{ id: identity, external_id: "QA-CARD-1", title: "QA Banner", category, asset: { id: imageId, public_url: "/qa-notice.png" } }], next_cursor: null });
     if (path.endsWith("/catalog/gachas/core") || path.endsWith("/catalog/gacha-compositions")) {
       state.saved = request.postDataJSON() as Record<string, unknown>;
       expect(request.headers()["idempotency-key"]).toBeTruthy();

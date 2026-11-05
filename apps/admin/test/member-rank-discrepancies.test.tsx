@@ -22,6 +22,7 @@ it("shows authoritative shortfall and member link and pages through active membe
   render(<MemberRankDiscrepancies />);
   expect(await screen.findByRole("link", { name: "synthetic-member" })).toHaveAttribute("href", "/users/synthetic-member");
   expect(screen.getByText("80,000")).toBeVisible();
+  expect(screen.getByRole("button", { name: "再取得" })).toHaveClass("secondary-button");
   fireEvent.click(screen.getByRole("button", { name: "次の会員を表示" }));
   await screen.findByText("条件に該当する有効会員はいません。");
   await waitFor(() => expect(read.mock.calls[1][0]).toBe("next"));

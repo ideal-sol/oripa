@@ -33,17 +33,17 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
     }).catch(error => { if (!controller.signal.aborted) { setDetail(null); setError(message(error)); } });
     return () => controller.abort();
   }, [client, paymentId, reload]);
-  return <div className="workspace">
+  return <div className="workspace admin-payment-detail">
     <AdminPageHeader title="決済詳細" eyebrow="Payments" description="決済会社側の返金・チャージバックを確認し、ポイントの取消を記録します。" />
     <Link href="/payments">決済履歴へ戻る</Link>
     {error && <p role="alert">{error}</p>}
     {!detail && !error && <p role="status">読み込み中…</p>}
-    <button type="button" onClick={() => setReload(value => value + 1)}>最新の状態を取得</button>
-    {result && <section aria-label="操作結果" role="status"><h2>記録しました：{statuses[result.status]}</h2>{result.impact && <Impact impact={result.impact} />}</section>}
+    <button className="secondary-button" type="button" onClick={() => setReload(value => value + 1)}>最新の状態を取得</button>
+    {result && <section className="admin-payment-detail-panel" aria-label="操作結果" role="status"><h2>記録しました：{statuses[result.status]}</h2>{result.impact && <Impact impact={result.impact} />}</section>}
     {detail && <>
-      <section aria-label="決済情報"><h2>{detail.payment.amount.amount.toLocaleString()}円</h2>
+      <section className="admin-payment-detail-panel" aria-label="決済情報"><h2>{detail.payment.amount.amount.toLocaleString()}円</h2>
         <p style={{ overflowWrap: "anywhere" }}>決済ID：{detail.payment.id}</p>
-        <section aria-label="決済の経過"><h2>決済の経過（日本時間・記録時刻）</h2><ol>{detail.progress?.map((event, index) => <li key={index} style={{overflowWrap: "anywhere"}}>{date(event.recorded_at)} — {progressLabels[event.type] ?? event.type}{event.source === "client" ? "（会員画面の参考記録）" : ""}<span> {JSON.stringify(event.detail)}</span></li>)}</ol></section>
+        <section aria-label="決済の経過"><h2>決済の経過（日本時間・記録時刻）</h2><ol>{detail.progress?.map((event, index) => <li key={index} className="admin-payment-detail-event"><time dateTime={event.recorded_at}>{date(event.recorded_at)}</time><strong>{progressLabels[event.type] ?? event.type}{event.source === "client" ? "（会員画面の参考記録）" : ""}</strong><pre>{JSON.stringify(event.detail, null, 2)}</pre></li>)}</ol></section>
         <p>決済会社：{detail.payment.provider_label ?? detail.payment.provider} ／ 支払方法：{detail.payment.method_label ?? detail.payment.method} ／ 状態：{detail.payment.status}</p>
         <p style={{overflowWrap: "anywhere"}}>決済会社側の取引ID：{detail.payment.provider_payment_reference ?? "未発行"}</p>
         <p>成立日時：{date(detail.payment.succeeded_at)}（日本時間）</p>
@@ -51,19 +51,19 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
         {detail.rank_adjustment_pending && <p role="alert">ランク会計の確認が必要です。機能停止・会員凍結・元付与記録の欠落や不整合がある場合は取消を記録できません。返金予約の取りやめは可能です。</p>}
         <p>円返金額に購入ボーナスは含みません。ポイントとランクポイントの取消は別々に記録します。</p>
         {!detail.refund_eligibility.allowed && <p>返金準備不可：{detail.refund_eligibility.reason}</p>}
-        <PermissionGate permission="payment.adjustment.manage">
-          <button type="button" disabled={!detail.refund_eligibility.allowed} onClick={() => setAction({ operation: "refund" })}>{labels.refund}</button>
-          <button type="button" disabled={detail.rank_adjustment_pending || detail.payment.status !== "succeeded" || detail.payment.adjustments?.refund_pending || detail.payment.adjustments?.refunded || detail.payment.adjustments?.chargeback} onClick={() => setAction({ operation: "chargeback" })}>{labels.chargeback}</button>
-        </PermissionGate>
+        <PermissionGate permission="payment.adjustment.manage"><div className="admin-payment-detail-actions">
+          <button className="secondary-button" type="button" disabled={!detail.refund_eligibility.allowed} onClick={() => setAction({ operation: "refund" })}>{labels.refund}</button>
+          <button className="danger-button" type="button" disabled={detail.rank_adjustment_pending || detail.payment.status !== "succeeded" || detail.payment.adjustments?.refund_pending || detail.payment.adjustments?.refunded || detail.payment.adjustments?.chargeback} onClick={() => setAction({ operation: "chargeback" })}>{labels.chargeback}</button>
+        </div></PermissionGate>
       </section>
-      <section aria-label="付与ポイント"><h2>関連ポイント</h2>
+      <section className="admin-payment-detail-panel" aria-label="付与ポイント"><h2>関連ポイント</h2>
         {detail.lots.length === 0 && <p>ポイント付与はありません。</p>}
         {detail.lots.map(lot => <p key={`${lot.operation_id}:${lot.point_type}`}>
           {lot.member_rank_purchase_bonus ? "会員ランク購入ボーナス（別Lot）" : lot.point_type === "paid" ? "有償" : "通常・期間限定の合算無償"}
           ：付与 {lot.granted_amount}pt ／ 残り {lot.remaining_amount}pt ／ 予約 {lot.reserved_amount}pt ／ 期限 {date(lot.expire_at)}
         </p>)}
       </section>
-      <section aria-label="調整履歴"><h2>調整履歴</h2>
+      <section className="admin-payment-detail-panel" aria-label="調整履歴"><h2>調整履歴</h2>
         {detail.adjustments.length === 0 && <p>調整の記録はありません。</p>}
         {detail.adjustments.map(adjustment => <article key={adjustment.id} id={`adjustment-${adjustment.id}`}>
           <h3>{adjustment.type === "refund" ? "返金" : adjustment.type === "chargeback" ? "チャージバック" : "チャージバック取消"}：{statuses[adjustment.status]}</h3>
@@ -72,14 +72,14 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
           {adjustment.impact && <Impact impact={adjustment.impact} />}
           {adjustment.type === "chargeback_reversal" && <p>ポイントは自動復元されません。必要な手動調整を確認してください。</p>}
           <ul>{adjustment.history.map((history, index) => <li key={index} style={{ overflowWrap: "anywhere" }}>{date(history.occurred_at)}：{statuses[history.to_status]} ／ {history.admin_id ?? history.source}</li>)}</ul>
-          <PermissionGate permission="payment.adjustment.manage">
+          <PermissionGate permission="payment.adjustment.manage"><div className="admin-payment-detail-actions">
             {adjustment.type === "refund" && adjustment.status === "points_reserved" && adjustment.source === "admin" && <>
-              <button type="button" disabled={detail.rank_adjustment_pending} onClick={() => setAction({ operation: "complete", adjustmentId: adjustment.id })}>{labels.complete}</button>
-              <button type="button" onClick={() => setAction({ operation: "cancel", adjustmentId: adjustment.id })}>{labels.cancel}</button>
+              <button className="secondary-button" type="button" disabled={detail.rank_adjustment_pending} onClick={() => setAction({ operation: "complete", adjustmentId: adjustment.id })}>{labels.complete}</button>
+              <button className="secondary-button" type="button" onClick={() => setAction({ operation: "cancel", adjustmentId: adjustment.id })}>{labels.cancel}</button>
             </>}
             {adjustment.type === "chargeback" && adjustment.status === "succeeded" && !detail.adjustments.some(child => child.parent_id === adjustment.id) &&
-              <button type="button" onClick={() => setAction({ operation: "reversal", adjustmentId: adjustment.id })}>{labels.reversal}</button>}
-          </PermissionGate>
+              <button className="secondary-button" type="button" onClick={() => setAction({ operation: "reversal", adjustmentId: adjustment.id })}>{labels.reversal}</button>}
+          </div></PermissionGate>
         </article>)}
       </section>
     </>}
@@ -140,14 +140,14 @@ function AdjustmentDialog({ client, paymentId, action, rankChoice, close, comple
     } catch (error) { setError(message(error)); }
     finally { busy.current = false; setPending(false); }
   }
-  return <dialog ref={dialog} aria-labelledby="adjustment-title" onCancel={event => { event.preventDefault(); if (!pending) close(); }} style={{ maxWidth: "min(38rem, 94vw)", overflowWrap: "anywhere" }}>
-    <form onSubmit={event => { event.preventDefault(); void submit(); }}>
+  return <dialog className="admin-payment-detail-dialog" ref={dialog} aria-labelledby="adjustment-title" onCancel={event => { event.preventDefault(); if (!pending) close(); }} style={{ maxWidth: "min(38rem, 94vw)", overflowWrap: "anywhere" }}>
+    <form className="admin-payment-detail-form" onSubmit={event => { event.preventDefault(); void submit(); }}>
       <h2 id="adjustment-title">{labels[action.operation]}</h2>
       <p>決済会社への返金依頼・自動通知は行いません。</p>
       <label>理由（必須）<textarea required maxLength={500} value={reason} disabled={pending} onChange={event => { setReason(event.target.value); setPreview(null); }} /></label>
       {(isComplete || action.operation === "chargeback" || action.operation === "reversal") &&
         <label>決済会社の参照番号（任意）<input maxLength={191} value={reference} disabled={pending} onChange={event => { setReference(event.target.value); setPreview(null); }} /></label>}
-      {isComplete && <label><input type="checkbox" checked={confirmed} disabled={pending} onChange={event => setConfirmed(event.target.checked)} />決済会社側で実際の返金が完了したことを確認しました</label>}
+      {isComplete && <label className="admin-payment-detail-checkbox"><input type="checkbox" checked={confirmed} disabled={pending} onChange={event => setConfirmed(event.target.checked)} />決済会社側で実際の返金が完了したことを確認しました</label>}
       {choice && (isComplete || (action.operation === "chargeback" && preview)) && hasPermission("member_rank.user.manage") && <div>
         <p id="payment-rank-choice-description">減算後 {choice.rank_points_after.toLocaleString()}pt ／ 現在ランクの到達ライン {choice.reach_line.toLocaleString()}pt。選択しなければランクは維持されます。</p>
         <label>変更後のランク<select aria-describedby="payment-rank-choice-description" value={rankAfter} disabled={pending} onChange={event => setRankAfter(event.target.value as AdminMemberRankCode | "")}>
@@ -157,8 +157,8 @@ function AdjustmentDialog({ client, paymentId, action, rankChoice, close, comple
       {preview && <section aria-label="取消予定額"><h3>取消予定額</h3><Impact impact={preview} /><p>実行時の残高で再計算されます。記録後の結果を確認してください。</p></section>}
       {action.operation === "reversal" && <p>ポイントは自動復元されません。</p>}
       {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={pending || !reason.trim() || (isComplete && !confirmed)}>{pending ? "処理中…" : action.operation === "chargeback" && !preview ? "取消予定額を確認" : "確認して記録"}</button>
-      <button type="button" disabled={pending} onClick={close}>閉じる</button>
+      <button className="danger-button" type="submit" disabled={pending || !reason.trim() || (isComplete && !confirmed)}>{pending ? "処理中…" : action.operation === "chargeback" && !preview ? "取消予定額を確認" : "確認して記録"}</button>
+      <button className="secondary-button" type="button" disabled={pending} onClick={close}>閉じる</button>
     </form>
   </dialog>;
 }

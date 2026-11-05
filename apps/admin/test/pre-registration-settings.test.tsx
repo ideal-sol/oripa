@@ -29,6 +29,7 @@ describe("pre-registration settings", () => {
     render(<PreRegistrationSettings />);
     const cutoff = await screen.findByLabelText("締切・OPEN日時（日本時間）");
     expect(cutoff).toHaveValue("2026-11-01T12:00");
+    expect(screen.getByRole("checkbox", { name: "事前登録受付を有効にする" }).closest("label")).toHaveClass("admin-ui-check-row");
     fireEvent.change(cutoff, { target: { value: "2026-10-31T12:00" } });
     fireEvent.click(screen.getByRole("button", { name: "変更内容を確認" }));
     expect(await screen.findByText(/対象外となる申込：1人/)).toBeVisible();

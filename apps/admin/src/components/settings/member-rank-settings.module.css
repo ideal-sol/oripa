@@ -3,7 +3,7 @@
 .scroll { overflow-x: auto; max-width: 100%; }
 .table { border-collapse: collapse; width: 100%; min-width: 760px; }
 .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-.table input { width: 130px; padding: 8px; }
+.table input { width: 130px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .history { overflow-wrap: anywhere; }
 .history summary { cursor: pointer; padding: 12px 0; }

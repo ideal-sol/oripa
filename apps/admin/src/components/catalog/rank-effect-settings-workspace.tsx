@@ -106,9 +106,9 @@ function RankEffectWorkspace({ id, initialVisibility, mode }: { id?: string; ini
         title={mode === "list" ? "ランク動画" : mode === "create" ? "ランク動画登録" : "ランク動画編集"}
       />
       {mode === "list" ? (
-        <label className="announcement-filter">
+        <label className="announcement-filter rank-effect-status-filter">
           状態
-          <select value={visibility} onChange={(event) => { setState({ kind: "loading" }); setVisibility(event.target.value as typeof visibility); setCursor(null); }}>
+          <select className="admin-ui-control" value={visibility} onChange={(event) => { setState({ kind: "loading" }); setVisibility(event.target.value as typeof visibility); setCursor(null); }}>
             <option value="visible">有効</option>
             <option value="hidden">無効</option>
             <option value="all">すべて</option>

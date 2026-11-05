@@ -69,7 +69,7 @@ export function InventoryContent() {
     <AdminPageHeader title="カード別在庫" eyebrow="Inventory" description="確保必要数は企画割当（未当選）と当選保管中の合計です。QA当選は含みません。" />
     <NotionStatus client={client} onCompleted={() => setReload((value) => value + 1)} />
     {view !== "cards" && <button className="secondary-button" type="button" onClick={() => open("cards")}>カード一覧へ戻る</button>}
-    {view === "cards" && <form className={styles.filters} onSubmit={(event) => {
+    {view === "cards" && <form className={`${styles.panel} ${styles.filters}`} onSubmit={(event) => {
       event.preventDefault();
       setFilters({ ...filters, external_id: searchId, name: searchName });
       setHistory([null]);
@@ -86,7 +86,7 @@ export function InventoryContent() {
     </form>}
     {!current && <p role="status">在庫を読み込んでいます…</p>}
     {current?.error && <section role="alert"><p>{current.error}</p><button className="secondary-button" onClick={() => setReload(reload + 1)}>再試行</button></section>}
-    {data && "unlinked_prize_count" in data && <>
+    {data && "unlinked_prize_count" in data && <section className={styles.panel}>
       {data.unlinked_prize_count > 0 && <section role="alert" className={styles.notice}>
         <span>管理ID未設定：{data.unlinked_prize_count.toLocaleString("ja-JP")}件（版・景品の組）。カード別集計には含まれません。</span>
         <button className="secondary-button" onClick={() => open("unlinked")}>管理ID未設定景品を確認</button>
@@ -99,8 +99,8 @@ export function InventoryContent() {
           </tr>)}</tbody>
         </table>
       </div>}
-    </>}
-    {data && "breakdown" in data && <>
+    </section>}
+    {data && "breakdown" in data && <section className={styles.panel}>
       <h2>{data.data.external_id} {data.data.name ?? "名称未登録"}</h2>
       <div className={styles.card}><PublicAssetPreview asset={data.data.asset} /><p>確保必要数：{data.data.required_quantity.toLocaleString("ja-JP")}枚</p></div>
       <div className={styles.tableScroll}><table><caption>カード集計値</caption><thead><tr>{["企画割当", "当選保管中", "確保必要数", "発送済み", "返送", "手持ち枚数", "空き在庫"].map((title) => <th key={title}>{title}</th>)}</tr></thead><tbody><tr><CardCells card={data.data} /></tr></tbody></table></div>
@@ -113,13 +113,13 @@ export function InventoryContent() {
         </tr>)}</tbody></table></div>}
       <h3>保有景品ステータス別件数（QA除外）</h3>
       {Object.keys(data.status_counts).length === 0 ? <p>保有景品はありません。</p> : <dl className={styles.statuses}>{Object.entries(data.status_counts).map(([status, count]) => <div key={status}><dt>{statusLabels[status] ?? status}</dt><dd>{count.toLocaleString("ja-JP")}件</dd></div>)}</dl>}
-    </>}
-    {data && "total_count" in data && <>
+    </section>}
+    {data && "total_count" in data && <section className={styles.panel}>
       <h2>管理ID未設定景品：{data.total_count.toLocaleString("ja-JP")}件</h2>
       <p>件数は版・景品の組、枚数は企画割当と当選保管中の合計です。非公開・アーカイブ後の保管景品も含みます。</p>
       {data.items.length === 0 ? <p>管理ID未設定の対象景品はありません。</p> : <div className={styles.tableScroll}><table><thead><tr>{["ガチャ", "管理状態", "版", "景品", "企画割当", "当選保管中", "枚数"].map((title) => <th key={title}>{title}</th>)}</tr></thead>
         <tbody>{data.items.map((entry) => <tr key={entry.id}><td>{entry.gacha_name}</td><td>{statusLabels[entry.management_status]}{entry.gacha_archived ? "・アーカイブ済み" : ""}</td><td>{entry.version_number}</td><th scope="row">{entry.prize_name}</th><td>{entry.allocation.toLocaleString("ja-JP")}</td><td>{entry.stored.toLocaleString("ja-JP")}</td><td>{entry.quantity.toLocaleString("ja-JP")}</td></tr>)}</tbody></table></div>}
-    </>}
+    </section>}
     <CursorPagination canGoBack={Boolean(data) && history.length > 1} canGoNext={Boolean(data?.next_cursor)} onBack={() => setHistory(history.slice(0, -1))} onNext={() => {
       if (data?.next_cursor) setHistory([...history, data.next_cursor]);
     }} />
