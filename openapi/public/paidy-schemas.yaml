@@ -35,10 +35,25 @@ PaymentPaidyCheckoutAction:
         buyer_data:
           type: object
           additionalProperties: false
-          required: [user_id, age, ltv, order_count, order_count_last3months, order_amount_last3months, number_of_points]
+          required: [user_id, age, account_registration_date, previous_payment_methods, ltv, order_count, order_count_last3months, order_amount_last3months, number_of_points]
           properties:
             user_id: {type: string, format: uuid}
             age: {type: integer, minimum: 0, description: Days since account registration.}
+            account_registration_date: {type: string, format: date, description: Account registration date in Asia/Tokyo.}
+            delivery_locn_type: {type: string, minLength: 1}
+            days_since_first_transaction: {type: integer, minimum: 0, description: JST calendar days since first eligible purchase.}
+            previous_payment_methods:
+              type: object
+              additionalProperties: false
+              required: [credit_card_used]
+              properties:
+                credit_card_used: {type: boolean}
+                convenience_store_prepayment_used: {type: boolean}
+                bank_transfer_used: {type: boolean}
+            order_item_categories:
+              type: array
+              minItems: 1
+              items: {type: string, minLength: 1}
             ltv: {type: integer, minimum: 0}
             order_count: {type: integer, minimum: 0}
             last_order_amount: {type: integer, minimum: 0}

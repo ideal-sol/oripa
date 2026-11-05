@@ -75,10 +75,15 @@ final class V2PaidyReconciliationService
                 $payment = DB::table('payments')->where('public_id', $expected)->where('provider_code', 'paidy')->first();
                 $id = $payment?->provider_payment_id;
                 if ($id === null && $payment !== null) {
-                    if ($payment->status === 'requires_action' && CarbonImmutable::parse($payment->expires_at)->isPast()) {
-                        $this->apply($payment, 'expired');
-                        $outbox->markDelivered($message->public_id, $worker);
-                        return;
+                    if ($payment->status === 'requires_action' && V2PaidyDeadline::elapsed($payment)) {
+                        $expired = DB::transaction(function () use ($payment): bool {
+                            DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
+                            $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
+                            if ($fresh->status !== 'requires_action' || $this->captureAttempted($fresh) || ! V2PaidyDeadline::elapsed($fresh)) return false;
+                            $this->apply($fresh, 'expired');
+                            return true;
+                        }, 3);
+                        if ($expired) { $outbox->markDelivered($message->public_id, $worker); return; }
                     }
                     $outbox->retry($message->public_id, $worker, 'paidy_reference_pending', $this->delay($message->attempts));
                     return;
@@ -143,7 +148,8 @@ final class V2PaidyReconciliationService
             $payment = DB::table('payments')->where('id', $payment->id)->firstOrFail();
             $attempted = $this->captureAttempted($payment);
             if (in_array($payment->status, ['expired', 'failed', 'canceled'], true)
-                || CarbonImmutable::parse($payment->expires_at)->isPast()) {
+                || V2PaidyDeadline::elapsed($payment)
+                || ($attempted && CarbonImmutable::parse($payment->expires_at)->isPast())) {
                 // An uncertain Capture may still be in flight. Never cancel it.
                 if ($attempted || $payment->status === 'processing') { $this->review($payment, 'expired'); return false; }
                 return $this->closeIfSafe($payment, $id, $result, $message, $worker);
@@ -176,9 +182,15 @@ final class V2PaidyReconciliationService
                     // Keep the common user -> payment money lock order.
                     DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
                     $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
+                    $claim = DB::table('outbox_messages')->where('deduplication_key', 'paidy.operation:'.$fresh->public_id)
+                        ->where('event_type', 'paidy.capture.claimed')->first();
+                    $deadline = CarbonImmutable::parse($fresh->expires_at);
+                    if ($claim !== null && CarbonImmutable::parse($claim->created_at)->lessThan(V2PaidyDeadline::authorization($fresh))) {
+                        $deadline = V2PaidyDeadline::authorization($fresh);
+                    }
                     if (! DB::table('account_closures')->where('user_id', $fresh->user_id)->exists() && (in_array($fresh->status, ['expired', 'failed', 'canceled'], true)
-                        || ($fresh->status !== 'succeeded' && ($result['occurred_at']->greaterThanOrEqualTo(CarbonImmutable::parse($fresh->expires_at))
-                            || ($fresh->status !== 'processing' && CarbonImmutable::parse($fresh->expires_at)->isPast()))))) {
+                        || ($fresh->status !== 'succeeded' && ($result['occurred_at']->greaterThanOrEqualTo($deadline)
+                            || ($fresh->status !== 'processing' && V2PaidyDeadline::elapsed($fresh)))))) {
                         $this->review($fresh, 'expired'); return true;
                     }
                     $event = app(V2PaymentService::class)->recordVerifiedProviderEvent('paidy', 'captured:'.$fresh->public_id,
@@ -202,6 +214,8 @@ final class V2PaidyReconciliationService
 
     private function closeIfSafe(object $payment, string $id, array $result, OutboxMessage $message, string $worker): bool
     {
+        if ($result['match'] === 'ok' && in_array($payment->status, ['requires_action', 'processing'], true)
+            && ! V2PaidyDeadline::elapsed($payment)) return false;
         // A valid uncaptured authorization may belong to an entirely different
         // order, including when amount_mismatch masks member_mismatch.
         if (! $result['order_matches'] || ! $result['uncaptured'] || $this->captureAttempted($payment)
@@ -229,7 +243,7 @@ final class V2PaidyReconciliationService
             if ($lease->status !== 'processing' || $lease->locked_by !== $worker || ! $lease->lease_expires_at?->isFuture()) return false;
             $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
             if ($this->captureAttempted($fresh) || $fresh->status === 'succeeded') return false;
-            if ($operation === 'capture' && (in_array($fresh->status, ['expired', 'failed', 'canceled'], true) || CarbonImmutable::parse($fresh->expires_at)->isPast())) return false;
+            if ($operation === 'capture' && (in_array($fresh->status, ['expired', 'failed', 'canceled'], true) || V2PaidyDeadline::elapsed($fresh))) return false;
             // Unique Outbox key is a permanent write-ahead operation claim. Even
             // after lease recovery an ambiguous money request is never resent.
             $claim = app(V2OutboxService::class)->enqueue('payment.paidy.operation', 'payment', $fresh->public_id, 'paidy.'.$operation.'.claimed',

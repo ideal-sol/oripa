@@ -6,6 +6,21 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class PaidyContractTest(unittest.TestCase):
+    def test_v23_buyer_data_required_and_optional_fields(self):
+        public = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        data = public['components']['schemas']['PaymentPaidyCheckoutAction']['properties']['payload']['properties']['buyer_data']
+        self.assertFalse(data['additionalProperties'])
+        self.assertIn('account_registration_date', data['required'])
+        self.assertEqual(data['properties']['account_registration_date']['format'], 'date')
+        self.assertIn('previous_payment_methods', data['required'])
+        methods = data['properties']['previous_payment_methods']
+        self.assertFalse(methods['additionalProperties'])
+        self.assertEqual(methods['required'], ['credit_card_used'])
+        self.assertEqual(set(methods['properties']), {'credit_card_used', 'convenience_store_prepayment_used', 'bank_transfer_used'})
+        for field in ['delivery_locn_type', 'days_since_first_transaction', 'order_item_categories']:
+            self.assertIn(field, data['properties'])
+            self.assertNotIn(field, data['required'])
+
     def test_authorization_is_owned_authenticated_csrf_idempotent_and_no_store(self):
         public = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
         operation = public['paths']['/payments/{payment_id}/paidy-authorizations']['post']

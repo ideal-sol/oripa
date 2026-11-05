@@ -12962,3 +12962,61 @@ Focused authority tests41 PASS after initial local fixture corrections.
 Lane: Strict Change. Risk: R3. Application Runtime Activation: deferred. Issue: none.
 Payload 14f7819c72c5908aa6e5778303b87dc4b1202493 (PR659 including657), latest approved source 7587539aa7104db60203775c0a5813b5c8d291de (metadata-only PR660). Storefront PR221 1e3ba92780825a12485f651ea79025ad47f1321b.
 Client/Testkit50; Public/Admin46; Webhook45. Runtime migrations105 then106 proposed, none applied. Historical104 migration bytes unchanged. Build Control fixed after authority merge. Preserve current approved settings and promotion worker; all Runtime remains subject to Exact GO and separately approved Canonical installation. Existing source CI reused; only changed authority checks rerun. No feature build/E2E/Browser/provider/Production/LB work in this PR.
+
+
+## PAIDY-V23-20261105 — Paidy v2.3 Source / Draft only
+
+- Human authorization: 2026-11-05; Issue none; Risk R3; Lane Strict Change;
+  Application Runtime Activation deferred. Dedicated worktree and branch
+  feat/PAIDY-V23-20261105 isolate the untouched primary checkout/203-line Worklog.
+- Base: 92c684fbc018f615ded8459237350b74c6f52ad1, rechecked live main unchanged.
+  Open PR inventory contains no active Paidy implementation collision. Source
+  Lock none; migration allocation not applicable. Exact-path transient GitHub
+  App policy permits Draft/check/review delivery only, with no Ready/merge.
+- D1/D2/D5: JST registration date, optional delivery type, first eligible
+  transaction days, policy-filtered previous methods and configured categories.
+  Reuse commercial succeeded/non-Paidy/refund/CB/test/prelaunch exclusions;
+  retain age, addresses omitted, name1 and prior-order omission.
+- D3: shared exclusive authorization deadline, default30/range0–120, invalid0.
+  Applies to requires_action and unclaimed processing; permanent operation claim
+  prevents retries. finish requires an in-window Capture claim for capture after
+  original expiry, and rejects capture at/after grace end. Worker rechecks state
+  and claim under user/payment locks. Checkout60min/resume409/retry cadence/OFF
+  remain unchanged. No new provider requests, wait or financial operation API.
+- H1–H8 recorded in PAY4 Handoff. Historical Human decision OPEN is resolved:
+  no automatic Capture resend; Retrieve/manual review; P8 future follow-up,
+  not an independent Activation blocker. Manual recovery needs later Human decision.
+- OpenAPI + canonical Client/Testkit regeneration and synthetic fixture updated.
+  Published Artifact/Release Ledger untouched; Source package publication is
+  prohibited. Storefront separate PR must update strict buyer_data validation
+  for five fields/nested booleans and optional omission before Paidy enablement.
+- Admin existing review list/detail retained; processing review adds merchant
+  dashboard guidance. No manual capture/point-grant feature.
+- PASS: isolated sequential PaidyAccounting4/46 assertions, PaidyGrace16/67,
+  PaidyPayment26/214, PaidyWebhook4/21, ZPaidyConcurrency2/40 (normal and grace).
+  Total52 tests/388 assertions, no risky warnings. Client47; Testkit55 plus
+  generate/typecheck/lint/build/export/network; Admin focused24/typecheck/lint;
+  Paidy OpenAPI4; OpenAPI bundle lint; local policy; release source validation.
+- Earlier verification failures resolved: generation check ran before bundling
+  completed (regenerated in order); synthetic boundary clock exceeded lease
+  (test adjusted within lease); UnivaPay fixture lacked config (reuse fixture);
+  overlapping local class schema reset (sequential isolated runs). No weakened
+  assertions. Full local security command required CI audit inputs and was not
+  run; canonical secret scan and mandatory CI Security gate remain required.
+- NOT RUN: real Paidy/browser/E2E/provider acceptance, Staging/Production,
+  full local application build. No operational ENV/DB/Worker, Storefront or
+  fincode/UnivaPay/Techcoin financial implementation changes. Auth/draw unchanged.
+- Migration created0, operational applied0; existing106 migrations applied only
+  in disposable isolated synthetic test DB. Application image Build0;
+  local package builds3 (Client/Testkit/Site-schema), rebuild0; manual CI rerun0;
+  Runtime Activation0; publication/tag/release0; Human wait0 after approval.
+- Remaining: Required5 and Strict fixed-head review tracked in the Draft PR;
+  final head/tree/CI timing/check summaries recorded there to avoid commit
+  self-reference. Branch/worktree intentionally retained for Human review.
+  Ready/merge/OLD Test/Production prohibited. P1/P2/P6/P7/P9/P10 and real-provider
+  acceptance remain pending. Rollback: reviewed Source revert/forward fix,
+  no financial-history reversal. No SEV-0/1 found in local review.
+
+CI metadata uses Task ID PDY-20261105 as an alias for Human Change ID
+PAIDY-V23-20261105 (one Change/branch/PR), matching the existing PAY4 practice.
+The canonical CI Task ID pattern rejects the longer Human ID; no CI rule change.
