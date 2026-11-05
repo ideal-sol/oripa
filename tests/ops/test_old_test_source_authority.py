@@ -24,33 +24,33 @@ TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
 
 
-class Alpha49ApprovalInventoryTest(unittest.TestCase):
-    def test_exact_payload_adds_only_migration104_and_requires_coordinated_contract(self):
+class Alpha50ApprovalInventoryTest(unittest.TestCase):
+    def test_exact_payload_adds_only_migration105_106_and_requires_coordinated_contract(self):
         approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
-        self.assertEqual(approval["task_id"], "OLDTEST-ALPHA49-20261104")
-        self.assertEqual(approval["source_pr"], 653)
-        self.assertEqual(approval["source_sha"], "58c79bca49353268f4ee1b2e2047f39afc51fe94")
+        self.assertEqual(approval["task_id"], "OLDTEST-ALPHA50-20261105")
+        self.assertEqual(approval["source_pr"], 659)
+        self.assertEqual(approval["source_sha"], "14f7819c72c5908aa6e5778303b87dc4b1202493")
         self.assertEqual(approval["image_mode"], "normal")
         self.assertIs(approval["activation_authorized"], False)
-        baseline = "e250937a2e6c6bc22b8b2a8af905ee04e780ada7"
+        baseline = "58c79bca49353268f4ee1b2e2047f39afc51fe94"
         target = approval["source_sha"]
         def inventory(ref, directory):
             output = subprocess.check_output(["git", "ls-tree", "-r", ref, "--", directory], cwd=ROOT, text=True)
             return {line.split("\t", 1)[1]: line.split()[2] for line in output.splitlines()}
         before = inventory(baseline, "apps/api/database/migrations-v2")
-        self.assertEqual(sum(path.endswith(".php") for path in before), 103)
+        self.assertEqual(sum(path.endswith(".php") for path in before), 104)
         after = inventory(target, "apps/api/database/migrations-v2")
-        added = "apps/api/database/migrations-v2/2026_11_02_000104_add_v2_member_rank_cumulative.php"
-        self.assertEqual(set(after) - set(before), {added})
+        added = {'apps/api/database/migrations-v2/2026_11_04_000105_add_v2_exchange_only_prizes.php', 'apps/api/database/migrations-v2/2026_11_04_000106_add_v2_banner_model_numbers.php'}
+        self.assertEqual(set(after) - set(before), added)
         self.assertEqual({p: after[p] for p in before if p.endswith(".php")},
                          {p: value for p, value in before.items() if p.endswith(".php")})
-        self.assertIn("forward-only Migration000104", approval["authority"])
-        self.assertIn("Storefront PR220", approval["authority"])
-        self.assertIn("Client/Testkit alpha.49", approval["authority"])
+        self.assertIn("forward-only Migration000105", approval["authority"])
+        self.assertIn("Storefront PR221", approval["authority"])
+        self.assertIn("Client/Testkit alpha.50", approval["authority"])
         self.assertIn("v2:member-rank:promote", approval["authority"])
         self.assertEqual(subprocess.check_output(
             ["git", "rev-parse", target + "^{tree}"], cwd=ROOT, text=True).strip(),
-            "a34f85bcc269e9a9c62d145ba8f2c0b5c329d099")
+            "1a2a4cf3fa30c39c6903d11472c7e8c63a69168c")
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
