@@ -47,6 +47,7 @@ describe("Admin manual payment adjustments", () => {
 
   it("shows Paidy processing review without enabling manual financial actions", async () => {
     const value = detail();
+    value.payment.provider = "paidy";
     value.payment.provider_label = "ペイディ";
     value.payment.provider_payment_reference = "pay_synthetic";
     value.payment.status = "processing";
@@ -56,6 +57,7 @@ describe("Admin manual payment adjustments", () => {
     vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({data: value, request_id: paymentId});
     render(<AdminPaymentDetail paymentId={paymentId} />);
     expect(await screen.findByRole("alert")).toHaveTextContent("売上確定・付与・返金");
+    expect(screen.getByRole("alert")).toHaveTextContent("Paidy加盟店管理画面で決済状態を確認してください。");
     expect(screen.getByText(/決済会社：ペイディ/u)).toBeInTheDocument();
     expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("pay_synthetic");
     expect(screen.getByRole("button", {name: "返金の準備"})).toBeDisabled();

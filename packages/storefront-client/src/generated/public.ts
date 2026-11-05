@@ -1892,6 +1892,20 @@ export interface components {
                     user_id: string;
                     /** @description Days since account registration. */
                     age: number;
+                    /**
+                     * Format: date
+                     * @description Account registration date in Asia/Tokyo.
+                     */
+                    account_registration_date: string;
+                    delivery_locn_type?: string;
+                    /** @description JST calendar days since first eligible purchase. */
+                    days_since_first_transaction?: number;
+                    previous_payment_methods: {
+                        credit_card_used: boolean;
+                        convenience_store_prepayment_used?: boolean;
+                        bank_transfer_used?: boolean;
+                    };
+                    order_item_categories?: string[];
                     ltv: number;
                     order_count: number;
                     last_order_amount?: number;

@@ -10,4 +10,7 @@ return [
     // Paidy documents pk_/sk_, not a reliable test/live suffix. Never infer live.
     'mode' => env('V2_PAIDY_MODE'),
     'worker_enabled' => env('V2_PAIDY_WORKER_ENABLED', false),
+    'delivery_locn_type' => env('V2_PAIDY_DELIVERY_LOCN_TYPE', ''),
+    'order_item_categories' => env('V2_PAIDY_ORDER_ITEM_CATEGORIES', 'コイン'),
+    'authorization_grace_minutes' => env('V2_PAIDY_AUTHORIZATION_GRACE_MINUTES', 30),
 ];

@@ -765,6 +765,42 @@ def is_authorized_member_rank_cumulative_break(surface: str, previous: dict, cur
     return set(breaking_changes(previous, current)) == expected
 
 
+def is_authorized_paidy_v23_extension(surface: str, previous: dict, current: dict) -> bool:
+    """Human H1 (2026-11-05) approves these exact Source-only response fields.
+
+    Storefront validation and formal new-version publication remain separate GO.
+    Do not relax generic required-field or additionalProperties enforcement.
+    """
+    if surface != "public" or any(doc.get("info", {}).get("version") != "2.0.0-alpha.46" for doc in (previous, current)):
+        return False
+    fields = {
+        "account_registration_date": {"type": "string", "format": "date", "description": "Account registration date in Asia/Tokyo."},
+        "delivery_locn_type": {"type": "string", "minLength": 1},
+        "days_since_first_transaction": {"type": "integer", "minimum": 0, "description": "JST calendar days since first eligible purchase."},
+        "previous_payment_methods": {
+            "type": "object", "additionalProperties": False, "required": ["credit_card_used"],
+            "properties": {name: {"type": "boolean"} for name in ["credit_card_used", "convenience_store_prepayment_used", "bank_transfer_used"]},
+        },
+        "order_item_categories": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    }
+    normalized = copy.deepcopy(current)
+    try:
+        before = previous["components"]["schemas"]["PaymentPaidyCheckoutAction"]["properties"]["payload"]["properties"]["buyer_data"]
+        after = normalized["components"]["schemas"]["PaymentPaidyCheckoutAction"]["properties"]["payload"]["properties"]["buyer_data"]
+        added_required = {"account_registration_date", "previous_payment_methods"}
+        if (set(before["properties"]) & fields.keys()
+                or set(after["required"]) != set(before["required"]) | added_required):
+            return False
+        for name, schema in fields.items():
+            if after["properties"].pop(name, None) != schema:
+                return False
+        after["required"] = [name for name in after["required"] if name not in added_required]
+    except (KeyError, TypeError):
+        return False
+    # Exact normalized document equality rejects unrelated changes, even additions.
+    return normalized == previous
+
+
 def validate_generated(
     repository: Path,
     generated: dict[str, Path],
@@ -803,7 +839,7 @@ def validate_generated(
                     surface,
                     previous,
                     document,
-                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document) and not is_authorized_univapay_inline_extension(surface, previous, document) and not is_authorized_member_rank_cumulative_break(surface, previous, document):
+                ) and not is_authorized_contact_authenticated_break(surface, previous, document) and not is_authorized_contact_phone_required_break(surface, previous, document) and not is_authorized_signup_sms_gate_break(surface, previous, document) and not is_authorized_notion_cache_break(surface, previous, document) and not is_authorized_m9_payment_provider_break(surface, previous, document) and not is_authorized_univapay_inline_extension(surface, previous, document) and not is_authorized_member_rank_cumulative_break(surface, previous, document) and not is_authorized_paidy_v23_extension(surface, previous, document):
                     raise ContractFailure(
                         f"{surface}: breaking change detected: " + "; ".join(findings)
                     )

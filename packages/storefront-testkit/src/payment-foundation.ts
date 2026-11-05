@@ -15,7 +15,7 @@ export const PAYMENT_FOUNDATION_FIXTURES = Object.freeze({
     type: "paidy_checkout", script_url: "https://apps.paidy.com/", public_key: "pk_synthetic_public_only",
     payload: {amount: 1000, currency: "JPY", store_name: "Synthetic store", description: "コイン購入",
       buyer: {email: "member@example.test", phone: "09000000000"},
-      buyer_data: {user_id: "0198a001-0000-7000-8000-000000000099", age: 0, ltv: 0, order_count: 0, order_count_last3months: 0, order_amount_last3months: 0, number_of_points: 0},
+      buyer_data: {user_id: "0198a001-0000-7000-8000-000000000099", age: 0, account_registration_date: "2026-11-05", previous_payment_methods: {credit_card_used: false}, order_item_categories: ["コイン"], ltv: 0, order_count: 0, order_count_last3months: 0, order_amount_last3months: 0, number_of_points: 0},
       order: {order_ref: "0198a001-0000-7000-8000-000000000098", shipping: 0, tax: 0,
         items: [{id: "0198a001-0000-7000-8000-000000000097", title: "Synthetic coins", quantity: 1, unit_price: 1000}]},
     },

@@ -1,5 +1,58 @@
 # PAY4 — Paidy Source handoff
 
+## 2026-11-05 Human decision — PAIDY-V23-20261105
+
+The historical “Human decision OPEN” below is resolved: retain the permanent
+Capture operation claim and prohibit automatic Capture retries. Retrieve alone
+recovers verified captures; unresolved payments remain processing / operator
+review without automatic Close, refund or point adjustment. No manual capture
+or grant feature is added. P8 remains a future improvement question; its missing
+answer alone no longer prohibits Production activation. Manual recovery steps
+still require a separate Human decision before activation.
+
+This Source Change is R3 / Strict Change / Activation deferred, Draft PR only.
+Ready, merge, OLD Test, Production, operational DB/ENV/Worker changes and formal
+Client/Testkit publication remain prohibited. The v2.3 specification, v1.1
+instructions and latest Human H1–H8 decisions govern this Change. Private input
+documents are not committed. Historical decisions below remain as history.
+
+Buyer data adds JST account_registration_date (age retained), optional configured
+delivery_locn_type, JST days_since_first_transaction, previous_payment_methods
+and configurable order_item_categories (default コイン). First-purchase history
+is omitted; credit_card_used is always boolean. Konbini and virtual-account
+flags follow V2PaymentMethodPolicy. Every history field reuses the existing
+non-Paidy commercial succeeded query and its refund, chargeback, test and
+prelaunch exclusions. Address omission and name1 behavior are unchanged.
+
+Authorization grace defaults to 30 minutes, accepts integers 0–120, and invalid
+values fail closed to zero. Capture and expiration use the same exclusive end
+boundary (now < expires_at + grace). Only requires_action and processing are
+eligible, and the permanent claim still prevents any second Capture. Terminal
+payments never revive. Settlement after the original expiry requires a Capture
+claim recorded before the grace deadline and a verified provider capture time
+strictly before that deadline. Late Retrieve may settle such a capture once.
+Uncertain processing remains Retrieve/review only, including after the deadline.
+Worker expiration rechecks state and claim under the existing user/payment lock
+order. The normal 60-minute Checkout display, resume 409, new-purchase rules,
+worker default OFF and 1/5/15/60-minute retry intervals remain unchanged.
+
+Public OpenAPI, canonical generated Client/Testkit and synthetic fixtures expose
+the five new fields. Registration date and previous_payment_methods are required;
+delivery location, first transaction days and categories are optional. Existing
+required fields remain required. No published artifact or release ledger changes.
+Storefront follow-up must update its strict buyer_data allowlist/types, accept
+the new nested boolean keys, preserve omission of optional data, pass these
+values to Checkout, and test first/repeat purchases. Use a separately approved
+new package release; do not publish changed bytes under an existing version.
+Paidy must stay disabled until that separate Storefront PR is integrated.
+
+Admin retains its existing review list and adds a Paidy merchant-dashboard
+instruction for processing review. P1/P2/P6/P7/P9/P10 and real provider acceptance
+remain Human/provider follow-up; H6 provisionally accepts no addresses or absent
+previous-order information. Rollback is a reviewed Source revert/forward fix
+before activation, with no financial history mutation. Exact final-head checks,
+Strict review and test outcomes are recorded in this Change's Draft PR/Worklog.
+
 ## PAY234-INTEGRATION-20261028 — integrated Source-only authorization
 
 Latest Human GO on2026-10-28 authorizes existing PR622 → PR623 → PR624 Source

@@ -16,14 +16,18 @@ use Tests\V2\Fixtures\PaidyFixtures;
 final class ZPaidyConcurrencyTest extends TestCase
 {
     use PaidyFixtures;
-    protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); parent::tearDown(); }
+    protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); \Carbon\Carbon::setTestNow(); \Carbon\CarbonImmutable::setTestNow(); parent::tearDown(); }
     public static function tearDownAfterClass(): void { self::resetPaidyTestDatabase(); parent::tearDownAfterClass(); }
 
-    public function test_callback_webhook_and_worker_race_sends_one_capture_and_grants_once(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('captureTimes')]
+    public function test_callback_webhook_and_worker_race_sends_one_capture_and_grants_once(int $minutes): void
     {
         self::assertTrue(function_exists('pcntl_fork'));
         $this->configurePaidy();
-        [$user, $payment] = $this->paidyPayment(); $authorized = $this->paidyObject($payment); $closed = $this->paidyObject($payment, 'CLOSED');
+        [$user, $payment] = $this->paidyPayment();
+        \Carbon\Carbon::setTestNow(now()->addMinutes($minutes));
+        \Carbon\CarbonImmutable::setTestNow(\Carbon\Carbon::now());
+        $authorized = $this->paidyObject($payment); $closed = $this->paidyObject($payment, 'CLOSED');
         $captureLog = tempnam(sys_get_temp_dir(), 'paidy-captures-');
         $results = tempnam(sys_get_temp_dir(), 'paidy-results-');
         try {
@@ -64,4 +68,6 @@ final class ZPaidyConcurrencyTest extends TestCase
             self::assertSame(1000, (int) DB::table('wallets')->where('user_id', $user->id)->value('paid_balance'));
         } finally { @unlink($captureLog); @unlink($results); DB::reconnect(); }
     }
+
+    public static function captureTimes(): array { return [[0], [70]]; }
 }
