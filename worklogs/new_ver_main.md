@@ -13123,3 +13123,5 @@ Changed files:
 - worklogs/new_ver_main.md
 
 Draft PR #669 created. Initial CI stopped at missing structured Lane metadata in the PR body; corrected Lane, Application Runtime Activation and UI Verification fields. Added explicit main-movement and pinned-manifest tampering regressions before fixing the final review head. Existing PR659/666 reviewed-tree and Required CI 5/5 evidence verified live (no source CI reruns). Focused suite: 36 tests PASS. Final-head CI and review recorded in PR; no merge or dispatch authority.
+
+CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancestor-only authority model. Extend scripts/release/readiness/change.py and adapters.py for the exact digest-pinned payload, with local materialization and both reviewed source checks. Added classifier/adapter regressions; NORMAL_STRICT_CI remains mandatory. Initial metadata failure and classifier failure are recorded separately from final validation. No manual rerun or artifact build.

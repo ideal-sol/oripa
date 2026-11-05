@@ -60,6 +60,25 @@ class ProductionLimitedPayloadTest(unittest.TestCase):
         self.assertEqual(set(result['reviewed_sources']), {'base', 'fix'})
         self.assertEqual(result['checkout_sha'], self.spec['base_sha'])
 
+    def test_ci_classifier_and_both_source_evidence_gates(self):
+        from scripts.release.readiness.change import classify, validate_change
+        from scripts.release.readiness.adapters import verify_change_authority
+        base = '24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc'
+        result = validate_change(classify(ROOT, base, self.head))
+        self.assertEqual(result['validation_path'], 'NORMAL_STRICT_CI')
+        authority, = result['authority_records']
+        self.assertEqual(authority['source_sha'], H['SOURCE'])
+        self.assertEqual(authority['inventory_sha256'], self.spec['inventory_sha256'])
+        def get(path):
+            if path.endswith('/branches/main'):
+                return {'protected': True, 'commit': {'sha': base}}
+            return self.get(path)
+        self.assertEqual(len(verify_change_authority(result, get)['source_checks']), 2)
+        for bad in ['base-unmerged', 'fix-unmerged', 'tree', self.spec['base_sha'], self.spec['fix_sha']]:
+            self.bad = bad
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                verify_change_authority(result, get)
+
     def test_bad_evidence_fails_closed(self):
         for bad in ['unprotected', 'base-unmerged', 'fix-unmerged', 'base-merge', 'fix-merge',
                     'foreign', 'tree', self.spec['base_sha'], self.spec['fix_sha'], self.head]:
