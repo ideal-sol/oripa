@@ -754,6 +754,95 @@ final class AssetCdnDeliveryTest extends TestCase
             app(\App\Domain\Audit\V2\Services\V2AuditHasher::class)->correlation($session), (string) Str::uuid7());
     }
 
+    public static function shippingDetailRoutes(): array
+    {
+        return [['GET', 'v2.admin.shipping-requests.show'], ['PUT', 'v2.admin.shipping-requests.update']];
+    }
+
+    #[DataProvider('shippingDetailRoutes')]
+    public function test_shipping_detail_snapshot_images_are_normalized_in_one_query(string $method, string $name): void
+    {
+        $assets = $this->assets();
+        $items = [];
+        foreach (array_slice($assets, 0, 2) as $asset) {
+            $items[] = ['name' => 'Snapshot prize', 'product_id' => 'product', 'user_prize_id' => 'owned',
+                'external_id' => 'CURRENT-1', 'model_number' => 'MODEL-1',
+                'image' => \App\Domain\PrizeShipping\Services\V2AdminPrizeSnapshotAsset::fromSnapshot([
+                    'id' => $asset['public_id'], 'media_type' => 'image', 'mime_type' => 'image/png',
+                    'path' => '/api/v2/content/assets/'.$asset['public_id'],
+                ])];
+        }
+        $data = ['items' => [...$items, [...$items[0], 'image' => null]]];
+        $request = Request::create('/admin/api/v2/shipping-requests/0198a001-0000-7000-8000-000000000001', $method);
+        $route = app('router')->getRoutes()->match($request);
+        self::assertSame($name, $route->getName());
+        $request->setRouteResolver(static fn () => $route);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $response = app(NormalizeV2AssetResponse::class)->handle($request, static fn () => response()->json($data));
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+        self::assertSame(200, $response->getStatusCode());
+        $expected = $data;
+        foreach ($items as $index => $item) {
+            $expected['items'][$index]['image']['public_path'] = '/gacha/'.$item['image']['id'].'.png';
+        }
+        self::assertSame($expected, $response->getData(true));
+        self::assertCount(1, $queries);
+        self::assertStringContainsString('catalog_presentation_assets', $queries[0]['query']);
+
+        config(['v2_assets.public_base_url' => null, 'filesystems.default' => 'local']);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $local = app(NormalizeV2AssetResponse::class)->handle($request, static fn () => response()->json($data));
+        self::assertSame($data, $local->getData(true));
+        self::assertSame([], DB::getQueryLog());
+        DB::disableQueryLog();
+    }
+
+    public function test_shipping_context_ignores_unrelated_images_and_preserves_fail_closed_assets(): void
+    {
+        $asset = $this->assets()[0];
+        $image = ['id' => $asset['public_id'], 'media_type' => 'image', 'mime_type' => 'image/png',
+            'alt_text' => null, 'is_public' => true, 'public_path' => '/api/v2/content/assets/'.$asset['public_id']];
+        $normalizer = app(V2AssetResponseNormalizer::class);
+        $data = ['items' => [['image' => $image]]];
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        self::assertSame($data, $normalizer->normalize($data));
+        $unrelated = ['items' => [
+            ['image' => [...$image, 'id' => 'document-1']],
+            ['image' => [...$image, 'media_type' => 'document']],
+            ['image' => ['id' => $image['id'], 'public_path' => '/unrelated']],
+        ], 'nested' => $data];
+        self::assertSame($unrelated, $normalizer->normalize($unrelated, false, true));
+        foreach (['v2.admin.shipping-requests.index', 'v2.public.shipping-requests.show', 'unrelated.show'] as $name) {
+            $request = Request::create('/admin/api/v2/synthetic');
+            $route = (new \Illuminate\Routing\Route(['GET'], 'synthetic', static fn () => null))->name($name);
+            $request->setRouteResolver(static fn () => $route);
+            $response = app(NormalizeV2AssetResponse::class)->handle($request, static fn () => response()->json($data));
+            self::assertSame($data, $response->getData(true));
+        }
+        self::assertSame([], DB::getQueryLog());
+        DB::disableQueryLog();
+        $copy = (array) DB::table('catalog_presentation_assets')->where('public_id', $asset['public_id'])->first();
+        unset($copy['id']);
+        $rejectedId = (string) Str::uuid7();
+        DB::table('catalog_presentation_assets')->insert([
+            ...$copy, 'public_id' => $rejectedId, 'storage_identifier' => 'admin-assets/unknown/rejected.png',
+            'public_path' => '/api/v2/content/assets/'.$rejectedId,
+        ]);
+        foreach ([(string) Str::uuid7(), $rejectedId] as $id) {
+            $request = Request::create('/admin/api/v2/shipping-requests/synthetic');
+            $route = (new \Illuminate\Routing\Route(['GET'], 'synthetic', static fn () => null))->name('v2.admin.shipping-requests.show');
+            $request->setRouteResolver(static fn () => $route);
+            $response = app(NormalizeV2AssetResponse::class)->handle($request,
+                static fn () => response()->json(['items' => [['image' => [...$image, 'id' => $id]]]]));
+            self::assertSame(503, $response->getStatusCode());
+            self::assertSame('ASSET_DELIVERY_UNAVAILABLE', $response->getData(true)['code']);
+        }
+    }
+
     private function assets(bool $cdnKeys = true): array
     {
         $fixture = json_decode(file_get_contents(__DIR__.'/Fixtures/catalog-alpha.json'), true, flags: JSON_THROW_ON_ERROR);

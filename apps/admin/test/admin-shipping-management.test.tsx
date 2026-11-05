@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AssetDeliveryProvider } from "@/components/catalog/asset-delivery-provider";
 
 import {
   AdminShippingDetail,
@@ -156,14 +157,15 @@ describe("Admin Shipping management", () => {
     expect(await screen.findByText("配送情報を更新しました。")).toBeVisible();
   });
 
-  it("shows six ordered item columns with snapshot preview and nullable identifiers", async () => {
+  it.each([null, "https://cdn.example.test"])("shows six ordered item columns with snapshot preview and nullable identifiers with CDN %s", async (origin) => {
+    const path = origin ? "/gacha/snapshot.png" : "/assets/snapshot.png";
     const data = detail();
     data.items = [
-      { ...data.items![0], external_id: "CARD-1", model_number: "MODEL-1", image: { id: uuid("5"), media_type: "image", mime_type: "image/png", alt_text: "当選画像", public_path: "/assets/snapshot.png", is_public: true } },
+      { ...data.items![0], external_id: "CARD-1", model_number: "MODEL-1", image: { id: uuid("5"), media_type: "image", mime_type: "image/png", alt_text: "当選画像", public_path: path, is_public: true } },
       { ...data.items![0], user_prize_id: uuid("6"), external_id: null, model_number: null, image: null },
     ];
     vi.mocked(AdminApiClient.prototype.getAdminShippingRequest).mockResolvedValue(data);
-    render(<AdminShippingDetail shippingRequestId={uuid("1")} />);
+    render(<AssetDeliveryProvider origin={origin}><AdminShippingDetail shippingRequestId={uuid("1")} /></AssetDeliveryProvider>);
     const region = await screen.findByRole("region", { name: "配送対象商品" });
     expect(within(region).getAllByRole("columnheader").map((cell) => cell.textContent))
       .toEqual(["画像", "商品名", "管理ID", "型番", "商品ID", "保有景品ID"]);
@@ -171,7 +173,7 @@ describe("Admin Shipping management", () => {
     expect(within(region).getByText("MODEL-1").tagName).toBe("CODE");
     expect(within(region).getAllByText("-")).toHaveLength(2);
     expect(within(region).getByText("Previewなし")).toBeVisible();
-    expect(within(region).getByRole("img", { name: "当選画像" })).toHaveAttribute("src", "/assets/snapshot.png");
+    expect(within(region).getByRole("img", { name: "当選画像" })).toHaveAttribute("src", `${origin ?? ""}${path}`);
     expect(region.querySelector(".admin-user-prize-thumbnail")).toBeInTheDocument();
     expect(region.querySelector(".admin-user-prize-table-region")).toHaveAttribute("tabindex", "0");
   });
