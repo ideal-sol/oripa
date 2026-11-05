@@ -13121,3 +13121,5 @@ Changed files:
 - tests/ops/test_production_source_authority.py
 - tests/ops/test_production_pr666_payload.py
 - worklogs/new_ver_main.md
+
+Draft PR #669 created. Initial CI stopped at missing structured Lane metadata in the PR body; corrected Lane, Application Runtime Activation and UI Verification fields. Added explicit main-movement and pinned-manifest tampering regressions before fixing the final review head. Existing PR659/666 reviewed-tree and Required CI 5/5 evidence verified live (no source CI reruns). Focused suite: 36 tests PASS. Final-head CI and review recorded in PR; no merge or dispatch authority.

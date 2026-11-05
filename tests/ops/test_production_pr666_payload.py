@@ -75,6 +75,23 @@ class ProductionLimitedPayloadTest(unittest.TestCase):
                 self.authorize()
             self.authority[key] = old
 
+    def test_manifest_tampering_and_main_movement_rejected(self):
+        for raw in (b'{}', json.dumps({**self.spec, 'source_sha': self.head}).encode()):
+            with patch.dict(H['specification'].__globals__, git=lambda *args: raw), self.assertRaisesRegex(ValueError, 'specification mismatch'):
+                H['specification'](ROOT)
+        original_get = self.get
+        calls = []
+        def moving_get(path):
+            result = original_get(path)
+            if path.endswith('/branches/main'):
+                calls.append(path)
+                if len(calls) > 1:
+                    result['commit']['sha'] = 'f' * 40
+            return result
+        self.get = moving_get
+        with self.assertRaisesRegex(ValueError, 'protected main moved'):
+            self.authorize()
+
     def test_materialize_without_remote_derived_ref_and_detect_corruption(self):
         evidence = {'composition': self.spec, 'source_sha': H['SOURCE'], 'change_id': H['CHANGE'],
                     'pr_number': 666, 'source_tree': self.spec['source_tree']}
