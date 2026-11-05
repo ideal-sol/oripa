@@ -13032,3 +13032,14 @@ Final correction push reruns all head-dependent CI automatically (manual rerun0)
 No additional local app/package build. Final required checks/review belong to
 the final PR head; first-head evidence is superseded. All20 changed paths are in
 the transient policy and PR. Immutable release ledger remains unchanged.
+
+
+Second-head quality failure was historical alpha.50 release tests comparing
+evolving unpublished Paidy Source to immutable published digest. Retain the
+immutable ledger and production release guards unchanged. Historical assertions
+now validate exact released source14f7819c in an isolated local clone; current
+Source must fail publication/build before pnpm and cannot claim alpha.50 authority.
+Release regression107 PASS including digest/version/no-reissue guards. All21
+paths declared in PR/policy. Head-triggered automatic CI restarts2, manual0;
+local package rebuild0/image Build0. Prior-head CI is superseded. Dedicated
+synthetic DB/network removed; task branch/worktree retained for Draft review.

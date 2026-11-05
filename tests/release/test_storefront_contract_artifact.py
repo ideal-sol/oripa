@@ -41,6 +41,17 @@ def package_archive(
 
 
 class StorefrontContractArtifactTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Released bytes are fixed to their recorded source, not the evolving
+        # unpublished working tree. Local shared clone: no network or ref writes
+        # to the source repository, and all original validation stays enabled.
+        cls.release_directory = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.release_directory.cleanup)
+        cls.released_root = Path(cls.release_directory.name) / 'alpha50'
+        artifact.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(cls.released_root)], cwd=ROOT)
+        artifact.run(['git', 'checkout', '--quiet', '--detach', '14f7819c72c5908aa6e5778303b87dc4b1202493'], cwd=cls.released_root)
+
     def governance(self):
         value = artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
         # Historical release tests operate on the immutable alpha.46 ledger.
@@ -85,15 +96,16 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(released['publication'], {'workflow_run_id': 41835790272, 'workflow_run_attempt': 1, 'artifact_id': 13324454382, 'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.50', 'github_digest': 'sha256:67d9fbbe7c31fcfaa2ed674eeb4e35d5d60a07e01f0bb0ce34523e4783037b75', 'sha256sums_sha256': '810cfffdbfe5e6e43a9883cfdc5c7f9ac47c4bca45fb5d381d1eb7efbf96eded'})
         self.assertEqual(hashlib.sha256(json.dumps(value['immutable_history'][:-1], sort_keys=True, separators=(',', ':')).encode()).hexdigest(), '539cd7ed17b11503408bd4353eda221327aeb3047eefdd7b51a9645183763cb7')
         self.assertFalse(artifact.verification_target(value)['breaking_change'])
-        self.assertEqual(artifact.validate_source(ROOT)['release_state'], 'released')
+        with mock.patch.object(artifact, 'governance', return_value=value):
+            self.assertEqual(artifact.validate_source(self.released_root)['release_state'], 'released')
         with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
             artifact.pending_candidate(ROOT)
-        with tempfile.TemporaryDirectory() as temporary:
+        with mock.patch.object(artifact, 'governance', return_value=value), tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'must-not-exist'
-            head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
+            head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=self.released_root, capture=True)
             with mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
                 with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
-                    artifact.build(ROOT, output, head)
+                    artifact.build(self.released_root, output, head)
             self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
             self.assertFalse(output.exists())
         invalid = copy.deepcopy(value)
@@ -928,7 +940,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         value = self.unpublished_alpha50_governance()
         with mock.patch.object(artifact, 'governance', return_value=value):
             candidate = artifact.pending_candidate(ROOT)
-            result = artifact.validate_source(ROOT)
+            result = artifact.validate_source(self.released_root)
         self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.50')
         self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.49')
         self.assertEqual(candidate['release_mode'], 'contract-additive')
@@ -938,8 +950,8 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(candidate['contract_versions'], {
             'public': '2.0.0-alpha.46', 'admin': '2.0.0-alpha.46', 'webhook': '2.0.0-alpha.45',
         })
-        self.assertEqual(candidate['public_openapi_sha256'], artifact.sha256_file(ROOT / artifact.PUBLIC_OPENAPI_PATH))
-        public = artifact.load_json(ROOT / artifact.PUBLIC_OPENAPI_PATH)
+        self.assertEqual(candidate['public_openapi_sha256'], artifact.sha256_file(self.released_root / artifact.PUBLIC_OPENAPI_PATH))
+        public = artifact.load_json(self.released_root / artifact.PUBLIC_OPENAPI_PATH)
         operations = [operation for path in public['paths'].values() for operation in path.values()
                       if isinstance(operation, dict) and 'operationId' in operation]
         self.assertEqual(candidate['public_api_operation_count'], len(operations))
@@ -972,7 +984,9 @@ class StorefrontContractArtifactTest(unittest.TestCase):
                 artifact.validate_source(ROOT)
 
     def test_source_client_runtime_version_matches_package_metadata(self):
-        result = artifact.validate_source(ROOT)
+        self.assertEqual(artifact.read_source_client_runtime_version(ROOT),
+                         artifact.load_json(ROOT / artifact.PACKAGE_PATHS['@oripa/storefront-client'] / 'package.json')['version'])
+        result = artifact.validate_source(self.released_root)
         self.assertEqual(
             result["packages"]["@oripa/storefront-client"],
             "2.0.0-alpha.50",
@@ -985,7 +999,28 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 artifact.ArtifactError, "client source runtime version mismatch"
             ):
-                artifact.validate_source(ROOT)
+                artifact.validate_source(self.released_root)
+
+    def test_paidy_unpublished_source_cannot_reissue_alpha50_or_change_its_ledger(self):
+        current = artifact.governance(ROOT)
+        self.assertIsNone(current['candidate'])
+        self.assertEqual(current['latest_immutable']['source_commit'],
+                         '14f7819c72c5908aa6e5778303b87dc4b1202493')
+        published = artifact.sha256_file(self.released_root / artifact.PUBLIC_OPENAPI_PATH)
+        self.assertEqual(current['latest_immutable']['public_openapi']['sha256'], published)
+        self.assertNotEqual(artifact.sha256_file(ROOT / artifact.PUBLIC_OPENAPI_PATH), published)
+        with self.assertRaisesRegex(artifact.ArtifactError, 'candidate Public OpenAPI content mismatch'):
+            artifact.validate_source(ROOT)
+        with self.assertRaisesRegex(artifact.ArtifactError, 'no pending Storefront artifact candidate'):
+            artifact.pending_candidate(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'must-not-exist'
+            head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
+            with mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
+                with self.assertRaisesRegex(artifact.ArtifactError, 'candidate Public OpenAPI content mismatch'):
+                    artifact.build(ROOT, output, head)
+            self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
+            self.assertFalse(output.exists())
 
     def valid_output(self, output: Path, governance=None, source_commit=None) -> dict:
         governance = governance or self.next_candidate_governance()
