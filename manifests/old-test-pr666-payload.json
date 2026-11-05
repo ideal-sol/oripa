@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "task_id": "OLDTEST-PR666-20261105",
+  "kind": "task-limited-derived-payload",
+  "base_sha": "14f7819c72c5908aa6e5778303b87dc4b1202493",
+  "base_pr": 659,
+  "fix_sha": "a6affd68253a0bb162fb480159778f4c79dd51ab",
+  "fix_pr": 666,
+  "files": {
+    "apps/api/app/Domain/Catalog/Services/V2AssetResponseNormalizer.php": {
+      "before": "4205e05bc3f1574ba0fba3f2d4856cde765b4ec9",
+      "after": "97bbaa531ebc3e5fe2f6ede366c699ca48d80d21"
+    },
+    "apps/api/app/Http/Middleware/V2/NormalizeV2AssetResponse.php": {
+      "before": "5fc469dbade7092e61c665104766d33f65f90107",
+      "after": "2e481c87d2826bc85781ada55da899ff8f6d7ecb"
+    }
+  },
+  "source_sha": "cad8be03cbab8b7fba18825a4a9b2a276f402010",
+  "source_tree": "0978c97a3a1d90036f5173aff4409398b93c5a87",
+  "inventory_sha256": "a98161e34cf90e8b075fbdf9b25812cde884577846c33c7a292676b1facaf4f1",
+  "commit_content": "tree 0978c97a3a1d90036f5173aff4409398b93c5a87\nparent 14f7819c72c5908aa6e5778303b87dc4b1202493\nauthor Oripa Limited Payload <payload@example.invalid> 1793880000 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1793880000 +0000\n\nOLDTEST-PR666-20261105 derived payload; NOT a merged commit\n",
+  "image_mode": "api-only",
+  "activation_authorized": false
+}

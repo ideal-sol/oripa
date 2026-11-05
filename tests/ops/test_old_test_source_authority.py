@@ -708,7 +708,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
     def test_workflow_separates_control_and_payload_and_has_no_runtime_authority(self):
         workflow = (ROOT / wrapper.OLD_WORKFLOW_PATH).read_text()
         for required in ("runs-on: ubuntu-24.04", "path: control", "path: payload",
-                         "ref: ${{ github.sha }}", "ref: ${{ inputs.source_sha }}",
+                         "ref: ${{ github.sha }}", "ref: ${{ steps.authority.outputs.checkout_sha }}",
                          "control/scripts/ops/old_test_source_authority.py",
                          "--platform linux/amd64 --target preview", "--artifact-kind old-test",
                          'OCI_REVISION=${INPUT_SOURCE_SHA}', "persist-credentials: false",
