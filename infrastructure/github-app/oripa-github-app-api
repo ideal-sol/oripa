@@ -364,6 +364,8 @@ def pr666_manifest(raw: bytes) -> dict:
 
 
 def authorize_pr666(task_id, pr_number, source_sha, control_sha, get):
+    compare_get = get
+    get = get or api_get
     if (task_id != PR666_TASK or pr_number != "666" or source_sha != PR666_SOURCE
             or not FULL_SHA.fullmatch(control_sha)):
         fail("pr666_identity_mismatch")
@@ -380,7 +382,7 @@ def authorize_pr666(task_id, pr_number, source_sha, control_sha, get):
     reviewed = {}
     for kind in ("base", "fix"):
         revision = manifest[kind + "_sha"]
-        comparison = api_compare(REPOSITORY, revision, control_sha, get=get)
+        comparison = api_compare(REPOSITORY, revision, control_sha, get=compare_get)
         if (comparison.get("status") not in {"ahead", "identical"}
                 or comparison.get("merge_base_commit", {}).get("sha") != revision
                 or comparison.get("base_commit", {}).get("sha") != revision):
@@ -415,7 +417,7 @@ def authorize_pr666(task_id, pr_number, source_sha, control_sha, get):
 def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
                               control_sha: str, *, get=None) -> dict:
     if task_id == PR666_TASK or source_sha == PR666_SOURCE:
-        return authorize_pr666(task_id, pr_number, source_sha, control_sha, get or api_get)
+        return authorize_pr666(task_id, pr_number, source_sha, control_sha, get)
     compare_get = get
     get = get or api_get
     if (
