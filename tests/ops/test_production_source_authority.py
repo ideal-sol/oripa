@@ -10,15 +10,15 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
 AUTHORIZE = MODULE["authorize"]
-APPROVED = "e250937a2e6c6bc22b8b2a8af905ee04e780ada7"
-PREVIOUS_SOURCE = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
-SOURCE_TREE = "b1e334fd4b35d00cb77b028ea9ce23b2ed084523"
+APPROVED = "14f7819c72c5908aa6e5778303b87dc4b1202493"
+PREVIOUS_SOURCE = "e250937a2e6c6bc22b8b2a8af905ee04e780ada7"
+SOURCE_TREE = "1a2a4cf3fa30c39c6903d11472c7e8c63a69168c"
 PREFLIGHT_AUTHORITY = "75395ded58c0924d39441f51fd351c03ad12e908"
 PROTECTED = subprocess.check_output(
     ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
 ).strip()
-SOURCE_CHANGE = "SHIP-B2POSTAL-20261101"
-SOURCE_PR = 649
+SOURCE_CHANGE = "BANNER-MODEL-20261104"
+SOURCE_PR = 659
 
 
 class ProductionSourceAuthorityTest(unittest.TestCase):
@@ -237,8 +237,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_formal_source_go_is_separate_from_runtime_and_history_exclusion(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
         self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
-        for evidence in ["Source Authority squash", "API/Admin", "POSTAL_INVALID",
-                         "Issue #643 stays open", "AUTO_CONVERT_ENABLED=true", "Rank ON/Generation1", "Ledger103"]:
+        for evidence in ["Source Authority merge requires explicit Human approval", "does not constitute Runtime GO",
+                         "104 -> 105 -> 106", "cumulative member rank", "abolition of automatic rank demotion",
+                         "exchange-only prizes", "banner model numbers", "after alpha.50 are excluded"]:
             self.assertIn(evidence, authority["authority"])
         for obsolete in ["DRAFT CANDIDATE ONLY", "Source Authority update is pending", "formal Source GO is pending"]:
             self.assertNotIn(obsolete, authority["authority"])
@@ -247,8 +248,8 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_current_protected_base_retains_previous_authority(self):
         current = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:{MODULE['AUTHORITY_PATH']}"))
         self.assertEqual(current["source_sha"], PREVIOUS_SOURCE)
-        self.assertEqual(current["pr_number"], 646)
-        self.assertEqual(current["change_id"], "FIRSTBUY-20261031")
+        self.assertEqual(current["pr_number"], 649)
+        self.assertEqual(current["change_id"], "SHIP-B2POSTAL-20261101")
         self.assertIs(current["activation_authorized"], False)
         real_git = MODULE["git"]
         self.workflow = PROTECTED
@@ -334,6 +335,10 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(manifest["version"], "2.0.0-alpha.43")
 
     def test_alpha48_contract_and_migration_boundary(self):
+        # Historical alpha.48 boundary remains independently verified.
+        APPROVED = "e250937a2e6c6bc22b8b2a8af905ee04e780ada7"
+        PREVIOUS_SOURCE = "a35468d259c99dda7e64ce6f0c7fccda2ee9e665"
+        SOURCE_TREE = "b1e334fd4b35d00cb77b028ea9ce23b2ed084523"
         self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"),
                          SOURCE_TREE)
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
@@ -384,12 +389,34 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertIs(authority["activation_authorized"], False)
         for boundary in ["UnivaPay LIVE / credit_card only", "AUTO_CONVERT_ENABLED=true",
                          "5-minute Timer", "FIRST_PURCHASE_LIMIT_SCOPE=any_product",
-                         "existing B2 ENV", "temporary non-use policy", "Storefront PR #218",
+                         "existing B2 ENV", "temporary non-use policy", "Storefront Runtime Source is PR #221",
                          "Issue #643 stays open until Production Runtime reflection",
-                         "Rank ON/Generation1", "Ledger103", "API/Admin",
+                         "Rank ON/Generation1", "Ledger103",
                          "Canonical Deployment Lock", "writer fencing", "backups",
-                         "No Production Artifact Dispatch/Build", "Runtime/ENV/DB/payment/Worker/Timer"]:
+                         "No Production Artifact Dispatch/Build", "ENV/Secret/DB/Worker/Timer/ALB"]:
             self.assertIn(boundary, authority["authority"])
+
+    def test_alpha50_contract_and_migration_boundary(self):
+        self.assertEqual(MODULE["git"](ROOT, "rev-parse", f"{APPROVED}^{{tree}}"), SOURCE_TREE)
+        ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
+        contract, = [e for e in ledger["immutable_history"] if e["bundle_version"] == "2.0.0-alpha.50"]
+        self.assertEqual(contract["source_commit"], APPROVED)
+        self.assertEqual(contract["publication"]["artifact_id"], 13324454382)
+        self.assertEqual(contract["manifest_sha256"], "bbf4284afc47d912a13b039b7a3168fc09ae58ace682c005ef46d852e0b9c44a")
+        migrations = MODULE["git"](ROOT, "ls-tree", "-r", "--name-only", APPROVED, "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual({Path(p).name.split("_")[3] for p in migrations if p.endswith(".php")},
+                         {str(n).zfill(6) for n in range(1, 107)})
+        delta = MODULE["git"](ROOT, "diff", "--name-status", PREVIOUS_SOURCE, APPROVED,
+                              "--", "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual(delta, [
+            "A\tapps/api/database/migrations-v2/2026_11_02_000104_add_v2_member_rank_cumulative.php",
+            "A\tapps/api/database/migrations-v2/2026_11_04_000105_add_v2_exchange_only_prizes.php",
+            "A\tapps/api/database/migrations-v2/2026_11_04_000106_add_v2_banner_model_numbers.php",
+            "M\tapps/api/database/migrations-v2/README.md",
+        ])
+        for package in ["storefront-client", "storefront-testkit"]:
+            manifest = json.loads(MODULE["git"](ROOT, "show", f"{APPROVED}:packages/{package}/package.json"))
+            self.assertEqual(manifest["version"], "2.0.0-alpha.50")
 
     def test_source_sync_cannot_implicitly_authorize_activation(self):
         self.authority["activation_authorized"] = True
