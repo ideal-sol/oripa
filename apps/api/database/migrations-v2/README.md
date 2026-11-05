@@ -1,5 +1,15 @@
 # V2 Migration Root
 
+## LINE subject vault (000107)
+
+`LINE-LINK-FRIEND-20261105` reserves `2026_11_05_000107_add_v2_line_subject_vault.php`
+under `/run/lock/oripa-v2-migration-allocation.lock`, after all-ref, worktree and
+open-PR allocation inspection through 000106. Additive nullable encrypted subjects
+and the latest LINE observation snapshot; no history rewrite or bulk backfill.
+Retain schema on application rollback. Synthetic test application only; all
+operational application and Runtime Activation are deferred. Reservation remains
+owned by this Draft Change until its explicit handoff/closeout.
+
 ## Banner model numbers (000106)
 
 `2026_11_04_000106_add_v2_banner_model_numbers.php` is allocated to

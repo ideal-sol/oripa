@@ -16,6 +16,7 @@ use App\Models\V2\ExternalIdentityAccountHistory;
 use App\Models\V2\ExternalIdentityTransaction;
 use App\Models\V2\User;
 use App\Models\V2\UserSession;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -84,6 +85,9 @@ final class V2ExternalIdentityService
             throw new V2AuthenticationException('AUTHENTICATION_REQUIRED', 401);
         }
         $provider = $this->provider($providerCode);
+        if ($returnPath === '/mypage/line' && ($providerCode !== 'line' || $purpose === 'login')) {
+            throw new V2AuthenticationException('INVALID_REDIRECT', 422, 'The return path is not allowed.');
+        }
         $this->assertReturnPath($returnPath);
         try {
             if ($purpose === 'login') {
@@ -233,12 +237,28 @@ final class V2ExternalIdentityService
                 $claimed['transaction']->nonce_hash
             );
 
-            return $this->complete(
+            $result = $this->complete(
                 $claimedTransactionId,
                 $provider,
                 $identity,
                 $request
             );
+            if ($provider instanceof V2LineExternalIdentityProvider && (bool) config('v2_line.friendship_check_enabled', false)) {
+                try {
+                    $flag = $provider->friendshipStatus();
+                    $observedAt = CarbonImmutable::now();
+                } catch (Throwable) {
+                    try {
+                        $this->events->record('line_friendship_check_failed', ['realm' => 'user', 'subject_id' => $result['user']->public_id, 'reason' => 'friendship_check_failed']);
+                    } catch (Throwable) {
+                        \Illuminate\Support\Facades\Log::warning('line_check_audit_unavailable', ['reason_code' => 'friendship_check_failed']);
+                    }
+                    $result['line_result'] = 'friendship_check_failed';
+                    return $result;
+                }
+                $result['line_result'] = $this->lineFriends->applyObservation($identity->subject, $result['user'], $flag, $observedAt, $claimed['transaction']->request_id);
+            }
+            return $result;
         } catch (V2OidcProtocolException $exception) {
             if ($claimedTransactionId === null) {
                 $this->expirePendingTransaction($stateHash);
@@ -272,6 +292,8 @@ final class V2ExternalIdentityService
                 'reason' => 'processing_failed',
             ]);
             throw $this->invalidExternalIdentity();
+        } finally {
+            if ($provider instanceof V2LineExternalIdentityProvider) $provider->discardAccessToken();
         }
     }
 
@@ -291,6 +313,34 @@ final class V2ExternalIdentityService
                 'linked_at' => $account->linked_at->toIso8601String(),
                 'last_authenticated_at' => $account->last_authenticated_at?->toIso8601String(),
             ]);
+    }
+
+    public function lineBrowserReturnSession(Request $request): ?string
+    {
+        $state = $request->query('state');
+        $binding = $request->cookies->get((string) config('v2_identity.external_identity.transaction_cookie', '__Host-oripa_oidc_transaction'));
+        if (! is_string($state) || ! preg_match('/\A[0-9a-f]{64}\z/', $state) || ! is_string($binding)) return null;
+        $transaction = ExternalIdentityTransaction::query()->where('state_hash', $this->tokens->hash($state))
+            ->where('provider', 'line')->whereIn('purpose', ['link', 'reauthentication'])
+            ->where('return_path', '/mypage/line')->where('status', 'pending')->where('expires_at', '>', now())->first();
+        if ($transaction === null || ! hash_equals($transaction->browser_binding_hash, $this->tokens->hash($binding))) return null;
+        try {
+            $session = $this->sessions->requireActiveUserSession($request, (int) $transaction->user_id);
+            return hash_equals($transaction->user_session_hash, (string) $session->getKey()) ? (string) $session->getKey() : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function cancelLineBrowserReturn(Request $request): void
+    {
+        if ($this->lineBrowserReturnSession($request) === null) return;
+        DB::transaction(function () use ($request): void {
+            $transaction = ExternalIdentityTransaction::query()->where('provider', 'line')
+                ->where('state_hash', $this->tokens->hash($request->query('state')))
+                ->where('status', 'pending')->lockForUpdate()->first();
+            $transaction?->forceFill(['status' => 'revoked', 'revoked_at' => now()->startOfSecond(), 'used_at' => now()->startOfSecond()])->save();
+        }, 3);
     }
 
     /**
@@ -545,21 +595,31 @@ final class V2ExternalIdentityService
             $identity,
             $request
         ): array {
+            if ($provider->code() === 'line') {
+                if (! (bool) config('v2_line.friendship_check_enabled', false)) {
+                    app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+                }
+                app(\App\Domain\Line\Services\V2LineMessagingSettingService::class)->setting(true);
+            }
             $transaction = ExternalIdentityTransaction::query()
                 ->whereKey($transactionId)
                 ->where('status', 'processing')
                 ->lockForUpdate()
                 ->firstOrFail();
-            $subjectHash = $this->correlation->hash(
-                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
-            );
+            $hashInput = $provider->code().'|'.$identity->issuer.'|'.$identity->subject;
+            $subjectHashes = $provider->code() === 'line' ? $this->correlation->hashes($hashInput) : [$this->correlation->hash($hashInput)];
+            $subjectHash = $provider->code() === 'line'
+                ? app(\App\Domain\Line\Services\V2LineSubjectVault::class)->canonicalHash($identity->subject)
+                : $subjectHashes[0];
             $account = ExternalIdentityAccount::query()
                 ->where('provider', $provider->code())
                 ->where('issuer', $provider->issuer())
-                ->where('subject_hash', $subjectHash)
+                ->whereIn('subject_hash', $subjectHashes)
                 ->whereNull('superseded_at')
                 ->lockForUpdate()
                 ->first();
+
+            $subjectHash = $account?->subject_hash ?? $subjectHash;
 
             $result = match ($transaction->purpose) {
                 'login' => $this->completeLogin(
@@ -585,13 +645,19 @@ final class V2ExternalIdentityService
             };
             if (
                 $provider->code() === 'line'
-                && in_array($transaction->purpose, ['login', 'link'], true)
             ) {
-                $this->lineFriends->reconcileIdentity(
-                    $subjectHash,
-                    $result['user'],
-                    $transaction->request_id
-                );
+                app(\App\Domain\Line\Services\V2LineSubjectVault::class)->backfill($identity->subject);
+                $checkFriendship = (bool) config('v2_line.friendship_check_enabled', false);
+                if ($transaction->purpose !== 'reauthentication' || $checkFriendship) {
+                    $this->lineFriends->reconcileIdentity(
+                        $subjectHash,
+                        $result['user'],
+                        $transaction->request_id,
+                        ! $checkFriendship,
+                        $subjectHashes
+                    );
+                }
+                app(\App\Domain\Line\Services\V2LineSubjectVault::class)->backfill($identity->subject);
             }
             $transaction->forceFill([
                 'status' => 'completed',
@@ -690,9 +756,9 @@ final class V2ExternalIdentityService
             'user_id' => $user->getKey(),
             'provider' => $provider->code(),
             'issuer' => $provider->issuer(),
-            'subject_hash' => $this->correlation->hash(
-                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
-            ),
+            'subject_hash' => $provider->code() === 'line'
+                ? app(\App\Domain\Line\Services\V2LineSubjectVault::class)->canonicalHash($identity->subject)
+                : $this->correlation->hash($provider->code().'|'.$identity->issuer.'|'.$identity->subject),
             'linked_at' => now()->startOfSecond(),
             'last_authenticated_at' => now()->startOfSecond(),
         ]);
@@ -750,9 +816,9 @@ final class V2ExternalIdentityService
             'user_id' => $user->getKey(),
             'provider' => $provider->code(),
             'issuer' => $provider->issuer(),
-            'subject_hash' => $this->correlation->hash(
-                $provider->code().'|'.$identity->issuer.'|'.$identity->subject
-            ),
+            'subject_hash' => $provider->code() === 'line'
+                ? app(\App\Domain\Line\Services\V2LineSubjectVault::class)->canonicalHash($identity->subject)
+                : $this->correlation->hash($provider->code().'|'.$identity->issuer.'|'.$identity->subject),
             'linked_at' => now()->startOfSecond(),
             'last_authenticated_at' => now()->startOfSecond(),
         ]);

@@ -14,7 +14,7 @@ final class V2CurrentUserLineController
     {
     }
 
-    public function show(): JsonResponse
+    public function show(\Illuminate\Http\Request $request): JsonResponse
     {
         $user = Auth::guard('v2_user')->user();
         if (! $user instanceof User) {
@@ -25,7 +25,11 @@ final class V2CurrentUserLineController
             );
         }
 
-        return response()->json($this->service->presentation($user), 200, [
+        $presentation = $this->service->presentation($user);
+        $presentation['callback_result'] = app(\App\Domain\Line\Services\V2LineCallbackNotice::class)->consume(
+            app(\App\Domain\Identity\Services\V2SessionManager::class)->sessionIdHash($request, \App\Domain\Identity\Enums\V2Realm::User)
+        );
+        return response()->json($presentation, 200, [
             'Cache-Control' => 'private, no-store',
             'Vary' => 'Cookie',
             'X-Oripa-Api-Version' => '2',

@@ -1848,6 +1848,9 @@ export const PUBLIC_EXTERNAL_IDENTITY_FIXTURE = Object.freeze({
 
 export const PUBLIC_LINE_FRIEND_STATE_FIXTURES = Object.freeze({
   unlinked: {
+    reward: { enabled: true, point_amount: 500, granted: false },
+    secondary_action: null,
+    callback_result: null,
     linked: false,
     friend_confirmed: false,
     is_line_user: false,
@@ -1859,6 +1862,9 @@ export const PUBLIC_LINE_FRIEND_STATE_FIXTURES = Object.freeze({
     },
   },
   friend_add_required: {
+    reward: { enabled: false, point_amount: null, granted: false },
+    secondary_action: { code: "start_friendship_recheck", label: "友だち追加を確認する", href: null },
+    callback_result: "friendship_check_failed",
     linked: true,
     friend_confirmed: false,
     is_line_user: false,
@@ -1870,6 +1876,9 @@ export const PUBLIC_LINE_FRIEND_STATE_FIXTURES = Object.freeze({
     },
   },
   confirmed: {
+    reward: { enabled: true, point_amount: 500, granted: true },
+    secondary_action: null,
+    callback_result: null,
     linked: true,
     friend_confirmed: true,
     is_line_user: true,

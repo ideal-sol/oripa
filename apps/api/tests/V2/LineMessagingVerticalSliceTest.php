@@ -474,11 +474,11 @@ final class LineMessagingVerticalSliceTest extends TestCase
             'webhookEventId' => 'event-linked-unfollow',
             'deliveryContext' => ['isRedelivery' => false],
         ])->assertOk();
-        $this->postWebhook($this->followEvent(
+        $this->postWebhook(array_replace($this->followEvent(
             'event-linked-refollow',
             'linked-subject',
             'reply-linked-refollow'
-        ))->assertOk();
+        ), ['timestamp' => now()->addSeconds(2)->getTimestampMs()]))->assertOk();
         self::assertSame(100, Wallet::query()
             ->where('user_id', $user->getKey())->sole()->free_balance);
         self::assertSame(1, PointLedgerEntry::query()->count());

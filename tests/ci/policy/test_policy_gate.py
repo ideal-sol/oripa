@@ -22,6 +22,16 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_line_link_friend_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-LINK-FRIEND-20261105"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "LINE-LINK-FRIEND-20261106", "LINE-LINK-FRIEND-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_b2_postal_human_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
         task = 'SHIP-B2POSTAL-20261101'
@@ -1553,7 +1563,11 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['release_state'], 'pending')
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.51')
+        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.50')
+        self.assertNotIn('source_commit', value['candidate'])
+        value['candidate'] = None  # Check the preserved published history below.
         self.assertEqual(len(value['immutable_history']), 30)
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.50')
         self.assertEqual(value['latest_immutable']['source_commit'], '14f7819c72c5908aa6e5778303b87dc4b1202493')
@@ -4111,7 +4125,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.50",
+                    "version": "2.0.0-alpha.51",
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -4149,7 +4163,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.46",
+                        "minimumPublicApiContract": "2.0.0-alpha.47",
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",

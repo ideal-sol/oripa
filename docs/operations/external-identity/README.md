@@ -129,6 +129,58 @@ Provider HTTPはDB Transaction外で実行する。Transaction、Account History
 
 ## Public Safety
 
+### O1 encrypted LINE subject exception
+
+The Human-approved [LINE subject ADR](../../architecture/ADR_LINE_SUBJECT_VAULT_2026-11-05.md)
+permits `subject_ciphertext` only in LINE identity, friendship and pending rows.
+`V2LineSubjectVault` verifies current/previous HMAC candidates before one-time
+encrypted backfill and centralizes decryption. Raw IDs, ciphertext and availability
+flags are never returned by Public/Admin APIs or recorded in logs, Audit or Outbox.
+Signed Webhook events may backfill an existing matching row using `source.userId`;
+message bodies remain unprocessed. No delivery caller is introduced in this phase.
+The general prohibition on provider-token persistence remains unchanged.
+
+`V2_LINE_FRIENDSHIP_CHECK_ENABLED=false` is the default. When enabled, successful
+LINE login/link/reauthentication uses the ephemeral access token against the fixed
+friendship endpoint with a three-second timeout, outside the identity transaction.
+`V2_LINE_LOGIN_BOT_PROMPT` accepts only none/normal/aggressive, default none.
+Provider setup, reward amount/expiry/URL and operational enablement remain Human.
+
+### Storefront handoff (Source only)
+
+Use the existing Client `startLineLink` / `startLineReauthentication` with
+`return_path=/mypage/line`. A session-bound browser callback returns HTTP303 to
+that exact path; the existing authenticated friend-state Client read refreshes
+the presentation and consumes `callback_result` once (server-side TTL120s).
+Keep the JSON callback for existing API clients. No provider values belong in
+Storefront URLs, browser storage or notices.
+
+| Result code | One-time message |
+| --- | --- |
+| `friendship_check_failed` | 友だち追加状態を確認できませんでした。もう一度お試しください。 |
+| `reward_apply_failed` | LINE特典を反映できませんでした。もう一度お試しください。 |
+| `line_auth_failed` | LINE認証を完了できませんでした。もう一度お試しください。 |
+
+Use Platform `secondary_action` to show 「友だち追加を確認する」. For an unconfirmed
+linked account this is independent of reward enablement; for a confirmed account
+it requires an enabled, unclaimed reward. A claimed/confirmed account has no
+permanent recheck action (decision14 deferred). No periodic sync or draw-time
+reauthentication is introduced. Webhooks directed only to another system can
+therefore delay detection of an unfollow.
+
+The menu is 「LINE連携」 with 「LINE連携・友だち追加・特典を確認する」. For granted
+rewards show 「友だち追加特典は受け取り済みです」 without an old amount. Otherwise use
+current `reward.point_amount` as N in 「条件を満たした方にNコインをプレゼントします」;
+this is not an unconditional entitlement. Confirmed, enabled and unclaimed uses
+「LINE連携・友だち追加が完了しています。条件を満たした方はLINE特典を受け取れます。」.
+500 is an intended Human Admin setting, not a Source default.
+
+Client/Testkit alpha.51 is a pending additive candidate; immutable alpha.50 and
+its history remain intact. Publication, Site adoption and Runtime enablement
+need their separate gates. Human acceptance must check the same LINE Provider,
+official-account association, reward enablement/amount500/expiry/friend URL and
+feature ENV. This task changes none of those operational settings or Site code.
+
 Public ContractへProvider Subject、Token、Transaction内部ID、Secret、Full
 Emailを公開しない。Audit／OutboxにもRaw Protocol値を保存せず、Provider名、
 User Public ID、Purpose、Reason Codeだけを記録する。

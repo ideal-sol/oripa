@@ -25,6 +25,16 @@ final class V2LineExternalIdentityProvider implements V2ExternalIdentityProvider
         return 'line';
     }
 
+    public function friendshipStatus(): bool
+    {
+        return $this->transport->friendshipStatus();
+    }
+
+    public function discardAccessToken(): void
+    {
+        $this->transport->discardAccessToken();
+    }
+
     public function issuer(): string
     {
         return self::ISSUER;
@@ -45,7 +55,12 @@ final class V2LineExternalIdentityProvider implements V2ExternalIdentityProvider
             $scopes[] = 'email';
         }
 
+        $prompt = config('v2_identity.external_identity.line.bot_prompt', 'none');
+        if (! in_array($prompt, ['none', 'normal', 'aggressive'], true)) {
+            throw new V2OidcProtocolException('provider_configuration_unavailable');
+        }
         return self::AUTHORIZATION_ENDPOINT.'?'.http_build_query([
+            ...($prompt === 'none' ? [] : ['bot_prompt' => $prompt]),
             'response_type' => 'code',
             'client_id' => $this->configuration('client_id'),
             'redirect_uri' => $this->redirectUri(),

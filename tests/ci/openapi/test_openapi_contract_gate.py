@@ -25,6 +25,9 @@ def fixture(group, name):
 class OpenApiContractGateTest(unittest.TestCase):
     def test_paidy_v23_authority_is_limited_to_exact_human_approved_fields(self):
         current = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        # Exercise the historical authority at its approved version, independently
+        # of subsequent additive contracts. The version-rejection assertion stays.
+        current['info']['version'] = '2.0.0-alpha.46'
         previous = copy.deepcopy(current)
         data = previous['components']['schemas']['PaymentPaidyCheckoutAction']['properties']['payload']['properties']['buyer_data']
         for field in ['account_registration_date', 'delivery_locn_type', 'days_since_first_transaction', 'previous_payment_methods', 'order_item_categories']:

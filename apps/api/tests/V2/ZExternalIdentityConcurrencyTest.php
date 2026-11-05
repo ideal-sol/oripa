@@ -328,6 +328,10 @@ final class ZExternalIdentityConcurrencyTest extends TestCase
 
 final class ConcurrentLineOidcTransport implements V2LineOidcTransport
 {
+    public function friendshipStatus(): bool { return false; }
+
+    public function discardAccessToken(): void {}
+
     /** @var array<string, mixed> */
     private array $claims = [];
 

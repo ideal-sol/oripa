@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'friendship_check_enabled' => env('V2_LINE_FRIENDSHIP_CHECK_ENABLED', false),
     'messaging' => [
         'channel_secret' => env('LINE_MESSAGING_CHANNEL_SECRET'),
         'channel_access_token' => env('LINE_MESSAGING_CHANNEL_ACCESS_TOKEN'),

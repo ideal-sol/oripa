@@ -496,16 +496,133 @@ final class LineLoginVerticalSliceTest extends TestCase
         $this->completeLine($fourth, 'closure-fourth-code');
     }
 
+    public function test_friendship_failure_preserves_successful_link_and_backfills_subject(): void
+    {
+        config(['v2_line.friendship_check_enabled' => true]);
+        $this->provider->friendshipFails = true;
+        $user = $this->user('friendship-failure@example.test');
+        [$request, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $request);
+        $this->provider->claims($started['query']['nonce'], 'synthetic-failure-subject', null);
+        $result = $this->completeLine($started, 'synthetic-code', $session);
+        self::assertSame($user->id, $result['user']->id);
+        self::assertSame('friendship_check_failed', $result['line_result']);
+        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $user->id)->value('subject_ciphertext'));
+        self::assertSame(0, DB::table('line_friendships')->count());
+        self::assertSame('completed', DB::table('external_identity_transactions')->value('status'));
+    }
+
+    public function test_reauthentication_rechecks_friendship_and_fills_existing_identity(): void
+    {
+        config(['v2_line.friendship_check_enabled' => true]);
+        $this->provider->friendFlag = true;
+        $user = $this->user('friendship-reauth@example.test');
+        $this->account($user, 'synthetic-reauth-subject');
+        [$request, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('reauthentication', $user, $request);
+        $this->provider->claims($started['query']['nonce'], 'synthetic-reauth-subject', null);
+        $result = $this->completeLine($started, 'synthetic-reauth-code', $session);
+        self::assertNull($result['line_result']);
+        self::assertSame('friend', DB::table('line_friendships')->value('status'));
+        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $user->id)->value('subject_ciphertext'));
+    }
+
+    public function test_disabled_check_keeps_reauthentication_free_of_pending_reward_mutation(): void
+    {
+        config(['v2_line.friendship_check_enabled' => false]);
+        $user = $this->user('friendship-disabled@example.test');
+        $subject = 'synthetic-disabled-reauth';
+        $this->account($user, $subject);
+        $account = ExternalIdentityAccount::query()->where('user_id', $user->id)->sole();
+        DB::table('line_pending_follows')->insert(['public_id' => (string) Str::uuid7(), 'subject_hash' => $account->subject_hash,
+            'status' => 'pending', 'followed_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+        [$request, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('reauthentication', $user, $request);
+        $this->provider->claims($started['query']['nonce'], $subject, null);
+        $this->completeLine($started, 'synthetic-disabled-code', $session);
+        self::assertSame(0, $this->provider->friendshipCalls);
+        self::assertSame('pending', DB::table('line_pending_follows')->value('status'));
+        self::assertSame(0, DB::table('line_friendships')->count());
+        self::assertSame($subject, \Illuminate\Support\Facades\Crypt::decryptString($account->fresh()->subject_ciphertext));
+        self::assertNotNull(DB::table('line_pending_follows')->value('subject_ciphertext'));
+    }
+
+    public function test_browser_line_link_returns_to_exact_path_and_session_bound_notice(): void
+    {
+        config(['v2_line.friendship_check_enabled' => true]);
+        $this->provider->friendshipFails = true;
+        $user = $this->user('browser-line-return@example.test');
+        [$initialRequest, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $initialRequest, '/mypage/line');
+        $this->provider->claims($started['query']['nonce'], 'synthetic-browser-subject', null);
+        $request = $this->callbackRequest($started['binding'], $session);
+        $request->query->replace(['code' => 'synthetic-browser-code', 'state' => $started['state']]);
+        $request->headers->set('Accept', 'text/html');
+        $response = app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($request);
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/mypage/line', $response->headers->get('Location'));
+        self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+        $sessionCookie = null;
+        foreach ($response->headers->getCookies() as $cookie) {
+            if ($cookie->getName() === '__Host-oripa_user_session') $sessionCookie = $cookie->getValue();
+        }
+        self::assertNotNull($sessionCookie);
+        $hash = app(\App\Domain\Identity\Services\V2SessionPolicy::class)->hashSessionId($sessionCookie);
+        $notice = app(\App\Domain\Line\Services\V2LineCallbackNotice::class);
+        self::assertSame('friendship_check_failed', $notice->consume($hash));
+        self::assertNull($notice->consume($hash));
+    }
+
+    public function test_mypage_return_is_not_allowed_for_line_login_or_google(): void
+    {
+        $this->expectCode('INVALID_REDIRECT', fn () => $this->start('login', null, null, '/mypage/line'));
+        $this->expectCode('INVALID_REDIRECT', fn () => app(V2ExternalIdentityService::class)->startForProvider(
+            'google', 'login', '/mypage/line', '192.0.2.70', (string) Str::uuid7(), null, Request::create('/')));
+    }
+
+    public function test_browser_cancel_consumes_transaction_and_returns_auth_failure_once(): void
+    {
+        $user = $this->user('browser-cancel@example.test');
+        [$initialRequest, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $initialRequest, '/mypage/line');
+        $request = $this->callbackRequest($started['binding'], $session);
+        $request->query->replace(['error' => 'access_denied', 'state' => $started['state']]);
+        $request->headers->set('Accept', 'text/html');
+        $response = app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($request);
+        self::assertSame(303, $response->getStatusCode());
+        self::assertSame('/mypage/line', $response->headers->get('Location'));
+        self::assertSame('revoked', DB::table('external_identity_transactions')->value('status'));
+        self::assertNull(app(V2ExternalIdentityService::class)->lineBrowserReturnSession($request));
+        $notice = app(\App\Domain\Line\Services\V2LineCallbackNotice::class);
+        $hash = app(\App\Domain\Identity\Services\V2SessionPolicy::class)->hashSessionId($session);
+        self::assertSame('line_auth_failed', $notice->consume($hash));
+        self::assertNull($notice->consume($hash));
+    }
+
+    public function test_disabled_check_does_not_call_friendship_provider(): void
+    {
+        config(['v2_line.friendship_check_enabled' => false]);
+        $this->provider->friendshipFails = true;
+        $user = $this->user('disabled-friend-check@example.test');
+        [$request, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $request);
+        $this->provider->claims($started['query']['nonce'], 'synthetic-disabled-subject', null);
+        $result = $this->completeLine($started, 'synthetic-code', $session);
+        self::assertSame($user->id, $result['user']->id);
+        self::assertSame(0, $this->provider->friendshipCalls);
+    }
+
     private function start(
         string $purpose,
         ?User $user = null,
-        ?Request $request = null
+        ?Request $request = null,
+        string $returnPath = '/'
     ): array {
         $request ??= Request::create('/api/v2/auth/external/line/start', 'POST');
         $result = app(V2ExternalIdentityService::class)->startForProvider(
             'line',
             $purpose,
-            '/',
+            $returnPath,
             '192.0.2.70',
             (string) Str::uuid7(),
             $user,
@@ -610,6 +727,19 @@ final class LineLoginVerticalSliceTest extends TestCase
 
 final class FakeLineOidcTransport implements V2LineOidcTransport
 {
+    public bool $friendFlag = false;
+    public bool $friendshipFails = false;
+    public int $friendshipCalls = 0;
+
+    public function friendshipStatus(): bool
+    {
+        $this->friendshipCalls++;
+        if ($this->friendshipFails) throw new V2OidcProtocolException('friendship_transport_failed');
+        return $this->friendFlag;
+    }
+
+    public function discardAccessToken(): void {}
+
     /** @var array<string, mixed> */
     private array $claims = [];
     private ?string $expectedChallenge = null;

@@ -114,8 +114,42 @@ final class ZLineMessagingConcurrencyTest extends TestCase
         unlink($replyEvidence);
     }
 
+    public function test_api_and_webhook_with_previous_hmac_key_grant_once(): void
+    {
+        $run = bin2hex(random_bytes(6));
+        $subject = 'synthetic-api-webhook-'.$run;
+        $user = User::query()->create(['email_display' => $run.'@example.test', 'email_normalized' => $run.'@example.test',
+            'email_verified_at' => now(), 'password_hash' => app(V2PasswordPolicy::class)->hash('valid fixture password'), 'state' => V2UserState::Active]);
+        $hash = app(V2IdentityCorrelation::class)->hash('line|https://access.line.me|'.$subject);
+        ExternalIdentityAccount::query()->create(['user_id' => $user->id, 'provider' => 'line', 'issuer' => 'https://access.line.me',
+            'subject_hash' => $hash, 'linked_at' => now(), 'last_authenticated_at' => now()]);
+        config(['v2_identity.sms_verification.phone_hmac_previous_keys' => ['base64:'.base64_encode(str_repeat('p', 32))],
+            'v2_identity.sms_verification.phone_hmac_key' => 'base64:'.base64_encode(str_repeat('q', 32))]);
+        LineMessagingSetting::query()->whereKey(1)->update(['reward_enabled' => true, 'reward_point_amount' => 500]);
+        $evidence = sys_get_temp_dir().'/line-api-webhook-'.$run;
+        touch($evidence);
+        $this->app->instance(V2LineMessagingTransport::class, new ConcurrentLineReplyTransport($evidence));
+        $service = app(V2LineFriendService::class);
+        $at = \Carbon\CarbonImmutable::now()->startOfSecond();
+        $event = ['type' => 'follow', 'timestamp' => $at->getTimestampMs(), 'source' => ['type' => 'user', 'userId' => $subject],
+            'replyToken' => 'synthetic-reply', 'webhookEventId' => 'synthetic-concurrent-'.$run];
+        $results = $this->concurrent(static function (int $worker) use ($service, $subject, $user, $at, $event): string {
+            try {
+                if ($worker === 0) return $service->applyObservation($subject, $user, true, $at, (string) Str::uuid7()) ?? 'succeeded';
+                $service->handleEvents([$event], (string) Str::uuid7());
+                return 'succeeded';
+            } catch (\Throwable $exception) { return $exception::class; }
+        }, 'api-webhook-'.$run);
+        self::assertSame(['succeeded', 'succeeded'], $results);
+        self::assertSame(1, LineFriendship::query()->where('user_id', $user->id)->count());
+        self::assertSame($hash, LineFriendship::query()->where('user_id', $user->id)->value('subject_hash'));
+        self::assertSame(1, PointLedgerEntry::query()->where('user_id', $user->id)->count());
+        self::assertNotNull(LineFriendship::query()->where('user_id', $user->id)->value('point_operation_id'));
+        unlink($evidence);
+    }
+
     /**
-     * @param callable(): string $operation
+     * @param callable(int): string $operation
      * @return list<string>
      */
     private function concurrent(callable $operation, string $scenario): array
@@ -135,7 +169,7 @@ final class ZLineMessagingConcurrencyTest extends TestCase
                 }
                 DB::disconnect();
                 DB::reconnect();
-                $result = $operation();
+                $result = $operation($worker);
                 file_put_contents(
                     "{$directory}/{$worker}.json",
                     json_encode(['result' => $result], JSON_THROW_ON_ERROR),

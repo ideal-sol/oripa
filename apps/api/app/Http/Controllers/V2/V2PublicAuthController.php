@@ -217,9 +217,24 @@ final class V2PublicAuthController
         return $this->completeExternal($request, 'google');
     }
 
-    public function completeLine(Request $request): JsonResponse
+    public function completeLine(Request $request): \Symfony\Component\HttpFoundation\Response
     {
-        return $this->completeExternal($request, 'line');
+        if ($request->expectsJson()) return $this->completeExternal($request, 'line');
+        $sessionHash = $this->externalIdentities->lineBrowserReturnSession($request);
+        if ($sessionHash === null) return $this->completeExternal($request, 'line');
+        try {
+            $response = $this->completeExternal($request, 'line');
+            $redirect = new \Symfony\Component\HttpFoundation\RedirectResponse('/mypage/line', 303);
+            foreach ($response->headers->getCookies() as $cookie) $redirect->headers->setCookie($cookie);
+        } catch (V2AuthenticationException|\Illuminate\Validation\ValidationException $exception) {
+            $this->externalIdentities->cancelLineBrowserReturn($request);
+            app(\App\Domain\Line\Services\V2LineCallbackNotice::class)->put($sessionHash, 'line_auth_failed');
+            $redirect = new \Symfony\Component\HttpFoundation\RedirectResponse('/mypage/line', 303);
+            $this->expireExternalTransactionCookie($redirect);
+        }
+        $redirect->headers->set('Cache-Control', 'private, no-store');
+        $redirect->headers->set('Referrer-Policy', 'no-referrer');
+        return $redirect;
     }
 
     private function completeExternal(Request $request, string $provider): JsonResponse
@@ -282,6 +297,12 @@ final class V2PublicAuthController
         );
         $this->csrf->rotate($response, V2Realm::User);
         $this->expireExternalTransactionCookie($response);
+        if ($provider === 'line') {
+            app(\App\Domain\Line\Services\V2LineCallbackNotice::class)->put(
+                app(\App\Domain\Identity\Services\V2SessionPolicy::class)->hashSessionId($result['session']['token']),
+                $result['line_result'] ?? null
+            );
+        }
 
         return $response;
     }
@@ -727,7 +748,7 @@ final class V2PublicAuthController
         ));
     }
 
-    private function expireExternalTransactionCookie(JsonResponse $response): void
+    private function expireExternalTransactionCookie(\Symfony\Component\HttpFoundation\Response $response): void
     {
         $response->headers->setCookie(new Cookie(
             (string) config(

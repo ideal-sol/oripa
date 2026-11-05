@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.46
+  version: 2.0.0-alpha.47
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -1399,6 +1399,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalIdentitySession'
+        '303':
+          description: 本人SessionとBrowser Bindingで検証したLINE連携・再認証のブラウザ復帰。JSONクライアントは従来の200応答を使用する。
+          headers:
+            Location:
+              schema:
+                type: string
+                const: /mypage/line
         '409':
           $ref: '#/components/responses/Problem'
         '422':
@@ -5075,7 +5082,7 @@ components:
           description: BackendがCanonical stateから確定した表示Label。
     LineFriendStateActionCode:
       type: string
-      enum: [start_identity_link, open_friend_add_url, none]
+      enum: [start_identity_link, open_friend_add_url, start_friendship_recheck, none]
     LineFriendStateAction:
       type: object
       additionalProperties: false
@@ -5102,6 +5109,29 @@ components:
         - status
         - primary_action
       properties:
+        callback_result:
+          type: [string, 'null']
+          enum: [friendship_check_failed, reward_apply_failed, line_auth_failed, null]
+          description: 本人Sessionに紐付くOAuth完了結果。120秒以内に一度だけ取得でき、成功時または消費後はnull。
+        reward:
+          type: object
+          additionalProperties: false
+          required: [enabled, point_amount, granted]
+          properties:
+            enabled:
+              type: boolean
+            point_amount:
+              type: [integer, 'null']
+              minimum: 0
+              description: 現在の設定額。特典無効時はnull。過去の実付与額ではない。
+            granted:
+              type: boolean
+              description: この会員への確定済み特典付与が存在するか。
+        secondary_action:
+          anyOf:
+            - $ref: '#/components/schemas/LineFriendStateAction'
+            - type: 'null'
+          description: 確認機能有効かつLINE連携済みで、友だち未確認または特典有効・未受取の場合の再認証操作。
         linked:
           type: boolean
           description: Current Userへ有効なLINE External IdentityがLink済みか。
