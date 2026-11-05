@@ -48,12 +48,16 @@ final class V2LineFriendService
     }
 
     /** @param list<array<string, mixed>> $events */
-    public function handleEvents(array $events, string $requestId): void
+    public function handleEvents(#[SensitiveParameter] array $events, string $requestId): void
     {
         if (count($events) > 100) {
             throw $this->invalidWebhook();
         }
         foreach ($events as $event) {
+            $subject = $event['source']['userId'] ?? null;
+            if (is_string($subject) && $subject !== '' && strlen($subject) <= 255) {
+                app(V2LineSubjectVault::class)->backfill($subject);
+            }
             $type = $event['type'] ?? null;
             if (! in_array($type, ['follow', 'unfollow'], true)) {
                 continue;
@@ -73,7 +77,9 @@ final class V2LineFriendService
     public function reconcileIdentity(
         string $subjectHash,
         User $user,
-        string $requestId
+        string $requestId,
+        bool $grantReward = true,
+        array $subjectHashes = []
     ): void {
         if (DB::transactionLevel() < 1 || ! preg_match('/\A[0-9a-f]{64}\z/', $subjectHash)) {
             throw new V2LineMessagingException(
@@ -83,11 +89,12 @@ final class V2LineFriendService
                 true
             );
         }
-        if (LinePendingFollow::query()->where('subject_hash', $subjectHash)->where('status', 'pending')->exists()) {
+        $subjectHashes = $subjectHashes ?: [$subjectHash];
+        if ($grantReward && LinePendingFollow::query()->whereIn('subject_hash', $subjectHashes)->where('status', 'pending')->exists()) {
             app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
         }
         $pending = LinePendingFollow::query()
-            ->where('subject_hash', $subjectHash)
+            ->whereIn('subject_hash', $subjectHashes)
             ->lockForUpdate()
             ->first();
         if (! $pending instanceof LinePendingFollow || $pending->status !== 'pending') {
@@ -95,7 +102,7 @@ final class V2LineFriendService
         }
         $setting = $this->settings->setting(true);
         $friendship = $this->friendship($subjectHash, $user, $pending->followed_at);
-        $this->grantReward(
+        if ($grantReward) $this->grantReward(
             $friendship,
             $setting,
             $user,
@@ -129,11 +136,84 @@ final class V2LineFriendService
         );
     }
 
+    public function applyObservation(
+        #[SensitiveParameter] string $subject,
+        User $user,
+        bool $friend,
+        CarbonImmutable $observedAt,
+        string $requestId
+    ): ?string {
+        try {
+            DB::transaction(function () use ($subject, $user, $friend, $observedAt): void {
+                $this->settings->setting(true);
+                $account = ExternalIdentityAccount::query()->where('provider', 'line')
+                    ->where('issuer', 'https://access.line.me')->where('user_id', $user->id)
+                    ->whereIn('subject_hash', app(V2LineSubjectVault::class)->hashes($subject))
+                    ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->firstOrFail();
+                if (! $this->observe($account, $observedAt->getTimestampMs(), $friend)) return;
+                if ($friend) {
+                    $this->friendship($account->subject_hash, $user, $observedAt->startOfSecond());
+                } else {
+                    LineFriendship::query()->where('subject_hash', $account->subject_hash)
+                        ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')
+                        ->update(['status' => 'unfollowed', 'unfollowed_at' => $observedAt->startOfSecond()]);
+                }
+                app(V2LineSubjectVault::class)->backfill($subject);
+            }, 3);
+        } catch (Throwable) {
+            $this->recordCheckFailure($user, $requestId, 'friendship_check_failed');
+            return 'friendship_check_failed';
+        }
+        if (! $friend) return null;
+        // A separate transaction preserves the observed state on financial failure.
+        try {
+            DB::transaction(function () use ($subject, $user, $observedAt, $requestId): void {
+                app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
+                $setting = $this->settings->setting(true);
+                if (! $setting->reward_enabled) return;
+                $account = ExternalIdentityAccount::query()->where('provider', 'line')->where('user_id', $user->id)
+                    ->whereIn('subject_hash', app(V2LineSubjectVault::class)->hashes($subject))
+                    ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->first();
+                if ($account === null) return;
+                $friendship = LineFriendship::query()->where('subject_hash', $account->subject_hash)
+                    ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')->lockForUpdate()->first();
+                if ($friendship !== null) $this->grantReward($friendship, $setting, $user, $observedAt->startOfSecond(), $requestId);
+            }, 3);
+        } catch (Throwable) {
+            $this->recordCheckFailure($user, $requestId, 'reward_apply_failed');
+            return 'reward_apply_failed';
+        }
+        return null;
+    }
+
+    private function recordCheckFailure(User $user, string $requestId, string $reason): void
+    {
+        try {
+            $this->audit->record('line.friend.check.failed', [
+            'request_id' => $requestId, 'actor_type' => 'system', 'auth_realm' => 'user',
+            'target_type' => 'user', 'target_public_id' => $user->public_id,
+            'outcome' => 'failure', 'reason_code' => $reason,
+            ]);
+        } catch (Throwable) {
+            \Illuminate\Support\Facades\Log::warning('line_check_audit_unavailable', ['reason_code' => $reason]);
+        }
+    }
+
+    private function observe(ExternalIdentityAccount $account, int $milliseconds, bool $friend): bool
+    {
+        // Equal-time unfollow wins, regardless of arrival order or observation source.
+        $previous = $account->line_observed_at_ms;
+        if ($previous !== null && ((int) $previous > $milliseconds
+            || ((int) $previous === $milliseconds && (! $account->line_observed_friend || $friend)))) return false;
+        $account->forceFill(['line_observed_at_ms' => $milliseconds, 'line_observed_friend' => $friend])->save();
+        return true;
+    }
+
     /**
      * @param array<string, mixed> $event
      * @return array{event_public_id: string, reply_token: string, message: string}|null
      */
-    private function processEvent(array $event, string $requestId): ?array
+    private function processEvent(#[SensitiveParameter] array $event, string $requestId): ?array
     {
         $eventId = $event['webhookEventId'] ?? null;
         $type = $event['type'] ?? null;
@@ -167,6 +247,9 @@ final class V2LineFriendService
         return DB::transaction(function () use (
             $eventHash,
             $subjectHash,
+            $rawSubject,
+            $timestamp,
+            $eventId,
             $type,
             $occurredAt,
             $replyToken,
@@ -175,13 +258,33 @@ final class V2LineFriendService
             if ($type === 'follow') {
                 app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
             }
+            $setting = $this->settings->setting(true);
+            if (LineWebhookEvent::query()->whereIn('event_id_hash', $this->correlation->hashes('line-webhook-event|'.$eventId))->exists()) {
+                $this->audit->record('line.webhook.redelivered', ['request_id' => $requestId,
+                    'actor_type' => 'system', 'auth_realm' => 'system', 'target_type' => 'line_webhook_event',
+                    'outcome' => 'success', 'reason_code' => 'duplicate_event']);
+                return null;
+            }
+            $subjectHash = app(V2LineSubjectVault::class)->canonicalHash($rawSubject);
+            $account = ExternalIdentityAccount::query()->where('provider', 'line')
+                ->where('issuer', 'https://access.line.me')->where('subject_hash', $subjectHash)
+                ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->first();
+            $previousEvent = LineWebhookEvent::query()->where('subject_hash', $subjectHash)
+                ->orderByRaw('COALESCE(event_timestamp_ms, EXTRACT(EPOCH FROM occurred_at) * 1000) DESC')
+                ->orderByDesc('event_type')->first();
+            $previousTime = $previousEvent?->event_timestamp_ms ?? $previousEvent?->occurred_at?->getTimestampMs();
+            $stale = $previousTime !== null && ($previousTime > $timestamp
+                || ($previousTime === $timestamp && $previousEvent->event_type === 'unfollow' && $type === 'follow'));
+            if (! $stale && $account !== null) $stale = ! $this->observe($account, $timestamp, $type === 'follow');
             $eventPublicId = (string) Str::uuid7();
             $inserted = DB::table('line_webhook_events')->insertOrIgnore([
                 'public_id' => $eventPublicId,
                 'event_id_hash' => $eventHash,
                 'subject_hash' => $subjectHash,
                 'event_type' => $type,
-                'reply_status' => $type === 'follow' ? 'pending' : 'skipped',
+                'stale_observation' => $stale,
+                'event_timestamp_ms' => $timestamp,
+                'reply_status' => $type === 'follow' && ! $stale ? 'pending' : 'skipped',
                 'reply_failure_code' => null,
                 'occurred_at' => V2DatabaseTimestamp::format($occurredAt),
                 'reply_attempted_at' => null,
@@ -200,6 +303,7 @@ final class V2LineFriendService
 
                 return null;
             }
+            if ($stale) return null;
 
             if ($type === 'unfollow') {
                 $this->unfollow($subjectHash, $occurredAt, $eventPublicId, $requestId);
@@ -262,6 +366,7 @@ final class V2LineFriendService
                 $rewarded = false;
             }
             $message = $this->templates->render($template);
+            app(V2LineSubjectVault::class)->backfill($rawSubject);
             $this->audit->record('line.friend.followed', [
                 'request_id' => $requestId,
                 'actor_type' => 'system',

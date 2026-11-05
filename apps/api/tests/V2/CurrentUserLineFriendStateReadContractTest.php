@@ -39,6 +39,9 @@ final class CurrentUserLineFriendStateReadContractTest extends TestCase
             ->assertOk()
             ->assertHeader('Vary', 'Cookie')
             ->assertExactJson([
+                'reward' => ['enabled' => false, 'point_amount' => null, 'granted' => false],
+                'secondary_action' => null,
+                'callback_result' => null,
                 'linked' => false,
                 'friend_confirmed' => false,
                 'is_line_user' => false,
@@ -67,6 +70,9 @@ final class CurrentUserLineFriendStateReadContractTest extends TestCase
         $response = $this->getJson('/api/v2/me/line-friend-state')
             ->assertOk()
             ->assertExactJson([
+                'reward' => ['enabled' => false, 'point_amount' => null, 'granted' => false],
+                'secondary_action' => null,
+                'callback_result' => null,
                 'linked' => true,
                 'friend_confirmed' => false,
                 'is_line_user' => false,
@@ -109,6 +115,9 @@ final class CurrentUserLineFriendStateReadContractTest extends TestCase
                 'linked' => true,
                 'friend_confirmed' => true,
                 'is_line_user' => true,
+                'reward' => ['enabled' => false, 'point_amount' => null, 'granted' => false],
+                'secondary_action' => null,
+                'callback_result' => null,
                 'status' => ['code' => 'confirmed', 'label' => 'LINEユーザー'],
                 'primary_action' => ['code' => 'none', 'label' => null, 'href' => null],
             ]);

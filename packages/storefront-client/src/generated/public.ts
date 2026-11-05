@@ -2856,7 +2856,7 @@ export interface components {
             label: string;
         };
         /** @enum {string} */
-        LineFriendStateActionCode: "start_identity_link" | "open_friend_add_url" | "none";
+        LineFriendStateActionCode: "start_identity_link" | "open_friend_add_url" | "start_friendship_recheck" | "none";
         LineFriendStateAction: {
             code: components["schemas"]["LineFriendStateActionCode"];
             label: string | null;
@@ -2867,6 +2867,20 @@ export interface components {
             href: string | null;
         };
         LineFriendStatePresentation: {
+            /**
+             * @description 本人Sessionに紐付くOAuth完了結果。120秒以内に一度だけ取得でき、成功時または消費後はnull。
+             * @enum {string|null}
+             */
+            callback_result?: "friendship_check_failed" | "reward_apply_failed" | "line_auth_failed" | null;
+            reward?: {
+                enabled: boolean;
+                /** @description 現在の設定額。特典無効時はnull。過去の実付与額ではない。 */
+                point_amount: number | null;
+                /** @description この会員への確定済み特典付与が存在するか。 */
+                granted: boolean;
+            };
+            /** @description 確認機能有効かつLINE連携済みで、友だち未確認または特典有効・未受取の場合の再認証操作。 */
+            secondary_action?: components["schemas"]["LineFriendStateAction"] | null;
             /** @description Current Userへ有効なLINE External IdentityがLink済みか。 */
             linked: boolean;
             /** @description Link済みIdentityと同一subjectのCanonical Friendshipがfriend状態か。 */
@@ -4761,6 +4775,14 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ExternalIdentitySession"];
                 };
+            };
+            /** @description 本人SessionとBrowser Bindingで検証したLINE連携・再認証のブラウザ復帰。JSONクライアントは従来の200応答を使用する。 */
+            303: {
+                headers: {
+                    Location?: "/mypage/line";
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             409: components["responses"]["Problem"];
             /** @description Verified Emailがなく新規Accountを安全に作成できない。 */

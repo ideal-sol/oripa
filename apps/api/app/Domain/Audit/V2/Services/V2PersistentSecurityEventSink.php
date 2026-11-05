@@ -52,6 +52,7 @@ final class V2PersistentSecurityEventSink implements V2SecurityEventSink
         'oidc_nonce_rejected' => 'identity.oidc.nonce.rejected',
         'oidc_pkce_rejected' => 'identity.oidc.pkce.rejected',
         'oidc_provider_failure' => 'identity.oidc.provider.failure',
+        'line_friendship_check_failed' => 'identity.line.friendship.check.failed',
         'oidc_signature_rejected' => 'identity.oidc.signature.rejected',
         'oidc_start' => 'identity.oidc.start',
         'oidc_state_rejected' => 'identity.oidc.state.rejected',

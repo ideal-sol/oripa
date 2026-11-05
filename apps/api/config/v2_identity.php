@@ -90,13 +90,14 @@ return [
         'clock_skew_seconds' => 60,
         'recent_auth_minutes' => 5,
         'transaction_cookie' => '__Host-oripa_oidc_transaction',
-        'return_path_allowlist' => ['/'],
+        'return_path_allowlist' => ['/', '/mypage/line'],
         'google' => [
             'client_id' => env('V2_GOOGLE_OIDC_CLIENT_ID'),
             'client_secret' => env('V2_GOOGLE_OIDC_CLIENT_SECRET'),
             'redirect_uri' => env('V2_GOOGLE_OIDC_REDIRECT_URI'),
         ],
         'line' => [
+            'bot_prompt' => env('V2_LINE_LOGIN_BOT_PROMPT', 'none'),
             'client_id' => env('LINE_LOGIN_CHANNEL_ID'),
             'client_secret' => env('LINE_LOGIN_CHANNEL_SECRET'),
             'redirect_uri' => env('V2_LINE_LOGIN_REDIRECT_URI'),

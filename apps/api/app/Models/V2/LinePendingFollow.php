@@ -11,6 +11,7 @@ final class LinePendingFollow extends Model
     protected $table = 'line_pending_follows';
 
     protected $guarded = ['*'];
+    protected $hidden = ['subject_ciphertext'];
 
     protected function casts(): array
     {
