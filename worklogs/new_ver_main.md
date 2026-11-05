@@ -13020,3 +13020,15 @@ Client/Testkit50; Public/Admin46; Webhook45. Runtime migrations105 then106 propo
 CI metadata uses Task ID PDY-20261105 as an alias for Human Change ID
 PAIDY-V23-20261105 (one Change/branch/PR), matching the existing PAY4 practice.
 The canonical CI Task ID pattern rejects the longer Human ID; no CI rule change.
+
+
+Draft PR: https://github.com/ideal-sol/oripa/pull/662. First head dfd1d8b511e6f7982d9aca7dddc1499da383611e
+had policy/security/CodeQL PASS but quality FAIL on two required response fields.
+Bounded blocker: recognize only Human H1's exact Paidy five-field Source transition
+in the existing OpenAPI approval mechanism, with whole-document normalization
+and negative tests. No generic rule, permission, workflow or security relaxation.
+OpenAPI80/base-aware generated check PASS; source package outputs unchanged.
+Final correction push reruns all head-dependent CI automatically (manual rerun0).
+No additional local app/package build. Final required checks/review belong to
+the final PR head; first-head evidence is superseded. All20 changed paths are in
+the transient policy and PR. Immutable release ledger remains unchanged.

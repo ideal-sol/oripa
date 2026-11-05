@@ -23,6 +23,38 @@ def fixture(group, name):
 
 
 class OpenApiContractGateTest(unittest.TestCase):
+    def test_paidy_v23_authority_is_limited_to_exact_human_approved_fields(self):
+        current = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        previous = copy.deepcopy(current)
+        data = previous['components']['schemas']['PaymentPaidyCheckoutAction']['properties']['payload']['properties']['buyer_data']
+        for field in ['account_registration_date', 'delivery_locn_type', 'days_since_first_transaction', 'previous_payment_methods', 'order_item_categories']:
+            data['properties'].pop(field)
+        data['required'] = [field for field in data['required'] if field not in ['account_registration_date', 'previous_payment_methods']]
+        authorize = openapi_contract_gate.is_authorized_paidy_v23_extension
+        self.assertTrue(authorize('public', previous, current))
+        self.assertFalse(authorize('admin', previous, current))
+        self.assertFalse(authorize('public', current, current))
+        self.assertFalse(authorize('public', current, previous))
+        for mutation in ['wrong_type', 'missing_field', 'extra_field', 'drop_required', 'open_object', 'version', 'unrelated']:
+            with self.subTest(mutation=mutation):
+                changed = copy.deepcopy(current)
+                buyer = changed['components']['schemas']['PaymentPaidyCheckoutAction']['properties']['payload']['properties']['buyer_data']
+                if mutation == 'wrong_type':
+                    buyer['properties']['previous_payment_methods']['properties']['credit_card_used']['type'] = 'string'
+                elif mutation == 'missing_field':
+                    buyer['properties'].pop('delivery_locn_type')
+                elif mutation == 'extra_field':
+                    buyer['properties']['secret'] = {'type': 'string'}
+                elif mutation == 'drop_required':
+                    buyer['required'].remove('age')
+                elif mutation == 'open_object':
+                    buyer['additionalProperties'] = True
+                elif mutation == 'version':
+                    changed['info']['version'] = '2.0.0-alpha.47'
+                else:
+                    changed['paths']['/payments/{payment_id}/paidy-authorizations']['post']['security'] = []
+                self.assertFalse(authorize('public', previous, changed))
+
     def test_cumulative_rank_authority_rejects_unrelated_breaks_and_marker_drift(self):
         for surface in ['public', 'admin']:
             current = json.loads((ROOT / f'openapi/bundled/{surface}.openapi.json').read_text())
