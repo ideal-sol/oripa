@@ -1,6 +1,7 @@
 import base64
 import copy
 import json
+import io
 from pathlib import Path
 import runpy
 import subprocess
@@ -13,6 +14,55 @@ from scripts.ops.old_test_pr666_payload import materialize
 
 
 class Pr666PayloadTest(unittest.TestCase):
+    def transport_fixture(self, path):
+        if '/check-runs?' in path:
+            sha = path.split('/commits/')[1].split('/')[0]
+            source = wrapper.CHECK_RUN_GATE['EXPECTED_SOURCE']
+            return {'total_count': 5, 'check_runs': [
+                {'id': i, 'name': name, 'head_sha': sha, 'status': 'completed',
+                 'started_at': '2026-11-05T00:00:00Z',
+                 'conclusion': 'success', 'app': {'id': source['id'], 'slug': source['slug'],
+                 'owner': {'login': source['owner']}}}
+                for i, name in enumerate(sorted(wrapper.REQUIRED_CHECKS), 1)]}
+        if '/actions/artifacts?' in path:
+            return {'artifacts': []}
+        return self.get(path)
+
+    def test_native_cli_default_getter_reaches_compare_transport(self):
+        # Replace only credentials and HTTP I/O, retaining main -> list ->
+        # authority -> api_compare and the real generic GET path guard.
+        paths = []
+        def response(request, **kwargs):
+            self.assertEqual(kwargs, {'timeout': 60})
+            self.assertTrue(request.full_url.startswith(wrapper.API_ROOT + '/repos/ideal-sol/oripa/'))
+            path = request.full_url[len(wrapper.API_ROOT):]; paths.append(path)
+            return io.BytesIO(json.dumps(self.transport_fixture(path)).encode())
+        output = io.StringIO()
+        with mock.patch.object(wrapper, 'old_test_policy'), \
+             mock.patch.object(wrapper, 'installation_token', return_value='unit-test-credential'), \
+             mock.patch.object(wrapper.urllib.request, 'urlopen', side_effect=response), \
+             mock.patch.object(wrapper.sys, 'argv', ['oripa-github-app-api', 'old-test-artifacts',
+                               self.spec['task_id'], '666', self.spec['source_sha']]), \
+             mock.patch.object(wrapper.sys, 'stdout', output):
+            wrapper.main()
+        self.assertEqual(json.loads(output.getvalue()), [])
+        self.assertEqual([p for p in paths if '/compare/' in p], [
+            f'/repos/ideal-sol/oripa/compare/{self.spec[k + "_sha"]}...{self.control}?per_page=1'
+            for k in ('base', 'fix')])
+        self.assertEqual(sum('/check-runs?' in p for p in paths), 3)
+
+    def test_workflow_injected_getter_preserves_authority_and_checks(self):
+        getter = mock.Mock(side_effect=self.transport_fixture)
+        with mock.patch.object(wrapper, 'installation_token') as credential, \
+             mock.patch.object(wrapper.urllib.request, 'urlopen') as network:
+            result = wrapper.authorize_old_test_source(self.spec['task_id'], '666',
+                self.spec['source_sha'], self.control, get=getter)
+        self.assertEqual(result['composition'], self.spec)
+        self.assertEqual(result['source_tree'], self.spec['source_tree'])
+        self.assertEqual(sum('/compare/' in c.args[0] for c in getter.call_args_list), 2)
+        self.assertEqual(sum('/check-runs?' in c.args[0] for c in getter.call_args_list), 3)
+        credential.assert_not_called(); network.assert_not_called()
+
     def setUp(self):
         self.raw = (ROOT / wrapper.PR666_MANIFEST).read_bytes()
         self.spec = json.loads(self.raw)
