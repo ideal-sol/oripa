@@ -13120,6 +13120,8 @@ Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Work
 
 Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
 
+Quality CI detected another old direct-checkout assertion in tests/ops/test_preview_image_pipeline.py. Updated it to require base checkout, exact materialization and final source SHA assertion. New limited-payload regressions are included through the existing Production authority CI test entrypoint. Assertions and all Required contexts retained.
+
 ## OLDTEST-PR666-20261105 — limited derived payload preparation
 
 Issue none; R3; Strict Change; Application Runtime Activation deferred. Dedicated clean worktree protects unrelated CONTACT worklog and other Tasks. Base a6affd68253a0bb162fb480159778f4c79dd51ab. Human authorizes Source, focused validation and Draft PR only: no Ready/merge, host installation, formal Runtime Build/publication or activation.

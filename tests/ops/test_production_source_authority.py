@@ -6,6 +6,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+# Keep the limited-payload regressions in the existing canonical CI entrypoint.
+from tests.ops.test_production_pr666_payload import ProductionLimitedPayloadTest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = runpy.run_path(str(ROOT / "scripts/ops/production_source_authority.py"))
