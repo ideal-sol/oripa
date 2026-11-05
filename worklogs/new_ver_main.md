@@ -13091,3 +13091,33 @@ Read-only rank inspection: process running, inherited HTTP healthcheck unhealthy
 Final preparation supplement: existing authority CI entrypoint explicitly includes the new derived-payload tests. Local Policy261 PASS. Host-private API-only Executor proposal focused8 PASS including live read-only Compose/environment equality, preserved-container identity, mount-order normalization and negative scope/database/configuration cases. Installed Executor unchanged. Proposal retains TTL300, exact-state HOLD/no automatic retry, existing Timer fence/rebind/resume; no Worker image change. Operational Artifact verification, fresh Candidate/Envelope and PHP Receipt remain pending later authorized Build/installation/Runtime phases, not claimed PASS here.
 
 First-head CI Quality failed the unchanged asynchronous mail-editor test at admin-mail-template-management.test.tsx:85 (email_verification, body label not ready;502 other Admin tests passed). This is outside the derived Payload and matches the pre-existing PR666 failure class. No mail implementation or assertion changed. The necessary new-test CI-entrypoint commit renews head-dependent checks; no same-head rerun requested.
+
+
+## NEWPROD-PR666-20261105 — Production limited payload Draft preparation
+
+NEWPROD-PR666-20261105 — R3 / Strict Change / Activation none
+
+Issue: none. Draft only; Human approval is required separately for merge, formal artifact dispatch/build, and runtime activation. OLD Test PR666 Technical PASS is pending.
+
+Reproduce the exact alpha.50 plus two PR666 normalizer blobs on the hosted ARM64 runner. Verify both merged source PRs, reviewed trees and existing Required CI, fixed manifest digest, blob modes/identities, exact two-file delta, derived SHA/tree/inventory. The normal ancestor/merged-source path retains its gates. No application files change in this PR. Policy-gate follows the base checkout plus exact final SHA assertion without relaxing source checks.
+
+Base: 24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc
+Runtime: cad8be03cbab8b7fba18825a4a9b2a276f402010
+Tree: 0978c97a3a1d90036f5173aff4409398b93c5a87
+Inventory SHA256: a98161e34cf90e8b075fbdf9b25812cde884577846c33c7a292676b1facaf4f1
+
+Validation: 35 focused tests PASS; local policy-gate PASS; Required CI pending. No formal Build/Dispatch, Runtime activation, migration creation/application, Production connection or Browser/E2E execution.
+
+Storefront follow-up after actual approved Platform merge: docs/production-approved-source.json platform_runtime_source_sha and platform_authority_merge_sha; scripts/production-provenance.mjs exact pins; provenance regression tests and docs/production-build-provenance.md. Keep application #221 at 1e3ba92780825a12485f651ea79025ad47f1321b, platform_source_sha at 14f7819c72c5908aa6e5778303b87dc4b1202493, alpha.50 vendor and contract digests unchanged. Verify stale/missing/incorrect pins reject, exact runtime and new merged authority pass, contract digest/source still match. No Storefront files modified or placeholder committed.
+
+Remaining: compare OLD Test final handoff SHA/tree/inventory and Technical PASS; explicit Human merge approval; fresh Strict review and all gates at merge; Storefront follow-up with actual squash SHA; separately authorized artifact build and runtime process. Rollback: abandon Draft with no runtime effect, or reviewed revert before any subsequent dispatch. Task branch/worktree retained for review. OLD Test wrapper/executor untouched; independent append-only worklog entry.
+
+Changed files:
+- .github/workflows/platform-production-arm64-artifact.yml
+- manifests/platform-production-approved-source.json
+- scripts/ops/production_source_authority.py
+- scripts/ops/production_pr666_payload.py
+- scripts/ci/policy_gate.py
+- tests/ops/test_production_source_authority.py
+- tests/ops/test_production_pr666_payload.py
+- worklogs/new_ver_main.md

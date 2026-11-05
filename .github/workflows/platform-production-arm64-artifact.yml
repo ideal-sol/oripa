@@ -74,10 +74,15 @@ jobs:
       - name: Check out exact approved Runtime Source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ steps.authority.outputs.source_sha }}
+          ref: ${{ steps.authority.outputs.checkout_sha }}
           path: runtime
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Reproduce exact limited payload when selected
+        if: steps.authority.outputs.checkout_sha != steps.authority.outputs.source_sha
+        run: |
+          python3 "$GITHUB_WORKSPACE/build-authority/scripts/ops/production_source_authority.py" --repository "$GITHUB_WORKSPACE/build-authority" --materialize "$GITHUB_WORKSPACE/runtime"
 
       - name: Verify native ARM64 build authority
         run: |

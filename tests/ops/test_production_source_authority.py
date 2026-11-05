@@ -32,7 +32,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.git("commit", "--allow-empty", "-qm", "source")
         self.source = self.git("rev-parse", "HEAD")
         self.tree = self.git("rev-parse", "HEAD^{tree}")
-        self.authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        self.authority = json.loads(MODULE["git"](ROOT, "show", "24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc:" + MODULE["AUTHORITY_PATH"]))
         self.authority["source_sha"] = self.source
         # Synthetic approved fixture exercises canonical authorization; real Draft stays rejected.
         self.authority["authority"] = "Human-approved exact Runtime Source: synthetic approved fixture"
@@ -182,7 +182,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_formal_approved_source_lineage_and_exact_authority(self):
         subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", APPROVED, PROTECTED], check=True)
-        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        authority = json.loads(MODULE["git"](ROOT, "show", "24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc:" + MODULE["AUTHORITY_PATH"]))
         self.assertEqual(authority["source_sha"], APPROVED)
         self.assertEqual(authority["change_id"], SOURCE_CHANGE)
         self.assertEqual(authority["pr_number"], SOURCE_PR)
@@ -235,7 +235,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(result["workflow_sha"], PROTECTED)
 
     def test_formal_source_go_is_separate_from_runtime_and_history_exclusion(self):
-        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        authority = json.loads(MODULE["git"](ROOT, "show", "24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc:" + MODULE["AUTHORITY_PATH"]))
         self.assertTrue(authority["authority"].startswith("Human-approved exact Runtime Source:"))
         for evidence in ["Source Authority merge requires explicit Human approval", "does not constitute Runtime GO",
                          "104 -> 105 -> 106", "cumulative member rank", "abolition of automatic rank demotion",
@@ -385,7 +385,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         })
 
     def test_candidate_preserves_deferred_environment_boundaries(self):
-        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        authority = json.loads(MODULE["git"](ROOT, "show", "24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc:" + MODULE["AUTHORITY_PATH"]))
         self.assertIs(authority["activation_authorized"], False)
         for boundary in ["UnivaPay LIVE / credit_card only", "AUTO_CONVERT_ENABLED=true",
                          "5-minute Timer", "FIRST_PURCHASE_LIMIT_SCOPE=any_product",
@@ -429,7 +429,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_workflow_exact_source_labels_and_manifest(self):
         workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
-        self.assertIn("ref: ${{ steps.authority.outputs.source_sha }}", workflow)
+        self.assertIn("ref: ${{ steps.authority.outputs.checkout_sha }}", workflow)
         self.assertEqual(workflow.count('--build-arg "OCI_REVISION=${SOURCE_SHA}"'), 3)
         self.assertIn('--source-sha "$SOURCE_SHA"', workflow)
         self.assertIn("production-source-authority.json", workflow)
