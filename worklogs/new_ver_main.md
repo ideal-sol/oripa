@@ -13093,6 +13093,13 @@ Final preparation supplement: existing authority CI entrypoint explicitly includ
 First-head CI Quality failed the unchanged asynchronous mail-editor test at admin-mail-template-management.test.tsx:85 (email_verification, body label not ready;502 other Admin tests passed). This is outside the derived Payload and matches the pre-existing PR666 failure class. No mail implementation or assertion changed. The necessary new-test CI-entrypoint commit renews head-dependent checks; no same-head rerun requested.
 
 
+## CMP-20261105 — Compare getter transport correction
+
+Issue none; R3; Strict Change; Application Runtime Activation deferred. Base24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc; dedicated clean worktree preserves unrelated tasks. Human authorizes minimal Wrapper correction, focused tests, Draft PR, Required5 and fresh final-head self-review only. Ready/Merge, installation, Artifact dispatch/build, Candidate/Envelope and Runtime operations remain unapproved.
+Preserve the original optional getter separately from normal API reads, so native CLI uses existing validated Compare transport and injected Workflow getter remains supported. Generic GET Compare/traversal rejection, fixed repository/SHA validation, merged-source checks and Required5 stay intact. No Manifest/Payload/Workflow/Executor/Gate/Adapter/Contract/Migration change.
+Network-independent CLI main -> artifact list -> authority -> real api_compare/api_get/path guards reproduced github_path_invalid before correction. HTTP I/O and credential acquisition alone are replaced; injected Workflow path and actual Required Check evaluation also covered. Related existing normal authority, invalid repository/SHA/path, generic Compare rejection and exact derived composition tests are reused in the existing Authority suite (48 tests PASS). No live Artifact dispatch or Runtime test. Operational Build0, dispatch0, installation0, Runtime0; migrations created/applied0. Fresh Self-review and Required5 recorded in PR at final unchanged head. Worktree retained for Draft approval.
+
+
 ## NEWPROD-PR666-20261105 — Production limited payload Draft preparation
 
 NEWPROD-PR666-20261105 — R3 / Strict Change / Activation none
@@ -13127,3 +13134,5 @@ Draft PR #669 created. Initial CI stopped at missing structured Lane metadata in
 CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancestor-only authority model. Extend scripts/release/readiness/change.py and adapters.py for the exact digest-pinned payload, with local materialization and both reviewed source checks. Added classifier/adapter regressions; NORMAL_STRICT_CI remains mandatory. Initial metadata failure and classifier failure are recorded separately from final validation. No manual rerun or artifact build.
 
 Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR body metadata and changed-path schema PASS. CI also enforces canonical PR headings and the fixed Change ID grammar; restored complete template fields and registered only this exact Change ID. Earlier CI failures were metadata/classification blockers, not successful CI. Final-head Required CI and Strict review remain separately recorded in PR #669.
+
+Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
