@@ -73,7 +73,7 @@ function UserRankHistory({ userId }: { userId: string }) {
   }
   return <div className={styles.stack}>
     <h3>ランク・ポイント履歴</h3>
-    <label>履歴の種類 <select value={kind} onChange={(event) => { historyRequest.current?.abort(); setData(null); setKind(event.target.value as typeof kind); }}>
+    <label className={styles.form}>履歴の種類 <select value={kind} onChange={(event) => { historyRequest.current?.abort(); setData(null); setKind(event.target.value as typeof kind); }}>
       <option value="rank">ランクの変化</option><option value="points">ランクポイントの増減</option>
     </select></label>
     {error ? <p role="alert" className={styles.error}>{error} <button type="button" onClick={() => setRetry((value) => value + 1)}>再取得</button></p> : null}

@@ -88,7 +88,7 @@ export function GachaNoticeSettings() {
         {saved ? <p className="notice notice-success" role="status">設定を保存しました。</p> : null}
         {sections.map(({ scope, title, label }) => <section className="settings-panel referral-settings-section" key={scope}>
           <h2>{title}</h2>
-          <label><span>{label}</span><textarea disabled={!canManage || busy !== null} maxLength={10000} rows={10}
+          <label><span>{label}</span><textarea className="admin-ui-control admin-ui-prose" disabled={!canManage || busy !== null} maxLength={10000} rows={10}
             value={draft[scope]} onChange={(event) => { setDraft({ ...draft, [scope]: event.target.value }); setSaved(false); }} /></label>
         </section>)}
         {canManage ? <div className="referral-settings-actions"><button className="primary-button" type="submit" disabled={busy !== null || error?.status === 409}>

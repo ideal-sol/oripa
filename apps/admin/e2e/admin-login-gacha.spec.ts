@@ -9,6 +9,30 @@ const bannerCategoryId = "0198a001-0000-7000-8000-000000000011";
 const otherBannerCategoryId = "0198a001-0000-7000-8000-000000000012";
 const otherBannerAssetId = "0198a001-0000-7000-8000-000000000013";
 
+for (const type of ["login_daily", "signup_once"] as const) {
+  for (const width of [1440, 390]) {
+    for (const [status, action] of [["draft", "保存済み構成を公開・予約"], ["scheduled", "公開予約を取り消す"], ["published", "販売停止"], ["sales_paused", "販売再開"]]) {
+    test(`ADMIN-UI-018 ${type} ${status} lifecycle layout at ${width}px`, async ({ page }) => {
+      await installApi(page);
+      await page.setViewportSize({ width, height: 900 });
+        await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}`, route => json(route, { data: {
+          id: rankId, public_code: gachaId, gacha_type: type, publication_status: status,
+          first_published_at: status === "draft" ? null : "2026-07-01T00:00:00Z", revision: 1,
+        } }));
+        await page.route(`**/admin/api/v2/catalog/gachas/${gachaId}/composition`, route => json(route, { data: projection(type) }));
+        await page.goto(`/catalog/gachas/${gachaId}`);
+        const actions = page.locator(".login-gacha-actions");
+        await expect(actions.getByRole("button", { name: action, exact: true })).toBeEnabled();
+        await expect(actions).toHaveCSS("background-color", "rgb(255, 255, 255)");
+        const copy = actions.getByRole("link", { name: "コピーして新規登録" });
+        await expect(copy).toBeVisible();
+        if (width === 1440) expect((await copy.boundingBox())!.width).toBeLessThan(300);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+    }
+  }
+}
+
 for (const width of [1440, 390]) {
   test(`G2 login conditions copy and save at ${width}px`, async ({ page }, testInfo) => {
     const mutations = await installApi(page);

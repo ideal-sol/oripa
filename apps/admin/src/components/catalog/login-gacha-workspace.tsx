@@ -259,7 +259,7 @@ export function LoginGachaWorkspace({ type = "login_daily", sourceId, copy = fal
     {loading ? <p role="status">読み込み中…</p> : loadFailed && error ? <CatalogApiErrorBoundary error={error} retry={() => { setLoading(true); setError(null); setReload((value) => value + 1); }} /> : <>
       {error ? <CatalogApiErrorBoundary error={error} retry={() => setReload((value) => value + 1)} /> : null}
       {notice ? <p role="alert">{notice}</p> : null}
-      {gacha && !copy ? <section className="catalog-detail"><p>状態: {gacha.publication_status} / {locked ? "構成は参照専用" : "下書き編集中"}</p>
+      {gacha && !copy ? <section className="login-gacha-actions"><p>状態: {gacha.publication_status} / {locked ? "構成は参照専用" : "下書き編集中"}</p>
         {canManage ? <Link className="secondary-button" href={`/catalog/gachas/${sourceId}/copy`}>コピーして新規登録</Link> : null}
         {hasPermission("catalog.publish") ? <>
           {gacha.publication_status === "draft" ? <button type="button" className="primary-button" disabled={busy} onClick={() => void lifecycle("publish")}>保存済み構成を公開・予約</button> : null}

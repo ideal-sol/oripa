@@ -94,7 +94,7 @@ export function PreRegistrationSettings() {
         <h2>受付設定</h2>
         <p>専用申込・メール・初回SMSを締切前に完了した会員が対象です。ポイントはOPEN後の手動切替成功時に付与します。</p>
         <div className="referral-settings-grid">
-          <label><input type="checkbox" checked={draft.is_enabled} disabled={!canManage || busy || confirmation !== null} onChange={(event) => setDraft({ ...draft, is_enabled: event.target.checked })} />事前登録受付を有効にする</label>
+          <label className="admin-ui-check-row"><input type="checkbox" checked={draft.is_enabled} disabled={!canManage || busy || confirmation !== null} onChange={(event) => setDraft({ ...draft, is_enabled: event.target.checked })} />事前登録受付を有効にする</label>
           <label>締切・OPEN日時（日本時間）<input type="datetime-local" value={toJstInput(draft.cutoff_at)} disabled={!canManage || busy || setting.started_at !== null || confirmation !== null} onChange={(event) => setDraft({ ...draft, cutoff_at: event.target.value ? new Date(`${event.target.value}:00+09:00`).toISOString() : null })} /></label>
           <label>付与する無償ポイント<input type="number" min={1} max={1_000_000} value={draft.point_amount} disabled={!canManage || busy || amountLocked || confirmation !== null} onChange={(event) => setDraft({ ...draft, point_amount: Number(event.target.value) })} /></label>
         </div>

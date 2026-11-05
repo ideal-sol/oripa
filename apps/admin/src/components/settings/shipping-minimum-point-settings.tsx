@@ -67,7 +67,7 @@ export function ShippingMinimumPointSettings() {
         <h2>現在の下限ポイント</h2><p>{BigInt(setting.minimum_points).toLocaleString("ja-JP")}pt</p>
         <p>下限0ptは「下限制限なし。ただし合計0pt景品は発送不可」です。</p>
         <label htmlFor="shipping-minimum">発送下限ポイント（0〜9,007,199,254,740,991pt）</label>
-        <input id="shipping-minimum" inputMode="numeric" type="text" value={draft} disabled={!canManage || busy} aria-invalid={!valid} aria-describedby="shipping-minimum-help" onChange={(event) => { setDraft(event.target.value); setConfirming(false); setSaved(false); }} />
+        <input className="admin-ui-control" id="shipping-minimum" inputMode="numeric" type="text" value={draft} disabled={!canManage || busy} aria-invalid={!valid} aria-describedby="shipping-minimum-help" onChange={(event) => { setDraft(event.target.value); setConfirming(false); setSaved(false); }} />
         <p id="shipping-minimum-help">半角整数で入力してください。0pt景品だけの発送はできません。</p>
         {!valid && <p className="field-error" role="alert">範囲内の整数を入力してください。</p>}
         {!canManage && <p>参照のみ可能です。変更はOwner/Adminが行えます。</p>}

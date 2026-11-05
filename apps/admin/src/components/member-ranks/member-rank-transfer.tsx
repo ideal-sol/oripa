@@ -67,7 +67,7 @@ export function TransferAllowance({ user, onRefresh }: { user: AdminUserDetail; 
     <h3 id="rank-transfer-heading">他サイト移行</h3>
     <p>{value.status === "transferred" ? `${names[(value.equivalent_level ?? 1) - 1]}相当・${value.points.toLocaleString()}ポイント` : "移行なし"}</p>
     <p>累計の内訳：購入・調整 {detail.components.entries.toLocaleString()} / 移行 {detail.components.transfer.toLocaleString()} / 月次補填 {detail.components.compensation.toLocaleString()}</p>
-    {writable && !editing ? <button type="button" className="secondary-button" onClick={() => setEditing(true)}>移行欄を編集</button> : null}
+    {writable && !editing ? <button className="secondary-button" type="button" onClick={() => setEditing(true)}>移行欄を編集</button> : null}
     {editing ? <form className={styles.form} onSubmit={event => void save(event)} onChange={() => { setConfirmed(false); pending.current = null; }}>
       <fieldset disabled={busy} className={styles.form}>
         <label>移行状態<select value={status} onChange={event => setStatus(event.target.value as typeof status)}><option value="none">移行なし</option><option value="transferred">他サイトから引き継ぎ</option></select></label>
@@ -80,16 +80,16 @@ export function TransferAllowance({ user, onRefresh }: { user: AdminUserDetail; 
       <p>移行ポイントを置き換えます。コインは付与されません。条件を満たすと自動昇格しますが、自動降格はありません。引き継ぎ済みランク以下の昇格ボーナスは、移行なしに戻しても付与されません。</p>
       {confirmed ? <p role="status">{value.points.toLocaleString()} → {(status === "none" ? 0 : Number(points)).toLocaleString()}ポイント。入力した移行状態・相当ランク・理由で保存します。</p> : null}
       {error ? <p role="alert" className={styles.error}>{error}</p> : null}
-      <div className={styles.actions}><button type="submit" disabled={busy || !reason.trim()}>{confirmed ? "確認して保存" : "変更内容を確認"}</button><button type="button" disabled={busy} onClick={() => { setEditing(false); setConfirmed(false); }}>閉じる</button></div>
+      <div className={styles.actions}><button className="primary-button" type="submit" disabled={busy || !reason.trim()}>{confirmed ? "確認して保存" : "変更内容を確認"}</button><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(false); setConfirmed(false); }}>閉じる</button></div>
     </form> : null}
     <details><summary>移行欄の変更履歴</summary>
-      {historyError ? <p role="alert">{historyError}<button type="button" onClick={() => setRetry(v => v + 1)}>再取得</button></p> : null}
+      {historyError ? <p role="alert">{historyError}<button className="secondary-button" type="button" onClick={() => setRetry(v => v + 1)}>再取得</button></p> : null}
       {!history && !historyError ? <p>履歴を取得中です。</p> : null}
       {history?.items.length === 0 ? <p>変更履歴はありません。</p> : null}
       {history?.items.map(item => <div key={item.id}><p>{rankDate(item.occurred_at)} / {item.actor_id ?? "システム"}</p>
         <p>{item.before.status === "none" ? "移行なし" : names[(item.before.equivalent_level ?? 1) - 1]} {item.before.points.toLocaleString()} → {item.after.status === "none" ? "移行なし" : names[(item.after.equivalent_level ?? 1) - 1]} {item.after.points.toLocaleString()}</p>
         <p className={styles.reason}>{item.reason}</p></div>)}
-      {history?.next_cursor ? <button type="button" disabled={busy} onClick={() => void more()}>以前の履歴を表示</button> : null}
+      {history?.next_cursor ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void more()}>以前の履歴を表示</button> : null}
     </details>
     <CompensationHistory userId={user.id} />
   </section>;
@@ -111,12 +111,12 @@ function CompensationHistory({ userId }: { userId: string }) {
     return () => controller.abort();
   }, [client, userId, cursor, open, retry]);
   return <details onToggle={event => setOpen(event.currentTarget.open)}><summary>月次補填・取消履歴</summary>
-    {error ? <p role="alert">{error}<button type="button" onClick={() => setRetry(value => value + 1)}>再取得</button></p> : null}
+    {error ? <p role="alert">{error}<button className="secondary-button" type="button" onClick={() => setRetry(value => value + 1)}>再取得</button></p> : null}
     {open && !history && !error ? <p role="status">履歴を取得中です。</p> : null}
     {history?.items.length === 0 ? <p>月次補填・取消はありません。</p> : null}
     {history?.items.map(item => <p key={item.id}>{item.month.slice(0, 7)} ／ {item.delta > 0 ? "補填" : "取消"} {item.delta.toLocaleString()}ポイント ／ 補填残 {item.remaining.toLocaleString()}ポイント ／ 設定 {item.setting_revision} ／ {rankDate(item.occurred_at)}</p>)}
-    {history?.next_cursor ? <button type="button" onClick={() => { setCursor(history.next_cursor ?? undefined); setHistory(null); }}>以前の補填を表示</button> : null}
-    {cursor ? <button type="button" onClick={() => { setCursor(undefined); setHistory(null); }}>最新の補填へ戻る</button> : null}
+    {history?.next_cursor ? <button className="secondary-button" type="button" onClick={() => { setCursor(history.next_cursor ?? undefined); setHistory(null); }}>以前の補填を表示</button> : null}
+    {cursor ? <button className="secondary-button" type="button" onClick={() => { setCursor(undefined); setHistory(null); }}>最新の補填へ戻る</button> : null}
   </details>;
 }
 

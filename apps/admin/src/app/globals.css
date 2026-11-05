@@ -3044,8 +3044,10 @@ label {
 
 .catalog-gacha-search input {
   border: 1px solid var(--line);
-  min-height: 40px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
   width: 100%;
 }
 
@@ -4463,7 +4465,7 @@ label {
   gap: 8px;
 }
 
-.referral-settings-grid input {
+.referral-settings-grid input:not([type="checkbox"]):not([type="radio"]) {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -6291,3 +6293,72 @@ label {
     padding: 16px;
   }
 }
+
+/* Opt-in controls for the audited Admin screens. */
+.admin-ui-control,
+.catalog-rank-video-control select,
+.catalog-rank-video-control input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 12px;
+  width: 100%;
+}
+.admin-ui-control:focus-visible,
+.catalog-rank-video-control select:focus-visible,
+.catalog-rank-video-control input:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+.admin-ui-control:disabled { background: var(--surface-muted); color: var(--ink-muted); }
+.admin-ui-prose { line-height: 1.7; resize: vertical; }
+.referral-settings-grid .admin-ui-check-row,
+.catalog-mutation-form .admin-ui-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+.admin-ui-check-row input[type="checkbox"] {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 3px 0 0;
+  padding: 0;
+}
+.admin-ui-check-row .field-hint { display: block; margin-top: 6px; }
+.catalog-rank-video-control { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0; }
+.catalog-rank-video-control > div,
+.catalog-rank-video-control label { display: grid; gap: 8px; min-width: 0; }
+.catalog-rank-video-control legend { font-weight: 700; }
+.rank-effect-workspace .rank-effect-status-filter { display: grid; gap: 8px; width: min(100%, 240px); margin-bottom: 18px; }
+.login-gacha-actions { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.login-gacha-actions > p { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
+.login-gacha-actions > a, .login-gacha-actions > button { max-width: 100%; white-space: normal; }
+@media (max-width: 600px) { .login-gacha-actions { align-items: stretch; flex-direction: column; } }
+
+/* Payment detail and its adjustment dialog only. */
+.admin-payment-detail { display: grid; gap: 18px; min-width: 0; }
+.admin-payment-detail > button { justify-self: start; }
+.admin-payment-detail-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; min-width: 0; overflow-wrap: anywhere; }
+.admin-payment-detail-panel h2 { margin-top: 0; }
+.admin-payment-detail-panel article + article { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+.admin-payment-detail-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.admin-payment-detail-event { border-bottom: 1px solid var(--line); padding: 12px 0; }
+.admin-payment-detail-event time, .admin-payment-detail-event strong { display: block; overflow-wrap: anywhere; }
+.admin-payment-detail-event time { color: var(--ink-muted); font-size: 13px; margin-bottom: 6px; }
+.admin-payment-detail-event pre { background: var(--surface-muted); border-radius: 6px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
+.admin-payment-detail-dialog { border: 1px solid var(--line); border-radius: 12px; padding: 20px; max-height: calc(100dvh - 32px); overflow-y: auto; color: var(--ink); }
+.admin-payment-detail-dialog::backdrop { background: #10182f80; }
+.admin-payment-detail-form { display: grid; gap: 14px; min-width: 0; }
+.admin-payment-detail-form label { display: grid; gap: 8px; min-width: 0; }
+.admin-payment-detail-form input:not([type="checkbox"]), .admin-payment-detail-form textarea, .admin-payment-detail-form select { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: inherit; font: inherit; min-height: 44px; padding: 10px 12px; width: 100%; min-width: 0; }
+.admin-payment-detail-form textarea { min-height: 120px; resize: vertical; }
+.admin-payment-detail-form .admin-payment-detail-checkbox { display: flex; align-items: flex-start; gap: 8px; }
+.admin-payment-detail-checkbox input { flex: 0 0 18px; width: 18px; height: 18px; }

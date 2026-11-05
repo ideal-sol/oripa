@@ -400,7 +400,7 @@ function PrizeForm({ busy, current, inputRef, onCancel, onSubmit, prizes, publis
       <label>総在庫数<input aria-label="総在庫数" min={0} name="total_inventory" onChange={(event) => setTotalInventory(Number(event.target.value))} required type="number" value={totalInventory} /><span className="field-hint">（総口数残り{remainingTotalCount.toLocaleString()}）</span></label>
       {current ? <label>現在個数<input defaultValue={current.available_inventory ?? 0} min={0} name="available_inventory" required type="number" /></label> : null}
       <label>交換ポイント<input defaultValue={current?.exchange_points ?? 0} min={exchangeOnly ? 1 : 0} name="exchange_points" required type="number" /></label>
-      <label><input checked={shippingOnly} onChange={(event) => setShippingOnly(event.target.checked)} disabled={busy || published || exchangeOnly} name="shipping_only" type="checkbox" />配送のみ・ポイント交換不可<span className="field-hint">自動発送ではありません。通常の配送条件・保管期限が適用され、期限後はポイント化せず失効します。公開後は変更できません。</span></label>
+      <label className="admin-ui-check-row"><input checked={shippingOnly} onChange={(event) => setShippingOnly(event.target.checked)} disabled={busy || published || exchangeOnly} name="shipping_only" type="checkbox" /><span>配送のみ・ポイント交換不可<span className="field-hint">自動発送ではありません。通常の配送条件・保管期限が適用され、期限後はポイント化せず失効します。公開後は変更できません。</span></span></label>
       <label>原価<input defaultValue={current?.cost_price ?? 0} min={0} name="cost_price" required type="number" /></label>
       <label>状態<select defaultValue={String(current?.is_visible ?? true)} name="is_active"><option value="true">有効</option><option value="false">無効</option></select></label>
     </div>
