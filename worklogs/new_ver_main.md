@@ -13116,6 +13116,34 @@ CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancesto
 
 Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR body metadata and changed-path schema PASS. CI also enforces canonical PR headings and the fixed Change ID grammar; restored complete template fields and registered only this exact Change ID. Earlier CI failures were metadata/classification blockers, not successful CI. Final-head Required CI and Strict review remain separately recorded in PR #669.
 
+## 2026-11-06 — PAIDY-ALPHA51-20261106 — preflight HOLD
+
+R3 / Strict Change / Application Runtime Activation none. Issue none. Isolated
+branch chore/PAIDY-ALPHA51-20261106 from freshly fetched protected main
+8eadec09a187e3f220dc09d36e9a14b98511931b protects existing primary edits.
+PR662 squash is an ancestor; main contains its five Paidy buyer-data fields.
+Ledger latest immutable alpha.50/candidate null. LINE PR665 is Draft/unmerged;
+its worktree, branch, migration and Candidate are not imported or edited.
+
+Read canonical governance/release/compatibility and nested rules. Directly ran
+the canonical OpenAPI comparator against the retained formal alpha.50 Public
+bundle (digest matches immutable ledger) and an in-memory proposed Public
+alpha.47. It detects required account_registration_date and
+previous_payment_methods additions. The exact PR662 Source-only exception
+accepts alpha.46-to-alpha.46, rejects the proposed alpha.47. Per Human's explicit
+breaking-change HOLD rule, do not label this contract-additive, extend the gate
+or proceed to Source merge/publication. Minimal proposal: Human approval of
+contract-breaking/true and the existing validator's corresponding Public/Admin/
+Webhook alpha.47 version alignment, preserving schema and payment logic.
+
+Evidence/details: docs/implementation/PAIDY_ALPHA51_20261106_HANDOFF.md.
+No package/contract/ledger/workflow/gate edits. Handoff/Worklog only pending
+locally; no commit, push, PR or merge. No release lock acquired before HOLD.
+Generation/package tests/Build/Required5/Strict review/publication/readback and
+ledger reconciliation NOT RUN. Build/manual CI rerun/Publication/Migration/
+Runtime/ENV/Secret/Worker/OLD Test/Production/Storefront PR228/LINE changes0.
+Retain isolated branch/worktree for Human decision; existing work remains intact.
+
 Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
 
 Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
@@ -13140,3 +13168,20 @@ First-head CI Quality failed the unchanged asynchronous mail-editor test at admi
 Issue none; R3; Strict Change; Application Runtime Activation deferred. Base24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc; dedicated clean worktree preserves unrelated tasks. Human authorizes minimal Wrapper correction, focused tests, Draft PR, Required5 and fresh final-head self-review only. Ready/Merge, installation, Artifact dispatch/build, Candidate/Envelope and Runtime operations remain unapproved.
 Preserve the original optional getter separately from normal API reads, so native CLI uses existing validated Compare transport and injected Workflow getter remains supported. Generic GET Compare/traversal rejection, fixed repository/SHA validation, merged-source checks and Required5 stay intact. No Manifest/Payload/Workflow/Executor/Gate/Adapter/Contract/Migration change.
 Network-independent CLI main -> artifact list -> authority -> real api_compare/api_get/path guards reproduced github_path_invalid before correction. HTTP I/O and credential acquisition alone are replaced; injected Workflow path and actual Required Check evaluation also covered. Related existing normal authority, invalid repository/SHA/path, generic Compare rejection and exact derived composition tests are reused in the existing Authority suite (48 tests PASS). No live Artifact dispatch or Runtime test. Operational Build0, dispatch0, installation0, Runtime0; migrations created/applied0. Fresh Self-review and Required5 recorded in PR at final unchanged head. Worktree retained for Draft approval.
+
+
+### PAIDY-ALPHA51-20261106 — Human breaking-release GO
+
+Human explicitly resolves HOLD: contract-breaking/true; Client/Testkit51,
+Public/Admin/Webhook47; Site Schema23 referenced; Runtime Activation none.
+Dedicated existing worktree and prior evidence preserved. Remote base unchanged;
+formal alpha51 Artifact count0, main candidate null. Release flock acquired.
+Only version/generation/candidate, bounded compatibility predicate and associated
+negative/historical tests change. Existing H1 Source-only exception retained.
+Public published50 comparison detects exactly the approved two required fields;
+Admin/Webhook equality apart from version is tested. No LINE PR665 changes,
+migration107, Storefront PR228 changes, Paidy financial implementation or Runtime.
+Initial local OpenAPI83 had4 stale version/candidate failures; Release107 had2
+historical-fixture failures. Corrected exact expectations/isolation; final results
+and Source PR final HEAD/Tree/checks/review recorded in PR. No manual CI rerun.
+Publication and ledger completion are separate, not claimed before readback.

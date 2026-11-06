@@ -801,6 +801,16 @@ def is_authorized_paidy_v23_extension(surface: str, previous: dict, current: dic
     return normalized == previous
 
 
+def is_authorized_paidy_alpha51_release(surface: str, previous: dict, current: dict) -> bool:
+    """Human PAIDY-ALPHA51-20261106: exact two-required-field release only."""
+    if (surface != "public" or previous.get("info", {}).get("version") != "2.0.0-alpha.46"
+            or current.get("info", {}).get("version") != "2.0.0-alpha.47"):
+        return False
+    normalized = copy.deepcopy(current)
+    normalized["info"]["version"] = "2.0.0-alpha.46"
+    return is_authorized_paidy_v23_extension(surface, previous, normalized)
+
+
 def validate_generated(
     repository: Path,
     generated: dict[str, Path],
@@ -833,7 +843,7 @@ def validate_generated(
             previous = previous_bundle(repository, base_sha, relative)
             if previous is not None:
                 findings = breaking_changes(previous, document)
-                if findings and not is_authorized_fincode_registration_webhook_alignment(
+                if findings and not is_authorized_paidy_alpha51_release(surface, previous, document) and not is_authorized_fincode_registration_webhook_alignment(
                     surface, previous, document,
                 ) and not is_authorized_mig_099_canonical_break(
                     surface,
