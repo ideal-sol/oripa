@@ -581,6 +581,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_11_05_000107_add_v2_line_subject_vault.php": "Forward-only LINE encrypted identity migration",
         "2026_10_28_000101_add_v2_account_closure.php": "Account closure history is retained; use a forward correction.",
         "2026_10_29_000103_scope_v2_prelaunch_protected_history.php": "Protected prelaunch history scope requires a forward-only migration.",
         "2026_11_04_000105_add_v2_exchange_only_prizes.php": "Exchange-only prize rights require a forward correction migration.",
@@ -617,7 +618,8 @@ def rollback_and_reapply_latest(
         schema_before = normalize_schema_dump(schema_dump(base, repository))
         exception_class = (
             "RuntimeException"
-            if latest in {"2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
+            if latest in {"2026_11_05_000107_add_v2_line_subject_vault.php",
+                          "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
                           "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"}
             else "LogicException"
         )

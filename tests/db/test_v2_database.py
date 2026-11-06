@@ -20,6 +20,40 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_line107_forward_only_rejection_preserves_schema_and_ledger(self):
+        filename = "2026_11_05_000107_add_v2_line_subject_vault.php"
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        for one_shot in (False, True):
+            with self.subTest(one_shot=one_shot), mock.patch.object(
+                v2_database, "migration_rows", return_value=b"107"
+            ) as ledger, mock.patch.object(v2_database, "schema_dump", return_value=b"schema") as schema, mock.patch.object(
+                v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS"
+            ) as command:
+                self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, one_shot),
+                                 "FORWARD_ONLY_REJECTION_PASS")
+                self.assertEqual(ledger.call_count, 2)
+                self.assertEqual(schema.call_count, 2)
+                php = command.call_args.args[0][-1]
+                self.assertIn(filename, php)
+                self.assertIn("$migration->down()", php)
+                self.assertIn("catch (RuntimeException $error)", php)
+                self.assertIn("Forward-only LINE encrypted identity migration", php)
+                self.assertNotIn("migrate:rollback", command.call_args.args[0])
+
+    def test_line107_verification_rejects_unexpected_result_or_database_mutation(self):
+        (self.repository / v2_database.MIGRATION_PATH / "2026_11_05_000107_add_v2_line_subject_vault.php").touch()
+        for output, rows, schemas in [
+            (b"", [b"107", b"107"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"107", b"106"], [b"schema", b"schema"]),
+            (b"FORWARD_ONLY_REJECTION_PASS", [b"107", b"107"], [b"schema", b"changed"]),
+        ]:
+            with self.subTest(output=output, rows=rows, schemas=schemas), mock.patch.object(
+                v2_database, "migration_rows", side_effect=rows
+            ), mock.patch.object(v2_database, "schema_dump", side_effect=schemas), mock.patch.object(
+                v2_database, "run", return_value=output
+            ), self.assertRaises(v2_database.GuardFailure):
+                v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, False)
+
     def test_cumulative104_inventory_and_forward_only_rejection_preserve_all_history(self):
         filename = "2026_11_02_000104_add_v2_member_rank_cumulative.php"
         tables = ['member_rank_compensation_entries', 'member_rank_cumulative_events', 'member_rank_promotion_jobs',
