@@ -52,16 +52,17 @@ return new class extends Migration
             $table->bigInteger('event_timestamp_ms')->nullable();
         });
         DB::statement('ALTER TABLE line_webhook_events DROP CONSTRAINT line_webhook_events_values_check');
+        // Explicit text inputs keep pg_dump/pg_restore CHECK expressions stable.
         DB::statement(<<<'SQL'
             ALTER TABLE line_webhook_events ADD CONSTRAINT line_webhook_events_values_check CHECK (
                 subject_hash ~ '^[0-9a-f]{64}$' AND event_id_hash ~ '^[0-9a-f]{64}$'
                 AND (event_timestamp_ms IS NULL OR event_timestamp_ms >= 0)
-                AND event_type IN ('follow', 'unfollow')
-                AND reply_status IN ('pending', 'processing', 'sent', 'failed', 'skipped')
+                AND event_type::text IN ('follow', 'unfollow')
+                AND reply_status::text IN ('pending', 'processing', 'sent', 'failed', 'skipped')
                 AND ((event_type = 'follow' AND ((stale_observation AND reply_status = 'skipped') OR (NOT stale_observation AND reply_status <> 'skipped')))
                     OR (event_type = 'unfollow' AND reply_status = 'skipped'))
-                AND ((reply_status IN ('pending', 'skipped') AND reply_attempted_at IS NULL AND reply_failure_code IS NULL)
-                    OR (reply_status IN ('processing', 'sent') AND reply_attempted_at IS NOT NULL AND reply_failure_code IS NULL)
+                AND ((reply_status::text IN ('pending', 'skipped') AND reply_attempted_at IS NULL AND reply_failure_code IS NULL)
+                    OR (reply_status::text IN ('processing', 'sent') AND reply_attempted_at IS NOT NULL AND reply_failure_code IS NULL)
                     OR (reply_status = 'failed' AND reply_attempted_at IS NOT NULL AND reply_failure_code IS NOT NULL))
             )
         SQL);
