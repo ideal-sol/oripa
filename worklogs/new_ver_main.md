@@ -13185,3 +13185,5 @@ Initial local OpenAPI83 had4 stale version/candidate failures; Release107 had2
 historical-fixture failures. Corrected exact expectations/isolation; final results
 and Source PR final HEAD/Tree/checks/review recorded in PR. No manual CI rerun.
 Publication and ledger completion are separate, not claimed before readback.
+
+Source PR670 initial policy CI exposed historical candidate-null and fixture Client50/contract46 assumptions (29 failures/1 error). Updated exact alpha51/contract47 fixture metadata and retained negative test assertions; no gate bypass. New commit renews required CI automatically; manual rerun0.
