@@ -1684,8 +1684,8 @@
   },
   "candidate": {
     "release_state": "pending",
-    "bundle_version": "2.0.0-alpha.51",
-    "predecessor_bundle_version": "2.0.0-alpha.50",
+    "bundle_version": "2.0.0-alpha.52",
+    "predecessor_bundle_version": "2.0.0-alpha.51",
     "release_mode": "contract-additive",
     "breaking_change": false,
     "platform_version": "2.0.0-alpha.23",
@@ -1702,7 +1702,7 @@
     "public_api_operation_count": 93,
     "packages": {
       "@oripa/storefront-client": {
-        "version": "2.0.0-alpha.51",
+        "version": "2.0.0-alpha.52",
         "minimum_public_api_contract": "2.0.0-alpha.47",
         "required_capabilities": [
           "draw.browser-mutation.v2",
@@ -1726,8 +1726,8 @@
         "disposition": "reference"
       },
       "@oripa/storefront-testkit": {
-        "version": "2.0.0-alpha.51",
-        "storefront_client_version": "2.0.0-alpha.51",
+        "version": "2.0.0-alpha.52",
+        "storefront_client_version": "2.0.0-alpha.52",
         "site_schema_version": "2.0.0-alpha.23",
         "public_api_operation_count": 93,
         "disposition": "publish"

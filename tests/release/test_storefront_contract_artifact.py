@@ -63,12 +63,13 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return value
 
     def published_alpha50_governance(self):
-        value = artifact.governance(ROOT)
+        value = artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
         # Reconstruct the published ledger, independently of the live candidate.
         value['immutable_history'] = [row for row in value['immutable_history']
                                       if int(row['bundle_version'].rsplit('.', 1)[1]) <= 50]
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         value['candidate'] = None
+        artifact.validate_governance(value)
         return value
 
     def unpublished_alpha50_governance(self):
@@ -123,7 +124,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             artifact.validate_governance(invalid)
 
     def test_released_alpha_49_authority_history_and_no_reissue(self):
-        value = artifact.governance(ROOT)
+        value = self.published_alpha50_governance()
         value['immutable_history'] = [row for row in value['immutable_history']
                                       if int(row['bundle_version'].rsplit('.', 1)[1]) <= 49]
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
@@ -163,7 +164,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             artifact.validate_governance(invalid)
 
     def test_released_alpha_48_authority_history_and_no_reissue(self):
-        value = artifact.governance(ROOT)
+        value = self.published_alpha50_governance()
         value['candidate'] = None  # Reconstruct the immutable released ledger.
         self.assertIsNone(value['candidate'])
         value['immutable_history'] = [row for row in value['immutable_history']
@@ -233,7 +234,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             artifact.validate_governance(invalid)
 
     def test_released_alpha_47_has_exact_publication_authority_and_preserves_history(self):
-        value = artifact.governance(ROOT)
+        value = self.published_alpha50_governance()
         value['immutable_history'] = [row for row in value['immutable_history']
                                       if int(row['bundle_version'].rsplit('.', 1)[1]) <= 47]
         value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
@@ -299,7 +300,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         self.assertEqual(artifact.release_source(value)['release_state'], 'released')
 
     def test_released_alpha_47_rejects_reissue_and_duplicate_history(self):
-        released = copy.deepcopy(artifact.governance(ROOT))
+        released = self.published_alpha50_governance()
         released['immutable_history'] = [row for row in released['immutable_history']
                                        if int(row['bundle_version'].rsplit('.', 1)[1]) <= 47]
         released['latest_immutable'] = copy.deepcopy(released['immutable_history'][-1])
@@ -1040,28 +1041,45 @@ class StorefrontContractArtifactTest(unittest.TestCase):
             self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
             self.assertFalse(output.exists())
 
-    def test_line_alpha51_candidate_is_unpublished_and_preserves_alpha50_authority(self):
-        value = artifact.governance(ROOT)
+    def test_line_alpha52_preparation_waits_for_published_alpha51_authority(self):
+        value = artifact.load_json(ROOT / artifact.GOVERNANCE_PATH)
         published = self.published_alpha50_governance()
         self.assertEqual(value['immutable_history'], published['immutable_history'])
         self.assertEqual(value['latest_immutable'], published['latest_immutable'])
-        candidate = artifact.pending_candidate(ROOT)
-        result = artifact.validate_source(ROOT)
-        self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.51')
-        self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.50')
-        self.assertEqual(result['release_state'], 'pending')
-        self.assertEqual(result['bundle_version'], candidate['bundle_version'])
+        candidate = value['candidate']
+        self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.52')
+        self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.51')
+        self.assertEqual(candidate['release_state'], 'pending')
         self.assertEqual(candidate['public_openapi_sha256'], artifact.sha256_file(ROOT / artifact.PUBLIC_OPENAPI_PATH))
+        # Preserve existing LINE Source metadata; Paidy51's contract is unknown.
         self.assertEqual(candidate['contract_versions']['public'], '2.0.0-alpha.47')
         self.assertNotIn(candidate['bundle_version'], [row['bundle_version'] for row in value['immutable_history']])
+        self.assertNotIn('2.0.0-alpha.51', [row['bundle_version'] for row in value['immutable_history']])
         for field in ['source_commit', 'manifest_sha256', 'publication']:
             self.assertNotIn(field, candidate)
         for name in ['@oripa/storefront-client', '@oripa/storefront-testkit']:
-            self.assertEqual(candidate['packages'][name]['version'], '2.0.0-alpha.51')
+            self.assertEqual(candidate['packages'][name]['version'], '2.0.0-alpha.52')
+            self.assertEqual(artifact.load_json(ROOT / artifact.PACKAGE_PATHS[name] / 'package.json')['version'], '2.0.0-alpha.52')
             self.assertNotIn('sha256', candidate['packages'][name])
+        for validate in [lambda: artifact.validate_governance(value),
+                         lambda: artifact.pending_candidate(ROOT),
+                         lambda: artifact.validate_source(ROOT)]:
+            with self.assertRaisesRegex(artifact.ArtifactError, 'candidate predecessor mismatch'):
+                validate()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'must-not-exist'
+            head = artifact.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture=True)
+            with mock.patch.object(artifact, 'run', wraps=artifact.run) as commands:
+                with self.assertRaisesRegex(artifact.ArtifactError, 'candidate predecessor mismatch'):
+                    artifact.build(ROOT, output, head)
+            self.assertFalse(any(call.args[0][0] == 'pnpm' for call in commands.call_args_list))
+            self.assertFalse(output.exists())
         invalid = copy.deepcopy(value)
+        invalid['candidate']['predecessor_bundle_version'] = '2.0.0-alpha.50'
+        with self.assertRaisesRegex(artifact.ArtifactError, 'candidate must be the next alpha bundle version'):
+            artifact.validate_governance(invalid)
         invalid['candidate']['bundle_version'] = '2.0.0-alpha.50'
-        with self.assertRaises(artifact.ArtifactError):
+        with self.assertRaisesRegex(artifact.ArtifactError, 'immutable existing version reissue prohibited'):
             artifact.validate_governance(invalid)
 
     def valid_output(self, output: Path, governance=None, source_commit=None) -> dict:

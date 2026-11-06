@@ -70,7 +70,7 @@ class MemberRankPublicContractTest(unittest.TestCase):
         self.assertEqual(len(operations), 93)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
         self.assertEqual(ledger['candidate']['release_state'], 'pending')
-        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.51')
+        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.52')
         self.assertFalse(ledger['candidate']['breaking_change'])
         self.assertFalse(ledger['latest_immutable']['breaking_change'])
         self.assertEqual(ledger['latest_immutable']['release_mode'], 'contract-additive')

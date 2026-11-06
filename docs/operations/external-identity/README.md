@@ -175,9 +175,22 @@ this is not an unconditional entitlement. Confirmed, enabled and unclaimed uses
 「LINE連携・友だち追加が完了しています。条件を満たした方はLINE特典を受け取れます。」.
 500 is an intended Human Admin setting, not a Source default.
 
-Client/Testkit alpha.51 is a pending additive candidate; immutable alpha.50 and
-its history remain intact. Publication, Site adoption and Runtime enablement
-need their separate gates. Human acceptance must check the same LINE Provider,
+Human release order (2026-11-06): Paidy v2.3 uses alpha.51; LINE Client/Testkit
+use alpha.52. LINE development continues while Paidy publication is pending.
+The alpha.52 candidate is unpublished preparation with predecessor alpha.51;
+the ledger still ends at immutable alpha.50. Canonical validation deliberately
+holds on `candidate predecessor mismatch` until authentic alpha.51 authority
+exists. Do not invent its Artifact/Manifest/Source hashes or Contract versions,
+append a placeholder release, or relax the consecutive-release checks.
+
+Current LINE Public alpha.47 is the existing Source contract, not an assertion
+about Paidy alpha.51 or the final alpha.52 contract. After Paidy alpha.51 is
+published, verify its formal artifact, reconcile main conflicts and contract
+versions, then prepare any separately approved Source Authority update.
+Paidy OLD Test and NEW Production activation precede LINE activation. Both
+alpha.51/alpha.52 formal publication, Ready/Merge and LINE Runtime activation
+remain outside this task's approval. Publication, Site adoption and Runtime
+enablement need their separate gates. Human acceptance must check the same LINE Provider,
 official-account association, reward enablement/amount500/expiry/friend URL and
 feature ENV. This task changes none of those operational settings or Site code.
 
