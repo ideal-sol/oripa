@@ -304,6 +304,27 @@ def security_posture(record, binding):
     require(record.get("dependency_delta") in {"NONE", "PRESENT"}, "SECURITY_DEPENDENCY_UNKNOWN")
     development = "PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION" if record["dependency_delta"] == "NONE" else (
         "BLOCK_PR_INTRODUCED_SECURITY_FINDING" if count else "PASS_FRESH_AUDITS")
+    if "release_metadata_proof" in record:
+        proof = record["release_metadata_proof"]
+        require(isinstance(proof, dict) and set(proof) == {
+            "authority", "from_version", "to_version", "base_sha", "head_sha",
+            "base_dependency_fingerprint", "head_dependency_fingerprint",
+            "changed_dependency_paths", "external_dependency_delta", "unresolved_advisory_ids",
+        }, "SECURITY_METADATA_PROOF_INVALID")
+        require(record["dependency_delta"] == "PRESENT" and count == len(findings) == 12
+                and proof["authority"] == "PAIDY-ALPHA51-20261106"
+                and proof["from_version"] == "2.0.0-alpha.50" and proof["to_version"] == "2.0.0-alpha.51"
+                and proof["base_sha"] == record.get("base_sha") and proof["head_sha"] == record.get("head_sha")
+                and matches(DIGEST, proof["base_dependency_fingerprint"])
+                and proof["head_dependency_fingerprint"] == record["dependency_fingerprint"]
+                and proof["base_dependency_fingerprint"] != proof["head_dependency_fingerprint"]
+                and proof["changed_dependency_paths"] == ["packages/storefront-client/package.json",
+                    "packages/storefront-testkit/package.json", "pnpm-lock.yaml"]
+                and proof["external_dependency_delta"] == "NONE"
+                and proof["unresolved_advisory_ids"] == sorted({item["advisory_id"] for item in findings})
+                and record.get("finding_classification") == "EXISTING_FINDINGS_WITH_INTERNAL_RELEASE_METADATA_ONLY",
+                "SECURITY_METADATA_PROOF_INVALID")
+        development = "PASS_INTERNAL_RELEASE_METADATA_ONLY"
     require(record.get("development_security_result") == development, "SECURITY_DEVELOPMENT_RESULT_MISMATCH")
     require(record.get("current_security_posture") == expected
             and record.get("security_maintenance_required") is bool(count), "SECURITY_POSTURE_MISMATCH")
