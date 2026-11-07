@@ -33,6 +33,12 @@ the unchanged, previously installed Site Schema dependencies passed all83 withou
 installation, Build, test changes or assertion changes. Secret/PII scan found0
 candidates across the8 ledger paths. Policy validation is recorded in the PR.
 
+Final review also binds the Security metadata negative-test fixture to the real
+Source squash705d03ca instead of the pre-merge PR commit. Dependency fixture bytes
+are identical; this preserves test availability after task-branch cleanup without
+changing gates or assertions. The ledger scope is consequently9 paths; a normal
+new-head CI supersedes its initial run. No manual CI rerun is requested.
+
 Existing Composer High4/Moderate5/Low3 findings remain unresolved (Critical0).
 Source-only metadata classification is not Runtime Security acceptance. No
 Storefront adoption, LINE665/Storefront228 change, Runtime/ENV/Secret/Worker change,
