@@ -60,4 +60,4 @@ class PaidyContractTest(unittest.TestCase):
         self.assertEqual(operation['security'], [])
         self.assertIn('503', operation['responses'])
         self.assertIn('404', operation['responses'])
-        self.assertEqual(webhook['info']['version'], '2.0.0-alpha.45')
+        self.assertEqual(webhook['info']['version'], '2.0.0-alpha.47')

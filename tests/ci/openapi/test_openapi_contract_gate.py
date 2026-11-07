@@ -25,6 +25,7 @@ def fixture(group, name):
 class OpenApiContractGateTest(unittest.TestCase):
     def test_paidy_v23_authority_is_limited_to_exact_human_approved_fields(self):
         current = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        current['info']['version'] = '2.0.0-alpha.46'
         previous = copy.deepcopy(current)
         data = previous['components']['schemas']['PaymentPaidyCheckoutAction']['properties']['payload']['properties']['buyer_data']
         for field in ['account_registration_date', 'delivery_locn_type', 'days_since_first_transaction', 'previous_payment_methods', 'order_item_categories']:
@@ -364,7 +365,7 @@ class OpenApiContractGateTest(unittest.TestCase):
 
     def test_admin_phase2_retires_fresh_requirements_without_breaking_legacy_schema(self):
         contract = json.loads((ROOT / "openapi/bundled/admin.openapi.json").read_text(encoding="utf-8"))
-        self.assertEqual("2.0.0-alpha.46", contract["info"]["version"])
+        self.assertEqual("2.0.0-alpha.47", contract["info"]["version"])
         for item in contract["paths"].values():
             for operation in item.values():
                 if isinstance(operation, dict):

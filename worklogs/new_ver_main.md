@@ -13116,6 +13116,34 @@ CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancesto
 
 Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR body metadata and changed-path schema PASS. CI also enforces canonical PR headings and the fixed Change ID grammar; restored complete template fields and registered only this exact Change ID. Earlier CI failures were metadata/classification blockers, not successful CI. Final-head Required CI and Strict review remain separately recorded in PR #669.
 
+## 2026-11-06 — PAIDY-ALPHA51-20261106 — preflight HOLD
+
+R3 / Strict Change / Application Runtime Activation none. Issue none. Isolated
+branch chore/PAIDY-ALPHA51-20261106 from freshly fetched protected main
+8eadec09a187e3f220dc09d36e9a14b98511931b protects existing primary edits.
+PR662 squash is an ancestor; main contains its five Paidy buyer-data fields.
+Ledger latest immutable alpha.50/candidate null. LINE PR665 is Draft/unmerged;
+its worktree, branch, migration and Candidate are not imported or edited.
+
+Read canonical governance/release/compatibility and nested rules. Directly ran
+the canonical OpenAPI comparator against the retained formal alpha.50 Public
+bundle (digest matches immutable ledger) and an in-memory proposed Public
+alpha.47. It detects required account_registration_date and
+previous_payment_methods additions. The exact PR662 Source-only exception
+accepts alpha.46-to-alpha.46, rejects the proposed alpha.47. Per Human's explicit
+breaking-change HOLD rule, do not label this contract-additive, extend the gate
+or proceed to Source merge/publication. Minimal proposal: Human approval of
+contract-breaking/true and the existing validator's corresponding Public/Admin/
+Webhook alpha.47 version alignment, preserving schema and payment logic.
+
+Evidence/details: docs/implementation/PAIDY_ALPHA51_20261106_HANDOFF.md.
+No package/contract/ledger/workflow/gate edits. Handoff/Worklog only pending
+locally; no commit, push, PR or merge. No release lock acquired before HOLD.
+Generation/package tests/Build/Required5/Strict review/publication/readback and
+ledger reconciliation NOT RUN. Build/manual CI rerun/Publication/Migration/
+Runtime/ENV/Secret/Worker/OLD Test/Production/Storefront PR228/LINE changes0.
+Retain isolated branch/worktree for Human decision; existing work remains intact.
+
 Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
 
 Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
@@ -13140,3 +13168,126 @@ First-head CI Quality failed the unchanged asynchronous mail-editor test at admi
 Issue none; R3; Strict Change; Application Runtime Activation deferred. Base24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc; dedicated clean worktree preserves unrelated tasks. Human authorizes minimal Wrapper correction, focused tests, Draft PR, Required5 and fresh final-head self-review only. Ready/Merge, installation, Artifact dispatch/build, Candidate/Envelope and Runtime operations remain unapproved.
 Preserve the original optional getter separately from normal API reads, so native CLI uses existing validated Compare transport and injected Workflow getter remains supported. Generic GET Compare/traversal rejection, fixed repository/SHA validation, merged-source checks and Required5 stay intact. No Manifest/Payload/Workflow/Executor/Gate/Adapter/Contract/Migration change.
 Network-independent CLI main -> artifact list -> authority -> real api_compare/api_get/path guards reproduced github_path_invalid before correction. HTTP I/O and credential acquisition alone are replaced; injected Workflow path and actual Required Check evaluation also covered. Related existing normal authority, invalid repository/SHA/path, generic Compare rejection and exact derived composition tests are reused in the existing Authority suite (48 tests PASS). No live Artifact dispatch or Runtime test. Operational Build0, dispatch0, installation0, Runtime0; migrations created/applied0. Fresh Self-review and Required5 recorded in PR at final unchanged head. Worktree retained for Draft approval.
+
+
+### PAIDY-ALPHA51-20261106 — Human breaking-release GO
+
+Human explicitly resolves HOLD: contract-breaking/true; Client/Testkit51,
+Public/Admin/Webhook47; Site Schema23 referenced; Runtime Activation none.
+Dedicated existing worktree and prior evidence preserved. Remote base unchanged;
+formal alpha51 Artifact count0, main candidate null. Release flock acquired.
+Only version/generation/candidate, bounded compatibility predicate and associated
+negative/historical tests change. Existing H1 Source-only exception retained.
+Public published50 comparison detects exactly the approved two required fields;
+Admin/Webhook equality apart from version is tested. No LINE PR665 changes,
+migration107, Storefront PR228 changes, Paidy financial implementation or Runtime.
+Initial local OpenAPI83 had4 stale version/candidate failures; Release107 had2
+historical-fixture failures. Corrected exact expectations/isolation; final results
+and Source PR final HEAD/Tree/checks/review recorded in PR. No manual CI rerun.
+Publication and ledger completion are separate, not claimed before readback.
+
+Source PR670 initial policy CI exposed historical candidate-null and fixture Client50/contract46 assumptions (29 failures/1 error). Updated exact alpha51/contract47 fixture metadata and retained negative test assertions; no gate bypass. New commit renews required CI automatically; manual rerun0.
+
+### PAIDY-ALPHA51-20261106 — Required CI HOLD
+
+## Current execution HOLD — Required CI (2026-11-06)
+
+Human breaking-release approval remains valid. Source PR670 is Draft:
+https://github.com/ideal-sol/oripa/pull/670
+HEAD 3602b5f6d482728711e229c9a8f6cc4e49e53b31; Tree 2cc389346edfa8e1cba5b5de92a84064f9119f3c.
+Base/live main remains 8eadec09a187e3f220dc09d36e9a14b98511931b.
+
+Required CI run42216694566: policy-gate=success; quality-gate=failure; security-gate=failure.
+Security job127888630708 fails with12 unapproved Composer advisories;
+dependency_delta=PRESENT / BLOCK_PR_INTRODUCED_SECURITY_FINDING.
+Composer manifests/locks are byte-identical to Base. Dependency changes are
+Client/Testkit release metadata and the exact internal workspace51 specifier.
+Current gate hashes complete dependency files and offers no applicable
+release-metadata exclusion. No Security Gate/exception/baseline change is made.
+The12 audit severities are unknown; they are not represented as resolved or
+assigned SEV0/1=0. Additional Security work needs a separate scope decision.
+
+Quality job127888630746 fails the unchanged Admin mail-editor test at
+apps/admin/test/admin-mail-template-management.test.tsx:85 (email_verification,
+missing メール本文 label;502 passed/1 failed). No Admin behavior/test is changed.
+OpenAPI83, Release108, Policy347 PASS locally. CI Client47, Site Schema10,
+Testkit55 and their generation/typecheck/lint/build/export/network checks PASS.
+Contract comparison still detects only the two Human-approved required fields.
+
+Final machine-readable Strict self-review NOT ISSUED because Required5 fail.
+Ready/merge/publication/readback/ledger-finalization NOT RUN; official alpha51
+artifact count0. Remote ledger remains latest50/candidate=null. Source branch
+contains only pending51 intent. No future digests or Source squash SHA invented.
+Manual CI rerun0; local/manual additional Build0; existing Strict CI automatic
+builds ran, including its ARM64 image validation job. Runtime/Migration creation
+and operational application/ENV/Secret/Worker changes0. CI isolated database
+smoke is separate from operational DB use. LINE665 and Storefront228 unchanged.
+Keep the branch/worktree. This HOLD evidence is local-uncommitted plus PR body;
+do not create an extra Source commit/CI run only to record a blocked state.
+Artifact Release flock is released on HOLD; reacquire and revalidate all live
+authority before any later publication. No publication dispatch occurred.
+
+### PAIDY-ALPHA51-20261106 — bounded CI blocker correction
+
+Latest Human approval permits only proven internal release-metadata classification
+and the existing Admin asynchronous editor test fix in this Source PR. Governance
+REV3 Engineering Blockers in the Same PR allows these focused corrections.
+Previous HOLD records below are historical, not the current approval boundary.
+Base/main and PR670 head unchanged at resumption; existing local Handoff/Worklog
+preserved. Risk R3 / Strict Change / Activation none. Release flock reacquired.
+
+Composer Manifest/Lock are byte-identical to Base. Their SHA256 values are
+51456f9a34dffc0e28e7fe35fda9f472e5150acb64b467f02cafb2fa27008d1a and
+f04bdd327de411b13663c8c687185039af675c3f9262047905e539a6745b25aa.
+Full pnpm packages/snapshots/integrities and external references are unchanged;
+only internal workspace Client50→51 changes, with link target unchanged.
+Client/Testkit manifest differences are exact own-version/compatibility metadata.
+
+The new proof recomputes canonical Base/HEAD provenance and compares every
+dependency input byte-for-byte after exact permitted replacements in three files.
+Canonical dependency_delta=PRESENT and both fingerprints remain intact. Unknown
+paths, hooks/configs, external versions/integrities, Composer changes, new/missing
+findings and Critical/escalated severity cannot use this bounded proof. Audits and
+baseline remain intact. The proof is limited to50→51 and the12 observed findings,
+none approved or removed; actual Security Posture remains HOLD_UNAPPROVED_FINDING
+and the downstream Runtime evaluator still returns HOLD. This permits only this
+Source release metadata decision, not Runtime acceptance or vulnerability closure.
+
+Fresh Composer audit returned the same12 IDs with null severity. Official vendor
+Advisories (and CNA CVSS for the three original CVEs) establish High4/Moderate5/
+Low3/Critical0, all in Composer runtime packages, not dev dependencies. Supplemental
+severity evidence does not overwrite raw audit severity. All12 remain unresolved;
+security maintenance is still required independently of this artifact publication.
+
+| Advisory ID | Package | Official severity | Scope | Source |
+|---|---|---|---|---|
+| PKSA-g499-cm4q-v35y | symfony/filesystem | High | Runtime | [GHSA-6prc-h956-hxjq](https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq) |
+| PKSA-yd1s-kk7g-k2j3 | symfony/http-client | High | Runtime | [GHSA-gq53-v8w2-gjhj](https://github.com/symfony/symfony/security/advisories/GHSA-gq53-v8w2-gjhj) |
+| PKSA-gfw6-4rnd-4533 | symfony/http-client | Low | Runtime | [GHSA-c7hm-wqwp-f9v8](https://github.com/symfony/symfony/security/advisories/GHSA-c7hm-wqwp-f9v8) |
+| PKSA-24ph-xkrh-y79j | symfony/http-foundation | Moderate | Runtime | [GHSA-jrf8-gvm4-7cgh](https://github.com/symfony/symfony/security/advisories/GHSA-jrf8-gvm4-7cgh) |
+| PKSA-pr6q-2w5s-kzzf | symfony/http-foundation | Low | Runtime | [GHSA-3h27-hjv7-fqjx](https://github.com/symfony/symfony/security/advisories/GHSA-3h27-hjv7-fqjx) |
+| PKSA-nxjs-s6hn-vb6m | symfony/http-foundation | Moderate | Runtime | [GHSA-xg2q-4rrq-657q](https://github.com/symfony/symfony/security/advisories/GHSA-xg2q-4rrq-657q) |
+| PKSA-b2gg-vk1g-6d5q | symfony/http-foundation | Moderate | Runtime | [GHSA-5mx8-mwrp-5693](https://github.com/symfony/symfony/security/advisories/GHSA-5mx8-mwrp-5693) |
+| PKSA-3gxv-7xhq-mgmz | symfony/http-kernel | Low | Runtime | [GHSA-wg5q-m2ww-f3c9](https://github.com/symfony/symfony/security/advisories/GHSA-wg5q-m2ww-f3c9) |
+| PKSA-y8c5-1b7f-r1gj | symfony/routing | Moderate | Runtime | [GHSA-xqw3-x93m-887x](https://github.com/symfony/symfony/security/advisories/GHSA-xqw3-x93m-887x) |
+| PKSA-grh8-hvfp-h9pf | symfony/serializer | High | Runtime | [GHSA-h38r-xrmh-cwhr](https://github.com/symfony/symfony/security/advisories/GHSA-h38r-xrmh-cwhr) |
+| PKSA-nyd8-k74r-fsf2 | symfony/serializer | High | Runtime | [GHSA-pxj9-jh84-vhm5](https://github.com/symfony/symfony/security/advisories/GHSA-pxj9-jh84-vhm5) |
+| PKSA-y18k-qjc6-knrv | symfony/serializer | Moderate | Runtime | [GHSA-hqp2-7rr8-hf26](https://github.com/symfony/symfony/security/advisories/GHSA-hqp2-7rr8-hf26) |
+
+Admin reproduction: two isolated mail-suite runs passed36; concurrent focused mail
+and RichTextEditor suites reproduced the same missing-body label at line85 for
+contact_reply (40 passed/1 failed), matching the earlier email_verification CI
+failure. useEditor immediatelyRender=false renders the body after the subject.
+Only getByLabelText→await findByLabelText changed. Assertions/default timeout and
+Admin implementation are unchanged. After correction focused41 and ESLint PASS.
+
+Security61 (including new negative cases), canonical-change/Readiness62 PASS.
+Fresh real Composer + four pnpm audits with the actual Base/HEAD prove metadata
+classification PASS while preserving12 unapproved findings and Runtime HOLD.
+One initial new-test run had3 fixture empty-commit errors; fixture fixed without
+changing production checks/assertions. Reuse prior OpenAPI83/Release108/Policy347
+and Client/Testkit evidence where source remains unchanged; final CI/review must
+bind the new head. No manual CI rerun or local Build. Formal publication/readback
+and ledger reconciliation remain pending the gate-compliant exact Source squash.
+No Paidy logic, LINE665, Storefront228, Runtime, operational DB/Migration, ENV,
+Secrets, Worker, audit baseline or workflow change.
