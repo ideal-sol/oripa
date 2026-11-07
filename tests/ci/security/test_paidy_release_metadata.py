@@ -10,7 +10,7 @@ from tests.ci.security import test_delta_security
 
 ROOT = Path(__file__).resolve().parents[3]
 BASE = '8eadec09a187e3f220dc09d36e9a14b98511931b'
-SOURCE_HEAD = '3602b5f6d482728711e229c9a8f6cc4e49e53b31'
+SOURCE_HEAD = '705d03caab389c0f9600b3e85420532aa6d46439'
 
 
 class PaidyReleaseMetadataTest(unittest.TestCase):

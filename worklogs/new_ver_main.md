@@ -13291,3 +13291,48 @@ bind the new head. No manual CI rerun or local Build. Formal publication/readbac
 and ledger reconciliation remain pending the gate-compliant exact Source squash.
 No Paidy logic, LINE665, Storefront228, Runtime, operational DB/Migration, ENV,
 Secrets, Worker, audit baseline or workflow change.
+
+## REL-051 — Paidy alpha.51 publication readback and ledger
+
+R3 / Strict Change / Application Runtime Activation none; Issue none.
+Source PR670 squash 705d03caab389c0f9600b3e85420532aa6d46439; reviewed head
+a942b5157459f93e7641ef55ab6d83a17d5ef760 / Tree d87799ea65d6b476a8855e8653cb7a6c0f779b55.
+Source Required5 PASS; fresh schema2.0 Strict self-review SEV0/1=0.
+Canonical publication https://github.com/ideal-sol/oripa/actions/runs/42352571854 attempt1
+completed authorization, contract-only Build/upload and readback. Independent local
+canonical readback verified exact Artifact ID, outer digest, all five inner files,
+Source SHA, runtime Client version51, Public47 and referenced Site Schema23.
+
+Artifact ID 13566710138; name oripa-storefront-contract-2.0.0-alpha.51.
+- outer_sha256: `ac2c528b8c434cd147322e327a86882120639e71a70cdc596b40a86b61375326`
+- manifest_sha256: `2ab973443a4db6306a516944502da0ba2c3427167611c674c58be0ec6f7de502`
+- sha256sums_sha256: `a8de5320cc027c14563d95e6994a0006ec89ab3ed52991f5a272d3dc7501f622`
+- public_openapi_sha256: `3e7a91d456250cccdf4be0b5874970f6ecac32d9a853fce1b29ef0a594376795`
+- client_sha256: `bf58fc8c31e5d423bd5e50ec2265d0e09e13a32ce10fe716559e1930abdfce3f`
+- testkit_sha256: `f5654b8b6ec12d0063ee11a549fae9f6b52bcc34605e0baa6c9233c600fe5e7a`
+
+Ledger appends alpha51, retains all30 predecessor records exactly, sets
+latest_immutable=alpha51/candidate=null; contract-breaking/true and contracts47
+remain unchanged. No new Source/package/contract/gate changes. Historical tests
+retain exact alpha50 authority; pending51 preparation is tested at Source squash;
+released51 validates measured identity, breaking metadata and reissue rejection.
+The separate ledger PR still requires its own Required5 and fresh Strict review.
+
+Local ledger verification: Release109 and OpenAPI83 PASS; canonical released-source
+validation and the existing five-file readback bundle verification PASS. Initial
+OpenAPI failure was two missing-Ajv environment errors in the fresh Worktree;
+reusing unchanged installed Site Schema dependencies passed all83, with no install
+or Build. Secret/PII scan found0 candidates across8 paths. Policy/CI and exact-head
+review results are recorded in the ledger PR.
+
+Final review pins the Security metadata test fixture to Source squash705d03ca
+instead of the pre-merge PR commit, preserving identical dependency bytes and
+all assertions after task-branch cleanup. Ledger scope9 paths; a normal new-head
+CI supersedes the first ledger head, with no manual CI rerun.
+
+Existing Composer High4/Moderate5/Low3 findings remain unresolved (Critical0).
+Source-only metadata classification is not Runtime Security acceptance. No
+Storefront adoption, LINE665/Storefront228 change, Runtime/ENV/Secret/Worker change,
+operational Migration, provider communication or real payment. Local additional
+Build0; manual CI rerun0; canonical publication dispatch1, attempt1. Existing
+Strict CI automatic builds are separate from publication and Runtime activation.
