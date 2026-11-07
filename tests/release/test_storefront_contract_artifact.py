@@ -62,8 +62,16 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         value['candidate'] = None
         return value
 
-    def unpublished_alpha50_governance(self):
+    def alpha50_governance(self):
         value = artifact.governance(ROOT)
+        value['immutable_history'] = value['immutable_history'][:30]
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
+        value['candidate'] = None
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.50')
+        return artifact.validate_governance(value)
+
+    def unpublished_alpha50_governance(self):
+        value = self.alpha50_governance()
         value['candidate'] = None
         candidate = copy.deepcopy(artifact.verification_target(value))
         candidate.update(release_state='pending')
@@ -78,7 +86,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
         return value
 
     def test_released_alpha_50_authority_history_and_no_reissue(self):
-        value = artifact.governance(ROOT)
+        value = self.alpha50_governance()
         value['candidate'] = None  # Historical immutable alpha.50 authority.
         self.assertEqual(len(value['immutable_history']), 30)
         released = value['latest_immutable']
@@ -1004,7 +1012,7 @@ class StorefrontContractArtifactTest(unittest.TestCase):
                 artifact.validate_source(self.released_root)
 
     def test_paidy_unpublished_source_cannot_reissue_alpha50_or_change_its_ledger(self):
-        current = artifact.governance(ROOT)
+        current = self.alpha50_governance()
         current['candidate'] = None
         self.assertIsNone(current['candidate'])
         self.assertEqual(current['latest_immutable']['source_commit'],
