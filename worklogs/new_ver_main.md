@@ -13433,3 +13433,9 @@ approval pair in a disposable checkout, preserving all positive/negative
 assertions and the checkout guard. No Production Source Authority or Runtime
 is changed. Scope is now four files. Follow the existing CI planner for the
 new final head; no allowlist/gate changes to obtain a faster path.
+
+After the historical fixture repair, all125 Source Authority/Production
+Authority/Readiness tests PASS again. The next CI event captured the PR body
+before its four-path declaration update and correctly rejected the stale
+three-path scope. Update the exact four-path PR body before pushing this final
+recorded head. No source-scope relaxation, manual CI rerun or bypass.
