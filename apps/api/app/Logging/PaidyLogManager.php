@@ -6,7 +6,7 @@ use Illuminate\Log\LogManager;
 use Monolog\Handler\FormattableHandlerInterface;
 use Monolog\Handler\HandlerInterface;
 
-final class PaidyLogManager extends LogManager
+class PaidyLogManager extends LogManager
 {
     protected function prepareHandler(HandlerInterface $handler, array $config = [])
     {
