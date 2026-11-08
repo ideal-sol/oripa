@@ -13348,3 +13348,79 @@ Strict CI automatic builds are separate from publication and Runtime activation.
 - Contract alpha51/Artifact13566710138 and Storefront229 unchanged. LINE665/107, Admin UI, operational migrations, Production/LB, Runtime and secrets excluded. CI, exact-head review and merge outcomes recorded in PR closeout; no manual CI reruns.
 
 Required CI found one compatibility issue: marking the replacement LogManager final prevented the existing SMS facade Mockery test. Preserve the framework extension contract by removing final; no test assertion or security behavior changed. Focused Paidy plus SMS regression6 tests/27 assertions exit0 after repair (existing missing-.env warnings; no failures). New-head automatic CI replaces the failed head; manual rerun0.
+
+PR672 closeout: final HEAD0f38dbcfc4e4908f40a26407556edbe7e0802ce0,
+Required CI5/5 PASS, fresh Strict self-review
+https://github.com/ideal-sol/oripa/pull/672#issuecomment-6721963432,
+SEV-0/SEV-1=0. Canonical actor ideal-sol-oripa-codex[bot] squash merged
+c130546656a7c1925030775b1da91843e57cda5f at2026-11-08T13:16:46Z.
+Reviewed/Merged Tree both69f8969bc6c1f704ffd7caafb12bd537730bee83.
+Final-head isolated Docker json-file capture again passed full/truncated token
+absence. No Runtime artifact dispatch or operational activation. Remote task
+branch is deleted. The second metadata task follows without additional Human wait.
+
+## PDYAUTH-20261108 — Paidy repaired Source Authority
+
+Human's explicit second-PR GO; Issue none, R3 / Strict Change / Activation
+deferred. Dedicated branch chore/PDYAUTH-20261108, base is the actual PR672
+squash c130546656a7c1925030775b1da91843e57cda5f. Only existing OLD Test
+approval Manifest, its existing test entrypoint, and this Worklog change.
+No new framework, gate/exception, workflow or executor installation.
+
+The Manifest fixes API payload to PR672, AMD64/api-only, preserving Admin;
+Storefront PR229 source3d62c5ce85beddc9623393912e9e4906a4f96357 and GTM OFF;
+Artifact13566710138/Run42352571854 and its exact outer digest, Client/Testkit51,
+Public/Admin/Webhook47, Schema23. Runtime Source and Contract publication
+Source705d03ca remain distinct. The existing schema and wrapper continue to
+validate protected-main control, approved source ancestry, source PR/Tree,
+Required Checks and Artifact identity. No Runtime Build authority is exercised.
+
+All11 Paidy ENV keys remain UNSET on the operational environment. The Manifest
+records only future non-secret values/key names; private values must be supplied
+through approved root-owned input, never arguments/PR/logs. Payment methods are
+the current set plus paidy, removing none. UnivaPay TEST/Worker ON, NetRideCash
+hidden, GTM OFF, Paidy Worker OFF, rank/promote, seven-day auto-exchange, SMS and
+the existing five Timers remain constraints. Do not infer mode from key prefix.
+
+Recovery remains the exact PR666 API image/source and PR226 Storefront source,
+Tree and Build ID recorded in the Manifest. Preserve previous private ENV and
+release artifacts. Candidate preparation must snapshot/revalidate current
+container/Unit/PID/Build identities and ledger106, retain Admin, bind F2-B to the
+candidate API image and UnivaPay receipt execution to its actual container ID,
+and restore those bindings on Recovery. Preserve the five existing timers:
+F2-B worker, F2-B purge, prize auto-exchange, UnivaPay monitor and receipts.
+Do not replay migrations, restart Paidy Worker or apply LINE665/Migration107.
+
+After separate Build GO, use the existing protected-main OLD Test workflow via
+Canonical dispatch-old-test-artifact with task PDYRT-20261108, source PR672 and
+the fixed PR672 squash. Fix control to the metadata merge/current approved
+protected main; never use that control commit as API payload. Download/verify
+the resulting AMD64/API-only artifact through the existing wrapper. Reuse the
+formal alpha51 package artifact and the successful PR226 GTM-OFF Storefront
+build/release path at exact PR229. No Admin Build or Contract reRelease.
+
+Installed host executors remain task-pinned to previous successful candidates;
+this Source PR does not claim they already accept the new candidate. Future
+authorized preparation must bind their existing API+Storefront path to the
+fixed identities and exact private ENV delta, retaining Security/Artifact Gate,
+fresh Receipt, lock/Health/Recovery checks. Confirm candidate PHP and Composer
+posture independently; the old metadata-only security exception grants no
+Runtime acceptance. No stale Receipt reuse or gate bypass.
+
+Nginx preparation remains the PR672 template/runbook: exact Paidy path only,
+private token rendering, both access/error log protection, Basic exclusion
+staged503 until separately approved protected API/ENV activation; existing
+UnivaPay and site-wide Basic retained. Webhook200 with durable receipt and
+asynchronous reconciliation/Capture/grant are separate acceptance items.
+Actual provider POST and Worker ON are not performed or claimed PASS here.
+
+Local validation: existing Source Authority/Production Authority/Readiness125
+tests PASS, including three new exact-source/Contract/ENV-Recovery tests.
+Historical alpha50 assertions use their immutable original Manifest rather
+than requiring the current approval to remain on alpha50. Existing negative
+authority/Tree/check/Artifact tests are preserved. New tests prove unchanged
+106-migration inventory and Identity/routes relative to the exact PR666 base,
+unchanged Contract bytes, and distinct payload/control identity. Final-head
+Required5 and fresh Strict review/merge evidence belong in the PR closeout.
+No operational Migration, Build dispatch, ENV/Nginx, Runtime, Worker or
+Production/LB operation; manual CI rerun0 and additional Human wait0.
