@@ -23,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton('log', fn ($app) => new \App\Logging\PaidyLogManager($app));
         $this->app->bind(V2GoogleOidcTransport::class, V2GoogleOidcHttpTransport::class);
         $this->app->bind(V2LineOidcTransport::class, V2LineOidcHttpTransport::class);
         $this->app->bind(
