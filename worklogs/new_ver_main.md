@@ -13336,3 +13336,15 @@ Storefront adoption, LINE665/Storefront228 change, Runtime/ENV/Secret/Worker cha
 operational Migration, provider communication or real payment. Local additional
 Build0; manual CI rerun0; canonical publication dispatch1, attempt1. Existing
 Strict CI automatic builds are separate from publication and Runtime activation.
+
+
+## PDYSEC-20261108 — OLDTEST-PAIDY-V23 Security and log protection
+
+- Human explicitly authorizes implementation, two sequential PRs and Canonical squash merges; Runtime Build/ENV/Nginx/install/activation/provider POST/Worker ON remain excluded. Issue none; R3 / Strict Change / Activation deferred. Base 0ecc2d208240aa8a3401d186a57a52fa7734d636; dedicated worktree protects unrelated primary edits.
+- Composer resolves exactly six Symfony8.1 packages to8.1.11: filesystem/http-client/http-foundation/http-kernel/routing/serializer. No other package, root constraint or Contract change. Fresh locked audit exit0, advisories0/abandoned0; old12 findings resolved. Required CI verifies final-head posture independently.
+- Application server.php preserves routing/request bytes and redacts only diagnostic Paidy URI. Existing Laravel handler formatting is decorated, including emergency fallback; messages/nested Context/exception trace/full and PHP-truncated token are protected. No vendor patch, broad log disabling or financial change.
+- Focused4 tests/22 assertions PASS, including real isolated artisan serve synthetic200/404/405/500/503, unchanged body and authentication token. Synthetic200 log-probe route exists only in the disposable fixture; real receiver storage failure503 verified without DB. Durable successful receipt/financial regression remains in Required CI. Isolated Docker json-file logs also PASS full/truncated token absence, no network/host ports. Nginx2 tests PASS: isolated config, exact Basic exclusion, other URL401, wrong/extra path404, nonPOST403, unchanged POST body, upstream failure502 and access/error non-disclosure. Initial test harness API/output-drain mismatches fixed; assertions retained, partial trace leak discovered and fixed.
+- Nginx template remains staged503. Private rendering, HTTP rejection, existing UnivaPay preservation, exact opening approval and byte-exact recovery documented. No host Nginx operation.
+- Contract alpha51/Artifact13566710138 and Storefront229 unchanged. LINE665/107, Admin UI, operational migrations, Production/LB, Runtime and secrets excluded. CI, exact-head review and merge outcomes recorded in PR closeout; no manual CI reruns.
+
+Required CI found one compatibility issue: marking the replacement LogManager final prevented the existing SMS facade Mockery test. Preserve the framework extension contract by removing final; no test assertion or security behavior changed. Focused Paidy plus SMS regression6 tests/27 assertions exit0 after repair (existing missing-.env warnings; no failures). New-head automatic CI replaces the failed head; manual rerun0.
