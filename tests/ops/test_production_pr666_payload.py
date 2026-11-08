@@ -64,7 +64,15 @@ class ProductionLimitedPayloadTest(unittest.TestCase):
         from scripts.release.readiness.change import classify, validate_change
         from scripts.release.readiness.adapters import verify_change_authority
         base = '24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc'
-        result = validate_change(classify(ROOT, base, self.head))
+        # This is the historical PR666 Production approval, not future OLD Test
+        # approvals. Keep its actual base/head pair and the checkout guard.
+        historical = '8eadec09a187e3f220dc09d36e9a14b98511931b'
+        with tempfile.TemporaryDirectory() as temp:
+            repository = Path(temp) / 'authority'
+            subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout',
+                            str(ROOT), str(repository)], check=True)
+            M['git'](repository, 'checkout', '-q', '--detach', historical)
+            result = validate_change(classify(repository, base, historical))
         self.assertEqual(result['validation_path'], 'NORMAL_STRICT_CI')
         authority, = result['authority_records']
         self.assertEqual(authority['source_sha'], H['SOURCE'])

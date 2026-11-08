@@ -13364,7 +13364,8 @@ branch is deleted. The second metadata task follows without additional Human wai
 Human's explicit second-PR GO; Issue none, R3 / Strict Change / Activation
 deferred. Dedicated branch chore/PDYAUTH-20261108, base is the actual PR672
 squash c130546656a7c1925030775b1da91843e57cda5f. Only existing OLD Test
-approval Manifest, its existing test entrypoint, and this Worklog change.
+approval Manifest, its existing test entrypoint, the directly affected historical
+Production authority test fixture, and this Worklog change.
 No new framework, gate/exception, workflow or executor installation.
 
 The Manifest fixes API payload to PR672, AMD64/api-only, preserving Admin;
@@ -13424,3 +13425,11 @@ unchanged Contract bytes, and distinct payload/control identity. Final-head
 Required5 and fresh Strict review/merge evidence belong in the PR closeout.
 No operational Migration, Build dispatch, ENV/Nginx, Runtime, Worker or
 Production/LB operation; manual CI rerun0 and additional Human wait0.
+
+The first metadata CI exposed an existing historical Production fixture that
+classified its old base against the latest HEAD, incorrectly including the new
+OLD Test authority. Fix only that test to use the actual immutable Production
+approval pair in a disposable checkout, preserving all positive/negative
+assertions and the checkout guard. No Production Source Authority or Runtime
+is changed. Scope is now four files. Follow the existing CI planner for the
+new final head; no allowlist/gate changes to obtain a faster path.
