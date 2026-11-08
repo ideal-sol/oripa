@@ -68,8 +68,9 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
                           approval["platform"], approval["image_mode"]),
                          ("PDYRT-20261108", 672, self.SOURCE, "linux/amd64", "api-only"))
         self.assertIs(approval["activation_authorized"], False)
-        for sha in (self.SOURCE, self.REVIEWED):
-            self.assertEqual(self.git("rev-parse", sha + "^{tree}"), self.TREE)
+        # The reviewed branch is removed after squash. Pin the observed common
+        # tree here; the Canonical wrapper rechecks both trees through GitHub.
+        self.assertEqual(self.git("rev-parse", self.SOURCE + "^{tree}"), self.TREE)
         self.assertEqual(self.git("rev-parse", self.SOURCE + "^"),
                          "0ecc2d208240aa8a3401d186a57a52fa7734d636")
         recovery_spec = json.loads((ROOT / wrapper.PR666_MANIFEST).read_text())
