@@ -13439,3 +13439,15 @@ Authority/Readiness tests PASS again. The next CI event captured the PR body
 before its four-path declaration update and correctly rejected the stale
 three-path scope. Update the exact four-path PR body before pushing this final
 recorded head. No source-scope relaxation, manual CI rerun or bypass.
+
+
+## PDYFIN-20261109 — Paidy financial admission (Source-only Draft)
+
+- Human scope: R3 / Strict Change / Application Runtime Activation none. Issue none. Dedicated worktree protects existing local work; base protected main 7c3119ad918e3cf23209126480a2f4c4494e2bab. Main and deployed-source Paidy/Runner/Admission implementations match. Exact-path App policy excludes ready/merge operations.
+- Root cause: after a successful provider lookup, ordinary DB transaction attempted provider ID association without generation-one outer financial admission. The unchanged database guard rejected it before Capture.
+- Reuse V2PointTransactionRunner for Paidy start/authorization, provider association, permanent Capture/Close claim, captured settlement and unassociated expiry. Existing shared Runner/Admission and DB guards are unchanged. Provider HTTP stays outside transactions; existing lock order, idempotency, operation exclusion and transactional grants are retained.
+- Synthetic-only PostgreSQL17 internal Docker network and PHP8.4.27; no operational DB, customer data or provider network. Existing image reused without Build. Install exact committed Composer lock in task vendor only; lock/dependencies unchanged. Existing106 migrations applied only to disposable test DB.
+- Before fix: real prelaunch authority service publishes generation1 with original guards; Browser/Webhook/Worker three cases fail (27 assertions), with the same outer-admission DB error. An initial fixture authority-hash mismatch was corrected using the existing canonical fixture value before reproduction.
+- After fix: generation1 admission/fault/recovery23 tests/290 assertions; generation1 four-process callback/Webhook/Worker race2/50, covering normal/grace captures and one Capture/grant/mail/receipt. Explicit negative test proves unadmitted writes remain rejected. Paidy accounting4/46, grace16/67, payment26/214, webhook4/21 and UnivaPay28/186 PASS. Fincode143/1298 PASS. Total focused246 tests/2172 assertions across isolated runs. Final Required CI results follow in the Draft PR.
+- No new migrations, OpenAPI/Client/Testkit/Storefront/Admin/dependency/ENV/Worker changes. No Source merge, Runtime Build/activation, real provider communication, existing payment recovery or Production/LB operation. Existing payment is evidence only, never a test fixture.
+- Draft remains for separate Human merge approval. Required5 and fresh exact-head Strict review are recorded in the PR; technical merge recommendation does not confer Human merge authority. No manual CI rerun. Rollback is a reviewed Source revert; active Runtime unchanged.
