@@ -3,6 +3,7 @@
 namespace App\Domain\Payment\V2\Services;
 
 use App\Domain\Outbox\Services\V2OutboxService;
+use App\Domain\Point\Services\V2PointTransactionRunner;
 use App\Models\V2\OutboxMessage;
 use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
@@ -76,13 +77,13 @@ final class V2PaidyReconciliationService
                 $id = $payment?->provider_payment_id;
                 if ($id === null && $payment !== null) {
                     if ($payment->status === 'requires_action' && V2PaidyDeadline::elapsed($payment)) {
-                        $expired = DB::transaction(function () use ($payment): bool {
+                        $expired = app(V2PointTransactionRunner::class)->run(function () use ($payment): bool {
                             DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
                             $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
                             if ($fresh->status !== 'requires_action' || $this->captureAttempted($fresh) || ! V2PaidyDeadline::elapsed($fresh)) return false;
                             $this->apply($fresh, 'expired');
                             return true;
-                        }, 3);
+                        });
                         if ($expired) { $outbox->markDelivered($message->public_id, $worker); return; }
                     }
                     $outbox->retry($message->public_id, $worker, 'paidy_reference_pending', $this->delay($message->attempts));
@@ -132,14 +133,16 @@ final class V2PaidyReconciliationService
         if ($body === null || $result['state'] === 'uncertain') {
             $this->processing($payment); $this->review($payment); return false;
         }
-        $associated = DB::transaction(function () use ($payment, $id): bool {
+        // Admission belongs to the outer DB transaction, before financial locks.
+        // Keep provider HTTP outside this and every subsequent money transaction.
+        $associated = app(V2PointTransactionRunner::class)->run(function () use ($payment, $id): bool {
             DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['paidy:'.$id]);
             $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
             if (($fresh->provider_payment_id !== null && $fresh->provider_payment_id !== $id)
                 || DB::table('payments')->where('provider_code', 'paidy')->where('provider_payment_id', $id)->where('id', '<>', $fresh->id)->exists()) return false;
             DB::table('payments')->where('id', $fresh->id)->update(['provider_payment_id' => $id]);
             return true;
-        }, 3);
+        });
         if (! $associated) {
             $this->review($payment, 'duplicate_charge'); return false;
         }
@@ -178,7 +181,7 @@ final class V2PaidyReconciliationService
         if ($result['match'] !== 'ok') { $this->review($payment, $result['match']); return false; }
         if ($result['state'] === 'captured') {
             try {
-                return DB::transaction(function () use ($payment, $result): bool {
+                return app(V2PointTransactionRunner::class)->run(function () use ($payment, $result): bool {
                     // Keep the common user -> payment money lock order.
                     DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
                     $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
@@ -197,7 +200,7 @@ final class V2PaidyReconciliationService
                         'payment.succeeded', '{}', [], (int) $fresh->id, providerOccurredAt: $result['occurred_at']);
                     app(V2PaymentService::class)->confirmSucceeded((int) $event->id, 'closed');
                     return true;
-                }, 3);
+                });
             } catch (\Throwable) {
                 $this->review($payment, 'ok', 'capture_grant_failed'); return false;
             }
@@ -238,7 +241,7 @@ final class V2PaidyReconciliationService
 
     private function claimCapture(object $payment, OutboxMessage $message, string $worker, string $operation = 'capture'): bool
     {
-        return DB::transaction(function () use ($payment, $message, $worker, $operation): bool {
+        return app(V2PointTransactionRunner::class)->run(function () use ($payment, $message, $worker, $operation): bool {
             $lease = OutboxMessage::query()->whereKey($message->id)->lockForUpdate()->firstOrFail();
             if ($lease->status !== 'processing' || $lease->locked_by !== $worker || ! $lease->lease_expires_at?->isFuture()) return false;
             $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
@@ -250,7 +253,7 @@ final class V2PaidyReconciliationService
                 ['payment_id' => $fresh->public_id, 'operation' => $operation], 'paidy.operation:'.$fresh->public_id);
             DB::table('outbox_messages')->where('id', $claim->id)->update(['status' => 'delivered', 'delivered_at' => V2DatabaseTimestamp::format(now())]);
             return true;
-        }, 3);
+        });
     }
 
     private function captureAttempted(object $payment): bool

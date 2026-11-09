@@ -7,6 +7,7 @@ use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Exceptions\V2PaymentException;
 use App\Domain\Point\Exceptions\V2PointException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
+use App\Domain\Point\Services\V2PointTransactionRunner;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -21,14 +22,14 @@ final class V2PaidyPaymentService
         $plan = DB::table('point_purchase_plans')->where('public_id', $productId)->first();
         if ($plan === null) throw new V2FincodeException('POINT_PRODUCT_NOT_FOUND', 404, 'The point product was not found.');
         try {
-            $payment = DB::transaction(function () use ($user, $plan, $key): object {
+            $payment = app(V2PointTransactionRunner::class)->run(function () use ($user, $plan, $key): object {
                 $payment = app(V2PaymentService::class)->createPayment((int) $user->id, (int) $plan->id, 'paidy', null, $key, 'paidy', true);
                 if ($payment->status === 'created') {
                     $payment = app(V2PaymentService::class)->applyProviderStartResult((int) $payment->id, 'checkout', 'requires_action', CarbonImmutable::parse($payment->created_at)->addMinutes(60));
                 }
                 app(V2PaidyReconciliationService::class)->enqueuePayment($payment);
                 return $payment;
-            }, 3);
+            });
         } catch (V2PointException|V2PaymentException $exception) {
             throw self::translate($exception);
         }
@@ -73,7 +74,7 @@ final class V2PaidyPaymentService
             throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The Paidy authorization request is invalid.');
         }
         try {
-            DB::transaction(function () use ($user, $payment, $input, $key): void {
+            app(V2PointTransactionRunner::class)->run(function () use ($user, $payment, $input, $key): void {
                 $idempotency = app(V2PointIdempotencyService::class);
                 $claim = $idempotency->claim('payment.paidy.authorize', 'user', $user->public_id, $key, ['payment_id' => $payment->public_id, ...$input]);
                 if (! $claim->replay) {
@@ -81,7 +82,7 @@ final class V2PaidyPaymentService
                     app(V2PaidyReconciliationService::class)->enqueueLookup($input['paidy_payment_id'], $payment->public_id);
                     $idempotency->complete($claim->record, 'payment', $payment->public_id);
                 }
-            }, 3);
+            });
         } catch (V2PointException $exception) { throw self::translate($exception); }
         // Uses exactly the same durable lease as the worker; HTTP is outside transactions.
         app(V2PaidyReconciliationService::class)->runLookup($input['paidy_payment_id'], $payment->public_id);

@@ -16,6 +16,7 @@ use Tests\V2\Fixtures\PaidyFixtures;
 final class ZPaidyConcurrencyTest extends TestCase
 {
     use PaidyFixtures;
+    use \Tests\V2\Fixtures\PaidyFinancialAdmissionFixture;
     protected function tearDown(): void { $this->quiescePaidyFixtureJobs(); \Carbon\Carbon::setTestNow(); \Carbon\CarbonImmutable::setTestNow(); parent::tearDown(); }
     public static function tearDownAfterClass(): void { self::resetPaidyTestDatabase(); parent::tearDownAfterClass(); }
 
@@ -23,6 +24,7 @@ final class ZPaidyConcurrencyTest extends TestCase
     public function test_callback_webhook_and_worker_race_sends_one_capture_and_grants_once(int $minutes): void
     {
         self::assertTrue(function_exists('pcntl_fork'));
+        $this->requirePaidyFinancialAdmission();
         $this->configurePaidy();
         [$user, $payment] = $this->paidyPayment();
         \Carbon\Carbon::setTestNow(now()->addMinutes($minutes));
@@ -48,6 +50,7 @@ final class ZPaidyConcurrencyTest extends TestCase
                 if ($pid === 0) {
                     DB::purge(); DB::reconnect();
                     try {
+                        self::assertSame(1, (int) DB::table('financial_admission_generations')->value('generation'));
                         if ($index % 2 === 0) app(V2PaidyReconciliationService::class)->work(10);
                         else app(V2PaidyPaymentService::class)->authorize(User::query()->findOrFail($user->id), $payment->public_id,
                             ['paidy_payment_id' => $authorized['id']], 'race-'.$index);
