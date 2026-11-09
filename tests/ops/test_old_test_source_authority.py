@@ -63,7 +63,7 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
         return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
     def test_exact_repaired_source_and_no_migration_or_line_change(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"],
                           approval["platform"], approval["image_mode"]),
                          ("PDYRT-20261108", 672, self.SOURCE, "linux/amd64", "api-only"))
@@ -88,7 +88,7 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
         self.assertFalse(any("000107" in path for path in migrations))
 
     def test_formal_contract_and_storefront_binding_are_distinct_from_runtime_source(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))
         authority = approval["authority"]
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
         contract = ledger["latest_immutable"]
@@ -108,7 +108,7 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
             self.assertIn(text, authority)
 
     def test_env_recovery_and_operational_approval_boundaries_are_retained(self):
-        authority = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())["authority"]
+        authority = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))["authority"]
         for text in ("All Paidy ENV keys currently UNSET", "V2_PAIDY_MODE=test",
                      "V2_PAIDY_PUBLIC_KEY", "V2_PAIDY_SECRET_KEY", "V2_PAIDY_STORE_NAME",
                      "V2_PAIDY_WEBHOOK_PATH_TOKEN", "V2_PAIDY_API_BASE_URL=https://api.paidy.com",
@@ -124,6 +124,22 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
                      "Separate Human GO is required", "Worker ON remains a separate decision",
                      "fresh Receipt", "no gate exception or bypass", "NEW Production and LB excluded"):
             self.assertIn(text, authority)
+
+
+class PaidyFinancialFixApprovalTest(unittest.TestCase):
+    def test_exact_financial_fix_only_and_retained_boundaries(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = "4a03489c2e5cdde97c75b6330e5fd65167230833"
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
+                         ("PDYOT-20261109", 674, source, "linux/amd64", "api-only"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "3bbe04f7fc80ac0368004912401702872e03c54c")
+        changed = git("diff", "--name-only", "c130546656a7c1925030775b1da91843e57cda5f", source, "--", "apps/api/app", "apps/api/config", "apps/api/routes", "apps/api/database", "apps/api/composer.lock", "openapi", "packages", "apps/admin").splitlines()
+        self.assertEqual(changed, ["apps/api/app/Domain/Payment/V2/Services/V2PaidyPaymentService.php", "apps/api/app/Domain/Payment/V2/Services/V2PaidyReconciliationService.php"])
+        for text in ("72ea9dd66e680523c1f8837a6f927faee59e60ae", "V2_PAIDY_WORKER_ENABLED=false", "Build ID d2xGalO1yuu26GyywPPSu", "Artifact13566710138 Run42352571854", "Client/Testkit alpha.51", "Public/Admin/Webhook alpha.47", "Site Schema alpha.23", "Ledger106 unchanged", "all five existing Timers", "Runtime switch remains NOT authorized", "TTL300 Receipt", "no gate exception or bypass", "NEW Production and LB excluded"):
+            self.assertIn(text, approval["authority"])
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
