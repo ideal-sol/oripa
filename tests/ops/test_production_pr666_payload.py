@@ -14,10 +14,36 @@ H = M['LIMITED']
 
 
 class ProductionLimitedPayloadTest(unittest.TestCase):
+    def test_paidy_candidate_preserves_production_api_scope(self):
+        source = '4a03489c2e5cdde97c75b6330e5fd65167230833'
+        old = H['SOURCE']
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        payload = Path(temporary.name) / 'payload'
+        subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout', str(ROOT), str(payload)], check=True)
+        spec = H['specification'](ROOT)
+        M['git'](payload, 'checkout', '-q', '--detach', spec['base_sha'])
+        H['materialize'](ROOT, payload, {'composition': spec, 'source_sha': old,
+                          'change_id': H['CHANGE'], 'pr_number': 666,
+                          'source_tree': spec['source_tree']})
+        def git(repository, *args):
+            return M['git'](payload, *args)
+        allowed = set()
+        for revision in ('417b5558', 'c1305466', '4a03489c', 'a6affd68'):
+            allowed.update(git(ROOT, 'diff-tree', '--no-commit-id', '--name-only', '-r', revision, '--', 'apps/api').splitlines())
+        actual = set(git(ROOT, 'diff', '--name-only', old, source, '--', 'apps/api').splitlines())
+        self.assertEqual(len(actual), 20)
+        self.assertEqual(actual - allowed, set())
+        self.assertEqual(git(ROOT, 'diff', '--name-only', old, source, '--',
+                             'apps/api/database', 'infra/docker', '.dockerignore'), '')
+        for path, blobs in H['specification'](ROOT)['files'].items():
+            self.assertEqual(git(ROOT, 'rev-parse', source + ':' + path), blobs['after'])
+            self.assertEqual(git(ROOT, 'rev-parse', old + ':' + path), blobs['after'])
+
     def setUp(self):
         self.spec = H['specification'](ROOT)
         self.head = M['git'](ROOT, 'rev-parse', 'HEAD')
-        self.authority = json.loads((ROOT / M['AUTHORITY_PATH']).read_text())
+        self.authority = json.loads(M['git'](ROOT, 'show', '8eadec09a187e3f220dc09d36e9a14b98511931b:' + M['AUTHORITY_PATH']))
         self.bad = None
 
     def get(self, path):
