@@ -131,7 +131,7 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
 
 class PaidyFinancialFixApprovalTest(unittest.TestCase):
     def test_exact_financial_fix_only_and_retained_boundaries(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "58061839e513804252b723fef1cf6c2ea71ba4f9:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         source = "4a03489c2e5cdde97c75b6330e5fd65167230833"
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
                          ("PDYOT-20261109", 674, source, "linux/amd64", "api-only"))
@@ -142,6 +142,26 @@ class PaidyFinancialFixApprovalTest(unittest.TestCase):
         changed = git("diff", "--name-only", "c130546656a7c1925030775b1da91843e57cda5f", source, "--", "apps/api/app", "apps/api/config", "apps/api/routes", "apps/api/database", "apps/api/composer.lock", "openapi", "packages", "apps/admin").splitlines()
         self.assertEqual(changed, ["apps/api/app/Domain/Payment/V2/Services/V2PaidyPaymentService.php", "apps/api/app/Domain/Payment/V2/Services/V2PaidyReconciliationService.php"])
         for text in ("72ea9dd66e680523c1f8837a6f927faee59e60ae", "V2_PAIDY_WORKER_ENABLED=false", "Build ID d2xGalO1yuu26GyywPPSu", "Artifact13566710138 Run42352571854", "Client/Testkit alpha.51", "Public/Admin/Webhook alpha.47", "Site Schema alpha.23", "Ledger106 unchanged", "all five existing Timers", "Runtime switch remains NOT authorized", "TTL300 Receipt", "no gate exception or bypass", "NEW Production and LB excluded"):
+            self.assertIn(text, approval["authority"])
+
+
+class LineAlpha52IntegratedApprovalTest(unittest.TestCase):
+    def test_exact_integrated_source_and_forward_only_preparation(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = "5bc7a904a04522334d2a28b413bb84ac6f0332cf"
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
+                         ("OLDTEST-LINE-ALPHA52", 677, source, "linux/amd64", "normal"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "7d9108e3ed2a67ab9d6e9c6c038f9d58afdea695")
+        self.assertNotEqual(source, "8d56c5e1d450e4bc9ee07c1c97886aad054c02ee")
+        before = "4a03489c2e5cdde97c75b6330e5fd65167230833"
+        changed = git("diff", "--name-only", before, source, "--", "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual([p for p in changed if p.endswith(".php")], ["apps/api/database/migrations-v2/2026_11_05_000107_add_v2_line_subject_vault.php"])
+        for path in ("apps/api/composer.lock", "apps/api/app/Domain/Payment/V2/Services/V2PaidyPaymentService.php", "apps/api/app/Domain/Payment/V2/Services/V2PaidyReconciliationService.php"):
+            self.assertEqual(git("diff", before, source, "--", path), "")
+        for text in ("Storefront PR233 Source 48a6db137645500b4f1f06033e41ee29eba56b0e", "Artifact13742019147 Run42772928571", "Client/Testkit alpha.52", "Public alpha.48", "Admin/Webhook alpha.47", "Site Schema alpha.23", "GTM OFF", "forward-only", "Ledger106 to107", "separate Human Exact Runtime GO", "TTL300 receipt", "NEW Production and LB excluded"):
             self.assertIn(text, approval["authority"])
 
 
@@ -415,7 +435,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "api-only")
+            self.assertEqual(result["image_mode"], "normal")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]

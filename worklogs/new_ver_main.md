@@ -13557,3 +13557,14 @@ Source107 operational migration and Admin663 deployment/screens remain separate.
 REL-052 reconciliation HOLD: preflight of the existing Canonical PR CI plan requires ARM64 API/Admin/Agency image verification builds and DB integration images even though application/dependency/migration/contract deltas are NONE. Human explicitly prohibits additional Docker image builds in this task. No PR/CI was started, no Gate changed, no image built. Prepared metadata branch is reviewable; Human must allow only existing Required-CI automatic image verification builds or specify an already approved compatible Canonical path. Formal artifact/readback are PASS and immutable; no same-version rebuild/republication. Release Lock remains held through reconciliation.
 
 REL-052 CI continuation: Human permits only standard Required-CI automatic Docker verification/package/load/upload, with Runtime still none. PR677 first head b99a65d3 quality failed because a historical Paidy approval test bound latest_immutable instead of its exact alpha51 record. Select immutable51 explicitly, retaining every Artifact/Source/digest assertion; no runtime authority or Gate change. Affected Paidy approval tests PASS. Final-head automatic CI and fresh review tracked in PR677; no manual rerun, Artifact rebuild or Runtime operation.
+
+
+## OLDTEST-LINE-ALPHA52 — integrated OLD Test preparation authority
+
+- Risk R3; Lane Strict Change; Application Runtime Activation deferred; Issue none.
+- Human authorizes one metadata PR and formal AMD64 API/Admin Build from integrated PR677 Merge Source `5bc7a904a04522334d2a28b413bb84ac6f0332cf`; Control is the actual metadata Squash SHA.
+- Storefront PR233 `48a6db137645500b4f1f06033e41ee29eba56b0e`; formal Contract Artifact13742019147 alpha.52 reused; GTM OFF.
+- Prepare only forward-only Migration107; operational Migration and Runtime activation remain deferred to separate Exact Runtime GO.
+- Existing Paidy/UnivaPay, workers, five timers and Recovery are preserved. No private configuration or infrastructure evidence is committed.
+- Existing Source CI, reviewed-tree and release evidence reused. Required five checks, fresh Strict self-review and canonical App Squash Merge remain mandatory. No bypass, application Source change or Contract re-release.
+- Bounded CI blocker in the same PR: register the exact Human-named `OLDTEST-LINE-ALPHA52` identifier in the existing Task ID allowlist. The first automatic policy gate rejected that unregistered name. All metadata, Required Checks, security and activation conditions remain enforced; no manual CI rerun.
