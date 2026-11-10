@@ -276,7 +276,7 @@ final class MemberRankAccountingTest extends TestCase
         $user = $this->rankUser();
         $points = app(V2PointService::class);
         $points->grantFree($user->id, 500, (string) Str::uuid7());
-        $points->grantLineFriendReward($user->id, 1, (string) Str::uuid7(), 500, now());
+        $points->grantLineFriendReward($user->id, 1, (string) Str::uuid7(), 500, now(), 180);
         $points->grantReferralReward($user->id, 1, (string) Str::uuid7(), 'referred', 500, now());
         $points->grantPrizeExchange($user->id, 1, (string) Str::uuid7(), 500, now());
         $admin = $this->rankAdmin();

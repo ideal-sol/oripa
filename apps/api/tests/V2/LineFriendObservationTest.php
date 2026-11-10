@@ -95,11 +95,15 @@ final class LineFriendObservationTest extends TestCase
         self::assertNull(DB::table('line_friendships')->value('point_operation_id'));
         self::assertSame(0, DB::table('audit_logs')->where('action_code', 'line.friend.reward.skipped')->count());
         self::assertNull($read->presentation($user)['secondary_action']);
-        DB::table('line_messaging_settings')->where('id', 1)->update(['reward_enabled' => true, 'reward_point_amount' => 500]);
+        DB::table('line_messaging_settings')->where('id', 1)->update([
+            'reward_enabled' => true, 'reward_point_amount' => 500, 'reward_expiration_days' => 60,
+        ]);
         self::assertSame('start_friendship_recheck', $read->presentation($user)['secondary_action']['code']);
         self::assertNull($service->applyObservation($subject, $user, true, $at->addDay(), $request));
         $operation = DB::table('line_friendships')->value('point_operation_id');
         self::assertNotNull($operation);
+        $lot = \App\Models\V2\PointLot::query()->where('grant_operation_id', $operation)->sole();
+        self::assertTrue($lot->granted_at->copy()->addDays(60)->equalTo($lot->expire_at));
         self::assertTrue($read->presentation($user)['reward']['granted']);
         self::assertNull($read->presentation($user)['secondary_action']);
         self::assertNull($service->applyObservation($subject, $user, true, $at->addDays(2), $request));

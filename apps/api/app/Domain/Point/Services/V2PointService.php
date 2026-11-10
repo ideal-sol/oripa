@@ -151,7 +151,8 @@ final class V2PointService
         int $friendshipId,
         string $friendshipPublicId,
         int $amount,
-        CarbonInterface $occurredAt
+        CarbonInterface $occurredAt,
+        int $expirationDays
     ): ?PointOperation {
         if ($amount === 0) {
             return null;
@@ -163,11 +164,13 @@ final class V2PointService
             || ! Str::isUuid($friendshipPublicId)
             || $amount < 1
             || $amount > self::MAX_LINE_FRIEND_REWARD_AMOUNT
+            || $expirationDays < 1
+            || $expirationDays > 3650
         ) {
             throw new V2PointException('LINE friend reward input is invalid.');
         }
         $occurred = CarbonImmutable::instance($occurredAt)->startOfSecond();
-        $expiry = $this->expiryPolicy->expiresAt($occurred);
+        $expiry = $occurred->addDays($expirationDays);
         $businessKey = 'line.friend_reward:'.$friendshipPublicId;
         $existing = PointOperation::query()
             ->where('business_key', $businessKey)
