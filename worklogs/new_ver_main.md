@@ -13567,3 +13567,4 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 - Prepare only forward-only Migration107; operational Migration and Runtime activation remain deferred to separate Exact Runtime GO.
 - Existing Paidy/UnivaPay, workers, five timers and Recovery are preserved. No private configuration or infrastructure evidence is committed.
 - Existing Source CI, reviewed-tree and release evidence reused. Required five checks, fresh Strict self-review and canonical App Squash Merge remain mandatory. No bypass, application Source change or Contract re-release.
+- Bounded CI blocker in the same PR: register the exact Human-named `OLDTEST-LINE-ALPHA52` identifier in the existing Task ID allowlist. The first automatic policy gate rejected that unregistered name. All metadata, Required Checks, security and activation conditions remain enforced; no manual CI rerun.
