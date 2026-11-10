@@ -10,6 +10,7 @@ use App\Domain\Identity\Services\V2SessionPolicy;
 use App\Domain\Line\Contracts\V2LineMessagingTransport;
 use App\Domain\Line\Services\V2LineMessagingHttpTransport;
 use App\Domain\Line\ValueObjects\V2LineReplyResult;
+use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\ExternalIdentityAccount;
 use App\Models\V2\LineFriendship;
 use App\Models\V2\LineMessagingSetting;
@@ -454,7 +455,7 @@ final class LineMessagingVerticalSliceTest extends TestCase
         self::assertSame(1, PointLedgerEntry::query()->count());
         $lot = PointLot::query()->sole();
         self::assertEquals(
-            180,
+            30,
             $lot->granted_at->startOfDay()->diffInDays($lot->expire_at->startOfDay())
         );
         self::assertSame('sent', LineWebhookEvent::query()->sole()->reply_status);
@@ -490,6 +491,46 @@ final class LineMessagingVerticalSliceTest extends TestCase
             $this->messaging->sent[2]
         );
         self::assertSame('pending', LinePendingFollow::query()->sole()->status);
+    }
+
+    public function test_line_reward_uses_current_setting_without_changing_existing_lots_or_other_grants(): void
+    {
+        LineMessagingSetting::query()->whereKey(1)->update([
+            'reward_enabled' => true,
+            'reward_point_amount' => 500,
+            'reward_expiration_days' => 60,
+        ]);
+        $first = $this->user('line-expiry-first@example.test');
+        $this->lineAccount($first, 'expiry-first-subject');
+        $firstEvent = $this->followEvent('expiry-first-event', 'expiry-first-subject', 'expiry-first-reply');
+        $this->postWebhook($firstEvent)->assertOk();
+        $firstLot = PointLot::query()->where('user_id', $first->id)->sole();
+        self::assertSame(500, $firstLot->granted_amount);
+        self::assertTrue($firstLot->granted_at->copy()->addDays(60)->equalTo($firstLot->expire_at));
+        $originalExpiry = $firstLot->expire_at->toISOString();
+
+        LineMessagingSetting::query()->whereKey(1)->update(['reward_expiration_days' => 90]);
+        $second = $this->user('line-expiry-second@example.test');
+        $this->lineAccount($second, 'expiry-second-subject');
+        $this->postWebhook($this->followEvent('expiry-second-event', 'expiry-second-subject', 'expiry-second-reply'))
+            ->assertOk();
+        $secondLot = PointLot::query()->where('user_id', $second->id)->sole();
+        self::assertTrue($secondLot->granted_at->copy()->addDays(90)->equalTo($secondLot->expire_at));
+
+        // Redelivery and a later follow must neither grant again nor rewrite expiry.
+        $this->postWebhook($firstEvent)->assertOk();
+        $this->postWebhook(array_replace($this->followEvent(
+            'expiry-first-refollow', 'expiry-first-subject', 'expiry-first-refollow-reply'
+        ), ['timestamp' => now()->addSecond()->getTimestampMs()]))->assertOk();
+        self::assertSame($originalExpiry, $firstLot->fresh()->expire_at->toISOString());
+        self::assertSame(2, PointOperation::query()->where('source_type', 'line_friend')->count());
+        self::assertSame(2, PointLedgerEntry::query()->count());
+        self::assertSame(500, Wallet::query()->where('user_id', $first->id)->sole()->free_balance);
+
+        $ordinary = $this->user('ordinary-free-expiry@example.test');
+        app(V2PointService::class)->grantFree($ordinary->id, 100, (string) Str::uuid7());
+        $ordinaryLot = PointLot::query()->where('user_id', $ordinary->id)->sole();
+        self::assertTrue($ordinaryLot->granted_at->copy()->addDays(180)->equalTo($ordinaryLot->expire_at));
     }
 
     public function test_invalid_signature_and_reward_failure_never_send_completion_reply(): void

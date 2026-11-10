@@ -476,7 +476,8 @@ final class V2LineFriendService
             (int) $friendship->getKey(),
             $friendship->public_id,
             $amount,
-            $occurredAt
+            $occurredAt,
+            (int) $setting->reward_expiration_days
         );
         if ($operation === null) {
             throw new V2LineMessagingException(

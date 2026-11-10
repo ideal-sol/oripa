@@ -13568,3 +13568,14 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 - Existing Paidy/UnivaPay, workers, five timers and Recovery are preserved. No private configuration or infrastructure evidence is committed.
 - Existing Source CI, reviewed-tree and release evidence reused. Required five checks, fresh Strict self-review and canonical App Squash Merge remain mandatory. No bypass, application Source change or Contract re-release.
 - Bounded CI blocker in the same PR: register the exact Human-named `OLDTEST-LINE-ALPHA52` identifier in the existing Task ID allowlist. The first automatic policy gate rejected that unregistered name. All metadata, Required Checks, security and activation conditions remain enforced; no manual CI rerun.
+
+
+## LINEEXPIRY-20261110 — honor configured LINE friend reward expiry
+
+- Issue none; Risk R3; Lane Strict Change; Application Runtime Activation deferred.
+- Human fixes LINE friend reward expiry to the Admin-managed `reward_expiration_days`; the current 60-day setting is data, never a Source constant. Later settings affect only new grants; existing lots retain their recorded expiry.
+- The locked LINE setting is passed explicitly to `V2PointService::grantLineFriendReward`. Only LINE expiry arithmetic changes; the common 180-day policy, other rewards, paid points, financial admission, lock order, event/business-key deduplication and ledger writes are retained.
+- Focused isolated PostgreSQL/PHP8.4 verification: before-fix new 60-day regression fails as expected; after-fix LINE webhook/expiry13 tests161 assertions and related observation/login/concurrency/accounting/point71 tests582 assertions PASS (84/743 total). Source dependencies use the unchanged committed Composer Lock; no Runtime Build.
+- Coverage includes 60-day expiry, Admin setting change to90days for a new recipient, unchanged prior expiry on redelivery/refollow, one grant/ledger, browser friendship observation, forked API/Webhook concurrency and unchanged ordinary free180days/paid-point behavior.
+- No Migration, OpenAPI, Client/Testkit, Admin or Storefront change. Formal alpha.52 Contract and completed Storefront Build remain reusable. Source Merge and formal API Artifact Build require later Human approval; an old API Artifact cannot represent this fix.
+- Draft-only stop: Required5/5 and exact final-head Strict self-review are recorded in the PR after completion. No ready/merge authorization, operational migration, provider action, Runtime switch or coin adjustment.
