@@ -49,6 +49,8 @@ class PaidyAlpha51CandidateTest(unittest.TestCase):
     def test_released_alpha51_retains_exact_publication_and_blocks_reissue(self):
         value = ARTIFACT['governance'](ROOT)
         value['candidate'] = None
+        value['immutable_history'] = value['immutable_history'][:31]
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         ARTIFACT['validate_governance'](value)
         self.assertIsNone(value['candidate'])
         self.assertEqual(len(value['immutable_history']), 31)

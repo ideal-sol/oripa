@@ -13523,3 +13523,37 @@ Human authorizes Source Merge only, Strict Change/R3/Activation deferred. Integr
 Focused PASS: release109, Policy348, OpenAPI83 unaffected plus corrected Paidy3, Client47/Testkit55 with generated/type/lint/build/export/network checks; local source policy and candidate validation PASS. Historical fixtures now validate exact formal51 Source, retaining no-reissue assertions. Initial stale fixture/parallel generation failures corrected before final validation. Local package builds2; application image Build0; runtime/operational migration/publication0. Migration107 unchanged from previously tested cast/forward-only fix; final canonical CI verifies integrated dependency/DB behavior. No new migration number.
 
 Final HEAD, Required5, Strict fresh review, merge/tree identity and cleanup evidence belong to PR665. Handoff in external-identity README requires API and Admin build/deployment/screen checks, template edits phone_changed/account_closure_payment/account_closure_code, approved LINE configuration and migration107 through Canonical release. Real provider/browser/deployed UI acceptance is not executed here. No Ready/Merge until final gates PASS; no Runtime/ENV/real DB/Artifact operation authorized. Original checkout and other tasks preserved.
+
+## REL-052 — LINE alpha.52 formal publication
+
+R3 / Strict Change / Application Runtime Activation none; Issue none.
+Source PR665 squash8d56c5e1d450e4bc9ee07c1c97886aad054c02ee.
+Canonical publication authorize/publish/readback and independent readback PASS.
+- artifact_id: `13742019147`
+- artifact_name: `oripa-storefront-contract-2.0.0-alpha.52`
+- workflow_run_id: `42772928571`
+- outer_sha256: `c08147d9dacc5c78c4edd7f548c3ad66fca9affbed432b47cb216609150cb4dd`
+- source_commit: `8d56c5e1d450e4bc9ee07c1c97886aad054c02ee`
+- artifact_version: `2.0.0-alpha.52`
+- manifest_sha256: `72bd3b18fb36bac68b948e4f936a7b64fce03cc1de95df1b3eedc826e54cee54`
+- sha256sums_sha256: `f5574339a423a75eeaacd73bd702071217dd89438a16fad4ec01f2611e4bdef0`
+- public_openapi_sha256: `74101c0195be55d8ad63be342e009814d958d4160eb3d1bd75686965765b8c9a`
+- client_sha256: `1f436091bc3c2a7dbb284a1275d61a053bb372d7134ef425f14427691c330341`
+- testkit_sha256: `c154643dc017a861a451baf0f7c3ec223aa5be21ecf54109bad925b2fa8e5f5d`
+- workflow_run_attempt: `1`
+- workflow_url: `https://github.com/ideal-sol/oripa/actions/runs/42772928571`
+
+Client/Testkit52, Public48, Admin/Webhook47, referenced immutable Site Schema23;
+contract-additive, breaking_change=false. Append actual measured record52,
+latest_immutable52/candidate=null; preserve all31 predecessors unchanged.
+No Source/package/code/contract/security exception changes. Never rebuild or
+overwrite this version. Release Metadata PR requires its own Required5 and
+Strict Fresh Self-review. Artifact Release Lock held through reconciliation.
+Runtime/ENV/Secret/Worker/Timer/real DB/Docker image changes0. Local Build0;
+publication dispatch1/attempt1. OLD Test adoption uses the exact Artifact ID,
+outer and inner digests and separate API/Admin release authority and acceptance.
+Source107 operational migration and Admin663 deployment/screens remain separate.
+
+REL-052 reconciliation HOLD: preflight of the existing Canonical PR CI plan requires ARM64 API/Admin/Agency image verification builds and DB integration images even though application/dependency/migration/contract deltas are NONE. Human explicitly prohibits additional Docker image builds in this task. No PR/CI was started, no Gate changed, no image built. Prepared metadata branch is reviewable; Human must allow only existing Required-CI automatic image verification builds or specify an already approved compatible Canonical path. Formal artifact/readback are PASS and immutable; no same-version rebuild/republication. Release Lock remains held through reconciliation.
+
+REL-052 CI continuation: Human permits only standard Required-CI automatic Docker verification/package/load/upload, with Runtime still none. PR677 first head b99a65d3 quality failed because a historical Paidy approval test bound latest_immutable instead of its exact alpha51 record. Select immutable51 explicitly, retaining every Artifact/Source/digest assertion; no runtime authority or Gate change. Affected Paidy approval tests PASS. Final-head automatic CI and fresh review tracked in PR677; no manual rerun, Artifact rebuild or Runtime operation.

@@ -669,3 +669,33 @@ No Storefront integration/pin/PR, PR #139 mutation, OLD Test deployment, runtime
 activation, migration execution, Production or NEW operation is performed.
 Rollback requires a reviewed metadata correction or new-version source change;
 it must not rewrite the published Artifact or immutable predecessor records.
+
+## REL-052 — LINE alpha.52 formal publication
+
+R3 / Strict Change / Application Runtime Activation none; Issue none.
+Source PR665 squash8d56c5e1d450e4bc9ee07c1c97886aad054c02ee.
+Canonical publication authorize/publish/readback and independent readback PASS.
+- artifact_id: `13742019147`
+- artifact_name: `oripa-storefront-contract-2.0.0-alpha.52`
+- workflow_run_id: `42772928571`
+- outer_sha256: `c08147d9dacc5c78c4edd7f548c3ad66fca9affbed432b47cb216609150cb4dd`
+- source_commit: `8d56c5e1d450e4bc9ee07c1c97886aad054c02ee`
+- artifact_version: `2.0.0-alpha.52`
+- manifest_sha256: `72bd3b18fb36bac68b948e4f936a7b64fce03cc1de95df1b3eedc826e54cee54`
+- sha256sums_sha256: `f5574339a423a75eeaacd73bd702071217dd89438a16fad4ec01f2611e4bdef0`
+- public_openapi_sha256: `74101c0195be55d8ad63be342e009814d958d4160eb3d1bd75686965765b8c9a`
+- client_sha256: `1f436091bc3c2a7dbb284a1275d61a053bb372d7134ef425f14427691c330341`
+- testkit_sha256: `c154643dc017a861a451baf0f7c3ec223aa5be21ecf54109bad925b2fa8e5f5d`
+- workflow_run_attempt: `1`
+- workflow_url: `https://github.com/ideal-sol/oripa/actions/runs/42772928571`
+
+Client/Testkit52, Public48, Admin/Webhook47, referenced immutable Site Schema23;
+contract-additive, breaking_change=false. Append actual measured record52,
+latest_immutable52/candidate=null; preserve all31 predecessors unchanged.
+No Source/package/code/contract/security exception changes. Never rebuild or
+overwrite this version. Release Metadata PR requires its own Required5 and
+Strict Fresh Self-review. Artifact Release Lock held through reconciliation.
+Runtime/ENV/Secret/Worker/Timer/real DB/Docker image changes0. Local Build0;
+publication dispatch1/attempt1. OLD Test adoption uses the exact Artifact ID,
+outer and inner digests and separate API/Admin release authority and acceptance.
+Source107 operational migration and Admin663 deployment/screens remain separate.
