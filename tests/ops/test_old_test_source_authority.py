@@ -147,7 +147,7 @@ class PaidyFinancialFixApprovalTest(unittest.TestCase):
 
 class LineAlpha52IntegratedApprovalTest(unittest.TestCase):
     def test_exact_integrated_source_and_forward_only_preparation(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "1c96916a9320e258548a59612fba83963b0876d6:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         source = "5bc7a904a04522334d2a28b413bb84ac6f0332cf"
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
                          ("OLDTEST-LINE-ALPHA52", 677, source, "linux/amd64", "normal"))
@@ -162,6 +162,28 @@ class LineAlpha52IntegratedApprovalTest(unittest.TestCase):
         for path in ("apps/api/composer.lock", "apps/api/app/Domain/Payment/V2/Services/V2PaidyPaymentService.php", "apps/api/app/Domain/Payment/V2/Services/V2PaidyReconciliationService.php"):
             self.assertEqual(git("diff", before, source, "--", path), "")
         for text in ("Storefront PR233 Source 48a6db137645500b4f1f06033e41ee29eba56b0e", "Artifact13742019147 Run42772928571", "Client/Testkit alpha.52", "Public alpha.48", "Admin/Webhook alpha.47", "Site Schema alpha.23", "GTM OFF", "forward-only", "Ledger106 to107", "separate Human Exact Runtime GO", "TTL300 receipt", "NEW Production and LB excluded"):
+            self.assertIn(text, approval["authority"])
+
+
+class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
+    def test_exact_pr679_source_retains_contract_and_limits_product_change(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = "64fbfaf5746ae9c677c52129882509a8f130e94c"
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
+                         ("OLDTEST-LINE-ALPHA52", 679, source, "linux/amd64", "normal"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "319955fbf9d1a8fbf343060af115f49467182a7e")
+        product = git("diff", "--name-only", "5bc7a904a04522334d2a28b413bb84ac6f0332cf", source,
+                      "--", "apps/api/app", "apps/api/config", "apps/api/routes", "apps/api/database", "apps/api/composer.lock", "apps/admin", "openapi", "packages").splitlines()
+        self.assertEqual(product, ["apps/api/app/Domain/Line/Services/V2LineFriendService.php",
+                                   "apps/api/app/Domain/Point/Services/V2PointService.php"])
+        for text in ("enabled500coins/60days/revision5", "common180days", "existing Lots unchanged", "Client/Testkit alpha.52",
+                     "Artifact13742019147 Run42772928571", "Build ejuSzqh83dbcvVX29f4FK", "No alpha.53",
+                     "Ledger106 to107", "forward-only", "Fresh full verified backup", "TTL300 Receipt",
+                     "EmailScope OFF/FriendshipCheck ON/BotPrompt normal", "POST-only", "separate Human Exact Runtime GO",
+                     "Runtime switch, live Nginx change and real Migration remain NOT authorized", "NEW Production and LB excluded"):
             self.assertIn(text, approval["authority"])
 
 
