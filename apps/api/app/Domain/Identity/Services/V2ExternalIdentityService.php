@@ -120,6 +120,9 @@ final class V2ExternalIdentityService
             $sessionHash = (string) $session->getKey();
         }
 
+        $lineConfiguration = app(\App\Domain\Line\Services\V2LineConfiguration::class);
+        $lineRevision = $provider->code() === 'line' ? $lineConfiguration->loginRevision() : null;
+        $lineBot = $provider->code() === 'line' ? $lineConfiguration->currentBot() : null;
         $state = $this->tokens->generate();
         $nonce = $this->tokens->generate();
         $verifier = $this->pkceVerifier();
@@ -145,6 +148,9 @@ final class V2ExternalIdentityService
         );
         ExternalIdentityTransaction::query()->create([
             'provider' => $provider->code(),
+            'line_login_revision' => $lineRevision,
+            'line_bot_id' => $lineBot?->id,
+            'line_bot_revision' => $lineBot?->revision,
             'purpose' => $purpose,
             'state_hash' => $this->tokens->hash($state),
             'nonce_hash' => $this->tokens->hash($nonce),
@@ -231,6 +237,15 @@ final class V2ExternalIdentityService
                 $request
             );
             $claimedTransactionId = $claimed['transaction']->getKey();
+            if ($providerCode === 'line') {
+                $configuration = app(\App\Domain\Line\Services\V2LineConfiguration::class);
+                $bot = $configuration->currentBot();
+                $transaction = $claimed['transaction'];
+                if ($transaction->line_bot_id === null || (int) ($transaction->line_login_revision ?? 1) !== $configuration->loginRevision()
+                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->revision))) {
+                    throw new V2OidcProtocolException('provider_configuration_changed');
+                }
+            }
             $identity = $provider->verifyAuthorizationCode(
                 $authorizationCode,
                 $claimed['verifier'],
@@ -256,7 +271,7 @@ final class V2ExternalIdentityService
                     $result['line_result'] = 'friendship_check_failed';
                     return $result;
                 }
-                $result['line_result'] = $this->lineFriends->applyObservation($identity->subject, $result['user'], $flag, $observedAt, $claimed['transaction']->request_id);
+                $result['line_result'] = $this->lineFriends->applyObservation($identity->subject, $result['user'], $flag, $observedAt, $claimed['transaction']->request_id, $claimed['transaction']->line_bot_id, $claimed['transaction']->line_login_revision, $claimed['transaction']->line_bot_revision);
             }
             return $result;
         } catch (V2OidcProtocolException $exception) {
@@ -606,6 +621,14 @@ final class V2ExternalIdentityService
                 ->where('status', 'processing')
                 ->lockForUpdate()
                 ->firstOrFail();
+            if ($provider->code() === 'line') {
+                $configuration = app(\App\Domain\Line\Services\V2LineConfiguration::class);
+                $bot = $configuration->currentBot();
+                if ($transaction->line_bot_id === null || (int) ($transaction->line_login_revision ?? 1) !== $configuration->loginRevision()
+                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->revision))) {
+                    throw new V2OidcProtocolException('provider_configuration_changed');
+                }
+            }
             $hashInput = $provider->code().'|'.$identity->issuer.'|'.$identity->subject;
             $subjectHashes = $provider->code() === 'line' ? $this->correlation->hashes($hashInput) : [$this->correlation->hash($hashInput)];
             $subjectHash = $provider->code() === 'line'

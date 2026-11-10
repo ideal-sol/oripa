@@ -1,3 +1,4 @@
+import type { LineBot, LineBotCollection, LineBotInput, LineBotUpdate, LineLoginSetting, LineLoginSettingInput } from "./generated";
 import type { AdminShippingMinimumPointSettingResponse, AdminShippingMinimumPointSettingUpdate, AdminShippingMinimumPointSettingMutationResult } from "./generated";
 import {
   ADMIN_API_BASE_PATH,
@@ -924,6 +925,25 @@ export class AdminApiClient {
       { cursor, end_date: endDate, limit: 50, start_date: startDate },
       signal,
     );
+  }
+
+  getLineBots(): Promise<LineBotCollection> {
+    return this.request("GET", "/line-bots", {});
+  }
+  getLineLoginSetting(): Promise<LineLoginSetting> {
+    return this.request("GET", "/settings/line-login", {});
+  }
+  updateLineLoginSetting(body: LineLoginSettingInput, idempotencyKey: string): Promise<LineLoginSetting> {
+    return this.request("PUT", "/settings/line-login", {body, idempotencyKey});
+  }
+  createLineBot(body: LineBotInput, idempotencyKey: string): Promise<LineBot> {
+    return this.request("POST", "/line-bots", {body, idempotencyKey});
+  }
+  updateLineBot(id: string, body: LineBotUpdate, idempotencyKey: string): Promise<LineBot> {
+    return this.request("PUT", `/line-bots/${encodeURIComponent(id)}`, {body, idempotencyKey});
+  }
+  lineBotAction(id: string, operation: "connection" | "activation" | "quota" | "followers", expectedRevision: number, idempotencyKey: string): Promise<LineBot> {
+    return this.request("POST", `/line-bots/${encodeURIComponent(id)}/${operation}`, {body: {expected_revision: expectedRevision}, idempotencyKey});
   }
 
   getLineMessagingSetting(
@@ -3352,6 +3372,8 @@ export class AdminApiClient {
   private async request<T>(
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
+      | `/line-bots${string}`
+      | "/settings/line-login"
       | `/auth/${string}`
       | `/agencies${string}`
       | `/banner-management/${string}`
@@ -3384,6 +3406,8 @@ export class AdminApiClient {
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
+        !path.startsWith("/line-bots") &&
+        path !== "/settings/line-login" &&
         path !== "/agencies" &&
         !path.startsWith("/agencies?") &&
         !path.startsWith("/agencies/") &&

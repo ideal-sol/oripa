@@ -14,6 +14,9 @@ final class ExternalIdentityTransaction extends Model
     protected $fillable = [
         'public_id',
         'provider',
+        'line_login_revision',
+        'line_bot_id',
+        'line_bot_revision',
         'purpose',
         'state_hash',
         'nonce_hash',

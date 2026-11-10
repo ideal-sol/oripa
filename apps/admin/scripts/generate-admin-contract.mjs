@@ -12,6 +12,15 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminLineLoginSetting: ["get", "/settings/line-login"],
+  updateAdminLineLoginSetting: ["put", "/settings/line-login"],
+  listAdminLineBots: ["get", "/line-bots"],
+  createAdminLineBot: ["post", "/line-bots"],
+  updateAdminLineBot: ["put", "/line-bots/{botId}"],
+  connectionAdminLineBot: ["post", "/line-bots/{botId}/connection"],
+  activationAdminLineBot: ["post", "/line-bots/{botId}/activation"],
+  quotaAdminLineBot: ["post", "/line-bots/{botId}/quota"],
+  followersAdminLineBot: ["post", "/line-bots/{botId}/followers"],
   getAdminShippingMinimumPointSetting: ["get", "/settings/shipping-minimum-points"],
   updateAdminShippingMinimumPointSetting: ["put", "/settings/shipping-minimum-points"],
   getAdminPayment: ["get", "/payments/{paymentId}"],
@@ -810,6 +819,21 @@ function paymentSchemaType(schema) {
 const paymentDeclarations = paymentSchemaNames.map(name => "export type " + name + " = " + paymentSchemaType(schemas[name]) + ";").join("\n");
 
 const b2Declarations = ["AdminB2ShippingExport", "AdminB2ShippingWarning"].map(name => "export type " + name + " = " + paymentSchemaType(schemas[name]) + ";").join("\n");
+
+function lineType(schema) {
+  if (!schema) throw new Error("Missing LINE management schema");
+  if (schema.$ref) return schema.$ref.split("/").at(-1);
+  if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
+  if (Array.isArray(schema.type)) return schema.type.map((type) => lineType({...schema, type})).join(" | ");
+  if (schema.type === "null") return "null";
+  if (schema.type === "array") return "Array<" + lineType(schema.items) + ">";
+  if (schema.type === "object") {
+    if (!schema.properties) return "Record<string, unknown>";
+    return "{ " + Object.entries(schema.properties).map(([key, value]) => JSON.stringify(key) + (schema.required?.includes(key) ? "" : "?") + ": " + lineType(value) + ";").join(" ") + " }";
+  }
+  return schema.type === "integer" || schema.type === "number" ? "number" : schema.type;
+}
+const lineTypes = ["LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
 
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}
@@ -3655,6 +3679,8 @@ export interface AdminCatalogDetail<T> {
 
 export type AdminCatalogVisibility = "all" | "visible" | "hidden";
 export type AdminCatalogDirection = "asc" | "desc";
+
+${lineTypes}
 
 export interface StatusResponse {
   status: string;

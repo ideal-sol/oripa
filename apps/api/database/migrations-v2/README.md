@@ -1,5 +1,16 @@
 # V2 Migration Root
 
+## LINE bot management (000108 reservation)
+
+`LINE-DELIVERY-20261109-D1` reserves
+`2026_11_10_000108_add_v2_line_bot_management.php` under the exclusive shared
+Migration Allocation flock (holder session68057), after reviewing live main
+`b120b8c7bd3f2a7e538546e17da37bded5b11e0f`,81 local/fetched refs, live remote
+heads, open PR path inventories and existing reservations. No competing108
+reservation or LINE DDL change was found through those paths. Apply after107;
+all existing migration files remain immutable. This reservation remains owned
+by D1 through canonical handoff/closeout. Operational application is prohibited.
+
 ## LINE subject vault (000107)
 
 `LINE-LINK-FRIEND-20261105` reserves `2026_11_05_000107_add_v2_line_subject_vault.php`

@@ -168,6 +168,12 @@ Route::prefix('v2')
             ->whereUuid('userId')->name('v2.admin.users.point-adjustments.store');
         Route::get('/identity/line-messaging', [V2AdminLineMessagingController::class, 'show'])
             ->name('v2.admin.identity.line-messaging.show');
+        Route::get('/settings/line-login', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-login.show');
+        Route::put('/settings/line-login', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-login.update');
+        Route::get('/line-bots', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-bots.index');
+        Route::post('/line-bots', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-bots.create');
+        Route::put('/line-bots/{botId}', \App\Http\Controllers\V2\V2AdminLineBotController::class)->whereUuid('botId')->name('v2.admin.line-bots.update');
+        Route::post('/line-bots/{botId}/{operation}', \App\Http\Controllers\V2\V2AdminLineBotController::class)->whereUuid('botId')->whereIn('operation', ['connection', 'activation', 'quota', 'followers'])->name('v2.admin.line-bots.action');
         Route::put('/identity/line-messaging', [V2AdminLineMessagingController::class, 'update'])
             ->name('v2.admin.identity.line-messaging.update');
         Route::post('/identity/line-messaging/preview', [V2AdminLineMessagingController::class, 'preview'])

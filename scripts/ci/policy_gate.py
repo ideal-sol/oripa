@@ -311,6 +311,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_11_04_000105_add_v2_exchange_only_prizes.php",
     "apps/api/database/migrations-v2/2026_11_04_000106_add_v2_banner_model_numbers.php",
     "apps/api/database/migrations-v2/2026_11_05_000107_add_v2_line_subject_vault.php",
+    "apps/api/database/migrations-v2/2026_11_10_000108_add_v2_line_bot_management.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -1147,6 +1148,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/src/components/navigation/breadcrumb.tsx",
     "apps/admin/src/components/navigation/navigation-icon.tsx",
     "apps/admin/src/components/line/line-messaging-settings.tsx",
+    "apps/admin/src/components/line/line-bot-management.tsx",
     "apps/admin/src/components/permissions/permission-gate.tsx",
     "apps/admin/src/components/permissions/permission-provider.tsx",
     "apps/admin/src/components/permissions/protected-admin-route.tsx",
@@ -1176,6 +1178,7 @@ ADMIN_SKELETON_FILES = {
     "apps/admin/test/permissions-navigation.test.tsx",
     "apps/admin/test/qa-management.test.tsx",
     "apps/admin/test/line-messaging-settings.test.tsx",
+    "apps/admin/test/line-bot-management.test.tsx",
     "apps/admin/test/security-shell.test.tsx",
     "apps/admin/test/setup.ts",
     "apps/admin/test/webauthn.test.ts",
@@ -1455,7 +1458,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"OLDTEST-LINE-ALPHA52", "LINE-LINK-FRIEND-20261105", "PAIDY-ALPHA51-20261106", "NEWPROD-PR666-20261105", "OLDTEST-PR666-20261105", "SHIPPING-ASSET-CDN-20261105", "BANNER-MODEL-20261104", "BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022", "GACHA-ELIGIBILITY-G2-20261022"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"LINE-DELIVERY-20261109-D1", "OLDTEST-LINE-ALPHA52", "LINE-LINK-FRIEND-20261105", "PAIDY-ALPHA51-20261106", "NEWPROD-PR666-20261105", "OLDTEST-PR666-20261105", "SHIPPING-ASSET-CDN-20261105", "BANNER-MODEL-20261104", "BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022", "GACHA-ELIGIBILITY-G2-20261022"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -3239,6 +3242,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_11_04_000105_add_v2_exchange_only_prizes.php",
         "2026_11_04_000106_add_v2_banner_model_numbers.php",
         "2026_11_05_000107_add_v2_line_subject_vault.php",
+        "2026_11_10_000108_add_v2_line_bot_management.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

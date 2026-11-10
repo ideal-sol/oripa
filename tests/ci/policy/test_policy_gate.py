@@ -23,6 +23,16 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_line_delivery_d1_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-DELIVERY-20261109-D1"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "LINE-DELIVERY-20261109-D2", "LINE-DELIVERY-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def _validate_admin_with_published_release(self, paths):
         # Admin inventory tests need published authority, independently of the
         # LINE preparation HOLD. Keep the real validators and every assertion.

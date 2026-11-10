@@ -99,6 +99,60 @@ final class LineLoginVerticalSliceTest extends TestCase
         }
     }
 
+    public function test_database_login_credentials_are_used_by_start_and_callback(): void
+    {
+        config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
+        DB::table('line_login_settings')->where('id', 1)->update([
+            'channel_id' => '1234567',
+            'channel_secret_ciphertext' => \Illuminate\Support\Facades\Crypt::encryptString('synthetic-db-login'),
+            'revision' => 2,
+        ]);
+        $started = $this->start('login');
+        self::assertSame('1234567', $started['query']['client_id']);
+        $this->provider->claims($started['query']['nonce'], 'synthetic-db-login-subject', 'db-login@example.test', ['aud' => '1234567']);
+        $result = $this->completeLine($started, 'synthetic-db-code');
+        self::assertSame('line', ExternalIdentityAccount::query()->where('user_id', $result['user']->id)->sole()->provider);
+    }
+
+    public function test_login_or_bot_configuration_change_rejects_pending_callback_without_linking(): void
+    {
+        foreach (['line_login_settings', 'line_bots', 'pre108-unbound'] as $table) {
+            DB::beginTransaction();
+            try {
+                $accountCount = ExternalIdentityAccount::query()->count();
+                $dispatcher = ExternalIdentityTransaction::getEventDispatcher();
+                if ($table === 'pre108-unbound') {
+                    ExternalIdentityTransaction::setEventDispatcher(clone $dispatcher);
+                    ExternalIdentityTransaction::creating(static function ($transaction): void {
+                        $transaction->line_bot_id = null;
+                        $transaction->line_bot_revision = null;
+                        $transaction->line_login_revision = null;
+                    });
+                }
+                try {
+                    $started = $this->start('login');
+                } finally {
+                    ExternalIdentityTransaction::setEventDispatcher($dispatcher);
+                }
+                $this->provider->claims($started['query']['nonce'], 'synthetic-stale-subject');
+                if ($table !== 'pre108-unbound') {
+                    DB::table($table)->update(['revision' => DB::raw('revision + 1')]);
+                }
+                try {
+                    $this->completeLine($started, 'synthetic-stale-code');
+                    self::fail('Changed LINE configuration accepted a stale callback');
+                } catch (V2AuthenticationException $exception) {
+                    self::assertSame('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', $exception->errorCode);
+                }
+                self::assertSame($accountCount, ExternalIdentityAccount::query()->count());
+                self::assertSame('failed', ExternalIdentityTransaction::query()->sole()->status);
+            } finally {
+                DB::rollBack();
+                Cache::store('array')->clear();
+            }
+        }
+    }
+
     public function test_line_login_creates_passwordless_user_only_with_verified_email(): void
     {
         config(['v2_identity.external_identity.line.email_scope_enabled' => true]);

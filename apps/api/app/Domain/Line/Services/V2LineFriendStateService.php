@@ -35,6 +35,7 @@ final class V2LineFriendStateService
             ->where('identity.provider', 'line')
             ->where('identity.issuer', 'https://access.line.me')
             ->whereNull('identity.revoked_at')
+            ->where('friendship.line_bot_id', app(V2LineConfiguration::class)->botId())
             ->where('friendship.status', 'friend')
             ->whereNull('friendship.unfollowed_at')
             ->exists();

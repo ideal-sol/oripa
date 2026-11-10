@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: a52c9dad528a98896cf5bc639e1cf32837087d359c2b5010cb1119bd759ba40b
+// Contract SHA-256: 38fc7a56c232b1e99345036662989adca922e69a216187c0884b100e393c2bc8
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -9,6 +9,8 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.admin.session.revoke",
   "identity.line.read",
   "identity.line.manage",
+  "line.bot.read",
+  "line.bot.manage",
   "user.tag.read",
   "agency.read",
   "agency.manage",
@@ -2948,6 +2950,14 @@ export interface AdminCatalogDetail<T> {
 
 export type AdminCatalogVisibility = "all" | "visible" | "hidden";
 export type AdminCatalogDirection = "asc" | "desc";
+
+export type LineLoginSetting = { "channel_id": string | null; "secret_configured": boolean; "source": "database" | "environment" | "unconfigured"; "revision": number; };
+export type LineLoginSettingInput = { "channel_id": string; "channel_secret": string; "expected_revision": number; };
+export type LineBot = { "id": string; "name": string; "channel_id": string | null; "secret_configured": boolean; "basic_id": string | null; "display_name": string | null; "is_active": boolean; "legacy": boolean; "connection_status": "unconfigured" | "pending" | "succeeded" | "failed"; "connected_at": string | null; "quota_snapshot": Record<string, unknown> | null; "quota_fetched_at": string | null; "followers_snapshot": Record<string, unknown> | null; "followers_fetched_at": string | null; "revision": number; "webhook_path": string; };
+export type LineBotCollection = { "items": Array<LineBot>; };
+export type LineBotInput = { "name": string; "channel_id": string; "channel_secret": string; };
+export type LineBotUpdate = { "name": string; "channel_id": string; "channel_secret"?: string; "expected_revision": number; };
+export type LineBotRevision = { "expected_revision": number; };
 
 export interface StatusResponse {
   status: string;

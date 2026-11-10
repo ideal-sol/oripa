@@ -358,11 +358,11 @@ final class V2LineMessagingSettingService
             'reward_enabled' => (bool) $setting->reward_enabled,
             'reward_point_amount' => (int) $setting->reward_point_amount,
             'reward_expiration_days' => (int) $setting->reward_expiration_days,
-            'friends_count' => LineFriendship::query()
+            'friends_count' => LineFriendship::query()->where('line_bot_id', app(V2LineConfiguration::class)->botId())
                 ->whereNull('superseded_at')
                 ->where('status', 'friend')
                 ->count(),
-            'blocked_count' => LineFriendship::query()
+            'blocked_count' => LineFriendship::query()->where('line_bot_id', app(V2LineConfiguration::class)->botId())
                 ->whereNull('superseded_at')
                 ->where('status', 'unfollowed')
                 ->count(),
