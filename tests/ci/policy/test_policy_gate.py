@@ -1600,8 +1600,11 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.52')
-        value['candidate'] = None
+        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.52')
+        self.assertFalse(value['latest_immutable']['breaking_change'])
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.51')
         self.assertTrue(value['latest_immutable']['breaking_change'])
         self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
