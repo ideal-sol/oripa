@@ -78,7 +78,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE line_friend_observations ADD CONSTRAINT line_observation_time_check CHECK (observed_at_ms >= 0)');
         DB::statement('INSERT INTO line_friend_observations (line_bot_id, external_identity_account_id, observed_at_ms, friend) SELECT ?, id, line_observed_at_ms, line_observed_friend FROM external_identity_accounts WHERE provider = ? AND line_observed_at_ms IS NOT NULL', [$legacyId, 'line']);
         DB::unprepared(<<<'SQL'
-            CREATE FUNCTION v2_line_bot_membership_guard() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_line_bot_membership_guard() RETURNS trigger AS $$
             BEGIN
                 IF NEW.line_bot_id IS DISTINCT FROM OLD.line_bot_id THEN
                     RAISE EXCEPTION 'LINE bot membership is immutable';
