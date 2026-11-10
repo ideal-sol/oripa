@@ -23,6 +23,9 @@ final class ExternalIdentityAccount extends Model
     ];
 
     protected $hidden = [
+        'subject_ciphertext',
+        'line_observed_at_ms',
+        'line_observed_friend',
         'id',
         'user_id',
         'subject_hash',

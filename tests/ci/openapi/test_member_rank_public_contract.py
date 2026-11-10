@@ -69,7 +69,7 @@ class MemberRankPublicContractTest(unittest.TestCase):
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
         self.assertEqual(len(operations), 93)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertIsNone(ledger['candidate'])
+        self.assertEqual(ledger['candidate']['bundle_version'], '2.0.0-alpha.52')
         self.assertTrue(ledger['latest_immutable']['breaking_change'])
         self.assertFalse(ledger['immutable_history'][-2]['breaking_change'])
         self.assertEqual(ledger['latest_immutable']['release_mode'], 'contract-breaking')

@@ -4,6 +4,7 @@ namespace App\Domain\Line\Services;
 
 use App\Models\V2\LineMessagingSetting;
 use App\Models\V2\User;
+use Illuminate\Support\Facades\DB;
 
 final class V2CurrentUserLineReadService
 {
@@ -37,6 +38,14 @@ final class V2CurrentUserLineReadService
             $action = ['code' => 'none', 'label' => null, 'href' => null];
         }
 
-        return [...$state, 'status' => $status, 'primary_action' => $action];
+        $setting = LineMessagingSetting::query()->find(1);
+        $enabled = (bool) $setting?->reward_enabled;
+        $granted = DB::table('line_friendships')->where('user_id', $user->id)->whereNotNull('point_operation_id')->exists();
+        $recheck = (bool) config('v2_line.friendship_check_enabled', false) && $state['linked']
+            && ($status['code'] === 'friend_add_required' || ($enabled && ! $granted));
+        return [...$state, 'status' => $status, 'primary_action' => $action,
+            'reward' => ['enabled' => $enabled, 'point_amount' => $enabled ? (int) $setting->reward_point_amount : null, 'granted' => $granted],
+            'secondary_action' => $recheck ? ['code' => 'start_friendship_recheck', 'label' => '友だち追加を確認する', 'href' => null] : null,
+        ];
     }
 }

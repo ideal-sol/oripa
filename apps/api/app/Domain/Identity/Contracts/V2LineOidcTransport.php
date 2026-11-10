@@ -6,6 +6,10 @@ use SensitiveParameter;
 
 interface V2LineOidcTransport
 {
+    public function friendshipStatus(): bool;
+
+    public function discardAccessToken(): void;
+
     public function exchangeAuthorizationCode(
         #[SensitiveParameter] string $authorizationCode,
         #[SensitiveParameter] string $codeVerifier,

@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -22,6 +23,30 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def _validate_admin_with_published_release(self, paths):
+        # Admin inventory tests need published authority, independently of the
+        # LINE preparation HOLD. Keep the real validators and every assertion.
+        load_json = policy_gate.load_json
+
+        def published_json(repository, relative):
+            value = load_json(repository, relative)
+            if repository == ROOT and relative == 'manifests/storefront-contract-releases.json':
+                value['candidate'] = None
+            return value
+
+        with mock.patch.object(policy_gate, 'load_json', side_effect=published_json):
+            policy_gate.validate_admin_skeleton(ROOT, paths)
+
+    def test_line_link_friend_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-LINK-FRIEND-20261105"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "LINE-LINK-FRIEND-20261106", "LINE-LINK-FRIEND-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_b2_postal_human_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
         task = 'SHIP-B2POSTAL-20261101'
@@ -48,24 +73,24 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.SHIPPINGMIN_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/shipping-unreviewed.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/src/components/settings/shipping-unreviewed.tsx"})
 
     def test_gacha_g1_admin_inventory_is_exact(self):
         expected = {"apps/admin/src/components/catalog/purchase-condition.tsx",
                     "apps/admin/test/gacha-purchase-condition.test.tsx"}
         self.assertEqual(expected, policy_gate.GACHA_G1_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/test/gacha-unreviewed.test.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/test/gacha-unreviewed.test.tsx"})
 
     def test_gacha_g1_task_id_is_exact(self):
         data = fixture("positive.json")
@@ -114,7 +139,7 @@ class PolicyGateTest(unittest.TestCase):
                                              data["changed_paths"], data["base_sha"])
 
     def test_banner_model_task_id_is_exact(self):
-        policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
+        self._validate_admin_with_published_release(policy_gate.tracked_paths(ROOT))
         self.assertIn("apps/admin/e2e/admin-shipping-model.spec.ts", policy_gate.ADMIN_SKELETON_FILES)
         data = fixture("positive.json")
         task_id = "BANNER-MODEL-20261104"
@@ -183,13 +208,13 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.MEMBER_RANK_M8_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         for relative in ["apps/admin/e2e/member-rank-unreviewed.spec.ts", "apps/admin/test/member-rank-*.tsx"]:
             with self.subTest(unexpected=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+                self._validate_admin_with_published_release(paths | {relative})
 
     def test_member_rank_m9_admin_paths_are_exact_and_fail_closed(self):
         expected = {
@@ -203,12 +228,12 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.MEMBER_RANK_M9_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/payments/unreviewed.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/src/components/payments/unreviewed.tsx"})
 
     def test_member_rank_m7_admin_paths_are_exact_and_fail_closed(self):
         expected = {
@@ -226,12 +251,12 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.MEMBER_RANK_M7_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/member-ranks/unreviewed.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/src/components/member-ranks/unreviewed.tsx"})
 
     def test_member_rank_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
         expected = {
@@ -244,12 +269,12 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.MEMBER_RANK_M1_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/member-rank-unreviewed.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/src/components/settings/member-rank-unreviewed.tsx"})
 
     def test_pre_registration_admin_paths_are_exact_and_unknown_paths_fail_closed(self):
         expected = {
@@ -261,12 +286,12 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(expected, policy_gate.PREREG_V14_ADMIN_FILES)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in expected:
             with self.subTest(missing=relative), self.assertRaises(policy_gate.PolicyFailure):
-                policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                self._validate_admin_with_published_release(paths - {relative})
         with self.assertRaises(policy_gate.PolicyFailure):
-            policy_gate.validate_admin_skeleton(ROOT, paths | {"apps/admin/src/components/settings/unreviewed-pre-registration.tsx"})
+            self._validate_admin_with_published_release(paths | {"apps/admin/src/components/settings/unreviewed-pre-registration.tsx"})
 
     def test_inventory_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
         expected = {
@@ -278,15 +303,15 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(policy_gate.INVENTORY_20261014_ADMIN_FILES, expected)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in ("apps/admin/src/app/inventory/export/page.tsx", "apps/admin/src/components/inventory/*"):
             with self.subTest(path=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+                    self._validate_admin_with_published_release(paths | {relative})
         for relative in expected:
             with self.subTest(missing=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "files missing"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                    self._validate_admin_with_published_release(paths - {relative})
 
     def test_s3_phase1_admin_registration_is_exact_and_unknown_paths_fail_closed(self):
         expected = {
@@ -296,15 +321,15 @@ class PolicyGateTest(unittest.TestCase):
         }
         self.assertEqual(policy_gate.S3_PHASE1_ADMIN_FILES, expected)
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for relative in ("apps/admin/src/lib/asset-delivery-other.ts", "apps/admin/src/lib/**"):
             with self.subTest(path=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+                    self._validate_admin_with_published_release(paths | {relative})
         for relative in expected:
             with self.subTest(missing=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "files missing"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths - {relative})
+                    self._validate_admin_with_published_release(paths - {relative})
 
     def test_s3_phase1_task_id_is_accepted_exactly(self):
         task_id = "S3-OLD-PLATFORM-ADMIN-PHASE1-20261009"
@@ -418,7 +443,7 @@ class PolicyGateTest(unittest.TestCase):
         })
         for path in ("apps/admin/src/components/catalog/member-rank-other.tsx", "apps/admin/src/components/catalog/*"):
             with self.subTest(path=path), self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                policy_gate.validate_admin_skeleton(ROOT, set(policy_gate.tracked_paths(ROOT)) | {path})
+                self._validate_admin_with_published_release(set(policy_gate.tracked_paths(ROOT)) | {path})
 
     def test_login_gacha_admin_paths_are_registered_exactly(self):
         expected = {
@@ -444,7 +469,7 @@ class PolicyGateTest(unittest.TestCase):
         ):
             with self.subTest(path=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+                    self._validate_admin_with_published_release(paths | {relative})
 
     def test_login_gacha_task_id_is_accepted_exactly(self):
         data = fixture("positive.json")
@@ -609,18 +634,18 @@ class PolicyGateTest(unittest.TestCase):
                 policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid),
                     f"[{invalid}] Weighted videos", data["changed_paths"], data["base_sha"])
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for unexpected in ("apps/admin/src/components/catalog/rank-video-other.tsx",
                            "apps/admin/src/components/catalog/rank-video-editor/extra.tsx",
                            "apps/admin/test/rank-video-other.test.tsx"):
             with self.subTest(path=unexpected), self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                policy_gate.validate_admin_skeleton(ROOT, paths | {unexpected})
+                self._validate_admin_with_published_release(paths | {unexpected})
 
     def test_external_id_admin_registration_is_exact(self):
         relative = "apps/admin/src/components/catalog/external-id-field.tsx"
         self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "external-id" in path}, {relative})
         paths = set(policy_gate.tracked_paths(ROOT))
-        policy_gate.validate_admin_skeleton(ROOT, paths)
+        self._validate_admin_with_published_release(paths)
         for unexpected in (
             "apps/admin/src/components/catalog/external-id-other.tsx",
             "apps/admin/src/components/catalog/external-id-field/extra.tsx",
@@ -629,7 +654,7 @@ class PolicyGateTest(unittest.TestCase):
         ):
             with self.subTest(path=unexpected):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths | {unexpected})
+                    self._validate_admin_with_published_release(paths | {unexpected})
         self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("PRIZECSV-20261006"))
         for invalid in ("PRIZECSV-F1-20261006", "PRIZECSV-*", "PRIZECSV-20261006-EXTRA"):
             self.assertIsNone(policy_gate.TASK_ID.fullmatch(invalid))
@@ -677,7 +702,7 @@ class PolicyGateTest(unittest.TestCase):
             "apps/admin/test/gacha-notice-settings.test.tsx",
         }
         self.assertEqual({path for path in policy_gate.ADMIN_SKELETON_FILES if "gacha-notice" in path}, expected)
-        policy_gate.validate_admin_skeleton(ROOT, policy_gate.tracked_paths(ROOT))
+        self._validate_admin_with_published_release(policy_gate.tracked_paths(ROOT))
 
     def test_gacha_notice_admin_registration_keeps_unregistered_paths_rejected(self):
         paths = set(policy_gate.tracked_paths(ROOT))
@@ -688,7 +713,7 @@ class PolicyGateTest(unittest.TestCase):
         ):
             with self.subTest(path=relative):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "unapproved application files"):
-                    policy_gate.validate_admin_skeleton(ROOT, paths | {relative})
+                    self._validate_admin_with_published_release(paths | {relative})
 
     def test_login_gacha_catalog_registration_requires_each_new_operation(self):
         operations = (
@@ -1350,7 +1375,7 @@ class PolicyGateTest(unittest.TestCase):
         self.assertEqual(policy_gate.MIG_061M_ADMIN_SKELETON_FILES, expected_admin)
         self.assertTrue(expected_admin.issubset(policy_gate.ADMIN_SKELETON_FILES))
         self.assertFalse(any("*" in path for path in expected_admin))
-        policy_gate.validate_admin_skeleton(ROOT, policy_gate.ADMIN_SKELETON_FILES)
+        self._validate_admin_with_published_release(policy_gate.ADMIN_SKELETON_FILES)
         source = (
             ROOT / "apps/admin/src/components/catalog/catalog-gacha-profit-simulation.tsx"
         ).read_text(encoding="utf-8")
@@ -1397,7 +1422,7 @@ class PolicyGateTest(unittest.TestCase):
         self.assertFalse(any("*" in path for path in expected_catalog | expected_admin))
 
     def test_mig_061k_cost_price_is_limited_to_draft_gacha_prizes(self):
-        policy_gate.validate_admin_skeleton(ROOT, policy_gate.ADMIN_SKELETON_FILES)
+        self._validate_admin_with_published_release(policy_gate.ADMIN_SKELETON_FILES)
         policy_gate.validate_v2_catalog_boundary(
             ROOT, policy_gate.V2_CATALOG_REQUIRED_FILES
         )
@@ -1550,6 +1575,7 @@ class PolicyGateTest(unittest.TestCase):
                 (ROOT / "manifests/storefront-contract-releases.json").read_text()
             )
             value["latest_immutable"]["manifest_sha256"] = "0" * 64
+            value['candidate'] = None  # Isolate published-history tampering.
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "release governance is invalid"
@@ -1565,6 +1591,7 @@ class PolicyGateTest(unittest.TestCase):
                 (ROOT / "manifests/storefront-contract-releases.json").read_text()
             )
             value["latest_immutable"]["packages"]["@oripa/site-schema"]["sha256"] = "0" * 64
+            value['candidate'] = None  # Isolate published-history tampering.
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "release governance is invalid"
@@ -1573,7 +1600,8 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.52')
+        value['candidate'] = None
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.51')
         self.assertTrue(value['latest_immutable']['breaking_change'])
         self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
@@ -1759,6 +1787,7 @@ class PolicyGateTest(unittest.TestCase):
                 (ROOT / "manifests/storefront-contract-releases.json").read_text()
             )
             value["latest_immutable"]["public_openapi"]["sha256"] = "0"
+            value['candidate'] = None  # Isolate published-history tampering.
             target.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(
                 policy_gate.PolicyFailure, "release governance is invalid"
@@ -3872,13 +3901,19 @@ python3 scripts/db/v2_database.py smoke \\
                 policy_gate.validate_v2_content_contact_boundary(root, paths)
 
     def make_workspace(self, root):
+        # Boundary unit fixtures use real published alpha.50 authority, not the
+        # live LINE preparation that must wait for Paidy51. No invented ledger.
+        fixture_governance = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
+        fixture_governance['candidate'] = None
+        policy_gate.storefront_artifact.validate_governance(fixture_governance)
+        fixture_release = policy_gate.storefront_artifact.release_source(fixture_governance)
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
         paths.add("manifests/storefront-contract-releases.json")
         for relative in paths:
             path = root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative == "manifests/storefront-contract-releases.json":
-                shutil.copy2(ROOT / relative, path)
+                path.write_text(json.dumps(fixture_governance))
             elif relative.endswith("README.md"):
                 path.write_text(
                     """# Fixture
@@ -4136,7 +4171,7 @@ export type SiteManifest = {
             json.dumps(
                 {
                     "name": "@oripa/storefront-client",
-                    "version": "2.0.0-alpha.51",
+                    "version": fixture_release['packages']['@oripa/storefront-client']['version'],
                     "private": True,
                     "description": "Fixture Client",
                     "license": "UNLICENSED",
@@ -4174,7 +4209,7 @@ export type SiteManifest = {
                     "oripaCompatibility": {
                         "family": 2,
                         "apiMajor": 2,
-                        "minimumPublicApiContract": "2.0.0-alpha.47",
+                        "minimumPublicApiContract": fixture_release['packages']['@oripa/storefront-client']['minimum_public_api_contract'],
                         "requiredCapabilities": [
                             "draw.browser-mutation.v2",
                             "gacha.catalog-display.v2",
@@ -4257,6 +4292,13 @@ const problem = "application/problem+json";
             dirs_exist_ok=True,
             ignore=shutil.ignore_patterns("dist", "node_modules"),
         )
+        testkit_path = root / 'packages/storefront-testkit/package.json'
+        testkit = json.loads(testkit_path.read_text())
+        client_version = fixture_release['packages']['@oripa/storefront-client']['version']
+        testkit['version'] = fixture_release['packages']['@oripa/storefront-testkit']['version']
+        testkit['dependencies']['@oripa/storefront-client'] = 'workspace:' + client_version
+        testkit['oripaCompatibility']['storefrontClientVersion'] = client_version
+        testkit_path.write_text(json.dumps(testkit))
         shutil.copytree(
             ROOT / "apps/admin",
             root / "apps/admin",

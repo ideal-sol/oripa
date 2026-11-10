@@ -13,12 +13,43 @@ final class V2LineOidcHttpTransport implements V2LineOidcTransport
 {
     private const TOKEN_ENDPOINT = 'https://api.line.me/oauth2/v2.1/token';
     private const VERIFY_ENDPOINT = 'https://api.line.me/oauth2/v2.1/verify';
+    private ?string $accessToken = null;
+
+    public function discardAccessToken(): void
+    {
+        $this->accessToken = null;
+    }
+
+    public function friendshipStatus(): bool
+    {
+        try {
+            if ($this->accessToken === null) {
+                throw new V2OidcProtocolException('friendship_token_unavailable');
+            }
+            $response = Http::acceptJson()->withToken($this->accessToken)
+                ->timeout(3)->connectTimeout(3)->withoutRedirecting()
+                ->get('https://api.line.me/friendship/v1/status');
+            $this->assertProviderResponse($response, 'friendship_check_rejected');
+            $flag = $response->json('friendFlag');
+            if (! is_bool($flag)) {
+                throw new V2OidcProtocolException('friendship_response_invalid');
+            }
+            return $flag;
+        } catch (V2OidcProtocolException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            throw new V2OidcProtocolException('friendship_transport_failed');
+        } finally {
+            $this->discardAccessToken();
+        }
+    }
 
     public function exchangeAuthorizationCode(
         #[SensitiveParameter] string $authorizationCode,
         #[SensitiveParameter] string $codeVerifier,
         string $redirectUri
     ): string {
+        $this->discardAccessToken();
         $this->assertRedirectUri($redirectUri);
         try {
             $response = Http::asForm()
@@ -41,6 +72,10 @@ final class V2LineOidcHttpTransport implements V2LineOidcTransport
             throw new V2OidcProtocolException('authorization_code_rejected');
         }
 
+        $accessToken = $response->json('access_token');
+        if ((bool) config('v2_line.friendship_check_enabled', false) && is_string($accessToken) && $accessToken !== '') {
+            $this->accessToken = $accessToken;
+        }
         return $idToken;
     }
 

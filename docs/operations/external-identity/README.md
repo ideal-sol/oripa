@@ -129,6 +129,84 @@ Provider HTTPはDB Transaction外で実行する。Transaction、Account History
 
 ## Public Safety
 
+### O1 encrypted LINE subject exception
+
+The Human-approved [LINE subject ADR](../../architecture/ADR_LINE_SUBJECT_VAULT_2026-11-05.md)
+permits `subject_ciphertext` only in LINE identity, friendship and pending rows.
+`V2LineSubjectVault` verifies current/previous HMAC candidates before one-time
+encrypted backfill and centralizes decryption. Raw IDs, ciphertext and availability
+flags are never returned by Public/Admin APIs or recorded in logs, Audit or Outbox.
+Signed Webhook events may backfill an existing matching row using `source.userId`;
+message bodies remain unprocessed. No delivery caller is introduced in this phase.
+The general prohibition on provider-token persistence remains unchanged.
+
+`V2_LINE_FRIENDSHIP_CHECK_ENABLED=false` is the default. When enabled, successful
+LINE login/link/reauthentication uses the ephemeral access token against the fixed
+friendship endpoint with a three-second timeout, outside the identity transaction.
+`V2_LINE_LOGIN_BOT_PROMPT` accepts only none/normal/aggressive, default none.
+Provider setup, reward amount/expiry/URL and operational enablement remain Human.
+
+### Storefront handoff (Source only)
+
+Use the existing Client `startLineLink` / `startLineReauthentication` with
+`return_path=/mypage/line`. A session-bound browser callback returns HTTP303 to
+that exact path; the existing authenticated friend-state Client read refreshes
+the presentation and consumes `callback_result` once (server-side TTL120s).
+Keep the JSON callback for existing API clients. No provider values belong in
+Storefront URLs, browser storage or notices.
+
+| Result code | One-time message |
+| --- | --- |
+| `friendship_check_failed` | 友だち追加状態を確認できませんでした。もう一度お試しください。 |
+| `reward_apply_failed` | LINE特典を反映できませんでした。もう一度お試しください。 |
+| `line_auth_failed` | LINE認証を完了できませんでした。もう一度お試しください。 |
+
+Use Platform `secondary_action` to show 「友だち追加を確認する」. For an unconfirmed
+linked account this is independent of reward enablement; for a confirmed account
+it requires an enabled, unclaimed reward. A claimed/confirmed account has no
+permanent recheck action (decision14 deferred). No periodic sync or draw-time
+reauthentication is introduced. Webhooks directed only to another system can
+therefore delay detection of an unfollow.
+
+The menu is 「LINE連携」 with 「LINE連携・友だち追加・特典を確認する」. For granted
+rewards show 「友だち追加特典は受け取り済みです」 without an old amount. Otherwise use
+current `reward.point_amount` as N in 「条件を満たした方にNコインをプレゼントします」;
+this is not an unconditional entitlement. Confirmed, enabled and unclaimed uses
+「LINE連携・友だち追加が完了しています。条件を満たした方はLINE特典を受け取れます。」.
+500 is an intended Human Admin setting, not a Source default.
+
+Source integration approval (2026-11-10): formal Paidy alpha.51 is verified.
+LINE Client/Testkit alpha.52 is its pending additive successor: Public alpha.48,
+Admin/Webhook alpha.47. Immutable releases through51 remain unchanged.
+Publication, Stable Tags and Runtime activation belong to separate release work.
+
+### OLD Test handoff: API and Admin
+
+Build and deploy both API and Admin from the approved merged Source/artifact.
+Integrated Source includes merged Admin UI PR663 (ADMIN-UI-001–016 and018),
+mail template management and phone_changed/account_closure_payment/
+account_closure_code editing. Admin build, deployment and actual screen checks
+are required. The prior Paidy API-only authority does not authorize this new
+integrated release; the release owner prepares the matching artifact/authority,
+retaining reviewed-tree provenance. Client/Testkit52 publication and Site
+adoption require separate gates.
+
+Before operational migration107: backup, inspect the actual migration ledger,
+then apply pending migrations through the Canonical release procedure.107 is
+forward-only; retain encrypted identities, histories and immutable triggers.
+Do not use down() for rollback. Revert Runtime Source through an approved plan
+while retaining additive schema. This Source integration applies no migration.
+
+Confirm approved LINE Provider/official-account association, secrets and callback
+configuration, reward enablement/500 coins/expiry/friend URL, bot_prompt and the
+optional friendship-check flag (Source default OFF). No operational value is
+changed by this PR. Verify actual browser callback/session safety, friend/unfollow
+ordering, reward eligibility/idempotency and retry after point failure. Verify
+Admin template editing permissions and the three templates above. Real provider,
+Browser/E2E and deployed screen acceptance remain the release owner's checks.
+Decision14 remains deferred. Paidy deployment precedes LINE deployment.
+
+
 Public ContractへProvider Subject、Token、Transaction内部ID、Secret、Full
 Emailを公開しない。Audit／OutboxにもRaw Protocol値を保存せず、Provider名、
 User Public ID、Purpose、Reason Codeだけを記録する。

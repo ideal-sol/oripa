@@ -11,6 +11,7 @@ final class LineFriendship extends Model
     protected $table = 'line_friendships';
 
     protected $guarded = ['*'];
+    protected $hidden = ['subject_ciphertext'];
 
     protected function casts(): array
     {

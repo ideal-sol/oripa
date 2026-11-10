@@ -13,7 +13,7 @@ class PaidyAlpha51ReleaseTest(unittest.TestCase):
     def setUp(self):
         self.old = json.loads(subprocess.check_output(['git', 'show',
             '14f7819c72c5908aa6e5778303b87dc4b1202493:openapi/bundled/public.openapi.json'], cwd=ROOT))
-        self.new = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        self.new = json.loads(subprocess.check_output(['git', 'show', '705d03caab389c0f9600b3e85420532aa6d46439:openapi/bundled/public.openapi.json'], cwd=ROOT))
 
     def test_exact_published_transition_and_only_two_required_additions(self):
         self.assertTrue(GATE['is_authorized_paidy_alpha51_release']('public', self.old, self.new))
