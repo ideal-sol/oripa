@@ -13579,3 +13579,12 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 - Coverage includes 60-day expiry, Admin setting change to90days for a new recipient, unchanged prior expiry on redelivery/refollow, one grant/ledger, browser friendship observation, forked API/Webhook concurrency and unchanged ordinary free180days/paid-point behavior.
 - No Migration, OpenAPI, Client/Testkit, Admin or Storefront change. Formal alpha.52 Contract and completed Storefront Build remain reusable. Source Merge and formal API Artifact Build require later Human approval; an old API Artifact cannot represent this fix.
 - Draft-only stop: Required5/5 and exact final-head Strict self-review are recorded in the PR after completion. No ready/merge authorization, operational migration, provider action, Runtime switch or coin adjustment.
+
+
+## OLDTEST-LINE-ALPHA52 — PR679 integrated preparation authority
+
+- Issue none; R3; Strict Change; Application Runtime Activation deferred.
+- Human approves one minimal Authority PR: source_pr679, actual Squash Source `64fbfaf5746ae9c677c52129882509a8f130e94c`, common Tree `319955fbf9d1a8fbf343060af115f49467182a7e`, AMD64 normal mode, activation_authorized=false. Source CI/Strict review and PR679 tests are reused.
+- Reuse formal alpha.52 Contract and completed PR233 GTM-OFF Storefront Build; one necessary API/Admin Runtime Build from the new Source after Metadata Merge and protected Control checks. No Contract release or Storefront Build.
+- Preserve Paidy/UnivaPay, common180day policy, existing Lots, workers/timers and Recovery; current LINE500coin setting uses configured60days for new grants. Prepare only forward-only107, Fresh Backup, exact LINE ENV and Nginx boundary with no live change.
+- Current GO stops after formal Build verification, focused existing-helper tests, Canonical Prepare/dry-run and fresh Envelope. Runtime/Migration/Nginx/real-provider acceptance require later Exact GO. Private config/evidence remain outside public Git.
