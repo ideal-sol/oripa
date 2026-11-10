@@ -91,7 +91,10 @@ class PaidyApprovalInventoryTest(unittest.TestCase):
         approval = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))
         authority = approval["authority"]
         ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
-        contract = ledger["latest_immutable"]
+        # This historical Paidy approval binds immutable51, independently of
+        # later formal LINE releases. Keep its exact artifact/source assertions.
+        contract = next(row for row in ledger["immutable_history"]
+                        if row["bundle_version"] == "2.0.0-alpha.51")
         self.assertEqual(contract["bundle_version"], "2.0.0-alpha.51")
         self.assertEqual(contract["publication"]["artifact_id"], 13566710138)
         self.assertEqual(contract["publication"]["workflow_run_id"], 42352571854)
