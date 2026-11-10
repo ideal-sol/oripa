@@ -13109,3 +13109,417 @@ synthetic DB/network removed; task branch/worktree retained for Draft review.
 - PASS: release108; policy346; Client47; Testkit55; generated checks/typecheck/lint/export/network; frozen/offline lockfile validation. OpenAPI initial81 run had80PASS/one stale predecessor expectation; corrected the affected class and its2 tests PASS, reusing the79 unaffected cases. Initial policy fixture coupling produced9 failures/15 errors; published-authority fixture isolation resolved them, full346 PASS. Current production-source policy and artifact-source checks remain expected HOLD, not PASS.
 - Build count for this version change: Client1/Testkit1, required for changed runtime-version exports and dependent Testkit validation; site-schema and application image Build0. Generated TypeScript remains in sync without manual edits or tracked generated diff because the OpenAPI Source is unchanged. LINE behavior1–13 retained;14 unimplemented; OAuth/session/friend/reward/lock/generator mechanisms retained. No API/DB/domain Source change in this phase; prior focused24/240 and12,096-case/roundtrip evidence remains applicable.
 - Pending51: verify genuine formal Artifact/Manifest/Source/Contract metadata, then reconcile main and Contract versions and prepare any authorized Source Authority change. Separate Human approval is required for LINE52 formal publication and later Runtime; actual Symfony patch updates remain outside READ-ONLY approval. Final-head Required CI will be invoked once after the existing DB run completes, to avoid cancelling or duplicating useful validation. Exact checks, reuse scope and blocked review are recorded in PR #665; no PASS is inferred for blocked checks.
+
+
+## SHIPPING-ASSET-CDN-20261105 — shipping snapshot CDN normalization
+
+- Human authorizes Source implementation, focused tests, push and Draft PR only. R3 / Strict Change / deferred; Issue none. Base5ade57a7d40830a2cf137552f242a2001724b295. Dedicated fix/SHIPPING-ASSET-CDN-20261105 protects the known dirty primary CONTACT checkout. PR665 reviewed: application Source paths disjoint; shared Worklog and exact task-ID allowance only. Other worktrees untouched; no migration or Source lock needed. Canonical App transport uses root-private exact-path policy solely for authenticated delivery, with no Ready/Merge permission.
+- Cause confirmed by source and RED GET/PUT tests: shipping snapshot items[].image retained legacy content paths while Admin CDN allowlist rejected them. The two existing named Admin shipping routes now supply an explicit context. Only top-level item images with UUID and Admin image-reference structure join the existing batched Asset lookup/resolver. Normal Asset recognition and fail-closed rules unchanged. New safety tests cover unrelated routes, non-UUID/document/partial/nested objects, missing Asset and rejected Storage keys.
+- Response schema, snapshot identity, current management/model identifiers, names, business state transitions, selected CSV/B2, list summary, Public/Storefront, OpenAPI/generated types and Asset delivery configuration unchanged. No Admin product component change; existing Preview tested with normalized CDN path and legacy local path. No operational data writes or Runtime operations.
+- Focused verification: initial GET/PUT reproduction2 FAIL as expected; fixed reproduction2 PASS. Backend selected204 executed,203 PASS and one new fixture revision error; corrected fixture to follow existing revision constraint and reran only the affected security case (result in PR). Admin component/Asset42 PASS; Policy260 PASS; typecheck/lint/syntax results and final-head Required CI5/Focused Review recorded in Draft PR. No Backend all-suite, Admin Build or operational browser test.
+- Exact Human Change ID required one bounded addition to the existing PR metadata exception set, with valid/near-match rejection regression. Generic ID pattern, assertions, Required CI and security constraints retained.
+- OLD Test acceptance belongs to Human after separately authorized Runtime reflection: open the previously reported two-prize shipping detail; verify both images, canonical items[].image.public_path, unchanged management/model numbers, no CDN403/404, then other shipping/owned-prize regression. This task performs no reflection or browser action on OLD Test.
+- New Migration0, operational DB application0, local Build0, Runtime Activation0. Keep Draft and branch/worktree; Ready/Merge/auto-merge, Artifact publication and Worker/Timer/ENV changes prohibited. Final HEAD, CI and severity findings are recorded on PR after push; no pending result inferred PASS here.
+
+- Final local results: Backend selected204 coverage completed (203 initial PASS; new security fixture rerun1 PASS/10 assertions). Intermediate fixture attempts rejected immutable Asset identity and duplicate public_path; corrected to a separate synthetic Asset with unique identity/path, retaining every DB guard and assertion. Admin42, Policy260, typecheck/lint and changed production PHP syntax PASS. Initial reproduction2 failures remain RED evidence; no unresolved functional failure. Build0, operational application0, Runtime0.
+
+
+
+## NEWPROD-PR666-20261105 — Production limited payload Draft preparation
+
+NEWPROD-PR666-20261105 — R3 / Strict Change / Activation none
+
+Issue: none. Draft only; Human approval is required separately for merge, formal artifact dispatch/build, and runtime activation. OLD Test PR666 Technical PASS is pending.
+
+Reproduce the exact alpha.50 plus two PR666 normalizer blobs on the hosted ARM64 runner. Verify both merged source PRs, reviewed trees and existing Required CI, fixed manifest digest, blob modes/identities, exact two-file delta, derived SHA/tree/inventory. The normal ancestor/merged-source path retains its gates. No application files change in this PR. Policy-gate follows the base checkout plus exact final SHA assertion without relaxing source checks.
+
+Base: 24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc
+Runtime: cad8be03cbab8b7fba18825a4a9b2a276f402010
+Tree: 0978c97a3a1d90036f5173aff4409398b93c5a87
+Inventory SHA256: a98161e34cf90e8b075fbdf9b25812cde884577846c33c7a292676b1facaf4f1
+
+Validation: 35 focused tests PASS; local policy-gate PASS; Required CI pending. No formal Build/Dispatch, Runtime activation, migration creation/application, Production connection or Browser/E2E execution.
+
+Storefront follow-up after actual approved Platform merge: docs/production-approved-source.json platform_runtime_source_sha and platform_authority_merge_sha; scripts/production-provenance.mjs exact pins; provenance regression tests and docs/production-build-provenance.md. Keep application #221 at 1e3ba92780825a12485f651ea79025ad47f1321b, platform_source_sha at 14f7819c72c5908aa6e5778303b87dc4b1202493, alpha.50 vendor and contract digests unchanged. Verify stale/missing/incorrect pins reject, exact runtime and new merged authority pass, contract digest/source still match. No Storefront files modified or placeholder committed.
+
+Remaining: compare OLD Test final handoff SHA/tree/inventory and Technical PASS; explicit Human merge approval; fresh Strict review and all gates at merge; Storefront follow-up with actual squash SHA; separately authorized artifact build and runtime process. Rollback: abandon Draft with no runtime effect, or reviewed revert before any subsequent dispatch. Task branch/worktree retained for review. OLD Test wrapper/executor untouched; independent append-only worklog entry.
+
+Changed files:
+- .github/workflows/platform-production-arm64-artifact.yml
+- manifests/platform-production-approved-source.json
+- scripts/ops/production_source_authority.py
+- scripts/ops/production_pr666_payload.py
+- scripts/ci/policy_gate.py
+- tests/ops/test_production_source_authority.py
+- tests/ops/test_production_pr666_payload.py
+- worklogs/new_ver_main.md
+
+Draft PR #669 created. Initial CI stopped at missing structured Lane metadata in the PR body; corrected Lane, Application Runtime Activation and UI Verification fields. Added explicit main-movement and pinned-manifest tampering regressions before fixing the final review head. Existing PR659/666 reviewed-tree and Required CI 5/5 evidence verified live (no source CI reruns). Focused suite: 36 tests PASS. Final-head CI and review recorded in PR; no merge or dispatch authority.
+
+CI blocker: AUTHORITY_STRUCTURE_INVALID exposed the readiness classifier ancestor-only authority model. Extend scripts/release/readiness/change.py and adapters.py for the exact digest-pinned payload, with local materialization and both reviewed source checks. Added classifier/adapter regressions; NORMAL_STRICT_CI remains mandatory. Initial metadata failure and classifier failure are recorded separately from final validation. No manual rerun or artifact build.
+
+Final local validation: 57 focused tests, policy-gate, secret/PII scan, exact PR body metadata and changed-path schema PASS. CI also enforces canonical PR headings and the fixed Change ID grammar; restored complete template fields and registered only this exact Change ID. Earlier CI failures were metadata/classification blockers, not successful CI. Final-head Required CI and Strict review remain separately recorded in PR #669.
+
+## 2026-11-06 — PAIDY-ALPHA51-20261106 — preflight HOLD
+
+R3 / Strict Change / Application Runtime Activation none. Issue none. Isolated
+branch chore/PAIDY-ALPHA51-20261106 from freshly fetched protected main
+8eadec09a187e3f220dc09d36e9a14b98511931b protects existing primary edits.
+PR662 squash is an ancestor; main contains its five Paidy buyer-data fields.
+Ledger latest immutable alpha.50/candidate null. LINE PR665 is Draft/unmerged;
+its worktree, branch, migration and Candidate are not imported or edited.
+
+Read canonical governance/release/compatibility and nested rules. Directly ran
+the canonical OpenAPI comparator against the retained formal alpha.50 Public
+bundle (digest matches immutable ledger) and an in-memory proposed Public
+alpha.47. It detects required account_registration_date and
+previous_payment_methods additions. The exact PR662 Source-only exception
+accepts alpha.46-to-alpha.46, rejects the proposed alpha.47. Per Human's explicit
+breaking-change HOLD rule, do not label this contract-additive, extend the gate
+or proceed to Source merge/publication. Minimal proposal: Human approval of
+contract-breaking/true and the existing validator's corresponding Public/Admin/
+Webhook alpha.47 version alignment, preserving schema and payment logic.
+
+Evidence/details: docs/implementation/PAIDY_ALPHA51_20261106_HANDOFF.md.
+No package/contract/ledger/workflow/gate edits. Handoff/Worklog only pending
+locally; no commit, push, PR or merge. No release lock acquired before HOLD.
+Generation/package tests/Build/Required5/Strict review/publication/readback and
+ledger reconciliation NOT RUN. Build/manual CI rerun/Publication/Migration/
+Runtime/ENV/Secret/Worker/OLD Test/Production/Storefront PR228/LINE changes0.
+Retain isolated branch/worktree for Human decision; existing work remains intact.
+
+Concurrent CMP-20261105 merged as 7a5f26a2f1ffd15655ea401a9fe4774047f560ca. Worklog-only append collision reconciled preserving both records byte-for-byte in this dedicated checkout; no active source implementation overlap. OLD Test wrapper and tests remain owned by that merged Change. Clean canonical base synchronization is required before final CI; runtime composition remains fixed to alpha.50 plus two blobs.
+
+Post-sync validation: 59 focused tests PASS, policy and secret scan PASS. Canonical sync tree34c54a2ade02cf4cbcea344fe1422faca6b71ffb; current protected base7a5f26a2f1ffd15655ea401a9fe4774047f560ca. PR base metadata now matches the updated base. The sync event captured prior PR metadata and failed closed; this final validation-record commit renews CI with correct metadata. No manual CI rerun/dispatch, formal Build or Runtime action.
+
+Quality CI detected another old direct-checkout assertion in tests/ops/test_preview_image_pipeline.py. Updated it to require base checkout, exact materialization and final source SHA assertion. New limited-payload regressions are included through the existing Production authority CI test entrypoint. Assertions and all Required contexts retained.
+
+## OLDTEST-PR666-20261105 — limited derived payload preparation
+
+Issue none; R3; Strict Change; Application Runtime Activation deferred. Dedicated clean worktree protects unrelated CONTACT worklog and other Tasks. Base a6affd68253a0bb162fb480159778f4c79dd51ab. Human authorizes Source, focused validation and Draft PR only: no Ready/merge, host installation, formal Runtime Build/publication or activation.
+Exact alpha.50 base14f7819c plus PR666 two API blobs produces derived commit cad8be03cbab8b7fba18825a4a9b2a276f402010 / tree0978c97a3a1d90036f5173aff4409398b93c5a87, explicitly NOT a merged commit. Manifest binds before/after blobs and recursive inventory SHA256; pristine disposable checkout and whole-tree/two-path verification reject contamination. Both upstream PRs and protected Control retain Required5 and reviewed/merged tree checks. Normal authority remains unchanged. No alpha.51, Contract, DB, Admin or Storefront product changes.
+Focused Authority/materialization46 PASS, including isolated real clone composition and existing source authority regressions. Initial local run detected incorrect placement of dispatch branch and outdated workflow assertion; fixed without weakening assertions. New PR Required5 and fresh exact-head review remain required.
+Host-private Executor proposal is separate and not installed; API-only selection must retain Admin/Storefront/SMS/rank worker and Ledger106, use existing fence/pin/rebind/resume and Gate TTL300. No migration or worker image replacement is needed. Recovery remains exact-state review with no automatic retry. Formal Artifact and operational Candidate/Envelope await later approvals.
+Read-only rank inspection: process running, inherited HTTP healthcheck unhealthy; latest November job completed, processed0/failures0. This does not prove current processing health; retain as separate operational finding, no repair/restart. No operational mutations, new Migration, Build dispatch, E2E/browser/provider calls. Existing feature evidence reused.
+
+Final preparation supplement: existing authority CI entrypoint explicitly includes the new derived-payload tests. Local Policy261 PASS. Host-private API-only Executor proposal focused8 PASS including live read-only Compose/environment equality, preserved-container identity, mount-order normalization and negative scope/database/configuration cases. Installed Executor unchanged. Proposal retains TTL300, exact-state HOLD/no automatic retry, existing Timer fence/rebind/resume; no Worker image change. Operational Artifact verification, fresh Candidate/Envelope and PHP Receipt remain pending later authorized Build/installation/Runtime phases, not claimed PASS here.
+
+First-head CI Quality failed the unchanged asynchronous mail-editor test at admin-mail-template-management.test.tsx:85 (email_verification, body label not ready;502 other Admin tests passed). This is outside the derived Payload and matches the pre-existing PR666 failure class. No mail implementation or assertion changed. The necessary new-test CI-entrypoint commit renews head-dependent checks; no same-head rerun requested.
+
+
+## CMP-20261105 — Compare getter transport correction
+
+Issue none; R3; Strict Change; Application Runtime Activation deferred. Base24b7c85080cecd7c7925abf3e92d90d8ce0dc3dc; dedicated clean worktree preserves unrelated tasks. Human authorizes minimal Wrapper correction, focused tests, Draft PR, Required5 and fresh final-head self-review only. Ready/Merge, installation, Artifact dispatch/build, Candidate/Envelope and Runtime operations remain unapproved.
+Preserve the original optional getter separately from normal API reads, so native CLI uses existing validated Compare transport and injected Workflow getter remains supported. Generic GET Compare/traversal rejection, fixed repository/SHA validation, merged-source checks and Required5 stay intact. No Manifest/Payload/Workflow/Executor/Gate/Adapter/Contract/Migration change.
+Network-independent CLI main -> artifact list -> authority -> real api_compare/api_get/path guards reproduced github_path_invalid before correction. HTTP I/O and credential acquisition alone are replaced; injected Workflow path and actual Required Check evaluation also covered. Related existing normal authority, invalid repository/SHA/path, generic Compare rejection and exact derived composition tests are reused in the existing Authority suite (48 tests PASS). No live Artifact dispatch or Runtime test. Operational Build0, dispatch0, installation0, Runtime0; migrations created/applied0. Fresh Self-review and Required5 recorded in PR at final unchanged head. Worktree retained for Draft approval.
+
+
+### PAIDY-ALPHA51-20261106 — Human breaking-release GO
+
+Human explicitly resolves HOLD: contract-breaking/true; Client/Testkit51,
+Public/Admin/Webhook47; Site Schema23 referenced; Runtime Activation none.
+Dedicated existing worktree and prior evidence preserved. Remote base unchanged;
+formal alpha51 Artifact count0, main candidate null. Release flock acquired.
+Only version/generation/candidate, bounded compatibility predicate and associated
+negative/historical tests change. Existing H1 Source-only exception retained.
+Public published50 comparison detects exactly the approved two required fields;
+Admin/Webhook equality apart from version is tested. No LINE PR665 changes,
+migration107, Storefront PR228 changes, Paidy financial implementation or Runtime.
+Initial local OpenAPI83 had4 stale version/candidate failures; Release107 had2
+historical-fixture failures. Corrected exact expectations/isolation; final results
+and Source PR final HEAD/Tree/checks/review recorded in PR. No manual CI rerun.
+Publication and ledger completion are separate, not claimed before readback.
+
+Source PR670 initial policy CI exposed historical candidate-null and fixture Client50/contract46 assumptions (29 failures/1 error). Updated exact alpha51/contract47 fixture metadata and retained negative test assertions; no gate bypass. New commit renews required CI automatically; manual rerun0.
+
+### PAIDY-ALPHA51-20261106 — Required CI HOLD
+
+## Current execution HOLD — Required CI (2026-11-06)
+
+Human breaking-release approval remains valid. Source PR670 is Draft:
+https://github.com/ideal-sol/oripa/pull/670
+HEAD 3602b5f6d482728711e229c9a8f6cc4e49e53b31; Tree 2cc389346edfa8e1cba5b5de92a84064f9119f3c.
+Base/live main remains 8eadec09a187e3f220dc09d36e9a14b98511931b.
+
+Required CI run42216694566: policy-gate=success; quality-gate=failure; security-gate=failure.
+Security job127888630708 fails with12 unapproved Composer advisories;
+dependency_delta=PRESENT / BLOCK_PR_INTRODUCED_SECURITY_FINDING.
+Composer manifests/locks are byte-identical to Base. Dependency changes are
+Client/Testkit release metadata and the exact internal workspace51 specifier.
+Current gate hashes complete dependency files and offers no applicable
+release-metadata exclusion. No Security Gate/exception/baseline change is made.
+The12 audit severities are unknown; they are not represented as resolved or
+assigned SEV0/1=0. Additional Security work needs a separate scope decision.
+
+Quality job127888630746 fails the unchanged Admin mail-editor test at
+apps/admin/test/admin-mail-template-management.test.tsx:85 (email_verification,
+missing メール本文 label;502 passed/1 failed). No Admin behavior/test is changed.
+OpenAPI83, Release108, Policy347 PASS locally. CI Client47, Site Schema10,
+Testkit55 and their generation/typecheck/lint/build/export/network checks PASS.
+Contract comparison still detects only the two Human-approved required fields.
+
+Final machine-readable Strict self-review NOT ISSUED because Required5 fail.
+Ready/merge/publication/readback/ledger-finalization NOT RUN; official alpha51
+artifact count0. Remote ledger remains latest50/candidate=null. Source branch
+contains only pending51 intent. No future digests or Source squash SHA invented.
+Manual CI rerun0; local/manual additional Build0; existing Strict CI automatic
+builds ran, including its ARM64 image validation job. Runtime/Migration creation
+and operational application/ENV/Secret/Worker changes0. CI isolated database
+smoke is separate from operational DB use. LINE665 and Storefront228 unchanged.
+Keep the branch/worktree. This HOLD evidence is local-uncommitted plus PR body;
+do not create an extra Source commit/CI run only to record a blocked state.
+Artifact Release flock is released on HOLD; reacquire and revalidate all live
+authority before any later publication. No publication dispatch occurred.
+
+### PAIDY-ALPHA51-20261106 — bounded CI blocker correction
+
+Latest Human approval permits only proven internal release-metadata classification
+and the existing Admin asynchronous editor test fix in this Source PR. Governance
+REV3 Engineering Blockers in the Same PR allows these focused corrections.
+Previous HOLD records below are historical, not the current approval boundary.
+Base/main and PR670 head unchanged at resumption; existing local Handoff/Worklog
+preserved. Risk R3 / Strict Change / Activation none. Release flock reacquired.
+
+Composer Manifest/Lock are byte-identical to Base. Their SHA256 values are
+51456f9a34dffc0e28e7fe35fda9f472e5150acb64b467f02cafb2fa27008d1a and
+f04bdd327de411b13663c8c687185039af675c3f9262047905e539a6745b25aa.
+Full pnpm packages/snapshots/integrities and external references are unchanged;
+only internal workspace Client50→51 changes, with link target unchanged.
+Client/Testkit manifest differences are exact own-version/compatibility metadata.
+
+The new proof recomputes canonical Base/HEAD provenance and compares every
+dependency input byte-for-byte after exact permitted replacements in three files.
+Canonical dependency_delta=PRESENT and both fingerprints remain intact. Unknown
+paths, hooks/configs, external versions/integrities, Composer changes, new/missing
+findings and Critical/escalated severity cannot use this bounded proof. Audits and
+baseline remain intact. The proof is limited to50→51 and the12 observed findings,
+none approved or removed; actual Security Posture remains HOLD_UNAPPROVED_FINDING
+and the downstream Runtime evaluator still returns HOLD. This permits only this
+Source release metadata decision, not Runtime acceptance or vulnerability closure.
+
+Fresh Composer audit returned the same12 IDs with null severity. Official vendor
+Advisories (and CNA CVSS for the three original CVEs) establish High4/Moderate5/
+Low3/Critical0, all in Composer runtime packages, not dev dependencies. Supplemental
+severity evidence does not overwrite raw audit severity. All12 remain unresolved;
+security maintenance is still required independently of this artifact publication.
+
+| Advisory ID | Package | Official severity | Scope | Source |
+|---|---|---|---|---|
+| PKSA-g499-cm4q-v35y | symfony/filesystem | High | Runtime | [GHSA-6prc-h956-hxjq](https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq) |
+| PKSA-yd1s-kk7g-k2j3 | symfony/http-client | High | Runtime | [GHSA-gq53-v8w2-gjhj](https://github.com/symfony/symfony/security/advisories/GHSA-gq53-v8w2-gjhj) |
+| PKSA-gfw6-4rnd-4533 | symfony/http-client | Low | Runtime | [GHSA-c7hm-wqwp-f9v8](https://github.com/symfony/symfony/security/advisories/GHSA-c7hm-wqwp-f9v8) |
+| PKSA-24ph-xkrh-y79j | symfony/http-foundation | Moderate | Runtime | [GHSA-jrf8-gvm4-7cgh](https://github.com/symfony/symfony/security/advisories/GHSA-jrf8-gvm4-7cgh) |
+| PKSA-pr6q-2w5s-kzzf | symfony/http-foundation | Low | Runtime | [GHSA-3h27-hjv7-fqjx](https://github.com/symfony/symfony/security/advisories/GHSA-3h27-hjv7-fqjx) |
+| PKSA-nxjs-s6hn-vb6m | symfony/http-foundation | Moderate | Runtime | [GHSA-xg2q-4rrq-657q](https://github.com/symfony/symfony/security/advisories/GHSA-xg2q-4rrq-657q) |
+| PKSA-b2gg-vk1g-6d5q | symfony/http-foundation | Moderate | Runtime | [GHSA-5mx8-mwrp-5693](https://github.com/symfony/symfony/security/advisories/GHSA-5mx8-mwrp-5693) |
+| PKSA-3gxv-7xhq-mgmz | symfony/http-kernel | Low | Runtime | [GHSA-wg5q-m2ww-f3c9](https://github.com/symfony/symfony/security/advisories/GHSA-wg5q-m2ww-f3c9) |
+| PKSA-y8c5-1b7f-r1gj | symfony/routing | Moderate | Runtime | [GHSA-xqw3-x93m-887x](https://github.com/symfony/symfony/security/advisories/GHSA-xqw3-x93m-887x) |
+| PKSA-grh8-hvfp-h9pf | symfony/serializer | High | Runtime | [GHSA-h38r-xrmh-cwhr](https://github.com/symfony/symfony/security/advisories/GHSA-h38r-xrmh-cwhr) |
+| PKSA-nyd8-k74r-fsf2 | symfony/serializer | High | Runtime | [GHSA-pxj9-jh84-vhm5](https://github.com/symfony/symfony/security/advisories/GHSA-pxj9-jh84-vhm5) |
+| PKSA-y18k-qjc6-knrv | symfony/serializer | Moderate | Runtime | [GHSA-hqp2-7rr8-hf26](https://github.com/symfony/symfony/security/advisories/GHSA-hqp2-7rr8-hf26) |
+
+Admin reproduction: two isolated mail-suite runs passed36; concurrent focused mail
+and RichTextEditor suites reproduced the same missing-body label at line85 for
+contact_reply (40 passed/1 failed), matching the earlier email_verification CI
+failure. useEditor immediatelyRender=false renders the body after the subject.
+Only getByLabelText→await findByLabelText changed. Assertions/default timeout and
+Admin implementation are unchanged. After correction focused41 and ESLint PASS.
+
+Security61 (including new negative cases), canonical-change/Readiness62 PASS.
+Fresh real Composer + four pnpm audits with the actual Base/HEAD prove metadata
+classification PASS while preserving12 unapproved findings and Runtime HOLD.
+One initial new-test run had3 fixture empty-commit errors; fixture fixed without
+changing production checks/assertions. Reuse prior OpenAPI83/Release108/Policy347
+and Client/Testkit evidence where source remains unchanged; final CI/review must
+bind the new head. No manual CI rerun or local Build. Formal publication/readback
+and ledger reconciliation remain pending the gate-compliant exact Source squash.
+No Paidy logic, LINE665, Storefront228, Runtime, operational DB/Migration, ENV,
+Secrets, Worker, audit baseline or workflow change.
+
+## REL-051 — Paidy alpha.51 publication readback and ledger
+
+R3 / Strict Change / Application Runtime Activation none; Issue none.
+Source PR670 squash 705d03caab389c0f9600b3e85420532aa6d46439; reviewed head
+a942b5157459f93e7641ef55ab6d83a17d5ef760 / Tree d87799ea65d6b476a8855e8653cb7a6c0f779b55.
+Source Required5 PASS; fresh schema2.0 Strict self-review SEV0/1=0.
+Canonical publication https://github.com/ideal-sol/oripa/actions/runs/42352571854 attempt1
+completed authorization, contract-only Build/upload and readback. Independent local
+canonical readback verified exact Artifact ID, outer digest, all five inner files,
+Source SHA, runtime Client version51, Public47 and referenced Site Schema23.
+
+Artifact ID 13566710138; name oripa-storefront-contract-2.0.0-alpha.51.
+- outer_sha256: `ac2c528b8c434cd147322e327a86882120639e71a70cdc596b40a86b61375326`
+- manifest_sha256: `2ab973443a4db6306a516944502da0ba2c3427167611c674c58be0ec6f7de502`
+- sha256sums_sha256: `a8de5320cc027c14563d95e6994a0006ec89ab3ed52991f5a272d3dc7501f622`
+- public_openapi_sha256: `3e7a91d456250cccdf4be0b5874970f6ecac32d9a853fce1b29ef0a594376795`
+- client_sha256: `bf58fc8c31e5d423bd5e50ec2265d0e09e13a32ce10fe716559e1930abdfce3f`
+- testkit_sha256: `f5654b8b6ec12d0063ee11a549fae9f6b52bcc34605e0baa6c9233c600fe5e7a`
+
+Ledger appends alpha51, retains all30 predecessor records exactly, sets
+latest_immutable=alpha51/candidate=null; contract-breaking/true and contracts47
+remain unchanged. No new Source/package/contract/gate changes. Historical tests
+retain exact alpha50 authority; pending51 preparation is tested at Source squash;
+released51 validates measured identity, breaking metadata and reissue rejection.
+The separate ledger PR still requires its own Required5 and fresh Strict review.
+
+Local ledger verification: Release109 and OpenAPI83 PASS; canonical released-source
+validation and the existing five-file readback bundle verification PASS. Initial
+OpenAPI failure was two missing-Ajv environment errors in the fresh Worktree;
+reusing unchanged installed Site Schema dependencies passed all83, with no install
+or Build. Secret/PII scan found0 candidates across8 paths. Policy/CI and exact-head
+review results are recorded in the ledger PR.
+
+Final review pins the Security metadata test fixture to Source squash705d03ca
+instead of the pre-merge PR commit, preserving identical dependency bytes and
+all assertions after task-branch cleanup. Ledger scope9 paths; a normal new-head
+CI supersedes the first ledger head, with no manual CI rerun.
+
+Existing Composer High4/Moderate5/Low3 findings remain unresolved (Critical0).
+Source-only metadata classification is not Runtime Security acceptance. No
+Storefront adoption, LINE665/Storefront228 change, Runtime/ENV/Secret/Worker change,
+operational Migration, provider communication or real payment. Local additional
+Build0; manual CI rerun0; canonical publication dispatch1, attempt1. Existing
+Strict CI automatic builds are separate from publication and Runtime activation.
+
+
+## PDYSEC-20261108 — OLDTEST-PAIDY-V23 Security and log protection
+
+- Human explicitly authorizes implementation, two sequential PRs and Canonical squash merges; Runtime Build/ENV/Nginx/install/activation/provider POST/Worker ON remain excluded. Issue none; R3 / Strict Change / Activation deferred. Base 0ecc2d208240aa8a3401d186a57a52fa7734d636; dedicated worktree protects unrelated primary edits.
+- Composer resolves exactly six Symfony8.1 packages to8.1.11: filesystem/http-client/http-foundation/http-kernel/routing/serializer. No other package, root constraint or Contract change. Fresh locked audit exit0, advisories0/abandoned0; old12 findings resolved. Required CI verifies final-head posture independently.
+- Application server.php preserves routing/request bytes and redacts only diagnostic Paidy URI. Existing Laravel handler formatting is decorated, including emergency fallback; messages/nested Context/exception trace/full and PHP-truncated token are protected. No vendor patch, broad log disabling or financial change.
+- Focused4 tests/22 assertions PASS, including real isolated artisan serve synthetic200/404/405/500/503, unchanged body and authentication token. Synthetic200 log-probe route exists only in the disposable fixture; real receiver storage failure503 verified without DB. Durable successful receipt/financial regression remains in Required CI. Isolated Docker json-file logs also PASS full/truncated token absence, no network/host ports. Nginx2 tests PASS: isolated config, exact Basic exclusion, other URL401, wrong/extra path404, nonPOST403, unchanged POST body, upstream failure502 and access/error non-disclosure. Initial test harness API/output-drain mismatches fixed; assertions retained, partial trace leak discovered and fixed.
+- Nginx template remains staged503. Private rendering, HTTP rejection, existing UnivaPay preservation, exact opening approval and byte-exact recovery documented. No host Nginx operation.
+- Contract alpha51/Artifact13566710138 and Storefront229 unchanged. LINE665/107, Admin UI, operational migrations, Production/LB, Runtime and secrets excluded. CI, exact-head review and merge outcomes recorded in PR closeout; no manual CI reruns.
+
+Required CI found one compatibility issue: marking the replacement LogManager final prevented the existing SMS facade Mockery test. Preserve the framework extension contract by removing final; no test assertion or security behavior changed. Focused Paidy plus SMS regression6 tests/27 assertions exit0 after repair (existing missing-.env warnings; no failures). New-head automatic CI replaces the failed head; manual rerun0.
+
+PR672 closeout: final HEAD0f38dbcfc4e4908f40a26407556edbe7e0802ce0,
+Required CI5/5 PASS, fresh Strict self-review
+https://github.com/ideal-sol/oripa/pull/672#issuecomment-6721963432,
+SEV-0/SEV-1=0. Canonical actor ideal-sol-oripa-codex[bot] squash merged
+c130546656a7c1925030775b1da91843e57cda5f at2026-11-08T13:16:46Z.
+Reviewed/Merged Tree both69f8969bc6c1f704ffd7caafb12bd537730bee83.
+Final-head isolated Docker json-file capture again passed full/truncated token
+absence. No Runtime artifact dispatch or operational activation. Remote task
+branch is deleted. The second metadata task follows without additional Human wait.
+
+## PDYAUTH-20261108 — Paidy repaired Source Authority
+
+Human's explicit second-PR GO; Issue none, R3 / Strict Change / Activation
+deferred. Dedicated branch chore/PDYAUTH-20261108, base is the actual PR672
+squash c130546656a7c1925030775b1da91843e57cda5f. Only existing OLD Test
+approval Manifest, its existing test entrypoint, the directly affected historical
+Production authority test fixture, and this Worklog change.
+No new framework, gate/exception, workflow or executor installation.
+
+The Manifest fixes API payload to PR672, AMD64/api-only, preserving Admin;
+Storefront PR229 source3d62c5ce85beddc9623393912e9e4906a4f96357 and GTM OFF;
+Artifact13566710138/Run42352571854 and its exact outer digest, Client/Testkit51,
+Public/Admin/Webhook47, Schema23. Runtime Source and Contract publication
+Source705d03ca remain distinct. The existing schema and wrapper continue to
+validate protected-main control, approved source ancestry, source PR/Tree,
+Required Checks and Artifact identity. No Runtime Build authority is exercised.
+
+All11 Paidy ENV keys remain UNSET on the operational environment. The Manifest
+records only future non-secret values/key names; private values must be supplied
+through approved root-owned input, never arguments/PR/logs. Payment methods are
+the current set plus paidy, removing none. UnivaPay TEST/Worker ON, NetRideCash
+hidden, GTM OFF, Paidy Worker OFF, rank/promote, seven-day auto-exchange, SMS and
+the existing five Timers remain constraints. Do not infer mode from key prefix.
+
+Recovery remains the exact PR666 API image/source and PR226 Storefront source,
+Tree and Build ID recorded in the Manifest. Preserve previous private ENV and
+release artifacts. Candidate preparation must snapshot/revalidate current
+container/Unit/PID/Build identities and ledger106, retain Admin, bind F2-B to the
+candidate API image and UnivaPay receipt execution to its actual container ID,
+and restore those bindings on Recovery. Preserve the five existing timers:
+F2-B worker, F2-B purge, prize auto-exchange, UnivaPay monitor and receipts.
+Do not replay migrations, restart Paidy Worker or apply LINE665/Migration107.
+
+After separate Build GO, use the existing protected-main OLD Test workflow via
+Canonical dispatch-old-test-artifact with task PDYRT-20261108, source PR672 and
+the fixed PR672 squash. Fix control to the metadata merge/current approved
+protected main; never use that control commit as API payload. Download/verify
+the resulting AMD64/API-only artifact through the existing wrapper. Reuse the
+formal alpha51 package artifact and the successful PR226 GTM-OFF Storefront
+build/release path at exact PR229. No Admin Build or Contract reRelease.
+
+Installed host executors remain task-pinned to previous successful candidates;
+this Source PR does not claim they already accept the new candidate. Future
+authorized preparation must bind their existing API+Storefront path to the
+fixed identities and exact private ENV delta, retaining Security/Artifact Gate,
+fresh Receipt, lock/Health/Recovery checks. Confirm candidate PHP and Composer
+posture independently; the old metadata-only security exception grants no
+Runtime acceptance. No stale Receipt reuse or gate bypass.
+
+Nginx preparation remains the PR672 template/runbook: exact Paidy path only,
+private token rendering, both access/error log protection, Basic exclusion
+staged503 until separately approved protected API/ENV activation; existing
+UnivaPay and site-wide Basic retained. Webhook200 with durable receipt and
+asynchronous reconciliation/Capture/grant are separate acceptance items.
+Actual provider POST and Worker ON are not performed or claimed PASS here.
+
+Local validation: existing Source Authority/Production Authority/Readiness125
+tests PASS, including three new exact-source/Contract/ENV-Recovery tests.
+Historical alpha50 assertions use their immutable original Manifest rather
+than requiring the current approval to remain on alpha50. Existing negative
+authority/Tree/check/Artifact tests are preserved. New tests prove unchanged
+106-migration inventory and Identity/routes relative to the exact PR666 base,
+unchanged Contract bytes, and distinct payload/control identity. Final-head
+Required5 and fresh Strict review/merge evidence belong in the PR closeout.
+No operational Migration, Build dispatch, ENV/Nginx, Runtime, Worker or
+Production/LB operation; manual CI rerun0 and additional Human wait0.
+
+The first metadata CI exposed an existing historical Production fixture that
+classified its old base against the latest HEAD, incorrectly including the new
+OLD Test authority. Fix only that test to use the actual immutable Production
+approval pair in a disposable checkout, preserving all positive/negative
+assertions and the checkout guard. No Production Source Authority or Runtime
+is changed. Scope is now four files. Follow the existing CI planner for the
+new final head; no allowlist/gate changes to obtain a faster path.
+
+After the historical fixture repair, all125 Source Authority/Production
+Authority/Readiness tests PASS again. The next CI event captured the PR body
+before its four-path declaration update and correctly rejected the stale
+three-path scope. Update the exact four-path PR body before pushing this final
+recorded head. No source-scope relaxation, manual CI rerun or bypass.
+
+
+## PDYFIN-20261109 — Paidy financial admission (Source-only Draft)
+
+- Human scope: R3 / Strict Change / Application Runtime Activation none. Issue none. Dedicated worktree protects existing local work; base protected main 7c3119ad918e3cf23209126480a2f4c4494e2bab. Main and deployed-source Paidy/Runner/Admission implementations match. Exact-path App policy excludes ready/merge operations.
+- Root cause: after a successful provider lookup, ordinary DB transaction attempted provider ID association without generation-one outer financial admission. The unchanged database guard rejected it before Capture.
+- Reuse V2PointTransactionRunner for Paidy start/authorization, provider association, permanent Capture/Close claim, captured settlement and unassociated expiry. Existing shared Runner/Admission and DB guards are unchanged. Provider HTTP stays outside transactions; existing lock order, idempotency, operation exclusion and transactional grants are retained.
+- Synthetic-only PostgreSQL17 internal Docker network and PHP8.4.27; no operational DB, customer data or provider network. Existing image reused without Build. Install exact committed Composer lock in task vendor only; lock/dependencies unchanged. Existing106 migrations applied only to disposable test DB.
+- Before fix: real prelaunch authority service publishes generation1 with original guards; Browser/Webhook/Worker three cases fail (27 assertions), with the same outer-admission DB error. An initial fixture authority-hash mismatch was corrected using the existing canonical fixture value before reproduction.
+- After fix: generation1 admission/fault/recovery23 tests/290 assertions; generation1 four-process callback/Webhook/Worker race2/50, covering normal/grace captures and one Capture/grant/mail/receipt. Explicit negative test proves unadmitted writes remain rejected. Paidy accounting4/46, grace16/67, payment26/214, webhook4/21 and UnivaPay28/186 PASS. Fincode143/1298 PASS. Total focused246 tests/2172 assertions across isolated runs. Final Required CI results follow in the Draft PR.
+- No new migrations, OpenAPI/Client/Testkit/Storefront/Admin/dependency/ENV/Worker changes. No Source merge, Runtime Build/activation, real provider communication, existing payment recovery or Production/LB operation. Existing payment is evidence only, never a test fixture.
+- Draft remains for separate Human merge approval. Required5 and fresh exact-head Strict review are recorded in the PR; technical merge recommendation does not confer Human merge authority. No manual CI rerun. Rollback is a reviewed Source revert; active Runtime unchanged.
+
+
+## OLDTEST-PR674-20261109 — API-only authority and preparation
+
+- Human authorizes minimal Canonical metadata merge, one AMD64 API-only Build, host Executor adaptation and Prepare/dry-run; Runtime activation deferred. Risk R3, Strict Change, Application Runtime Activation deferred. Issue none; dedicated worktree preserves other tasks.
+- Runtime Source is exact PR674 squash4a03489c2e5cdde97c75b6330e5fd65167230833 / common Tree3bbe04f7fc80ac0368004912401702872e03c54c; final reviewed HEAD72ea9dd66e680523c1f8837a6f927faee59e60ae. Relative to deployed PR672, product changes are only the two Paidy service files. Source CI5/5, fresh review and generation1 coverage25/340 plus aggregate focused246/2172 reused; no financial test rerun.
+- Preserve formal alpha51 Artifact13566710138, existing Storefront PR229 compiled Build, Admin, ledger106, configured private ENV, Worker OFF, UnivaPay TEST, GTM OFF, Nginx/Basic and all five timers. Recovery pins current PR672 API; no historical payment operation.
+- Existing PR673 authority tests now validate their immutable historical snapshot; add exact PR674 Source/product-diff and current preparation boundary assertions. Canonical gates/freshness/receipts/rollback are unchanged. Actual Control SHA, Build digest/expiry and fresh Candidate/Envelope are recorded externally after formal merge, never predicted.
+- No Runtime switch, operational Migration, provider communication, ENV/Nginx/Worker mutation or Production/LB operation. Metadata PR final checks/review/merge are recorded in the PR.
+- Canonical machine Change/Build ID: PDYOT-20261109 (existing Task ID syntax); Human rollout label remains OLDTEST-PR674-20261109. No validator exception is added.
+
+
+## PDYNEW-20261109 — NEW Production Authority Draft / Runtime deferred
+
+- Human authorizes isolated Draft preparation only; Issue none; R3; Strict Change; Application Runtime Activation deferred. Base 58061839e513804252b723fef1cf6c2ea71ba4f9; dedicated branch chore/PDYNEW-20261109-authority. Existing primary worktree and all other worktrees protected. Exact-path policy selects only this log, Production authority, and historical authority regression fixture. No ready/merge permission.
+- API diff cad8be03 -> 4a03489c: 20 paths, each attributable to PR662/672/674/666. Production Docker copies apps/api and unchanged backend configuration only; Admin UI is outside API image inputs. Six Symfony security dependency updates are explicitly in PR672 scope. Both CDN implementation blobs match current Production and PR666. Database/migration, Docker recipe/config and .dockerignore diff zero. No new derived payload/workflow/framework.
+- Proposed Source is exact PR674, not latest main. Existing merged-source Authority validates reviewed tree equality and source/current Required5. Existing canonical workflow builds three images; future activation must select API only and retain current Admin/Agency digests. No source build or runtime change in this task.
+- Reuse formal alpha.51 Artifact13566710138 / manifest2ab973443a4db6306a516944502da0ba2c3427167611c674c58be0ec6f7de502. Storefront PR229/3d62c5ce85beddc9623393912e9e4906a4f96357 needs separate Authority/artifact and eventual actual Platform Authority merge SHA.
+- Future Paidy LIVE, initially public OFF (do not add paidy to enabled methods), Human keys/token, UnivaPay LIVE retained, Paidy Worker OFF, five Timers retained, rank Worker excluded, Ledger106 unchanged. No current ENV/Secret changes. Webhook setting V2_PAIDY_WEBHOOK_PATH_TOKEN. OLD Test webhook HTTP200/durable receipt remain unverified: NEW preflight must verify route/token/log secrecy/receipt before separate enablement GO. No replay/Capture resend/regrant or Production TEST payment.
+- Focused authority tests, source scope checks and local policy/security validation are recorded separately from final-head CI/self-review in the Draft PR. Existing regression assertions retained with historical PR666 fixture. Runtime/E2E/Browser/real webhook tests not executed; no new implementation. Migration created/applied0/0, formal Build0, Activation0, manual CI dispatch0. Draft/branch/worktree retained for Human review; no merge or main synchronization. Rollback: close unmerged Draft; later use gated revert and prior API digest if separately authorized.
+
+## LINE-LINK-FRIEND-20261105 — Source Merge integration (2026-11-10)
+
+Human authorizes Source Merge only, Strict Change/R3/Activation deferred. Integrated main0f1100c37bc2ae3b719af390e6ba8cf40999d8d4 while preserving both Worklog histories. Conflicts resolved at exact package versions, Task ID union and historical fixtures; generated files regenerated. Formal alpha51 Artifact13566710138/run42352571854 verified by outer digest, Manifest and package checksums against Source705d03caab389c0f9600b3e85420532aa6d46439. Immutable history through51 unchanged. Client/Testkit52 pending additive successor uses Public48, Admin/Webhook47. Main Composer/Symfony8.1.11, Paidy financial behavior, Admin PR663 and Production Authority retained.
+
+Focused PASS: release109, Policy348, OpenAPI83 unaffected plus corrected Paidy3, Client47/Testkit55 with generated/type/lint/build/export/network checks; local source policy and candidate validation PASS. Historical fixtures now validate exact formal51 Source, retaining no-reissue assertions. Initial stale fixture/parallel generation failures corrected before final validation. Local package builds2; application image Build0; runtime/operational migration/publication0. Migration107 unchanged from previously tested cast/forward-only fix; final canonical CI verifies integrated dependency/DB behavior. No new migration number.
+
+Final HEAD, Required5, Strict fresh review, merge/tree identity and cleanup evidence belong to PR665. Handoff in external-identity README requires API and Admin build/deployment/screen checks, template edits phone_changed/account_closure_payment/account_closure_code, approved LINE configuration and migration107 through Canonical release. Real provider/browser/deployed UI acceptance is not executed here. No Ready/Merge until final gates PASS; no Runtime/ENV/real DB/Artifact operation authorized. Original checkout and other tasks preserved.

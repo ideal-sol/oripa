@@ -44,7 +44,7 @@ final class NormalizeV2AssetResponse
                 'admin/api/v2/catalog/rank-effects/*',
                 'admin/api/v2/catalog/gacha-thumbnails',
                 'admin/api/v2/banner-management/assets',
-            ));
+            ), $request->routeIs('v2.admin.shipping-requests.show', 'v2.admin.shipping-requests.update'));
         } catch (InvalidArgumentException) {
             return $this->unavailable();
         }

@@ -15,6 +15,7 @@ import zipfile
 from tests.ops.test_preview_image_pipeline import (
     ROOT, TASK, PR, HEAD, artifact, wrapper, create_artifact, create_docker_archive,
 )
+from tests.ops.test_old_test_pr666_payload import Pr666PayloadTest  # existing CI entrypoint
 
 
 PAYLOAD = "c4eaca6cc2a851a7da937bf0b499bd3bfb6af5e7"
@@ -26,7 +27,7 @@ TASK_ID = "PRIZECSV-20261007"
 
 class Alpha50ApprovalInventoryTest(unittest.TestCase):
     def test_exact_payload_adds_only_migration105_106_and_requires_coordinated_contract(self):
-        approval = json.loads((ROOT / "manifests/platform-old-test-approved-source.json").read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "0ecc2d208240aa8a3401d186a57a52fa7734d636:manifests/platform-old-test-approved-source.json"], cwd=ROOT, text=True))
         self.assertEqual(approval["task_id"], "OLDTEST-ALPHA50-20261105")
         self.assertEqual(approval["source_pr"], 659)
         self.assertEqual(approval["source_sha"], "14f7819c72c5908aa6e5778303b87dc4b1202493")
@@ -51,6 +52,94 @@ class Alpha50ApprovalInventoryTest(unittest.TestCase):
         self.assertEqual(subprocess.check_output(
             ["git", "rev-parse", target + "^{tree}"], cwd=ROOT, text=True).strip(),
             "1a2a4cf3fa30c39c6903d11472c7e8c63a69168c")
+
+
+class PaidyApprovalInventoryTest(unittest.TestCase):
+    SOURCE = "c130546656a7c1925030775b1da91843e57cda5f"
+    REVIEWED = "0f38dbcfc4e4908f40a26407556edbe7e0802ce0"
+    TREE = "69f8969bc6c1f704ffd7caafb12bd537730bee83"
+
+    def git(self, *args):
+        return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+    def test_exact_repaired_source_and_no_migration_or_line_change(self):
+        approval = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"],
+                          approval["platform"], approval["image_mode"]),
+                         ("PDYRT-20261108", 672, self.SOURCE, "linux/amd64", "api-only"))
+        self.assertIs(approval["activation_authorized"], False)
+        # The reviewed branch is removed after squash. Pin the observed common
+        # tree here; the Canonical wrapper rechecks both trees through GitHub.
+        self.assertEqual(self.git("rev-parse", self.SOURCE + "^{tree}"), self.TREE)
+        self.assertEqual(self.git("rev-parse", self.SOURCE + "^"),
+                         "0ecc2d208240aa8a3401d186a57a52fa7734d636")
+        recovery_spec = json.loads((ROOT / wrapper.PR666_MANIFEST).read_text())
+        recovery = recovery_spec["base_sha"]
+        self.assertEqual(recovery_spec["source_sha"],
+                         "cad8be03cbab8b7fba18825a4a9b2a276f402010")
+        for path in ("apps/api/database/migrations-v2", "apps/api/app/Domain/Identity",
+                     "apps/api/routes"):
+            self.assertFalse(any(item.startswith(path) for item in recovery_spec["files"]))
+            self.assertEqual(self.git("ls-tree", "-r", recovery, "--", path),
+                             self.git("ls-tree", "-r", self.SOURCE, "--", path))
+        migrations = self.git("ls-tree", "-r", "--name-only", self.SOURCE, "--",
+                              "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual(sum(path.endswith(".php") for path in migrations), 106)
+        self.assertFalse(any("000107" in path for path in migrations))
+
+    def test_formal_contract_and_storefront_binding_are_distinct_from_runtime_source(self):
+        approval = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))
+        authority = approval["authority"]
+        ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
+        contract = ledger["latest_immutable"]
+        self.assertEqual(contract["bundle_version"], "2.0.0-alpha.51")
+        self.assertEqual(contract["publication"]["artifact_id"], 13566710138)
+        self.assertEqual(contract["publication"]["workflow_run_id"], 42352571854)
+        outer = "ac2c528b8c434cd147322e327a86882120639e71a70cdc596b40a86b61375326"
+        self.assertEqual(contract["publication"]["github_digest"], "sha256:" + outer)
+        self.assertIn(outer, authority)
+        self.assertNotEqual(contract["source_commit"], self.SOURCE)
+        self.assertEqual(self.git("diff", "--name-only", contract["source_commit"], self.SOURCE,
+                                 "--", "openapi", "packages"), "")
+        for text in ("Storefront PR229 3d62c5ce85beddc9623393912e9e4906a4f96357",
+                     "Tree a62aaffb34fc18c3a6765e849f85d88cc7f2e2a7", "GTM OFF at Build and Runtime",
+                     "Client/Testkit alpha.51", "Public/Admin/Webhook alpha.47", "Site Schema alpha.23",
+                     "Artifact13566710138 Run42352571854", self.REVIEWED, self.TREE):
+            self.assertIn(text, authority)
+
+    def test_env_recovery_and_operational_approval_boundaries_are_retained(self):
+        authority = json.loads(self.git("show", "7c3119ad918e3cf23209126480a2f4c4494e2bab:" + wrapper.OLD_AUTHORITY_PATH))["authority"]
+        for text in ("All Paidy ENV keys currently UNSET", "V2_PAIDY_MODE=test",
+                     "V2_PAIDY_PUBLIC_KEY", "V2_PAIDY_SECRET_KEY", "V2_PAIDY_STORE_NAME",
+                     "V2_PAIDY_WEBHOOK_PATH_TOKEN", "V2_PAIDY_API_BASE_URL=https://api.paidy.com",
+                     "V2_PAIDY_API_VERSION=2018-04-10", "V2_PAIDY_DELIVERY_LOCN_TYPE optional",
+                     "V2_PAIDY_ORDER_ITEM_CATEGORIES=コイン", "V2_PAIDY_AUTHORIZATION_GRACE_MINUTES=30",
+                     "V2_PAIDY_WORKER_ENABLED=false", "preserves every existing method and adds paidy only",
+                     "UnivaPay TEST/Worker ON", "NetRideCash hidden", "five existing Timers",
+                     "Ledger106 unchanged; no Migration", "preserve existing Admin Runtime",
+                     "PR666 API Source cad8be03cbab8b7fba18825a4a9b2a276f402010",
+                     "sha256:7fd12db1d4442ec7706625fd1d5ea1b3752a0e137abc39d1b1608ac2123df2f9",
+                     "Storefront PR226 8e9df3501e5451523a56e57aa1149e6290b92aee",
+                     "Build ID qWZ_RxG9EPDxWDkL34a5J", "F2-B image and UnivaPay receipt container identity",
+                     "Separate Human GO is required", "Worker ON remains a separate decision",
+                     "fresh Receipt", "no gate exception or bypass", "NEW Production and LB excluded"):
+            self.assertIn(text, authority)
+
+
+class PaidyFinancialFixApprovalTest(unittest.TestCase):
+    def test_exact_financial_fix_only_and_retained_boundaries(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = "4a03489c2e5cdde97c75b6330e5fd65167230833"
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
+                         ("PDYOT-20261109", 674, source, "linux/amd64", "api-only"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "3bbe04f7fc80ac0368004912401702872e03c54c")
+        changed = git("diff", "--name-only", "c130546656a7c1925030775b1da91843e57cda5f", source, "--", "apps/api/app", "apps/api/config", "apps/api/routes", "apps/api/database", "apps/api/composer.lock", "openapi", "packages", "apps/admin").splitlines()
+        self.assertEqual(changed, ["apps/api/app/Domain/Payment/V2/Services/V2PaidyPaymentService.php", "apps/api/app/Domain/Payment/V2/Services/V2PaidyReconciliationService.php"])
+        for text in ("72ea9dd66e680523c1f8837a6f927faee59e60ae", "V2_PAIDY_WORKER_ENABLED=false", "Build ID d2xGalO1yuu26GyywPPSu", "Artifact13566710138 Run42352571854", "Client/Testkit alpha.51", "Public/Admin/Webhook alpha.47", "Site Schema alpha.23", "Ledger106 unchanged", "all five existing Timers", "Runtime switch remains NOT authorized", "TTL300 Receipt", "no gate exception or bypass", "NEW Production and LB excluded"):
+            self.assertIn(text, approval["authority"])
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
@@ -323,7 +412,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "normal")
+            self.assertEqual(result["image_mode"], "api-only")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
@@ -708,7 +797,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
     def test_workflow_separates_control_and_payload_and_has_no_runtime_authority(self):
         workflow = (ROOT / wrapper.OLD_WORKFLOW_PATH).read_text()
         for required in ("runs-on: ubuntu-24.04", "path: control", "path: payload",
-                         "ref: ${{ github.sha }}", "ref: ${{ inputs.source_sha }}",
+                         "ref: ${{ github.sha }}", "ref: ${{ steps.authority.outputs.checkout_sha }}",
                          "control/scripts/ops/old_test_source_authority.py",
                          "--platform linux/amd64 --target preview", "--artifact-kind old-test",
                          'OCI_REVISION=${INPUT_SOURCE_SHA}', "persist-credentials: false",

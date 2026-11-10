@@ -15,7 +15,19 @@ def verify_change_authority(change, get=None):
     require(main.get("protected") is True and main.get("commit", {}).get("sha") == change["base_sha"],
             "AUTHORITY_BASE_MOVED")
     evidence = []
-    for record in change["authority_records"]:
+    records = []
+    for authority in change["authority_records"]:
+        if authority.get("provenance") == "EXACT_PR666_DERIVED_PAYLOAD":
+            require(authority.get("source_sha") == "cad8be03cbab8b7fba18825a4a9b2a276f402010"
+                    and authority.get("source_tree") == "0978c97a3a1d90036f5173aff4409398b93c5a87"
+                    and authority.get("inventory_sha256") == "a98161e34cf90e8b075fbdf9b25812cde884577846c33c7a292676b1facaf4f1"
+                    and [(r.get("source_pr"), r.get("source_sha")) for r in authority.get("reviewed_sources", [])] == [
+                        (659, "14f7819c72c5908aa6e5778303b87dc4b1202493"),
+                        (666, "a6affd68253a0bb162fb480159778f4c79dd51ab")], "AUTHORITY_LIMITED_IDENTITY_INVALID")
+            records.extend(authority["reviewed_sources"])
+        else:
+            records.append(authority)
+    for record in records:
         pull = get(root + "/pulls/" + str(record["source_pr"]))
         require(pull.get("merged") is True and pull.get("merge_commit_sha") == record["source_sha"]
                 and pull.get("base", {}).get("ref") == "main"

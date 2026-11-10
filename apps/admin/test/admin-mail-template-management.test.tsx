@@ -82,7 +82,7 @@ describe("Mail Template management", () => {
     vi.mocked(AdminApiClient.prototype.getMailTemplate).mockResolvedValue(template(key, key));
     render(<MailTemplateWorkspace templateKey={key} />);
     expect(await screen.findByLabelText("件名")).toHaveValue("発送依頼を受け付けました");
-    expect(screen.getByLabelText("メール本文")).toHaveTextContent("{{user_name}}");
+    expect(await screen.findByLabelText("メール本文")).toHaveTextContent("{{user_name}}");
     expect(AdminApiClient.prototype.getMailTemplate).toHaveBeenCalledWith(key, expect.any(AbortSignal));
     expect(screen.queryByText("メールTemplateが見つかりません。")).not.toBeInTheDocument();
   });

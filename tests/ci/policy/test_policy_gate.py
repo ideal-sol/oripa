@@ -118,6 +118,26 @@ class PolicyGateTest(unittest.TestCase):
                     data["changed_paths"], data["base_sha"],
                 )
 
+    def test_shipping_asset_cdn_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "SHIPPING-ASSET-CDN-20261105"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                     data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "SHIPPING-ASSET-CDN-20261106", "SHIPPING-ASSET-CDN-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                             data["changed_paths"], data["base_sha"])
+
+    def test_oldtest_pr666_cdn_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task_id = "OLDTEST-PR666-20261105"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task_id), task_id,
+                                     data["changed_paths"], data["base_sha"])
+        for invalid in (task_id + "A", "OLDTEST-PR666-20261106", "OLDTEST-PR666-*"):
+            with self.subTest(invalid=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                             data["changed_paths"], data["base_sha"])
+
     def test_banner_model_task_id_is_exact(self):
         self._validate_admin_with_published_release(policy_gate.tracked_paths(ROOT))
         self.assertIn("apps/admin/e2e/admin-shipping-model.spec.ts", policy_gate.ADMIN_SKELETON_FILES)
@@ -1578,21 +1598,15 @@ class PolicyGateTest(unittest.TestCase):
             ):
                 policy_gate.storefront_release_governance(root)
 
-    def test_line_alpha52_preparation_holds_while_published_history_is_preserved(self):
-        value = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertEqual(value['candidate']['release_state'], 'pending')
+    def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
+        value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
         self.assertEqual(value['candidate']['bundle_version'], '2.0.0-alpha.52')
-        self.assertEqual(value['candidate']['predecessor_bundle_version'], '2.0.0-alpha.51')
-        self.assertNotIn('source_commit', value['candidate'])
-        with self.assertRaisesRegex(policy_gate.PolicyFailure, 'candidate predecessor mismatch'):
-            policy_gate.storefront_release_governance(ROOT)
-        value['candidate'] = None  # Check the preserved published history below.
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            target = root / 'manifests/storefront-contract-releases.json'
-            target.parent.mkdir(parents=True)
-            target.write_text(json.dumps(value))
-            self.assertEqual(policy_gate.storefront_release_governance(root), value)
+        value['candidate'] = None
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.51')
+        self.assertTrue(value['latest_immutable']['breaking_change'])
+        self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
+        value['immutable_history'].pop()
+        value['latest_immutable'] = copy.deepcopy(value['immutable_history'][-1])
         self.assertEqual(len(value['immutable_history']), 30)
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.50')
         self.assertEqual(value['latest_immutable']['source_commit'], '14f7819c72c5908aa6e5778303b87dc4b1202493')

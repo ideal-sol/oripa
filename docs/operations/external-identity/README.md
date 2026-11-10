@@ -175,24 +175,37 @@ this is not an unconditional entitlement. Confirmed, enabled and unclaimed uses
 「LINE連携・友だち追加が完了しています。条件を満たした方はLINE特典を受け取れます。」.
 500 is an intended Human Admin setting, not a Source default.
 
-Human release order (2026-11-06): Paidy v2.3 uses alpha.51; LINE Client/Testkit
-use alpha.52. LINE development continues while Paidy publication is pending.
-The alpha.52 candidate is unpublished preparation with predecessor alpha.51;
-the ledger still ends at immutable alpha.50. Canonical validation deliberately
-holds on `candidate predecessor mismatch` until authentic alpha.51 authority
-exists. Do not invent its Artifact/Manifest/Source hashes or Contract versions,
-append a placeholder release, or relax the consecutive-release checks.
+Source integration approval (2026-11-10): formal Paidy alpha.51 is verified.
+LINE Client/Testkit alpha.52 is its pending additive successor: Public alpha.48,
+Admin/Webhook alpha.47. Immutable releases through51 remain unchanged.
+Publication, Stable Tags and Runtime activation belong to separate release work.
 
-Current LINE Public alpha.47 is the existing Source contract, not an assertion
-about Paidy alpha.51 or the final alpha.52 contract. After Paidy alpha.51 is
-published, verify its formal artifact, reconcile main conflicts and contract
-versions, then prepare any separately approved Source Authority update.
-Paidy OLD Test and NEW Production activation precede LINE activation. Both
-alpha.51/alpha.52 formal publication, Ready/Merge and LINE Runtime activation
-remain outside this task's approval. Publication, Site adoption and Runtime
-enablement need their separate gates. Human acceptance must check the same LINE Provider,
-official-account association, reward enablement/amount500/expiry/friend URL and
-feature ENV. This task changes none of those operational settings or Site code.
+### OLD Test handoff: API and Admin
+
+Build and deploy both API and Admin from the approved merged Source/artifact.
+Integrated Source includes merged Admin UI PR663 (ADMIN-UI-001–016 and018),
+mail template management and phone_changed/account_closure_payment/
+account_closure_code editing. Admin build, deployment and actual screen checks
+are required. The prior Paidy API-only authority does not authorize this new
+integrated release; the release owner prepares the matching artifact/authority,
+retaining reviewed-tree provenance. Client/Testkit52 publication and Site
+adoption require separate gates.
+
+Before operational migration107: backup, inspect the actual migration ledger,
+then apply pending migrations through the Canonical release procedure.107 is
+forward-only; retain encrypted identities, histories and immutable triggers.
+Do not use down() for rollback. Revert Runtime Source through an approved plan
+while retaining additive schema. This Source integration applies no migration.
+
+Confirm approved LINE Provider/official-account association, secrets and callback
+configuration, reward enablement/500 coins/expiry/friend URL, bot_prompt and the
+optional friendship-check flag (Source default OFF). No operational value is
+changed by this PR. Verify actual browser callback/session safety, friend/unfollow
+ordering, reward eligibility/idempotency and retry after point failure. Verify
+Admin template editing permissions and the three templates above. Real provider,
+Browser/E2E and deployed screen acceptance remain the release owner's checks.
+Decision14 remains deferred. Paidy deployment precedes LINE deployment.
+
 
 Public ContractへProvider Subject、Token、Transaction内部ID、Secret、Full
 Emailを公開しない。Audit／OutboxにもRaw Protocol値を保存せず、Provider名、

@@ -390,6 +390,80 @@ def partition_dev_tool_findings(
     }
 
 
+# Human PAIDY-ALPHA51-20261106: these findings remain UNAPPROVED. This is
+# an inventory boundary for the metadata-only proof, not an audit baseline.
+PAIDY_ALPHA51_EXISTING_FINDINGS = {
+    "PKSA-g499-cm4q-v35y": ("symfony/filesystem", "v8.1.0", "high"),
+    "PKSA-yd1s-kk7g-k2j3": ("symfony/http-client", "v8.1.0", "high"),
+    "PKSA-gfw6-4rnd-4533": ("symfony/http-client", "v8.1.0", "low"),
+    "PKSA-24ph-xkrh-y79j": ("symfony/http-foundation", "v8.1.9", "moderate"),
+    "PKSA-pr6q-2w5s-kzzf": ("symfony/http-foundation", "v8.1.9", "low"),
+    "PKSA-nxjs-s6hn-vb6m": ("symfony/http-foundation", "v8.1.9", "moderate"),
+    "PKSA-b2gg-vk1g-6d5q": ("symfony/http-foundation", "v8.1.9", "moderate"),
+    "PKSA-3gxv-7xhq-mgmz": ("symfony/http-kernel", "v8.1.0", "low"),
+    "PKSA-y8c5-1b7f-r1gj": ("symfony/routing", "v8.1.0", "moderate"),
+    "PKSA-grh8-hvfp-h9pf": ("symfony/serializer", "v8.1.1", "high"),
+    "PKSA-nyd8-k74r-fsf2": ("symfony/serializer", "v8.1.1", "high"),
+    "PKSA-y18k-qjc6-knrv": ("symfony/serializer", "v8.1.1", "moderate"),
+}
+
+
+def paidy_alpha51_metadata_proof(repository: Path, change: dict, findings: list[dict]) -> dict | None:
+    """Prove the exact approved release delta without changing canonical fingerprints."""
+    if change["deltas"]["dependency_delta"] != "PRESENT":
+        return None
+    if len(findings) != 12 or {row["advisory_id"] for row in findings} != set(PAIDY_ALPHA51_EXISTING_FINDINGS):
+        return None
+    for row in findings:
+        package, version, severity = PAIDY_ALPHA51_EXISTING_FINDINGS[row["advisory_id"]]
+        if (row["source"] != "composer" or row["scope"] != "composer"
+                or row["package"] != package or row["version"] != version
+                or row["path"] != "apps/api/composer.lock" or row["runtime_scope"] != "RUNTIME"
+                or row["approved"] or row["severity"] not in {"unknown", severity}):
+            return None
+    replacements = {
+        "packages/storefront-client/package.json": [
+            ('"version": "2.0.0-alpha.50"', '"version": "2.0.0-alpha.51"'),
+            ('"minimumPublicApiContract": "2.0.0-alpha.46"', '"minimumPublicApiContract": "2.0.0-alpha.47"'),
+        ],
+        "packages/storefront-testkit/package.json": [
+            ('"version": "2.0.0-alpha.50"', '"version": "2.0.0-alpha.51"'),
+            ('"@oripa/storefront-client": "workspace:2.0.0-alpha.50"', '"@oripa/storefront-client": "workspace:2.0.0-alpha.51"'),
+            ('"storefrontClientVersion": "2.0.0-alpha.50"', '"storefrontClientVersion": "2.0.0-alpha.51"'),
+        ],
+        "pnpm-lock.yaml": [(
+            "      '@oripa/storefront-client':\n        specifier: workspace:2.0.0-alpha.50\n        version: link:../storefront-client",
+            "      '@oripa/storefront-client':\n        specifier: workspace:2.0.0-alpha.51\n        version: link:../storefront-client",
+        )],
+    }
+    base, head = (change["dependency_inputs"][side] for side in ("base", "head"))
+    if set(base) != set(head) or {path for path in base if base[path] != head[path]} != set(replacements):
+        return None
+    # Recompute provenance from Git, including every Composer/lock/config/patch
+    # input. A supplied proof or modified working-tree audit input is insufficient.
+    if classify(repository, change["base_sha"], change["head_sha"]) != change:
+        return None
+    for path in base:
+        old = subprocess.check_output(["git", "-C", str(repository), "show", change["base_sha"] + ":" + path])
+        new = subprocess.check_output(["git", "-C", str(repository), "show", change["head_sha"] + ":" + path])
+        if (repository / path).read_bytes() != new:
+            return None
+        for before, after in replacements.get(path, []):
+            if old.count(before.encode()) != 1:
+                return None
+            old = old.replace(before.encode(), after.encode(), 1)
+        if old != new:
+            return None
+    return {
+        "authority": "PAIDY-ALPHA51-20261106", "from_version": "2.0.0-alpha.50",
+        "to_version": "2.0.0-alpha.51", "base_sha": change["base_sha"], "head_sha": change["head_sha"],
+        "base_dependency_fingerprint": change["base_components"]["dependency"],
+        "head_dependency_fingerprint": change["head_components"]["dependency"],
+        "changed_dependency_paths": sorted(replacements), "external_dependency_delta": "NONE",
+        "unresolved_advisory_ids": sorted(PAIDY_ALPHA51_EXISTING_FINDINGS),
+    }
+
+
 def validate_dependency_audits(
     repository: Path, audits: dict, statuses: dict, baseline: dict, change: dict | None = None
 ) -> dict:
@@ -464,6 +538,7 @@ def validate_dependency_audits(
     if change is not None:
         unapproved = summary["unapproved_findings"] > 0
         unchanged = change["deltas"]["dependency_delta"] == "NONE"
+        metadata_proof = paidy_alpha51_metadata_proof(repository, change, visible)
         summary.update({
             "schema_version": "1.0", "producer": "scripts.ci.security_gate/v1",
             "repository": change["repository"],
@@ -482,6 +557,12 @@ def validate_dependency_audits(
             "security_maintenance_required": unapproved,
             "advisory_db_drift": "NOT_PROVEN", "reuse": "NOT_PROVEN",
         })
+        if metadata_proof is not None:
+            summary.update(
+                release_metadata_proof=metadata_proof,
+                finding_classification="EXISTING_FINDINGS_WITH_INTERNAL_RELEASE_METADATA_ONLY",
+                development_security_result="PASS_INTERNAL_RELEASE_METADATA_ONLY",
+            )
         summary = seal(summary, "record_digest")
     return summary
 

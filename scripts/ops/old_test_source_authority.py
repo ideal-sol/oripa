@@ -55,6 +55,12 @@ def prepare_recipe(authority: dict, payload: Path, control: Path, destination: P
 
 
 def main() -> None:
+    if sys.argv[1:] == ["--prepare-payload"]:
+        authority = json.loads((Path(os.environ["RUNNER_TEMP"]) / "source-authority.json").read_text())
+        if authority.get("payload_kind"):
+            helper = runpy.run_path(str(ROOT / "scripts/ops/old_test_pr666_payload.py"))
+            helper["materialize"](ROOT, Path(os.environ["GITHUB_WORKSPACE"]) / "payload", authority)
+        return
     if sys.argv[1:] == ["--prepare-recipe"]:
         authority = json.loads((Path(os.environ["RUNNER_TEMP"]) / "source-authority.json").read_text())
         prepare_recipe(authority, Path(os.environ["GITHUB_WORKSPACE"]) / "payload", ROOT,
@@ -80,8 +86,11 @@ def main() -> None:
     )
     subprocess.run(
         ["git", "-C", str(ROOT), "merge-base", "--is-ancestor",
-         authority["source_sha"], control_sha], check=True,
+         authority.get("composition", {}).get("fix_sha", authority["source_sha"]), control_sha], check=True,
     )
+    checkout_sha = authority.get("composition", {}).get("base_sha", authority["source_sha"])
+    with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+        output.write("checkout_sha=" + checkout_sha + "\n")
     authority.update(run_id=int(os.environ["GITHUB_RUN_ID"]),
                      run_attempt=int(os.environ["GITHUB_RUN_ATTEMPT"]))
     destination = Path(os.environ["RUNNER_TEMP"]) / "source-authority.json"

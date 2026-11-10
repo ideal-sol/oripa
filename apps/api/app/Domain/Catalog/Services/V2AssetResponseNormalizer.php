@@ -17,7 +17,7 @@ final class V2AssetResponseNormalizer
 
     public function __construct(private readonly V2AssetPublicPathResolver $resolver) {}
 
-    public function normalize(array $response, ?bool $assetResource = null): array
+    public function normalize(array $response, ?bool $assetResource = null, bool $adminShippingDetail = false): array
     {
         if (! $this->resolver->enabled()) {
             return $response;
@@ -25,6 +25,10 @@ final class V2AssetResponseNormalizer
         $assetResource ??= array_diff(['id', 'public_url', 'mime_type', 'byte_size'], array_keys($response)) === [];
         $ids = [];
         $this->collect($response, $ids, $assetResource);
+        $shippingImages = $adminShippingDetail ? $this->shippingImages($response) : [];
+        foreach ($shippingImages as $image) {
+            $this->collect(['asset' => $image], $ids, false);
+        }
         if ($ids === []) {
             return $response;
         }
@@ -32,7 +36,34 @@ final class V2AssetResponseNormalizer
             ->whereIn('public_id', array_keys($ids))
             ->pluck('storage_identifier', 'public_id')->all();
 
-        return $this->rewrite($response, $keys, $assetResource);
+        $response = $this->rewrite($response, $keys, $assetResource);
+        foreach ($shippingImages as $index => $image) {
+            $response['items'][$index]['image'] = $this->rewrite(['asset' => $image], $keys, false)['asset'];
+        }
+
+        return $response;
+    }
+
+    /** Only the shipping detail's top-level item images use this additional context. */
+    private function shippingImages(array $response): array
+    {
+        $images = [];
+        foreach (is_array($response['items'] ?? null) ? $response['items'] : [] as $index => $item) {
+            $image = is_array($item) ? ($item['image'] ?? null) : null;
+            if (! is_int($index) || ! is_array($image)
+                || array_diff(['id', 'media_type', 'mime_type', 'alt_text', 'public_path', 'is_public'], array_keys($image)) !== []
+                || ! is_string($image['id'])
+                || ! preg_match('/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i', $image['id'])
+                || $image['media_type'] !== 'image' || ! is_string($image['mime_type'])
+                || ! str_starts_with($image['mime_type'], 'image/') || ! is_bool($image['is_public'])
+                || ($image['public_path'] !== null && ! is_string($image['public_path']))
+                || ($image['alt_text'] !== null && ! is_string($image['alt_text']))) {
+                continue;
+            }
+            $images[$index] = $image;
+        }
+
+        return $images;
     }
 
     private function isAsset(array $value, bool $assetResource, string $field, string $parent): bool

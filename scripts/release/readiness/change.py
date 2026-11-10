@@ -143,6 +143,9 @@ def validate_authority(repository, revision, path, base_sha):
     old = path.endswith("old-test-approved-source.json")
     expected = {"schema_version", "repository", "source_sha", "authority", "activation_authorized"}
     expected |= {"task_id", "source_pr", "target", "platform", "image_mode"} if old else {"change_id", "pr_number"}
+    limited = not old and record.get("source_sha") == "cad8be03cbab8b7fba18825a4a9b2a276f402010"
+    if limited:
+        expected.add("payload_manifest_sha256")
     require(isinstance(record, dict) and set(record) == expected, "AUTHORITY_STRUCTURE_INVALID")
     require(record["schema_version"] == "1.0" and record["repository"] == "ideal-sol/oripa"
             and record["activation_authorized"] is False, "AUTHORITY_BOUNDARY_INVALID")
@@ -156,6 +159,32 @@ def validate_authority(repository, revision, path, base_sha):
     if old:
         require(record["target"] == "old-test" and record["platform"] == "linux/amd64"
                 and record["image_mode"] in {"normal", "api-only"}, "AUTHORITY_SCOPE_INVALID")
+    if limited:
+        import runpy
+        import tempfile
+        helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ops/production_pr666_payload.py"))
+        require(git(repository, "rev-parse", "HEAD").decode().strip() == revision,
+                "AUTHORITY_CHECKOUT_MISMATCH")
+        spec = helper["specification"](repository)
+        require(record["change_id"] == helper["CHANGE"] and record["pr_number"] == 666
+                and record["payload_manifest_sha256"] == helper["MANIFEST_DIGEST"],
+                "AUTHORITY_LIMITED_IDENTITY_INVALID")
+        sources = []
+        for kind in ("base", "fix"):
+            sha = spec[kind + "_sha"]
+            git(repository, "merge-base", "--is-ancestor", sha, base_sha)
+            sources.append({"source_sha": sha, "source_pr": spec[kind + "_pr"],
+                            "source_tree": git(repository, "rev-parse", sha + "^{tree}").decode().strip()})
+        with tempfile.TemporaryDirectory(prefix="production-authority-classification-") as temporary:
+            payload = Path(temporary) / "payload"
+            git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(Path(repository).resolve()), str(payload))
+            git(payload, "checkout", "--quiet", "--detach", spec["base_sha"])
+            helper["materialize"](repository, payload, {**record, "composition": spec, "source_tree": spec["source_tree"]})
+        return {"path": path, "source_sha": spec["source_sha"], "source_pr": 666,
+                "source_tree": spec["source_tree"], "inventory_sha256": spec["inventory_sha256"],
+                "reviewed_sources": sources, "record_digest": digest(record, None),
+                "provenance": "EXACT_PR666_DERIVED_PAYLOAD", "human_approval": "PR_REVIEW_REQUIRED",
+                "activation_authorized": False}
     git(repository, "merge-base", "--is-ancestor", record["source_sha"], base_sha)
     return {"path": path, "source_sha": record["source_sha"],
             "source_pr": record["source_pr" if old else "pr_number"],
@@ -275,6 +304,27 @@ def security_posture(record, binding):
     require(record.get("dependency_delta") in {"NONE", "PRESENT"}, "SECURITY_DEPENDENCY_UNKNOWN")
     development = "PASS_NO_PR_INTRODUCED_DEPENDENCY_REGRESSION" if record["dependency_delta"] == "NONE" else (
         "BLOCK_PR_INTRODUCED_SECURITY_FINDING" if count else "PASS_FRESH_AUDITS")
+    if "release_metadata_proof" in record:
+        proof = record["release_metadata_proof"]
+        require(isinstance(proof, dict) and set(proof) == {
+            "authority", "from_version", "to_version", "base_sha", "head_sha",
+            "base_dependency_fingerprint", "head_dependency_fingerprint",
+            "changed_dependency_paths", "external_dependency_delta", "unresolved_advisory_ids",
+        }, "SECURITY_METADATA_PROOF_INVALID")
+        require(record["dependency_delta"] == "PRESENT" and count == len(findings) == 12
+                and proof["authority"] == "PAIDY-ALPHA51-20261106"
+                and proof["from_version"] == "2.0.0-alpha.50" and proof["to_version"] == "2.0.0-alpha.51"
+                and proof["base_sha"] == record.get("base_sha") and proof["head_sha"] == record.get("head_sha")
+                and matches(DIGEST, proof["base_dependency_fingerprint"])
+                and proof["head_dependency_fingerprint"] == record["dependency_fingerprint"]
+                and proof["base_dependency_fingerprint"] != proof["head_dependency_fingerprint"]
+                and proof["changed_dependency_paths"] == ["packages/storefront-client/package.json",
+                    "packages/storefront-testkit/package.json", "pnpm-lock.yaml"]
+                and proof["external_dependency_delta"] == "NONE"
+                and proof["unresolved_advisory_ids"] == sorted({item["advisory_id"] for item in findings})
+                and record.get("finding_classification") == "EXISTING_FINDINGS_WITH_INTERNAL_RELEASE_METADATA_ONLY",
+                "SECURITY_METADATA_PROOF_INVALID")
+        development = "PASS_INTERNAL_RELEASE_METADATA_ONLY"
     require(record.get("development_security_result") == development, "SECURITY_DEVELOPMENT_RESULT_MISMATCH")
     require(record.get("current_security_posture") == expected
             and record.get("security_maintenance_required") is bool(count), "SECURITY_POSTURE_MISMATCH")
