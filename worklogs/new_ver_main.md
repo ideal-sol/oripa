@@ -13588,3 +13588,17 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 - Reuse formal alpha.52 Contract and completed PR233 GTM-OFF Storefront Build; one necessary API/Admin Runtime Build from the new Source after Metadata Merge and protected Control checks. No Contract release or Storefront Build.
 - Preserve Paidy/UnivaPay, common180day policy, existing Lots, workers/timers and Recovery; current LINE500coin setting uses configured60days for new grants. Prepare only forward-only107, Fresh Backup, exact LINE ENV and Nginx boundary with no live change.
 - Current GO stops after formal Build verification, focused existing-helper tests, Canonical Prepare/dry-run and fresh Envelope. Runtime/Migration/Nginx/real-provider acceptance require later Exact GO. Private config/evidence remain outside public Git.
+
+
+## TRUSTPROXY-20261111 — preserve HTTPS through explicitly trusted ingress
+
+- Issue none; Risk R3; Lane Strict Change; Application Runtime Activation deferred. Dedicated isolated Worktree; Draft-only authorization, separate Human Source Merge GO required.
+- A TLS-terminated LINE callback failed exact redirect comparison before token exchange. Use native Laravel Trusted Proxy scheme handling with private `V2_TRUSTED_PROXY_IPS` (comma-separated exact IPs). Default trusts none; invalid entries/wildcards/hostnames/CIDRs fail closed. Trust only X-Forwarded-Proto, not forwarded Host/Port/Prefix/client IP or RFC Forwarded. Real ingress addresses remain private.
+- Product changes limited to bootstrap and config. Config is consumed at request handling and supports Laravel config caching. No forceScheme, URL comparison relaxation, authentication, token, reward, financial or provider logic change.
+- 106 distinct tests / 628 assertions PASS; Proxy+LINE46 tests163 assertions. Baseline HTTPS-vs-HTTP failure reproduced before product edits.
+- Includes allowlisted IPv4/IPv6, untrusted scheme spoof, no trust/no header/plain HTTP, native HTTPS, forwarded Host/Port/Prefix/For/RFC Forwarded ignored, invalid/wildcard/CIDR config rejected.
+- Real Laravel bootstrap/global middleware and mocked LINE Browser callback: completed transaction, one code exchange/ID verification and linked identity. Host/path/cookie/session/untrusted-proxy negatives invoke no exchange and create no identity.
+- Existing Google, Paidy webhook, UnivaPay payment and LINE observation tests retained. An initial combined run exposed existing error-handler contamination; affected38 tests were repeated in separate PHP processes. Two expected-log subprocess cases were rerun with a test-only null log channel so expected stderr was not mistaken for a subprocess failure. No production logger or assertion change.
+- Unchanged Composer Lock and cached test image; isolated internal network and synthetic PostgreSQL only. No provider communication, failed-transaction reuse or real grants. Source/Runtime Builds0, manual CI reruns0, operational Migrations0 and Runtime Activations0.
+- Formal alpha.52, current Admin image and completed Storefront remain reusable. After separate Human GO: actual Squash Source, minimal API-only Authority update, formal AMD64 API Build, private exact ingress ENV, fresh Gates/Receipt/Candidate/Envelope and Exact Runtime GO. Ledger107 and existing worker/timer/payment settings remain unchanged.
+- Required5/5 and fresh fixed-head Strict self-review will be recorded in the Draft PR. No ready/merge operation is authorized in this task policy.

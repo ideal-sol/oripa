@@ -612,6 +612,71 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertSame(0, $this->provider->friendshipCalls);
     }
 
+    public function test_tls_terminated_browser_callback_links_with_exact_uri_and_binding(): void
+    {
+        config(['trustedproxy.proxies' => ['192.0.2.10'], 'v2_line.friendship_check_enabled' => true]);
+        $user = $this->user('proxy-link@example.test');
+        [$initial, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $initial, '/mypage/line');
+        $this->provider->claims($started['query']['nonce'], 'synthetic-proxy-link-subject');
+        $request = $this->proxiedCallback($started, $session);
+        try {
+            $response = (new \Illuminate\Http\Middleware\TrustProxies())->handle($request,
+                fn (Request $r) => app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($r));
+            self::assertSame($this->callbackUrl, $request->url());
+            self::assertSame(303, $response->getStatusCode());
+            self::assertSame('/mypage/line', $response->headers->get('Location'));
+            self::assertSame('completed', ExternalIdentityTransaction::query()->sole()->status);
+            self::assertSame($user->id, ExternalIdentityAccount::query()->sole()->user_id);
+            self::assertSame(1, $this->provider->exchangeCalls);
+            self::assertSame(1, $this->provider->verifyCalls);
+        } finally {
+            Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_PROTO);
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('proxyRejections')]
+    public function test_proxy_does_not_relax_callback_or_browser_binding(string $mutation): void
+    {
+        config(['trustedproxy.proxies' => ['192.0.2.10']]);
+        $user = $this->user('proxy-reject@example.test');
+        [$initial, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $initial, '/mypage/line');
+        $request = $this->proxiedCallback($started, $session);
+        match ($mutation) {
+            'untrusted' => $request->server->set('REMOTE_ADDR', '192.0.2.11'),
+            'host' => $request->headers->set('Host', 'wrong.example.test'),
+            'path' => $request->server->set('REQUEST_URI', '/api/v2/auth/external/line/wrong'),
+            'cookie' => $request->cookies->set('__Host-oripa_oidc_transaction', str_repeat('a', 64)),
+            'session' => $request->cookies->remove('__Host-oripa_user_session'),
+        };
+        try {
+            $this->expectCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', fn () =>
+                (new \Illuminate\Http\Middleware\TrustProxies())->handle($request, fn (Request $r) =>
+                    app(V2ExternalIdentityService::class)->callbackForProvider('line', $started['state'], 'synthetic-proxy-code',
+                        $r->cookies->get('__Host-oripa_oidc_transaction'), $r->url(), '192.0.2.70', $r)));
+            self::assertSame(0, $this->provider->exchangeCalls);
+            self::assertSame(0, $this->provider->verifyCalls);
+            self::assertSame(0, ExternalIdentityAccount::query()->count());
+        } finally {
+            Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_PROTO);
+        }
+    }
+
+    public static function proxyRejections(): array
+    {
+        return array_map(fn ($value) => [$value], ['untrusted', 'host', 'path', 'cookie', 'session']);
+    }
+
+    private function proxiedCallback(array $started, string $session): Request
+    {
+        $r = Request::create(str_replace('https://', 'http://', $this->callbackUrl), 'GET',
+            ['code' => 'synthetic-proxy-code', 'state' => $started['state']],
+            ['__Host-oripa_oidc_transaction' => $started['binding'], '__Host-oripa_user_session' => $session], [],
+            ['REMOTE_ADDR' => '192.0.2.10', 'HTTP_X_FORWARDED_PROTO' => 'https', 'HTTP_ACCEPT' => 'text/html']);
+        return $r;
+    }
+
     private function start(
         string $purpose,
         ?User $user = null,
@@ -730,6 +795,8 @@ final class FakeLineOidcTransport implements V2LineOidcTransport
     public bool $friendFlag = false;
     public bool $friendshipFails = false;
     public int $friendshipCalls = 0;
+    public int $exchangeCalls = 0;
+    public int $verifyCalls = 0;
 
     public function friendshipStatus(): bool
     {
@@ -789,6 +856,7 @@ final class FakeLineOidcTransport implements V2LineOidcTransport
         #[SensitiveParameter] string $codeVerifier,
         string $redirectUri
     ): string {
+        $this->exchangeCalls++;
         if (
             $this->failure === 'timeout'
             || $this->failure === 'rate-limit'
@@ -818,6 +886,7 @@ final class FakeLineOidcTransport implements V2LineOidcTransport
 
     public function verifyIdToken(#[SensitiveParameter] string $idToken): array
     {
+        $this->verifyCalls++;
         if (
             $this->failure === 'verify-rejected'
             || $idToken !== 'synthetic-line-id-token'
