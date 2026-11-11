@@ -13602,3 +13602,8 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 - Unchanged Composer Lock and cached test image; isolated internal network and synthetic PostgreSQL only. No provider communication, failed-transaction reuse or real grants. Source/Runtime Builds0, manual CI reruns0, operational Migrations0 and Runtime Activations0.
 - Formal alpha.52, current Admin image and completed Storefront remain reusable. After separate Human GO: actual Squash Source, minimal API-only Authority update, formal AMD64 API Build, private exact ingress ENV, fresh Gates/Receipt/Candidate/Envelope and Exact Runtime GO. Ledger107 and existing worker/timer/payment settings remain unchanged.
 - Required5/5 and fresh fixed-head Strict self-review will be recorded in the Draft PR. No ready/merge operation is authorized in this task policy.
+
+
+## TRUSTPROXYRT-20261111
+
+Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 API-only OLD Test Build. Preserve Ledger107, current Admin, Storefront and formal alpha.52. Trusted Proxy values stay private. Exact Runtime GO follows verified preparation. R3 / Strict Change / Activation deferred.

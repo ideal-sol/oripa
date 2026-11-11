@@ -167,7 +167,7 @@ class LineAlpha52IntegratedApprovalTest(unittest.TestCase):
 
 class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
     def test_exact_pr679_source_retains_contract_and_limits_product_change(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "b120b8c7bd3f2a7e538546e17da37bded5b11e0f:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         source = "64fbfaf5746ae9c677c52129882509a8f130e94c"
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
                          ("OLDTEST-LINE-ALPHA52", 679, source, "linux/amd64", "normal"))
@@ -185,6 +185,31 @@ class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
                      "EmailScope OFF/FriendshipCheck ON/BotPrompt normal", "POST-only", "separate Human Exact Runtime GO",
                      "Runtime switch, live Nginx change and real Migration remain NOT authorized", "NEW Production and LB excluded"):
             self.assertIn(text, approval["authority"])
+
+
+
+class LineTrustedProxyApprovalTest(unittest.TestCase):
+    def test_api_only_source_preserves_runtime_boundaries(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        source = "b66e9a817d53dc77c2b327c3ccdd19790e204d57"
+        self.assertEqual(
+            (approval["task_id"], approval["source_pr"], approval["source_sha"],
+             approval["image_mode"], approval["platform"]),
+            ("TRUSTPROXYRT-20261111", 682, source, "api-only", "linux/amd64"),
+        )
+        self.assertIs(approval["activation_authorized"], False)
+
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "0ef56df581778c3a00eeb0caf382db874f1d7965")
+        product = git("diff", "--name-only", "64fbfaf5746ae9c677c52129882509a8f130e94c", source,
+                      "--", "apps/api/app", "apps/api/bootstrap", "apps/api/config", "apps/api/routes",
+                      "apps/api/database", "apps/api/composer.lock", "apps/admin", "openapi", "packages")
+        self.assertEqual(product.splitlines(), ["apps/api/bootstrap/app.php", "apps/api/config/trustedproxy.php"])
+        for expected in ("Ledger107 with no Migration", "Client/Testkit alpha.52 Artifact13742019147",
+                         "TTL300 Receipt", "separate Human Exact Runtime GO"):
+            self.assertIn(expected, approval["authority"])
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
@@ -457,7 +482,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "normal")
+            self.assertEqual(result["image_mode"], "api-only")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
