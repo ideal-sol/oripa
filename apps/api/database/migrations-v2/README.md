@@ -1,5 +1,18 @@
 # V2 Migration Root
 
+## LINE authentication revision (000109 reservation)
+
+`LINE-DELIVERY-20261109-D1` reserves
+`2026_11_11_000109_separate_v2_line_bot_auth_revision.php` for PR681 review corrections.
+Exclusive Migration Allocation flock PID811087 was held before reservation/creation.
+Checked main `cc371b08c4c01f7327ab8560fe24724ea262f427`,32 live heads,81 local/fetched
+refs, open PR files, worktrees, policies and shared reservations; no109/LINE DDL collision.
+Adds a BOT authentication generation independently of management OCC, initialized from
+existing revision without changing OAuth snapshots or history/guards. Apply after108;
+107/108 remain byte-identical. Forward-only, synthetic test application only.
+Logical108/109 reservations stay owned by D1 through Draft handoff/closeout; physical lock
+handoff is recorded in the PR and shared coordination ledger. Operational application prohibited.
+
 ## LINE bot management (000108 reservation)
 
 `LINE-DELIVERY-20261109-D1` reserves

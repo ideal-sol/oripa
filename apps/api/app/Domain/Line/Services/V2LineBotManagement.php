@@ -73,6 +73,7 @@ final class V2LineBotManagement
                     $values['name'] = trim($input['name']);
                     $changed = $row === null || $row->channel_id !== $input['channel_id'] || isset($input['channel_secret']);
                     if ($changed) {
+                        $values['authentication_revision'] = ($row?->authentication_revision ?? 0) + 1;
                         // Active credential replacement must be verified before commit.
                         $values += ['connection_status' => 'pending', 'connected_at' => null, 'basic_id' => null, 'display_name' => null];
                         if ($row?->is_active) {
@@ -94,7 +95,8 @@ final class V2LineBotManagement
                 if ($row->connection_status !== 'succeeded' || $row->channel_id === null || $row->channel_secret_ciphertext === null) throw $this->problem('LINE_BOT_CONNECTION_REQUIRED', 409);
                 $values = array_merge($values, $this->connection($row));
                 if (Schema::hasTable('line_deliveries') && DB::table('line_deliveries')->where('status', 'sending')->exists()) throw $this->problem('LINE_DELIVERY_SENDING', 409);
-                DB::table('line_bots')->where('is_active', true)->where('id', '<>', $row->id)->update(['is_active' => false, 'revision' => DB::raw('revision + 1'), 'updated_by_admin_id' => $admin->id, 'updated_at' => now()]);
+                DB::table('line_bots')->where('is_active', true)->where('id', '<>', $row->id)->update(['is_active' => false, 'revision' => DB::raw('revision + 1'), 'authentication_revision' => DB::raw('authentication_revision + 1'), 'updated_by_admin_id' => $admin->id, 'updated_at' => now()]);
+                if (! $row->is_active) $values['authentication_revision'] = $row->authentication_revision + 1;
                 $values['is_active'] = true;
             } elseif ($operation === 'quota') {
                 $limit = $this->transport->get($row, '/v2/bot/message/quota');
@@ -156,11 +158,25 @@ final class V2LineBotManagement
         $result['id'] = $row->public_id;
         $result['secret_configured'] = $row->channel_secret_ciphertext !== null;
         $result['webhook_path'] = '/webhooks/v2/line/'.$row->public_id;
+        $result['webhook_url'] = $this->webhookUrl($result['webhook_path']);
         foreach (['connected_at', 'quota_fetched_at', 'followers_fetched_at'] as $field) {
             $result[$field] = $row->$field === null ? null : \Carbon\CarbonImmutable::parse($row->$field)->toIso8601String();
         }
         foreach (['quota_snapshot', 'followers_snapshot'] as $field) $result[$field] = $row->$field === null ? null : json_decode($row->$field, true, 32, JSON_THROW_ON_ERROR);
         return $result;
+    }
+
+    private function webhookUrl(string $path): ?string
+    {
+        // Never derive provider destinations from request Host/Forwarded headers or Admin origin.
+        $origin = config('v2_identity.origins.user');
+        if (! is_string($origin) || preg_match('/[\x00-\x20\x7f\\\\]/', $origin)
+            || filter_var($origin, FILTER_VALIDATE_URL) === false) return null;
+        $parts = parse_url($origin);
+        if ($parts === false || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+            || ! in_array($parts['path'] ?? '', ['', '/'], true)) return null;
+        return rtrim($origin, '/').$path;
     }
 
     private function problem(string $code, int $status): V2LineMessagingException

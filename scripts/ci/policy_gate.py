@@ -312,6 +312,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_11_04_000106_add_v2_banner_model_numbers.php",
     "apps/api/database/migrations-v2/2026_11_05_000107_add_v2_line_subject_vault.php",
     "apps/api/database/migrations-v2/2026_11_10_000108_add_v2_line_bot_management.php",
+    "apps/api/database/migrations-v2/2026_11_11_000109_separate_v2_line_bot_auth_revision.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -3243,6 +3244,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_11_04_000106_add_v2_banner_model_numbers.php",
         "2026_11_05_000107_add_v2_line_subject_vault.php",
         "2026_11_10_000108_add_v2_line_bot_management.php",
+        "2026_11_11_000109_separate_v2_line_bot_auth_revision.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

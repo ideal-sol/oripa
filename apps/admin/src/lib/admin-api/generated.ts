@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 38fc7a56c232b1e99345036662989adca922e69a216187c0884b100e393c2bc8
+// Contract SHA-256: 3c5ad229b6aaa3012f221df890edcdb4737a48f1e4831b7bd47f3d537412df4f
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2953,7 +2953,7 @@ export type AdminCatalogDirection = "asc" | "desc";
 
 export type LineLoginSetting = { "channel_id": string | null; "secret_configured": boolean; "source": "database" | "environment" | "unconfigured"; "revision": number; };
 export type LineLoginSettingInput = { "channel_id": string; "channel_secret": string; "expected_revision": number; };
-export type LineBot = { "id": string; "name": string; "channel_id": string | null; "secret_configured": boolean; "basic_id": string | null; "display_name": string | null; "is_active": boolean; "legacy": boolean; "connection_status": "unconfigured" | "pending" | "succeeded" | "failed"; "connected_at": string | null; "quota_snapshot": Record<string, unknown> | null; "quota_fetched_at": string | null; "followers_snapshot": Record<string, unknown> | null; "followers_fetched_at": string | null; "revision": number; "webhook_path": string; };
+export type LineBot = { "id": string; "name": string; "channel_id": string | null; "secret_configured": boolean; "basic_id": string | null; "display_name": string | null; "is_active": boolean; "legacy": boolean; "connection_status": "unconfigured" | "pending" | "succeeded" | "failed"; "connected_at": string | null; "quota_snapshot": Record<string, unknown> | null; "quota_fetched_at": string | null; "followers_snapshot": Record<string, unknown> | null; "followers_fetched_at": string | null; "revision": number; "webhook_path": string; "webhook_url": string | null; };
 export type LineBotCollection = { "items": Array<LineBot>; };
 export type LineBotInput = { "name": string; "channel_id": string; "channel_secret": string; };
 export type LineBotUpdate = { "name": string; "channel_id": string; "channel_secret"?: string; "expected_revision": number; };

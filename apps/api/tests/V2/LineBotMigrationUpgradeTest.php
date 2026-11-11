@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 final class LineBotMigrationUpgradeTest extends TestCase
 {
-    public function test_107_existing_terminal_rows_and_guards_survive_108(): void
+    public function test_107_existing_terminal_rows_and_guards_survive_108_and_109(): void
     {
         self::assertTrue(app()->environment('testing'));
         config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (str_contains($path, '_000108_')) continue;
+                if (str_contains($path, '_000108_') || str_contains($path, '_000109_')) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -74,6 +74,22 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $migration = require database_path('migrations-v2/2026_11_10_000108_add_v2_line_bot_management.php');
             $migration->up();
             $legacy = DB::table('line_bots')->where('legacy', true)->sole();
+            DB::table('line_bots')->where('id', $legacy->id)->update(['revision' => 9]);
+            $botBefore = (array) DB::table('line_bots')->where('id', $legacy->id)->sole();
+            $authenticationMigration = require database_path('migrations-v2/2026_11_11_000109_separate_v2_line_bot_auth_revision.php');
+            $authenticationMigration->up();
+            $botAfter = (array) DB::table('line_bots')->where('id', $legacy->id)->sole();
+            self::assertSame(9, $botAfter['authentication_revision']);
+            unset($botAfter['authentication_revision']);
+            self::assertSame($botBefore, $botAfter);
+            foreach ([0, 10] as $invalidRevision) {
+                try {
+                    DB::transaction(fn () => DB::table('line_bots')->where('id', $legacy->id)->update(['authentication_revision' => $invalidRevision]));
+                    self::fail('Invalid authentication generation accepted');
+                } catch (\Illuminate\Database\QueryException $e) {
+                    self::assertSame('23514', $e->errorInfo[0]);
+                }
+            }
             self::assertFalse($legacy->is_active);
             self::assertNull($legacy->channel_id);
             foreach ($before as $table => $rows) {
@@ -107,6 +123,12 @@ final class LineBotMigrationUpgradeTest extends TestCase
                 self::fail('Forward-only migration allowed rollback');
             } catch (\RuntimeException $e) {
                 self::assertSame('Forward-only LINE bot management migration', $e->getMessage());
+            }
+            try {
+                $authenticationMigration->down();
+                self::fail('Authentication generation rollback accepted');
+            } catch (\RuntimeException $e) {
+                self::assertSame('Forward-only LINE bot authentication revision migration', $e->getMessage());
             }
         } finally {
             DB::rollBack(); // Removes only the schema created in this transaction.

@@ -150,7 +150,7 @@ final class V2ExternalIdentityService
             'provider' => $provider->code(),
             'line_login_revision' => $lineRevision,
             'line_bot_id' => $lineBot?->id,
-            'line_bot_revision' => $lineBot?->revision,
+            'line_bot_revision' => $lineBot?->authentication_revision,
             'purpose' => $purpose,
             'state_hash' => $this->tokens->hash($state),
             'nonce_hash' => $this->tokens->hash($nonce),
@@ -242,7 +242,7 @@ final class V2ExternalIdentityService
                 $bot = $configuration->currentBot();
                 $transaction = $claimed['transaction'];
                 if ($transaction->line_bot_id === null || (int) ($transaction->line_login_revision ?? 1) !== $configuration->loginRevision()
-                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->revision))) {
+                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->authentication_revision))) {
                     throw new V2OidcProtocolException('provider_configuration_changed');
                 }
             }
@@ -625,7 +625,7 @@ final class V2ExternalIdentityService
                 $configuration = app(\App\Domain\Line\Services\V2LineConfiguration::class);
                 $bot = $configuration->currentBot();
                 if ($transaction->line_bot_id === null || (int) ($transaction->line_login_revision ?? 1) !== $configuration->loginRevision()
-                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->revision))) {
+                    || ($transaction->line_bot_id !== null && ((int) $transaction->line_bot_id !== (int) $bot?->id || (int) $transaction->line_bot_revision !== (int) $bot?->authentication_revision))) {
                     throw new V2OidcProtocolException('provider_configuration_changed');
                 }
             }

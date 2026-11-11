@@ -29,6 +29,7 @@ final class V2LineConfiguration
             if ($bot !== null && $bot->channel_secret_ciphertext === null && is_string($secret) && $secret !== '') {
                 DB::table('line_bots')->where('id', $bot->id)->update([
                     'channel_secret_ciphertext' => Crypt::encryptString($secret),
+                    'authentication_revision' => DB::raw('authentication_revision + 1'),
                     'revision' => DB::raw('revision + 1'), 'updated_at' => now(),
                 ]);
             }

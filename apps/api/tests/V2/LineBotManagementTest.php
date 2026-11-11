@@ -290,6 +290,50 @@ final class LineBotManagementTest extends TestCase
             ExternalIdentityAccount::query()->where('user_id', $user->id)->select('id'))->exists());
     }
 
+    public function test_webhook_url_uses_only_a_valid_configured_https_public_origin(): void
+    {
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $cases = [
+            ['https://public.example.test', 'https://public.example.test'],
+            ['https://public.example.test:8443/', 'https://public.example.test:8443'],
+            [null, null], ['', null], ['http://public.example.test', null], ['//public.example.test', null],
+            ['https://user:pass@public.example.test', null], ['https://public.example.test/path', null],
+            ['https://public.example.test?query', null], ['https://public.example.test#fragment', null],
+            ["https://public.example.test\n", null], ['https://public.example.test\\evil', null],
+        ];
+        config(['app.url' => 'https://wrong-app.example.test']);
+        foreach ($cases as [$origin, $expected]) {
+            config(['v2_identity.origins.user' => $origin]);
+            Auth::forgetGuards();
+            $bot = $this->asAdmin($owner)->withHeaders([
+                'Host' => 'untrusted.example.test', 'X-Forwarded-Host' => 'injected.example.test', 'X-Forwarded-Proto' => 'http',
+            ])->getJson('/admin/api/v2/line-bots')->assertOk()->json('items.0');
+            self::assertSame($expected === null ? null : $expected.$bot['webhook_path'], $bot['webhook_url']);
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_observation_accepts_metadata_revision_but_rejects_replaced_bot_credentials(): void
+    {
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $bot = $this->storedBot();
+        DB::table('line_bots')->where('id', $bot->id)->update(['is_active' => true]);
+        $loginRevision = app(V2LineConfiguration::class)->loginRevision();
+        $user = $this->user('observation-revision@example.test');
+        $this->lineAccount($user, 'observation-subject');
+        $path = '/admin/api/v2/line-bots/'.$bot->public_id;
+        $this->action($owner, $path.'/quota', 1)->assertOk();
+        app(V2LineFriendService::class)->applyObservation('observation-subject', $user, true,
+            \Carbon\CarbonImmutable::now(), (string) Str::uuid7(), (int) $bot->id, $loginRevision, (int) $bot->authentication_revision);
+        self::assertSame('friend', LineFriendship::query()->where('user_id', $user->id)->sole()->status);
+        Auth::forgetGuards();
+        $this->adminMutation($owner, 'PUT', $path, ['name' => $bot->name, 'channel_id' => $bot->channel_id,
+            'channel_secret' => 'synthetic-replacement', 'expected_revision' => 2])->assertOk();
+        app(V2LineFriendService::class)->applyObservation('observation-subject', $user, false,
+            \Carbon\CarbonImmutable::now()->addSecond(), (string) Str::uuid7(), (int) $bot->id, $loginRevision, (int) $bot->authentication_revision);
+        self::assertSame('friend', LineFriendship::query()->where('user_id', $user->id)->sole()->status);
+    }
+
     private function botInput(): array
     {
         return ['name' => 'Synthetic BOT', 'channel_id' => '1234567', 'channel_secret' => 'synthetic-messaging-secret'];

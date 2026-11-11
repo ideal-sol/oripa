@@ -200,7 +200,7 @@ final class V2LineFriendService
         $bot = $configuration->currentBot();
         return ($botId === null || (int) $bot?->id === $botId)
             && ($loginRevision === null || $configuration->loginRevision() === $loginRevision)
-            && ($botRevision === null || (int) $bot?->revision === $botRevision);
+            && ($botRevision === null || (int) $bot?->authentication_revision === $botRevision);
     }
 
     private function recordCheckFailure(User $user, string $requestId, string $reason): void

@@ -136,7 +136,9 @@ final class LineLoginVerticalSliceTest extends TestCase
                 }
                 $this->provider->claims($started['query']['nonce'], 'synthetic-stale-subject');
                 if ($table !== 'pre108-unbound') {
-                    DB::table($table)->update(['revision' => DB::raw('revision + 1')]);
+                    $changes = ['revision' => DB::raw('revision + 1')];
+                    if ($table === 'line_bots') $changes['authentication_revision'] = DB::raw('authentication_revision + 1');
+                    DB::table($table)->update($changes);
                 }
                 try {
                     $this->completeLine($started, 'synthetic-stale-code');
@@ -151,6 +153,122 @@ final class LineLoginVerticalSliceTest extends TestCase
                 Cache::store('array')->clear();
             }
         }
+    }
+
+    public function test_bot_metadata_updates_preserve_pending_login_and_link(): void
+    {
+        config(['v2_line.friendship_check_enabled' => true]);
+        $this->provider->friendFlag = true;
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.line.me/oauth2/v3/token' => Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]),
+            'https://api.line.me/v2/bot/info' => Http::response(['basicId' => '@synthetic', 'displayName' => 'Synthetic']),
+            'https://api.line.me/v2/bot/message/quota' => Http::response(['type' => 'limited', 'value' => 1000]),
+            'https://api.line.me/v2/bot/message/quota/consumption' => Http::response(['totalUsage' => 50]),
+            'https://api.line.me/v2/bot/insight/followers*' => Http::response(['status' => 'ready', 'followers' => 10]),
+        ]);
+        foreach (['login', 'link'] as $purpose) {
+            foreach (['quota', 'followers', 'connection', 'update', 'activation'] as $operation) {
+                DB::beginTransaction();
+                try {
+                    $context = $this->botOwnerContext();
+                    $management = app(\App\Domain\Line\Services\V2LineBotManagement::class);
+                    $bot = $management->mutate($context, 'create', null, (string) Str::uuid7(), [
+                        'name' => 'Synthetic', 'channel_id' => '1234567', 'channel_secret' => 'synthetic-secret',
+                    ]);
+                    $management->mutate($context, 'connection', $bot['id'], (string) Str::uuid7(), ['expected_revision' => 1]);
+                    $management->mutate($context, 'activation', $bot['id'], (string) Str::uuid7(), ['expected_revision' => 2]);
+                    $user = $this->user('metadata@example.test');
+                    if ($purpose === 'login') $this->account($user, 'metadata-subject');
+                    [$request, $session] = $this->authenticatedRequest($user);
+                    $started = $purpose === 'login' ? $this->start('login') : $this->start('link', $user, $request);
+                    $input = ['expected_revision' => 3];
+                    if ($operation === 'update') $input += ['name' => 'Renamed', 'channel_id' => '1234567'];
+                    $updated = $management->mutate($context, $operation, $bot['id'], (string) Str::uuid7(), $input);
+                    self::assertSame(4, $updated['revision']); // OCC still advances.
+                    $this->provider->claims($started['query']['nonce'], 'metadata-subject');
+                    $result = $this->completeLine($started, 'metadata-code', $purpose === 'link' ? $session : null);
+                    self::assertSame($user->id, $result['user']->id, $purpose.' / '.$operation);
+                    self::assertSame('completed', ExternalIdentityTransaction::query()->sole()->status);
+                    self::assertSame('friend', DB::table('line_friendships')->where('user_id', $user->id)->value('status'));
+                } finally {
+                    DB::rollBack();
+                    Cache::store('array')->clear();
+                }
+            }
+        }
+    }
+
+    public function test_credentials_and_switch_away_and_back_invalidate_authentication_before_and_during_callback(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.line.me/oauth2/v3/token' => Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]),
+            'https://api.line.me/v2/bot/info' => Http::response(['basicId' => '@synthetic', 'displayName' => 'Synthetic']),
+        ]);
+        foreach (['login', 'link'] as $purpose) {
+            foreach (['secret', 'switch-back'] as $change) {
+                foreach (['before', 'during'] as $timing) {
+                    DB::beginTransaction();
+                    try {
+                        $context = $this->botOwnerContext();
+                        $management = app(\App\Domain\Line\Services\V2LineBotManagement::class);
+                        $bots = [];
+                        foreach (['1234567', '7654321'] as $channel) {
+                            $bot = $management->mutate($context, 'create', null, (string) Str::uuid7(), [
+                                'name' => 'Synthetic', 'channel_id' => $channel, 'channel_secret' => 'synthetic-secret',
+                            ]);
+                            $management->mutate($context, 'connection', $bot['id'], (string) Str::uuid7(), ['expected_revision' => 1]);
+                            $bots[] = $bot;
+                        }
+                        $management->mutate($context, 'activation', $bots[0]['id'], (string) Str::uuid7(), ['expected_revision' => 2]);
+                        $user = $this->user('stale-bot@example.test');
+                        if ($purpose === 'login') $this->account($user, 'stale-bot-subject');
+                        [$request, $session] = $this->authenticatedRequest($user);
+                        $started = $purpose === 'login' ? $this->start('login') : $this->start('link', $user, $request);
+                        $changeBot = function () use ($management, $context, $bots, $change): void {
+                            if ($change === 'secret') {
+                                $management->mutate($context, 'update', $bots[0]['id'], (string) Str::uuid7(), [
+                                    'name' => 'Synthetic', 'channel_id' => '1234567', 'channel_secret' => 'synthetic-new-secret', 'expected_revision' => 3,
+                                ]);
+                            } else {
+                                $management->mutate($context, 'activation', $bots[1]['id'], (string) Str::uuid7(), ['expected_revision' => 2]);
+                                $management->mutate($context, 'activation', $bots[0]['id'], (string) Str::uuid7(), ['expected_revision' => 4]);
+                            }
+                        };
+                        if ($timing === 'before') $changeBot();
+                        else $this->provider->duringVerification = $changeBot;
+                        $this->provider->claims($started['query']['nonce'], 'stale-bot-subject');
+                        $this->expectCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED',
+                            fn () => $this->completeLine($started, 'stale-bot-code', $purpose === 'link' ? $session : null));
+                        self::assertSame('failed', ExternalIdentityTransaction::query()->sole()->status);
+                        self::assertSame($purpose === 'login' ? 1 : 0, ExternalIdentityAccount::query()->count());
+                    } finally {
+                        $this->provider->duringVerification = null;
+                        DB::rollBack();
+                        Cache::store('array')->clear();
+                    }
+                }
+            }
+        }
+    }
+
+    private function botOwnerContext(): \App\Domain\Identity\Contracts\V2AdminAuthorizationContext
+    {
+        $publicId = (string) Str::uuid7();
+        $id = DB::table('admins')->insertGetId([
+            'public_id' => $publicId, 'email_display' => 'bot-owner@example.test', 'email_normalized' => 'bot-owner@example.test',
+            'email_verified_at' => now(), 'password_hash' => app(V2PasswordPolicy::class)->hash('synthetic owner password'),
+            'role' => 'owner', 'state' => 'active',
+        ]);
+        $hash = hash('sha256', (string) Str::uuid7());
+        DB::table('admin_sessions')->insert(\Tests\Support\V2TimestampFixture::attributes([
+            'session_id_hash' => $hash, 'admin_id' => $id, 'mfa_verified_at' => now(), 'requires_mfa_enrollment' => false,
+            'created_at' => now()->subSecond(), 'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15), 'absolute_expires_at' => now()->subSecond()->addHours(8),
+        ]));
+        return new \App\Domain\Identity\Contracts\V2AdminAuthorizationContext($id, $publicId,
+            \App\Domain\Identity\Enums\V2AdminRole::Owner, $hash, $hash, (string) Str::uuid7());
     }
 
     public function test_line_login_creates_passwordless_user_only_with_verified_email(): void
@@ -781,6 +899,7 @@ final class LineLoginVerticalSliceTest extends TestCase
 
 final class FakeLineOidcTransport implements V2LineOidcTransport
 {
+    public ?\Closure $duringVerification = null;
     public bool $friendFlag = false;
     public bool $friendshipFails = false;
     public int $friendshipCalls = 0;
@@ -880,6 +999,7 @@ final class FakeLineOidcTransport implements V2LineOidcTransport
             throw new V2OidcProtocolException('line_verify_rejected');
         }
 
+        if ($this->duringVerification !== null) ($this->duringVerification)();
         return $this->claims;
     }
 

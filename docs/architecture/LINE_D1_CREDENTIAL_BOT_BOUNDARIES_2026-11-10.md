@@ -20,7 +20,7 @@ An unset login singleton continues reading the existing ENV credentials.
 only unset login credentials and the initial BOT secret, never overwrites Admin configuration,
 never imports an access token and never activates a BOT. It is implemented and tested
 with synthetic values only; operating it in OLD Test or Production requires separate Human GO.
-Migration108 must precede activation of this source. A deployment with missing schema is
+Migrations108 and109 must precede activation of this source. A deployment with missing schema is
 not an authorized activation; do not point the existing application at an unprepared DB.
 The original login redirect URI, bot_prompt and friendship feature settings stay in ENV.
 
@@ -62,15 +62,26 @@ The original `/webhooks/v2/line` remains bound to the initial BOT only. During t
 migration period this legacy route and the ENV reply token continue to work. Once another BOT is
 active, its requests are acknowledged without applying old-BOT events.
 
-Login starts record the login revision and selected BOT identity/revision. Callback checks them
+Admin displays/copies the complete HTTPS `webhook_url`, composed only from the existing
+`V2_PUBLIC_ORIGIN` (`v2_identity.origins.user`) and BOT webhook path. Missing or invalid origins
+(including HTTP, credentials, query, fragment or non-root path) return null and disable copying.
+Request Host/Forwarded headers, Admin origin and APP_URL are never fallbacks. The additive
+nullable Admin contract retains `webhook_path` for compatibility. Route reachability remains
+an activation/Human acceptance check.
+
+Login starts record the login revision and selected BOT identity/authentication revision. Callback checks them
 before token exchange and again inside completion; a changed configuration requires a new login
 attempt. Transactions created before108 have no BOT binding and must also restart.
 Rejected callbacks create no identity binding/session. Post-callback friendship observations carry
 the captured BOT ID and both configuration revisions and are ignored after a switch or credential change.
 Existing PKCE, nonce, browser/session binding,
 SMS requirements, account closure, HMAC keyring and vault invariants remain authoritative.
-A BOT configuration write also changes its revision; an in-progress login may need retrying
-after a manual snapshot/check action.
+The management `revision` continues to advance on every write for OCC. The separate
+`authentication_revision` advances only on credential changes (including initial ENV import)
+and actual selection changes. Quota/follower retrieval, connection checks, renaming and
+rechecking activation of the already active BOT do not cancel login/link. Both switched-out
+and newly activated BOTs advance authentication revision, rejecting switch-away-and-back
+callbacks as well as stale post-callback observations.
 
 Friendships, pending follows and webhook deduplication are BOT-scoped.
 Observations are ordered per BOT/account; equal-time unfollow wins.
@@ -113,7 +124,26 @@ Runtime107 application status is **unverified** in every operational environment
 Operational migration applications, ENV changes and runtime activations are zero.
 
 PR572 owns separate DB smoke diagnostics. D1's shared-file change is limited to schema inventory
-and forward-only108 registration. Recheck latest main/open reservations before future integration.
+and forward-only108/109 registration. Recheck latest main/open reservations before future integration.
+
+## PR681 review correction and Migration109
+
+The 2026-11-11 Human request keeps R3/Strict/deferred/Draft. Main
+`cc371b08c4c01f7327ab8560fe24724ea262f427` was compared with the original base;
+its trusted-proxy and OLD Test preparation changes are not copied into this Change.
+The separate allocation lock was reacquired before reserving
+`2026_11_11_000109_separate_v2_line_bot_auth_revision.php`, after checking32 live heads,
+81 local/fetched refs, open PR files, worktrees, policies and the shared reservation ledger.
+No competing109 reservation or LINE schema/trigger change was found. Logical108/109
+reservations remain assigned to this Draft until explicit handoff/closeout.
+
+109 adds `line_bots.authentication_revision`, initially equal to each existing management
+revision so valid108-era OAuth snapshots remain valid. It does not rewrite OAuth transactions,
+terminal rows, ciphertext or existing triggers. A callback already stale before109 still
+requires restart. Existing107 and108 remain byte-identical. Clean1..109 and107→108→109
+synthetic upgrade checks cover generation backfill/constraints and unchanged history/guards.
+Rollback is forward-only: retain schema and deploy a reviewed correction; never restore a
+writer that fails to advance authentication revision. No operational migration is performed.
 
 ## D2–D7 and Human handoff
 

@@ -6029,6 +6029,12 @@ components:
           minimum: 1
         webhook_path:
           type: string
+        webhook_url:
+          description: Complete HTTPS URL from the configured public Origin; null if unavailable or invalid.
+          type:
+          - string
+          - 'null'
+          format: uri
       required:
       - id
       - name
@@ -6046,6 +6052,7 @@ components:
       - followers_fetched_at
       - revision
       - webhook_path
+      - webhook_url
     LineBotCollection:
       type: object
       additionalProperties: false

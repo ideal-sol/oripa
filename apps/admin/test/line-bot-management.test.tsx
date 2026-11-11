@@ -15,6 +15,7 @@ const bot: LineBot = {
   legacy: true, connection_status: "unconfigured", connected_at: null,
   quota_snapshot: null, quota_fetched_at: null, followers_snapshot: null,
   followers_fetched_at: null, revision: 1, webhook_path: "/webhooks/v2/line/01910191-0191-7191-8191-019101910191",
+  webhook_url: "https://public.example.test/webhooks/v2/line/01910191-0191-7191-8191-019101910191",
 };
 describe("LINE BOT configuration", () => {
   beforeEach(() => {
@@ -25,6 +26,24 @@ describe("LINE BOT configuration", () => {
     });
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it("displays and copies the complete HTTPS webhook URL", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {configurable: true, value: {writeText}});
+    render(<LineBotManagement />);
+    expect(await screen.findByLabelText("Webhook URL")).toHaveValue(bot.webhook_url);
+    fireEvent.click(screen.getByRole("button", {name: "URLをコピー"}));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(bot.webhook_url));
+    expect(await screen.findByText(/LINE Developersに貼り付けてください/)).toBeVisible();
+  });
+
+  it("does not invent a URL when the public Origin is unavailable", async () => {
+    vi.mocked(AdminApiClient.prototype.getLineBots).mockResolvedValue({items: [{...bot, webhook_url: null}]});
+    render(<LineBotManagement />);
+    expect(await screen.findByLabelText("Webhook URL")).toHaveValue("");
+    expect(screen.getByRole("button", {name: "URLをコピー"})).toBeDisabled();
+    expect(screen.getByText(/Webhook URLを表示できません/)).toBeVisible();
+  });
 
   it("shows missing configuration and never fetches provider snapshots automatically", async () => {
     const action = vi.spyOn(AdminApiClient.prototype, "lineBotAction");

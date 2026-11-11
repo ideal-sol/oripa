@@ -98,8 +98,9 @@ export function LineBotManagement() {
       <h4>{bot.name} {bot.is_active ? "（有効）" : "（無効）"}</h4>
       <p>Channel ID: {bot.channel_id ?? "未設定・Human入力待ち"}／secret: {bot.secret_configured ? "設定済み" : "未設定"}</p>
       <p>接続: {({unconfigured: "未設定", pending: "確認待ち", succeeded: "成功", failed: "失敗"})[bot.connection_status]} {bot.display_name} {bot.basic_id}</p>
-      <label>Webhookパス<input readOnly value={bot.webhook_path} /></label>
-      <button type="button" onClick={() => void navigator.clipboard.writeText(bot.webhook_path).then(() => setMessage("Webhookパスをコピーしました。公開Webhookホストと組み合わせて設定してください。")).catch(() => setError("コピーできませんでした。パスを選択してコピーしてください。"))}>パスをコピー</button>
+      <label>Webhook URL<input readOnly value={bot.webhook_url ?? ""} /></label>
+      {bot.webhook_url === null && <p>公開URLが未設定、またはHTTPSの設定が不正なため、Webhook URLを表示できません。サイト管理者に設定を依頼してください。</p>}
+      <button type="button" disabled={!bot.webhook_url} onClick={() => { if (bot.webhook_url) void navigator.clipboard.writeText(bot.webhook_url).then(() => setMessage("Webhook URLをコピーしました。LINE Developersに貼り付けてください。")).catch(() => setError("コピーできませんでした。URLを選択してコピーしてください。")); }}>URLをコピー</button>
       <p>送信数: {bot.quota_snapshot ? `${bot.quota_snapshot.used ?? "—"} / ${bot.quota_snapshot.type === "none" ? "上限なし" : bot.quota_snapshot.limit ?? "—"}` : "未取得"}（取得日時: {bot.quota_fetched_at ?? "—"}）</p>
       <p>友だち: {bot.followers_snapshot?.status === "ready" ? `${bot.followers_snapshot.followers ?? "—"}／ブロック ${bot.followers_snapshot.blocks ?? "—"}／届く人数 ${bot.followers_snapshot.targetedReaches ?? "—"}` : bot.followers_snapshot ? "取得できませんでした（LINEの集計待ち）" : "未取得"}（取得日時: {bot.followers_fetched_at ?? "—"}）</p>
       <fieldset disabled={!writable || busy}>
