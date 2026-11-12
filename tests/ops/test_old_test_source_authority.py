@@ -232,7 +232,7 @@ class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
 
 class LineTrustedProxyApprovalTest(unittest.TestCase):
     def test_api_only_source_preserves_runtime_boundaries(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "cc371b08c4c01f7327ab8560fe24724ea262f427:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         source = "b66e9a817d53dc77c2b327c3ccdd19790e204d57"
         self.assertEqual(
             (approval["task_id"], approval["source_pr"], approval["source_sha"],
@@ -524,7 +524,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "api-only")
+            self.assertEqual(result["image_mode"], "admin-only")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
@@ -941,3 +941,17 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NodeAdminApprovalTest(unittest.TestCase):
+    def test_exact_admin_only_source_and_retained_api(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"]),
+                         ("NODEADM-20261112", 685, "d76f0442c5eeb122ffd946f8d265edc000e7d97b", "admin-only", "linux/amd64"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", approval["source_sha"] + "^{tree}"), "e0ef92bd08ce9d89f096c61fc8b85e377f672a0c")
+        self.assertEqual(git("diff", "--name-only", "81c8147095d4b79bc2d47bf58938b01809db4b58", approval["source_sha"], "--", "apps/api", "apps/agency", "pnpm-lock.yaml", "openapi", "packages"), "")
+        for text in ("No API or Agency Build or restart", "Ledger107/no Migration", "TTL300 Receipt", "separate Human Exact Runtime GO", "Production Authority/Artifacts/Stage unchanged"):
+            self.assertIn(text, approval["authority"])

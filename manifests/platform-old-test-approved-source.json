@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "TRUSTPROXYRT-20261111",
-  "source_pr": 682,
-  "source_sha": "b66e9a817d53dc77c2b327c3ccdd19790e204d57",
+  "task_id": "NODEADM-20261112",
+  "source_pr": 685,
+  "source_sha": "d76f0442c5eeb122ffd946f8d265edc000e7d97b",
   "target": "old-test",
   "platform": "linux/amd64",
-  "image_mode": "api-only",
+  "image_mode": "admin-only",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR682 Squash b66e9a817d53dc77c2b327c3ccdd19790e204d57, reviewed HEAD 1cd130ebceca383bfbb5f415cbb6edc4c222dd7c, common Tree 0ef56df581778c3a00eeb0caf382db874f1d7965. Build one AMD64 API image. Reuse current Admin, Storefront Build ejuSzqh83dbcvVX29f4FK and formal Client/Testkit alpha.52 Artifact13742019147. Keep Ledger107 with no Migration. Preserve Paidy financial authorization, Paidy TEST/Worker OFF, UnivaPay TEST, GTM OFF, LINE Friendship Check ON and 500 coins with configured 60 days. Prepare private exact ingress IP ENV, F2-B and UnivaPay rebind and existing rollback state under Canonical gates, TTL300 Receipt and Locks. Runtime activation requires separate Human Exact Runtime GO."
+  "authority": "Human-approved exact OLD Test payload: PR685 Squash d76f0442c5eeb122ffd946f8d265edc000e7d97b, reviewed HEAD 6b89b405759b254b2cda800fe49606606626e379, common Tree e0ef92bd08ce9d89f096c61fc8b85e377f672a0c. Build exactly Admin-only linux/amd64 with Node22.23.5/Alpine3.24.4 from the reviewed multi-platform base index. No API or Agency Build or restart. Storefront independently uses PR239 Squash 160b0d3058cb8113faadb487563a682529212879, reviewed Tree c7dc70ad2065da02e694a00370254b0c2bdf4fe4 and one dedicated-Node22.23.5 GTM-OFF Build. Reuse formal Client/Testkit alpha.52. Preserve API, Ledger107/no Migration, LINE500 coins/configured60days, Paidy TEST/WorkerOFF, UnivaPay TEST, Workers/Timers/ENV/Nginx. Existing Production Authority/Artifacts/Stage unchanged. Security/Artifact Gates, TTL300 Receipt, lock and exact rollback remain mandatory. Runtime activation requires separate Human Exact Runtime GO."
 }
