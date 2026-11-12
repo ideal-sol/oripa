@@ -28,11 +28,24 @@ Distinct IPv4/IPv6 client addresses survive mod_remoteip. With the exact test
 ingress trusted for X-Forwarded-Proto, HTTPS is recognized before address
 rewriting but rejected after REMOTE_ADDR becomes the client. This reproduces
 the incompatibility; it is NOT a successful Production HTTPS validation.
-The unchanged PR682 source therefore has no single ingress IP that satisfies
-both current mod_remoteip semantics and the requested scheme trust. Resolve
-this explicitly before binding a Production proxy value. No value is
-authorized by this Draft. The historical ALB append/ingress assumption still
-needs current Human confirmation because the installed role cannot read ALB.
+The unchanged PR682 source therefore has no single Laravel proxy IP that
+satisfies both current mod_remoteip semantics and scheme trust. Following the
+explicit Human preparation approval, the selected candidate uses Apache
+CONN_REMOTE_ADDR plus exact X-Forwarded-Proto=https to set native HTTPS. It
+preserves REMOTE_ADDR and leaves V2_TRUSTED_PROXY_IPS unset/empty. The underlying
+TCP peer was observed with one local HTTP200 health connection; the address and
+candidate configuration remain host-private. No Source change is needed.
+
+Corrected isolated Apache verification:55 checks/42 HTTP cases PASS, covering
+distinct IPv4/IPv6 clients, HTTPS callback URL, HTTP/missing/malformed/duplicate
+protocol and untrusted-peer/host/port spoofing. Current-image composer files are
+unchanged in the target Source. A bounded Nginx scheme-map guard checks the
+unmodified connection peer against existing ingress ranges, falling back to
+native scheme for untrusted peers; real-IP settings remain unchanged. Isolated
+Nginx normalization/protocol13 tests and additive render/recovery3 tests PASS.
+No configuration was installed/reloaded. The historical ALB append/ingress
+assumption still needs current confirmation because the installed role cannot
+read ALB. These are synthetic tests, not actual ALB/LINE/browser acceptance.
 
 Storefront Platform Authority merge SHA cannot exist before Platform merge.
 Its Draft stores null and blocks formal dispatch. After approved Platform merge,
@@ -55,7 +68,8 @@ without starting services. Formal image IDs are pending, never fabricated.
 Human supplies LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET,
 V2_LINE_LOGIN_REDIRECT_URI, LINE_MESSAGING_CHANNEL_SECRET,
 LINE_MESSAGING_CHANNEL_ACCESS_TOKEN, V2_LINE_FRIENDSHIP_CHECK_ENABLED,
-V2_LINE_LOGIN_BOT_PROMPT and, only after the proxy gate, V2_TRUSTED_PROXY_IPS.
+V2_LINE_LOGIN_BOT_PROMPT. Keep V2_TRUSTED_PROXY_IPS unset/empty with the reviewed
+Apache candidate; never insert a gateway into Laravel trust after remoteip.
 Confirm Login-channel/official-account linkage and exact public HTTPS callback.
 Do not copy OLD values, dump ENV, replace whole service ENV or alter rewards.
 
@@ -124,6 +138,7 @@ DB restore is a separate Human recovery decision, never an automatic rollback.
 
 ## Completion boundary
 
-This is a reviewable plan, not an executable bound release. New artifacts,
-proxy compatibility, exact executor bindings and focused offline validation
-remain required before claiming NEWPROD_LINE_ALPHA52_PREPARATION_READY.
+This is a reviewable plan, not an executable bound release. The minimal proxy
+candidate passed limited tests. New artifacts, current ingress confirmation,
+exact executor bindings and focused offline sequencing/recovery validation
+remain required before a bound Cutover release can be declared ready.
