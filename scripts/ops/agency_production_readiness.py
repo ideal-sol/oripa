@@ -176,18 +176,36 @@ def image_checks(api_image: str, admin_image: str, agency_image: str) -> dict:
     return effective
 
 
+def admin_image_checks(admin_image):
+    # CI candidate only: no ports, network, mounts, ENV file or Runtime services.
+    subprocess.run([
+        "docker", "run", "--rm", "--read-only", "--network", "none",
+        "--env", "ORIPA_COMPONENT=admin", "--entrypoint", "node", admin_image,
+        "-e", "if(process.version !== 'v22.23.5' || process.arch !== 'arm64') "
+              "throw new Error('Admin Node/architecture mismatch');\n" + FRONTEND_CHECK,
+    ], check=True)
+    return {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api-image", required=True)
+    parser.add_argument("--api-image")
     parser.add_argument("--admin-image", required=True)
-    parser.add_argument("--agency-image", required=True)
+    parser.add_argument("--agency-image")
+    parser.add_argument("--admin-only", action="store_true")
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--source-sha")
     arguments = parser.parse_args()
+    if arguments.admin_only:
+        if arguments.api_image or arguments.agency_image:
+            parser.error("Admin-only cannot inspect API or Agency images")
+    elif not arguments.api_image or not arguments.agency_image:
+        parser.error("Full Production readiness requires API, Admin and Agency images")
     if arguments.evidence and not re.fullmatch(r"[0-9a-f]{40}", arguments.source_sha or ""):
         parser.error("--evidence requires an exact --source-sha")
     try:
-        effective = image_checks(arguments.api_image, arguments.admin_image, arguments.agency_image)
+        effective = (admin_image_checks(arguments.admin_image) if arguments.admin_only else
+                     image_checks(arguments.api_image, arguments.admin_image, arguments.agency_image))
     except ValueError as error:
         parser.exit(1, f"Production readiness failed: {error}\n")
     if arguments.evidence:
@@ -195,7 +213,7 @@ def main() -> None:
             "schema_version": "oripa.agency-production-readiness.v1",
             "source_commit": arguments.source_sha,
             "effective_domains": effective,
-            "images": {
+            "images": {"admin": arguments.admin_image} if arguments.admin_only else {
                 "api": arguments.api_image,
                 "admin": arguments.admin_image,
                 "agency": arguments.agency_image,

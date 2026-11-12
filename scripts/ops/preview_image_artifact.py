@@ -173,6 +173,18 @@ def image_metadata(inspect: dict, source_sha: str, architecture: str) -> dict:
     }
 
 
+def validate_admin_only(artifact_kind, architecture, task_id, pr_number, source_sha):
+    if artifact_kind == "old-test":
+        return
+    if artifact_kind != "production-candidate":
+        fail("admin_only_requires_old_test")
+    if (architecture, task_id, pr_number, source_sha) != (
+        "arm64", "NEWPROD-ADMIN-NODE-20261112", 685,
+        "2e9329da44a38101403ab721da1d4b90c353dbe3",
+    ):
+        fail("production_admin_only_authority_mismatch")
+
+
 def package_images(arguments: argparse.Namespace) -> dict:
     validate_identity(arguments.task_id, arguments.pr_number, arguments.source_sha)
     validate_target(arguments.artifact_kind, arguments.architecture)
@@ -187,8 +199,9 @@ def package_images(arguments: argparse.Namespace) -> dict:
         fail("old_test_image_inventory_invalid")
     archives = archive_names(arguments.architecture)
     references = {"api": arguments.api_image, "admin": arguments.admin_image, "agency": getattr(arguments, 'agency_image', None)}
-    if arguments.image_mode == "admin-only" and arguments.artifact_kind != "old-test":
-        fail("admin_only_requires_old_test")
+    if arguments.image_mode == "admin-only":
+        validate_admin_only(arguments.artifact_kind, arguments.architecture,
+                            arguments.task_id, arguments.pr_number, arguments.source_sha)
     if ("api" in image_names) != (arguments.api_image is not None):
         fail("api_image_mode_mismatch")
     if (arguments.image_mode in {"normal", "agency", "admin-only"}) != (arguments.admin_image is not None):
@@ -409,8 +422,8 @@ def verify_artifact(
     if artifact_kind == "old-test" and image_names not in (("api",), ("admin",), ("api", "admin")):
         fail("old_test_image_inventory_invalid")
 
-    if image_names == ("admin",) and artifact_kind != "old-test":
-        fail("admin_only_requires_old_test")
+    if image_names == ("admin",):
+        validate_admin_only(artifact_kind, architecture, task_id, pr_number, source_sha)
     archives = archive_names(architecture)
     expected_files = {archives[name] for name in image_names} | {"manifest.json"}
     checksums = parse_checksums(checksums_path)

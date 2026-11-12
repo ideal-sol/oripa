@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "repository": "ideal-sol/oripa",
+  "change_id": "NEWPROD-ADMIN-NODE-20261112",
+  "pr_number": 685,
+  "authority": "Human-approved exact Runtime Source: current Production Admin PR666 composition plus PR685 Node-only inputs; exclude Admin PR663 UI; no API or Agency build; no Runtime activation; separate Human Build and Runtime GO required.",
+  "source_sha": "2e9329da44a38101403ab721da1d4b90c353dbe3",
+  "source_tree": "c96d7a39be9f34461c0809d5310600ebc386db81",
+  "inventory_sha256": "6e4dee59d2e1c90c0faa4f5979c6d07b8abfa980dd9a2c876164168f80bd8841",
+  "commit_content": "tree c96d7a39be9f34461c0809d5310600ebc386db81\nparent cad8be03cbab8b7fba18825a4a9b2a276f402010\nauthor Oripa Limited Payload <payload@example.invalid> 1794484800 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1794484800 +0000\n\nNEWPROD-ADMIN-NODE-20261112 Node-only derived payload; NOT a merged commit\n",
+  "baseline_source": "cad8be03cbab8b7fba18825a4a9b2a276f402010",
+  "baseline_manifest_sha256": "d6d8bb82da2659db225f267f5562ca9348c1ed59c3bee673bb89c95b0832cfc8",
+  "node_sha": "d76f0442c5eeb122ffd946f8d265edc000e7d97b",
+  "node_pr": 685,
+  "image_mode": "admin-only",
+  "architecture": "arm64",
+  "activation_authorized": false,
+  "files": {
+    "apps/admin/Dockerfile": {
+      "before": "5bf8df64e672fd6afda46029a0b42589f27fb7a6",
+      "after": "5398a7be060ebad83ffa90050fe1ba96d7ac74f6"
+    },
+    "apps/admin/package.json": {
+      "before": "c918e2ff1efc9a7320a0ca58b80e1cd450c94d81",
+      "after": "354520a32d1c6992632e9d3efbe97b8b2abb343f"
+    },
+    "package.json": {
+      "before": "e21c2c09565e1f2c1238bb1248b017151f3c2c86",
+      "after": "e9abbe907f8a3f18b8ae1953338c0cb1ce5c4862"
+    }
+  }
+}

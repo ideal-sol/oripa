@@ -3,6 +3,14 @@ name: Platform Production ARM64 Artifact
 on:
   workflow_dispatch:
     inputs:
+      image_mode:
+        description: Exact approved component inventory (Admin-only requires its dedicated Production authority)
+        required: true
+        type: choice
+        default: agency
+        options:
+          - agency
+          - admin-only
       change_id:
         description: Merged Change ID
         required: true
@@ -67,6 +75,7 @@ jobs:
           INPUT_CHANGE_ID: ${{ inputs.change_id }}
           INPUT_PR_NUMBER: ${{ inputs.pr_number }}
           INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+          INPUT_IMAGE_MODE: ${{ inputs.image_mode }}
         run: |
           python3 scripts/ci/policy_gate.py --repository .
           python3 scripts/ops/production_source_authority.py --repository .
@@ -93,6 +102,7 @@ jobs:
           command -v zstd >/dev/null
 
       - name: Build, package, verify, and load candidate
+        if: inputs.image_mode == 'agency'
         env:
           CHANGE_ID: ${{ steps.authority.outputs.change_id }}
           PR_NUMBER: ${{ steps.authority.outputs.pr_number }}
@@ -160,6 +170,42 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --artifact-kind production-candidate \
             --architecture arm64
+
+      - name: Build, package, verify, and load exact Admin-only candidate
+        if: inputs.image_mode == 'admin-only'
+        env:
+          CHANGE_ID: ${{ steps.authority.outputs.change_id }}
+          PR_NUMBER: ${{ steps.authority.outputs.pr_number }}
+          SOURCE_SHA: ${{ steps.authority.outputs.source_sha }}
+        run: |
+          helper="$GITHUB_WORKSPACE/build-authority/scripts/ops/preview_image_artifact.py"
+          created_at="$(git show -s --format=%cI "$SOURCE_SHA")"
+          target_platform="$(python3 "$helper" target --architecture arm64 --field platform)"
+          admin_image="oripa-v2-admin:production-candidate-${CHANGE_ID}-${SOURCE_SHA:0:12}-arm64"
+          docker build --platform "$target_platform" \
+            --target production \
+            --build-arg "OCI_VERSION=production-candidate-${CHANGE_ID}" \
+            --build-arg "OCI_REVISION=${SOURCE_SHA}" \
+            --build-arg "OCI_CREATED=${created_at}" \
+            --file apps/admin/Dockerfile \
+            --tag "$admin_image" .
+          python3 "$GITHUB_WORKSPACE/build-authority/scripts/ops/agency_production_readiness.py" \
+            --admin-only --source-sha "$SOURCE_SHA" \
+            --evidence "$RUNNER_TEMP/production-readiness.json" \
+            --admin-image "$admin_image"
+          python3 "$helper" package \
+            --output "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id "$CHANGE_ID" --pr-number "$PR_NUMBER" --source-sha "$SOURCE_SHA" \
+            --created-at "$created_at" --image-mode admin-only \
+            --artifact-kind production-candidate --architecture arm64 --admin-image "$admin_image"
+          python3 "$helper" verify \
+            --directory "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id "$CHANGE_ID" --pr-number "$PR_NUMBER" --source-sha "$SOURCE_SHA" \
+            --artifact-kind production-candidate --architecture arm64
+          python3 "$helper" load \
+            --directory "$RUNNER_TEMP/platform-production-arm64" \
+            --task-id "$CHANGE_ID" --pr-number "$PR_NUMBER" --source-sha "$SOURCE_SHA" \
+            --artifact-kind production-candidate --architecture arm64
 
       - name: Include effective domain validation evidence
         run: |
