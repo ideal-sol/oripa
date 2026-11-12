@@ -2039,7 +2039,7 @@ def validate_workspace_configuration(repository: Path) -> None:
         raise PolicyFailure("package.json: root workspace must be private")
     if package.get("packageManager") != "pnpm@10.12.1":
         raise PolicyFailure("package.json: packageManager must match the V1 lockfile")
-    if package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}:
+    if package.get("engines") != {"node": "22.23.5", "pnpm": "10.12.1"}:
         raise PolicyFailure("package.json: Node and pnpm engines must be exact")
     if package.get("dependencies"):
         raise PolicyFailure("package.json: root runtime dependencies are prohibited")
@@ -2164,7 +2164,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         or package.get("version") != release["application_versions"]["admin"]
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
-        or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
+        or package.get("engines") != {"node": "22.23.5", "pnpm": "10.12.1"}
     ):
         raise PolicyFailure("apps/admin/package.json: Admin App identity is invalid")
     validate_exact_dependency_versions(

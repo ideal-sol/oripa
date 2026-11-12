@@ -225,7 +225,7 @@ class Deployment:
         else:
             selected.update(files=hashes, authority=authority)
         manifest = json.loads((directory / "payload/manifest.json").read_bytes())
-        expected = ["api", "admin"] if authority["image_mode"] == "normal" else ["api"]
+        expected = {"normal": ["api", "admin"], "api-only": ["api"], "admin-only": ["admin"]}[authority["image_mode"]]
         require([image["name"] for image in manifest["images"]] == expected, "artifact_inventory_mismatch")
         return {image["name"]: image for image in manifest["images"]}
 
@@ -424,8 +424,7 @@ class Deployment:
                 config = decoded(command + ["config", "--format", "json"], environment=environment)
                 effective = dict(entry.split("=", 1) for entry in present["Config"].get("Env", []))
                 effective.update({key: str(value) for key, value in config["services"][service].get("environment", {}).items()})
-                require(effective == dict(entry.split("=", 1) for entry in current["Config"]["Env"]),
-                        "new_image_environment_changed")
+                self.check_image_environment(role, present["Id"], effective, current)
                 configured = config["services"][service].get("networks", {})
                 require(len(configured) == 1 and all(config["networks"][name].get("name", "").endswith("_v2_private")
                             for name in configured), "private_first_configuration_required")
@@ -442,8 +441,7 @@ class Deployment:
         image = decoded(["docker", "image", "inspect", image_id])[0]
         effective = dict(entry.split("=", 1) for entry in image["Config"].get("Env", []))
         effective.update({key: str(value) for key, value in config["services"][service].get("environment", {}).items()})
-        require(effective == dict(entry.split("=", 1) for entry in current["Config"]["Env"]),
-                "new_image_environment_changed")
+        self.check_image_environment(role, image_id, effective, current)
         networks = current["NetworkSettings"]["Networks"]
         expected_networks = self.candidate["previous"][role]["networks"]
         egress = [name for name in expected_networks if name.endswith("_v2_api_egress")]
@@ -459,6 +457,25 @@ class Deployment:
             self.runtime_identity(role, image_id, private_networks, private=True)
             run(["docker", "network", "connect", network, current["Name"]])
         self.wait(lambda: self.readiness(role, image_id, expected_networks))
+
+    def check_image_environment(self, role: str, image_id: str, effective: dict, current: dict) -> None:
+        expected = dict(entry.split("=", 1) for entry in current["Config"]["Env"])
+        changes = self.candidate.get("image_environment_changes", {})
+        if changes:
+            # This is part of the exact candidate, not an ambient deployment flag.
+            require(self.candidate["services"] == ["admin"] and not self.candidate["migrations"]
+                    and changes == {"admin": {"NODE_VERSION": {"before": "22.22.3", "after": "22.23.5"}}},
+                    "image_environment_change_scope_invalid")
+            require(role == "admin", "image_environment_change_role_invalid")
+            old = self.candidate["previous"][role]["image"]
+            new = self.candidate["images"][role]["image_id"]
+            require(old != new and current["Image"] in (old, new) and image_id in (old, new),
+                    "image_environment_change_identity_invalid")
+            versions = {old: "22.22.3", new: "22.23.5"}
+            require(expected.get("NODE_VERSION") == versions[current["Image"]],
+                    "current_image_node_version_changed")
+            expected["NODE_VERSION"] = versions[image_id]
+        require(effective == expected, "new_image_environment_changed")
 
     def runtime_identity(self, role: str, image_id: str, networks: list[str], *, private: bool = False) -> dict:
         current = self.runtime[role]

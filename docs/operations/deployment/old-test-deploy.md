@@ -5,6 +5,64 @@ not authorize execution. Source review/merge and one exact-candidate OLD Test
 Runtime GO are separate. No Production, feature activation, grants, provider
 requests, ENV, S3, Nginx, or CI configuration changes belong to this command.
 
+## Node 22.23.5: Admin-only preparation
+
+The protected OLD Test Workflow, Source Authority validator, archive verifier
+and candidate helper support `image_mode=admin-only`, `platform=linux/amd64`.
+This mode is valid only for OLD Test. It builds/packages exactly Admin, skips
+the API recipe and API Build, rejects extra images, and retains protected-main,
+merged Source/Tree, Required Checks and `activation_authorized=false` validation.
+It does not change the current approved-source manifest or Production Authority.
+
+Both Admin Docker stages use the multi-platform Node22.23.5 Alpine index
+`sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a`.
+Registry metadata resolves linux/amd64 and linux/arm64 to Node22.23.5 and
+Alpine3.24.4. The new Alpine image must still pass the existing image security
+scan and isolated startup/health/native-module checks after formal Build;
+metadata resolution is not runtime acceptance. No pnpm/Next/React/Lock update
+is part of this change. Published alpha.52 package engine pins remain historical.
+
+Use `--services admin` and no migrations. The helper stops/switches only Admin;
+it does not fence API writers, touch timers, rebind F2-B/UnivaPay or change
+Storefront. Preserve all nonselected services in the outer Canonical exact
+envelope and validate their unchanged identity before and after each effect.
+
+The only permitted image ENV difference for this Node maintenance is an explicit
+candidate member (included in its identity, never added after approval):
+
+```json
+{"image_environment_changes":{"admin":{"NODE_VERSION":{"before":"22.22.3","after":"22.23.5"}}}}
+```
+
+It requires Admin-only/no migration and exact old/new image IDs. All other ENV
+keys must remain identical. The inverse mapping applies only to the preserved
+old image during independently authorized recovery. No blanket ENV exception.
+
+The installed host Executor remains a separate hash-pinned security boundary.
+Source merge alone does not install or enable it. During formal preparation,
+bind its Admin-only selection to the reviewed candidate helper, exact new
+Source/Control/Artifact, deployment lock, fresh Security/Artifact observations,
+TTL300 receipt and old-image recovery. The existing PHP Gate cannot be claimed
+as Node security verification. Reuse the existing image scan for Admin and
+require its real successful evidence; no empty Gate set, invented receipt or
+direct helper `apply` is an alternative to the installed Executor. If the
+installed exact-envelope path cannot authorize this selection, HOLD before
+any stop and complete its bounded reviewed binding first. Do not use normal
+mode to work around that boundary by rebuilding or restarting API.
+
+After Merge GO: bind the actual Squash SHA in one OLD Test Authority update,
+Build Admin once, verify image architecture/OCI Source/Node22.23.5/Alpine3.24.4,
+image scan and Next health, then prepare the exact envelope with all retained
+services and rollback identity. Runtime remains subject to separate Exact GO.
+
+Agency is a separate follow-up: retain its current immutable Source, package
+and Lock hashes and image in private evidence; build from that exact application
+tree with only its two Node base lines (and any actually needed engine assertion)
+changed. Do not build Agency from current main, which changes its Next/UI/Lock.
+Old Frontend and shared-host Preview Node processes remain unpatched by this
+Admin/Storefront task. Current NEW Production and its pinned Artifacts are
+unchanged; future common Source Builds use the new base after separate approval.
+
 ## Prepare once
 
 Use the existing Human-managed root execution path. Keep source checkouts and
