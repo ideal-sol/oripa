@@ -13607,3 +13607,7 @@ REL-052 CI continuation: Human permits only standard Required-CI automatic Docke
 ## TRUSTPROXYRT-20261111
 
 Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 API-only OLD Test Build. Preserve Ledger107, current Admin, Storefront and formal alpha.52. Trusted Proxy values stay private. Exact Runtime GO follows verified preparation. R3 / Strict Change / Activation deferred.
+# LINEPROD-20261112 — LINE-only Production Draft preparation
+
+- Issue none; R3 / Strict Change / Activation deferred. Human authorizes Draft preparation, focused checks and local candidates only; no Ready/Merge/formal Build/Runtime. Dedicated worktree/branch, base cc371b08c4c01f7327ab8560fe24724ea262f427. API b66e9a817d53dc77c2b327c3ccdd19790e204d57 and Storefront PR233 48a6db137645500b4f1f06033e41ee29eba56b0e fixed; TOP100 and Admin663/Agency activation excluded.
+- Formal alpha.52 Artifact13742019147 reused unchanged. Ledger106→107 only. Current Paidy LIVE/public ON, six timers, rank loop, F2-B, UnivaPay, GTM, SMS/Mail and LINE disabled/0/180 settings preserved. Canonical preparation and unresolved proxy/executor gates: docs/operations/deployment/line-production-preparation-20261112.md. Apache mod_remoteip/client-IP preservation prevents inferring a Gateway allowlist. Source changes0, migration creation/application0, formal Builds0, Runtime0; tests/CI and exact-head HOLD review recorded in Draft PR. No completion/activation claim.
