@@ -3,6 +3,7 @@ import copy
 import json
 import hashlib
 import io
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,6 +24,47 @@ CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
+
+
+class OldTestBuildSelectionTest(unittest.TestCase):
+    def test_workflow_executes_only_selected_builds_without_docker(self):
+        workflow = (ROOT / ".github/workflows/old-test-main-artifact.yml").read_text()
+        script = workflow.split("        run: |\n", 1)[1].split("\n      - name: Upload", 1)[0]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        stub = '''#!/usr/bin/python3
+import json,os,pathlib,subprocess,sys
+name=pathlib.Path(sys.argv[0]).name
+args=sys.argv[1:]
+if name=='python3' and args[0]=='-c':
+    sys.exit(subprocess.call(['/usr/bin/python3',*args]))
+with open(os.environ['CALLS'],'a') as log: log.write(json.dumps([name,*args])+'\\n')
+if name=='git': print(os.environ['INPUT_SOURCE_SHA'] if args[0]=='rev-parse' else '2026-11-12T00:00:00Z')
+if name=='python3' and 'package' in args:
+    pathlib.Path(os.environ['RUNNER_TEMP'],'old-test-images').mkdir()
+'''
+        for mode, expected in (("admin-only", ["apps/admin/Dockerfile"]),
+                               ("api-only", ["approved-api.Dockerfile"]),
+                               ("normal", ["approved-api.Dockerfile", "apps/admin/Dockerfile"])):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                bin_dir = directory / "bin"; bin_dir.mkdir()
+                for name in ("python3", "docker", "git", "zstd"):
+                    path = bin_dir / name; path.write_text(stub); path.chmod(0o755)
+                (directory / "source-authority.json").write_text(json.dumps({"image_mode": mode}))
+                env = os.environ | {"PATH": str(bin_dir) + ":/usr/bin:/bin", "CALLS": str(directory / "calls"),
+                    "GITHUB_WORKSPACE": temporary, "RUNNER_TEMP": temporary,
+                    "INPUT_SOURCE_SHA": HEAD, "INPUT_TASK_ID": TASK, "INPUT_PR_NUMBER": str(PR)}
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], env=env,
+                                        cwd=directory, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = [json.loads(line) for line in (directory / "calls").read_text().splitlines()]
+                builds = [call for call in calls if call[0] == "docker"]
+                self.assertEqual([call[call.index("--file") + 1].replace(temporary + "/", "") for call in builds], expected)
+                self.assertTrue(all(call[1:4] == ["build", "--platform", "linux/amd64"] for call in builds))
+                package = next(call for call in calls if "package" in call)
+                self.assertEqual("--api-image" in package, mode != "admin-only")
+                self.assertEqual("--admin-image" in package, mode != "api-only")
+                self.assertEqual(any("--prepare-recipe" in call for call in calls), mode != "admin-only")
 
 
 class Alpha50ApprovalInventoryTest(unittest.TestCase):
@@ -573,7 +615,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(self.authorize(control=PAYLOAD)["source_sha"], PAYLOAD)
 
     def test_only_explicitly_approved_api_or_api_admin_inventory_is_authority(self):
-        for mode in ("api-only", "normal"):
+        for mode in ("api-only", "normal", "admin-only"):
             self.approval["image_mode"] = mode
             with self.subTest(mode=mode):
                 result = self.authorize()
@@ -609,7 +651,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
     def test_target_architecture_identity_and_activation_scope_fail_closed(self):
         for field, value in (("target", "production"), ("target", "new-server"),
                              ("platform", "linux/arm64"), ("image_mode", "agency"),
-                             ("image_mode", "admin-only"), ("image_mode", ""),
+                             ("image_mode", "admin-agency"), ("image_mode", ""),
                              ("task_id", "OTHER-123"), ("source_pr", 514),
                              ("activation_authorized", True), ("authority", "arbitrary")):
             original = self.approval[field]
@@ -723,7 +765,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
         run = {"event": "workflow_dispatch", "status": "completed", "conclusion": "success",
                "path": wrapper.OLD_WORKFLOW_PATH, "head_branch": "main", "head_sha": CONTROL,
                "run_attempt": 1}
-        for image_mode, mutation in ((mode, change) for mode in ("api-only", "normal")
+        for image_mode, mutation in ((mode, change) for mode in ("api-only", "normal", "admin-only")
                                      for change in ("none", "source", "control", "attempt", "outer", "inventory", "mode")):
             authority["image_mode"] = image_mode
             with self.subTest(mode=image_mode, mutation=mutation), tempfile.TemporaryDirectory() as temporary:
@@ -736,7 +778,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     provenance["run_attempt"] = 2
                 if mutation == "mode":
                     provenance["image_mode"] = "normal" if image_mode == "api-only" else "api-only"
-                image_names = ["api", "admin"] if image_mode == "normal" else ["api"]
+                image_names = {"normal": ["api", "admin"], "api-only": ["api"], "admin-only": ["admin"]}[image_mode]
                 manifest_names = image_names if mutation != "inventory" else list(reversed(image_names)) + ["agency"]
                 with zipfile.ZipFile(archive, "w") as bundle:
                     for name in ["SHA256SUMS"] + [f"oripa-v2-{image}-linux-amd64.docker.tar.zst" for image in image_names]:
@@ -800,10 +842,22 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
                                              source_sha=HEAD, artifact_kind=kind)
 
-    def test_old_test_rejects_arm64_agency_admin_only_and_reordered_inventory(self):
+    def test_old_test_admin_only_archive_verifies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("admin",), artifact_kind="old-test")
+            result = artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                              source_sha=HEAD, artifact_kind="old-test")
+            self.assertEqual([item["name"] for item in result["images"]], ["admin"])
+            for kind in ("preview", "production-candidate"):
+                with self.subTest(kind=kind), self.assertRaises(artifact.ArtifactError):
+                    artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                             source_sha=HEAD, artifact_kind=kind)
+
+    def test_old_test_rejects_arm64_agency_and_reordered_inventory(self):
         with self.assertRaisesRegex(artifact.ArtifactError, "architecture_invalid"):
             artifact.validate_target("old-test", "arm64")
-        for names in (("api", "admin", "agency"), ("admin",), ("admin", "api")):
+        for names in (("api", "admin", "agency"), ("admin", "api")):
             with self.subTest(names=names), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 create_artifact(directory, names, artifact_kind="old-test")
@@ -871,7 +925,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                          "control/scripts/ops/old_test_source_authority.py",
                          "--platform linux/amd64 --target preview", "--artifact-kind old-test",
                          'OCI_REVISION=${INPUT_SOURCE_SHA}', "persist-credentials: false",
-                         "source-authority.json", 'if [[ "$image_mode" == normal ]]; then',
+                         "source-authority.json", 'if [[ "$image_mode" == normal || "$image_mode" == admin-only ]]; then',
                          '--file apps/admin/Dockerfile', '--admin-image "$admin_image"',
                          '--image-mode "$image_mode"', 'test "$image_mode" = api-only || test "$image_mode" = normal'):
             self.assertIn(required, workflow)

@@ -29,6 +29,7 @@ IMAGE_NAMES = ("api", "admin")
 IMAGE_MODES = {
     "normal": IMAGE_NAMES,
     "api-only": ("api",),
+    "admin-only": ("admin",),
     "agency": ("api", "admin", "agency"),
 }
 TARGET_OS = "linux"
@@ -182,11 +183,15 @@ def package_images(arguments: argparse.Namespace) -> dict:
         fail("output_directory_not_empty")
     output.mkdir(parents=True, exist_ok=True)
     image_names = IMAGE_MODES[arguments.image_mode]
-    if arguments.artifact_kind == "old-test" and image_names not in (("api",), ("api", "admin")):
+    if arguments.artifact_kind == "old-test" and image_names not in (("api",), ("admin",), ("api", "admin")):
         fail("old_test_image_inventory_invalid")
     archives = archive_names(arguments.architecture)
     references = {"api": arguments.api_image, "admin": arguments.admin_image, "agency": getattr(arguments, 'agency_image', None)}
-    if (arguments.image_mode in {"normal", "agency"}) != (arguments.admin_image is not None):
+    if arguments.image_mode == "admin-only" and arguments.artifact_kind != "old-test":
+        fail("admin_only_requires_old_test")
+    if ("api" in image_names) != (arguments.api_image is not None):
+        fail("api_image_mode_mismatch")
+    if (arguments.image_mode in {"normal", "agency", "admin-only"}) != (arguments.admin_image is not None):
         fail("admin_image_mode_mismatch")
     if (arguments.image_mode == "agency") != (references['agency'] is not None):
         fail("agency_image_mode_mismatch")
@@ -401,9 +406,11 @@ def verify_artifact(
     ) if isinstance(images, list) else ()
     if image_names not in IMAGE_MODES.values() or len(image_names) != len(images):
         fail("manifest_images_invalid")
-    if artifact_kind == "old-test" and image_names not in (("api",), ("api", "admin")):
+    if artifact_kind == "old-test" and image_names not in (("api",), ("admin",), ("api", "admin")):
         fail("old_test_image_inventory_invalid")
 
+    if image_names == ("admin",) and artifact_kind != "old-test":
+        fail("admin_only_requires_old_test")
     archives = archive_names(architecture)
     expected_files = {archives[name] for name in image_names} | {"manifest.json"}
     checksums = parse_checksums(checksums_path)
@@ -569,7 +576,7 @@ def parser() -> argparse.ArgumentParser:
     package.add_argument(
         "--architecture", choices=SUPPORTED_ARCHITECTURES, default=TARGET_ARCHITECTURE
     )
-    package.add_argument("--api-image", required=True)
+    package.add_argument("--api-image")
     package.add_argument("--admin-image")
     package.add_argument("--agency-image")
     for name in ("verify", "load"):

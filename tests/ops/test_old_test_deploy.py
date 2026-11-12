@@ -117,6 +117,43 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(self.events, [["node", "/new/scripts/verify-vendored-artifacts.mjs"], ["systemctl", "stop", "old.service"],
             ("storefront", "/new", "new.service"), "health"])
 
+    def test_admin_only_never_stops_api_workers_timers_or_rebinds(self):
+        self.candidate["services"] = ["admin"]
+        self.candidate["images"] = {"admin": {"image_id": NEW_IMAGE}}
+        self.apply()
+        self.assertEqual(self.events, ["load", ["docker", "stop", "/admin"],
+                                      ("switch", "admin", NEW_IMAGE), "health"])
+        self.assertIn(OLD_IMAGE, self.runner.read_text())
+        self.assertEqual(self.candidate["state"]["phase"], "complete")
+
+    def test_admin_node_environment_delta_is_exact_and_reversible(self):
+        self.candidate["services"] = ["admin"]
+        self.candidate["images"] = {"admin": {"image_id": NEW_IMAGE}}
+        self.candidate["image_environment_changes"] = {
+            "admin": {"NODE_VERSION": {"before": "22.22.3", "after": "22.23.5"}}}
+        current = self.runtime("admin")
+        current["Config"]["Env"] = ["NODE_VERSION=22.22.3", "APP_SETTING=unchanged"]
+        effective = {"NODE_VERSION": "22.23.5", "APP_SETTING": "unchanged"}
+        self.operation.check_image_environment("admin", NEW_IMAGE, effective, current)
+        for key, value in (("NODE_VERSION", "22.23.6"), ("APP_SETTING", "changed"), ("EXTRA", "value")):
+            with self.subTest(key=key), self.assertRaises(deploy.Hold):
+                self.operation.check_image_environment("admin", NEW_IMAGE, effective | {key: value}, current)
+        with self.assertRaises(deploy.Hold):
+            self.operation.check_image_environment("admin", "sha256:" + "f" * 64, effective, current)
+        current["Image"] = NEW_IMAGE
+        current["Config"]["Env"] = ["NODE_VERSION=22.23.5", "APP_SETTING=unchanged"]
+        self.operation.check_image_environment("admin", OLD_IMAGE,
+            effective | {"NODE_VERSION": "22.22.3"}, current)
+        self.candidate["migrations"] = ["unexpected.php"]
+        with self.assertRaises(deploy.Hold):
+            self.operation.check_image_environment("admin", OLD_IMAGE, effective, current)
+
+    def test_node_environment_change_requires_exact_candidate_authorization(self):
+        current = self.runtime("admin")
+        current["Config"]["Env"] = ["NODE_VERSION=22.22.3"]
+        with self.assertRaises(deploy.Hold):
+            self.operation.check_image_environment("admin", NEW_IMAGE, {"NODE_VERSION": "22.23.5"}, current)
+
     def test_changed_candidate_and_missing_go_stop_before_mutation(self):
         with self.assertRaises(deploy.Hold):
             self.operation.apply("unapproved")
@@ -404,7 +441,7 @@ class DeploymentTest(unittest.TestCase):
         helper = {"verify_artifact": verifier, "require_target_host": mock.Mock(),
                   "image_metadata": metadata, "decompress_archive": decompress}
         self.candidate["artifact"]["authority"].update(task_id="ARTIFACT-201", source_pr=12)
-        image = {"Config": {"Env": []}}
+        image = {"Id": NEW_IMAGE, "Config": {"Env": []}}
         config = {"services": {"api": {"environment": {}, "networks": {"private": {}}}},
                   "networks": {"private": {"name": "old_v2_private"}}}
         with mock.patch.object(deploy.runpy, "run_path", return_value=helper), mock.patch.object(
