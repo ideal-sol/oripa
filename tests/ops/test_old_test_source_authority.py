@@ -944,6 +944,27 @@ if __name__ == "__main__":
 
 
 class NodeAdminApprovalTest(unittest.TestCase):
+    def test_readiness_classifier_keeps_old_test_scope_and_activation_boundary(self):
+        from scripts.release.readiness import change, records
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        def git(_repository, *args):
+            if args[0] == "show":
+                return json.dumps(approval).encode()
+            if args[0] == "rev-parse":
+                return (TREE + "\n").encode()
+            self.assertEqual(args[:2], ("merge-base", "--is-ancestor"))
+            return b""
+        with mock.patch.object(change, "git", side_effect=git):
+            result = change.validate_authority(ROOT, HEAD, wrapper.OLD_AUTHORITY_PATH, CONTROL)
+            self.assertEqual(result["source_sha"], approval["source_sha"])
+            for key, invalid in (("target", "production"), ("platform", "linux/arm64"),
+                                 ("image_mode", "agency"), ("activation_authorized", True)):
+                original = approval[key]
+                approval[key] = invalid
+                with self.subTest(key=key), self.assertRaises(records.RecordError):
+                    change.validate_authority(ROOT, HEAD, wrapper.OLD_AUTHORITY_PATH, CONTROL)
+                approval[key] = original
+
     def test_exact_admin_only_source_and_retained_api(self):
         approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"]),
