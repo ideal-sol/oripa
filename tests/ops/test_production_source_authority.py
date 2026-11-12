@@ -450,9 +450,9 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         contract, = [e for e in ledger["immutable_history"] if e["bundle_version"] == "2.0.0-alpha.52"]
         self.assertEqual(contract["publication"]["artifact_id"], 13742019147)
         self.assertEqual(contract["manifest_sha256"], "72bd3b18fb36bac68b948e4f936a7b64fce03cc1de95df1b3eedc826e54cee54")
-        for boundary in ["API-only activation", "Admin PR #663", "TOP100 PR #235", "Paidy LIVE / public ON",
-                         "monthly member-rank resident Worker", "forward-only", "disabled/0/180",
-                         "separate Human GO", "Apache mod_remoteip"]:
+        for boundary in ["API-only activation", "Admin PR #663", "TOP100 PR #235", "preserve existing payment settings",
+                         "preserve existing Worker/Timer settings", "forward-only", "no LINE reward enablement",
+                         "separate Human GO", "preserve existing client-IP security controls"]:
             self.assertIn(boundary, authority["authority"])
 
     def test_workflow_exact_source_labels_and_manifest(self):
