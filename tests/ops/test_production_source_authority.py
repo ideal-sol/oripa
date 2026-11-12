@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from tests.ops.test_production_admin_node import ProductionAdminNodeTest
 
 # Keep the limited-payload regressions in the existing canonical CI entrypoint.
 from tests.ops.test_production_pr666_payload import ProductionLimitedPayloadTest
@@ -458,7 +459,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
     def test_workflow_exact_source_labels_and_manifest(self):
         workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
         self.assertIn("ref: ${{ steps.authority.outputs.checkout_sha }}", workflow)
-        self.assertEqual(workflow.count('--build-arg "OCI_REVISION=${SOURCE_SHA}"'), 3)
+        self.assertEqual(workflow.count('--build-arg "OCI_REVISION=${SOURCE_SHA}"'), 4)
         self.assertIn('--source-sha "$SOURCE_SHA"', workflow)
         self.assertIn("production-source-authority.json", workflow)
         self.assertIn("path: build-authority", workflow)
