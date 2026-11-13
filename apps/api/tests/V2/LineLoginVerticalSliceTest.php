@@ -40,6 +40,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         config([
             'app.key' => 'base64:'.base64_encode(str_repeat('k', 32)),
             'cache.default' => 'array',
+            'database.connections.pgsql.timezone' => 'UTC',
             'v2_identity.origins.user' => 'https://storefront.example.test',
             'v2_identity.sms_verification.phone_hmac_key' =>
                 'base64:'.base64_encode(str_repeat('p', 32)),
@@ -57,6 +58,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         Cache::store('array')->clear();
         $this->provider = new FakeLineOidcTransport();
         $this->app->instance(V2LineOidcTransport::class, $this->provider);
+        DB::purge('pgsql');
         DB::beginTransaction();
     }
 
@@ -556,6 +558,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         DB::statement("SET LOCAL TIME ZONE 'UTC'");
         try {
             self::assertSame('UTC', DB::selectOne('SHOW TimeZone')->TimeZone);
+            self::assertSame('UTC', DB::connection()->getConfig('timezone'));
             self::assertSame('timestamp with time zone', DB::selectOne("SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'external_identity_transactions' AND column_name = 'expires_at'")->data_type);
             $instant = now();
             self::assertSame($instant->format('Y-m-d H:i:s'), DB::connection()->prepareBindings([$instant])[0]);
