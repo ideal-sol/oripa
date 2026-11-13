@@ -547,6 +547,95 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertNotNull(DB::table('line_pending_follows')->value('subject_ciphertext'));
     }
 
+    #[\PHPUnit\Framework\Attributes\DataProvider('callbackRepresentations')]
+    public function test_line_callback_with_different_database_timezone(string $purpose, string $accept, int $status): void
+    {
+        $timezone = date_default_timezone_get();
+        date_default_timezone_set('Asia/Tokyo');
+        config(['app.timezone' => 'Asia/Tokyo']);
+        DB::statement("SET LOCAL TIME ZONE 'UTC'");
+        try {
+            self::assertSame('UTC', DB::selectOne('SHOW TimeZone')->TimeZone);
+            self::assertSame('timestamp with time zone', DB::selectOne("SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'external_identity_transactions' AND column_name = 'expires_at'")->data_type);
+            $instant = now();
+            self::assertSame($instant->format('Y-m-d H:i:s'), DB::connection()->prepareBindings([$instant])[0]);
+            $user = $this->user('timezone-callback@example.test');
+            if ($purpose === 'reauthentication') $this->account($user, 'timezone-subject');
+            [$initial, $session] = $this->authenticatedRequest($user);
+            $started = $this->start($purpose, $user, $initial, '/mypage/line');
+            $this->provider->claims($started['query']['nonce'], 'timezone-subject');
+            $request = $this->callbackRequest($started['binding'], $session);
+            $request->query->replace(['code' => 'synthetic-timezone-code', 'state' => $started['state']]);
+            $request->headers->set('Accept', $accept);
+            $request->headers->set('Sec-Fetch-Mode', $status === 303 ? 'navigate' : 'cors');
+            $request->headers->set('Sec-Fetch-Dest', $status === 303 ? 'document' : 'empty');
+            self::assertSame($status === 200, $request->expectsJson());
+            self::assertSame(0, ExternalIdentityTransaction::query()->where('expires_at', '>', now())->count());
+            self::assertSame(1, ExternalIdentityTransaction::query()->where('expires_at', '>', \App\Support\V2DatabaseTimestamp::format(now()))->count());
+            $response = app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($request);
+            self::assertSame($status, $response->getStatusCode());
+            if ($status === 303) {
+                self::assertSame('/mypage/line', $response->headers->get('Location'));
+                self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+                self::assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+                self::assertStringNotContainsString('authenticated', $response->getContent());
+            } else {
+                self::assertTrue(json_decode($response->getContent(), true)['authenticated']);
+            }
+            $cookies = [];
+            foreach ($response->headers->getCookies() as $cookie) $cookies[$cookie->getName()] = $cookie;
+            self::assertNotSame($session, $cookies['__Host-oripa_user_session']->getValue());
+            self::assertTrue($cookies['__Host-oripa_user_session']->isSecure());
+            self::assertTrue($cookies['__Host-oripa_user_session']->isHttpOnly());
+            self::assertLessThan(time(), $cookies['__Host-oripa_oidc_transaction']->getExpiresTime());
+            self::assertSame($user->id, ExternalIdentityAccount::query()->sole()->user_id);
+            self::assertNull(app(V2ExternalIdentityService::class)->lineBrowserReturnSession($request));
+            $this->expectCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', fn () =>
+                app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($request));
+        } finally {
+            date_default_timezone_set($timezone);
+        }
+    }
+
+    public static function callbackRepresentations(): array
+    {
+        $cases = [];
+        foreach (['link', 'reauthentication'] as $purpose) {
+            foreach (['text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', '*/*', 'application/json'] as $accept) {
+                $cases[] = [$purpose, $accept, $accept === 'application/json' ? 200 : 303];
+            }
+        }
+        return $cases;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeBrowserCallbacks')]
+    public function test_browser_return_rejects_invalid_binding_session_or_expiry(string $mutation): void
+    {
+        $user = $this->user('unsafe-browser@example.test');
+        [$initial, $session] = $this->authenticatedRequest($user);
+        $started = $this->start('link', $user, $initial, '/mypage/line');
+        $this->provider->claims($started['query']['nonce'], 'unsafe-browser-subject');
+        $request = $this->callbackRequest($started['binding'], $session);
+        $request->query->replace(['code' => 'synthetic-unsafe-code', 'state' => $started['state']]);
+        $request->headers->set('Accept', 'text/html');
+        match ($mutation) {
+            'binding' => $request->cookies->set('__Host-oripa_oidc_transaction', str_repeat('b', 64)),
+            'missing_session' => $request->cookies->remove('__Host-oripa_user_session'),
+            'other_user' => $request->cookies->set('__Host-oripa_user_session', $this->authenticatedRequest($this->user('other-browser@example.test'))[1]),
+            'other_session' => $request->cookies->set('__Host-oripa_user_session', $this->authenticatedRequest($user)[1]),
+            'expired' => $this->travel(11)->minutes(),
+        };
+        self::assertNull(app(V2ExternalIdentityService::class)->lineBrowserReturnSession($request));
+        $this->expectCode('EXTERNAL_IDENTITY_AUTHENTICATION_FAILED', fn () =>
+            app(\App\Http\Controllers\V2\V2PublicAuthController::class)->completeLine($request));
+        self::assertSame(0, ExternalIdentityAccount::query()->count());
+    }
+
+    public static function unsafeBrowserCallbacks(): array
+    {
+        return array_map(fn ($value) => [$value], ['binding', 'missing_session', 'other_user', 'other_session', 'expired']);
+    }
+
     public function test_browser_line_link_returns_to_exact_path_and_session_bound_notice(): void
     {
         config(['v2_line.friendship_check_enabled' => true]);
@@ -578,6 +667,11 @@ final class LineLoginVerticalSliceTest extends TestCase
         $this->expectCode('INVALID_REDIRECT', fn () => $this->start('login', null, null, '/mypage/line'));
         $this->expectCode('INVALID_REDIRECT', fn () => app(V2ExternalIdentityService::class)->startForProvider(
             'google', 'login', '/mypage/line', '192.0.2.70', (string) Str::uuid7(), null, Request::create('/')));
+        $user = $this->user('redirect-allowlist@example.test');
+        [$request] = $this->authenticatedRequest($user);
+        foreach (['https://attacker.example/mypage/line', '//attacker.example', '/mypage/line?next=https://attacker.example'] as $path) {
+            $this->expectCode('INVALID_REDIRECT', fn () => $this->start('link', $user, $request, $path));
+        }
     }
 
     public function test_browser_cancel_consumes_transaction_and_returns_auth_failure_once(): void
