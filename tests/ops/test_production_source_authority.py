@@ -433,13 +433,13 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
 
     def test_line_production_exact_boundary(self):
         authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
-        source = "b66e9a817d53dc77c2b327c3ccdd19790e204d57"
+        source = "9235350523accdb2c3d41dca869d7d44f0863ba5"
         self.assertEqual(authority["source_sha"], source)
-        self.assertEqual(authority["pr_number"], 682)
-        self.assertEqual(authority["change_id"], "TRUSTPROXY-20261111")
+        self.assertEqual(authority["pr_number"], 688)
+        self.assertEqual(authority["change_id"], "LINE-CALLBACK-REDIRECT-20261113")
         self.assertIs(authority["activation_authorized"], False)
         self.assertEqual(MODULE["git"](ROOT, "rev-parse", source + "^{tree}"),
-                         "0ef56df581778c3a00eeb0caf382db874f1d7965")
+                         "f9d41f6566b4c1e771bb7895dabad1639b80b810")
         old = "4a03489c2e5cdde97c75b6330e5fd65167230833"
         delta = MODULE["git"](ROOT, "diff", "--name-status", old, source,
                               "--", "apps/api/database/migrations-v2").splitlines()

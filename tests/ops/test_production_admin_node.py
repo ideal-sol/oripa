@@ -59,7 +59,7 @@ class ProductionAdminNodeTest(unittest.TestCase):
         self.assertEqual(evidence["checkout_sha"], self.baseline["base_sha"])
         self.assertIs(evidence["activation_authorized"], False)
         line = json.loads((ROOT / M["AUTHORITY_PATH"]).read_text())
-        self.assertEqual(line["source_sha"], "b66e9a817d53dc77c2b327c3ccdd19790e204d57")
+        self.assertEqual(line["source_sha"], "9235350523accdb2c3d41dca869d7d44f0863ba5")
 
     def test_no_unreviewed_wrong_source_or_mode(self):
         for bad in (659, 666, 685, "unprotected", "tree", self.head, self.spec["node_sha"],
