@@ -322,7 +322,8 @@ final class V2ExternalIdentityService
         if (! is_string($state) || ! preg_match('/\A[0-9a-f]{64}\z/', $state) || ! is_string($binding)) return null;
         $transaction = ExternalIdentityTransaction::query()->where('state_hash', $this->tokens->hash($state))
             ->where('provider', 'line')->whereIn('purpose', ['link', 'reauthentication'])
-            ->where('return_path', '/mypage/line')->where('status', 'pending')->where('expires_at', '>', now())->first();
+            ->where('return_path', '/mypage/line')->where('status', 'pending')
+            ->where('expires_at', '>', V2DatabaseTimestamp::format(now()))->first();
         if ($transaction === null || ! hash_equals($transaction->browser_binding_hash, $this->tokens->hash($binding))) return null;
         try {
             $session = $this->sessions->requireActiveUserSession($request, (int) $transaction->user_id);

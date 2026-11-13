@@ -37,6 +37,16 @@ class PolicyGateTest(unittest.TestCase):
         with mock.patch.object(policy_gate, 'load_json', side_effect=published_json):
             policy_gate.validate_admin_skeleton(ROOT, paths)
 
+    def test_line_callback_redirect_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-CALLBACK-REDIRECT-20261113"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "LINE-CALLBACK-REDIRECT-20261114", "LINE-CALLBACK-REDIRECT-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_line_link_friend_task_id_is_exact(self):
         data = fixture("positive.json")
         task = "LINE-LINK-FRIEND-20261105"
