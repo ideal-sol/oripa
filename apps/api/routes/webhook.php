@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('/v2/techcoin/{token}', \App\Http\Controllers\V2\V2TechcoinWebhookController::class)
     ->middleware('throttle:600,1')->name('v2.webhook.techcoin');
 
+Route::post('/v2/line/{bot_public_id}', V2LineMessagingWebhookController::class)->name('v2.webhook.line.bot');
+
 Route::post('/v2/line', V2LineMessagingWebhookController::class)
     ->name('v2.webhook.line');
 Route::post('/v2/fincode', V2FincodeWebhookController::class)

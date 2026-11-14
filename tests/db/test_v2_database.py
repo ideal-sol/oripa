@@ -20,6 +20,20 @@ SPEC.loader.exec_module(v2_database)
 
 
 class V2DatabaseGuardTest(unittest.TestCase):
+    def test_line108_inventory_and_forward_only_rejection(self):
+        filename = "2026_11_10_000108_add_v2_line_bot_management.php"
+        (self.repository / v2_database.MIGRATION_PATH / filename).touch()
+        for table in ("line_bots", "line_login_settings", "line_friend_observations"):
+            with self.assertRaises(v2_database.GuardFailure):
+                v2_database.validate_schema_inventory([item for item in v2_database.EXPECTED_V2_SCHEMA_INVENTORY if item != "public." + table])
+        for one_shot in (False, True):
+            with self.subTest(one_shot=one_shot), mock.patch.object(v2_database, "migration_rows", return_value=b"108") as ledger, mock.patch.object(v2_database, "schema_dump", return_value=b"schema") as schema, mock.patch.object(v2_database, "run", return_value=b"FORWARD_ONLY_REJECTION_PASS") as command:
+                self.assertEqual(v2_database.rollback_and_reapply_latest(["docker", "compose"], self.repository, one_shot), "FORWARD_ONLY_REJECTION_PASS")
+                self.assertEqual(ledger.call_count, 2)
+                self.assertEqual(schema.call_count, 2)
+                self.assertIn("Forward-only LINE bot management migration", command.call_args.args[0][-1])
+                self.assertNotIn("migrate:rollback", command.call_args.args[0])
+
     def test_line107_forward_only_rejection_preserves_schema_and_ledger(self):
         filename = "2026_11_05_000107_add_v2_line_subject_vault.php"
         (self.repository / v2_database.MIGRATION_PATH / filename).touch()

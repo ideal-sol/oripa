@@ -81,7 +81,7 @@ final class V2LineSubjectVault
             ->where('provider', 'line')->where('issuer', 'https://access.line.me')
             ->whereNull('revoked_at')->whereNull('superseded_at')->first();
         if ($account === null || DB::table('account_closures')->where('user_id', $user->id)->exists()) return null;
-        $friendship = DB::table('line_friendships')->where('user_id', $user->id)
+        $friendship = DB::table('line_friendships')->where('line_bot_id', app(V2LineConfiguration::class)->botId())->where('user_id', $user->id)
             ->where('subject_hash', $account->subject_hash)->whereNull('superseded_at')
             ->where('status', 'friend')->whereNull('unfollowed_at')->first();
         $row = $friendship?->subject_ciphertext !== null ? $friendship : $account;

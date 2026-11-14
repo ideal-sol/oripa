@@ -5,6 +5,17 @@ use App\Domain\Point\Services\PointExpirationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Artisan::command('v2:line:import-environment', function (): int {
+    try {
+        app(\App\Domain\Line\Services\V2LineConfiguration::class)->importEnvironment();
+        $this->info('LINE configuration import completed. Existing stored values were preserved.');
+        return 0;
+    } catch (\Throwable) {
+        $this->error('LINE configuration import failed. Check schema readiness.');
+        return 1;
+    }
+})->purpose('Import initial LINE credentials without activation; requires separately approved runtime migration.');
+
 Artisan::command('v2:paidy:work {--limit=20}', function (): int {
     if (config('v2_paidy.worker_enabled') !== true) {
         $this->error('Paidy worker is disabled.');

@@ -42,7 +42,11 @@ class PaidyAlpha51ReleaseTest(unittest.TestCase):
         for surface in ['admin', 'webhook']:
             old = json.loads(subprocess.check_output(['git', 'show',
                 f'8eadec09a187e3f220dc09d36e9a14b98511931b:openapi/bundled/{surface}.openapi.json'], cwd=ROOT))
-            new = json.loads((ROOT / f'openapi/bundled/{surface}.openapi.json').read_text())
+            # Pin this historical release assertion to its published source, as
+            # the Public transition above does. Later additive contracts are
+            # validated against their own PR base by the contract gate.
+            new = json.loads(subprocess.check_output(['git', 'show',
+                f'705d03caab389c0f9600b3e85420532aa6d46439:openapi/bundled/{surface}.openapi.json'], cwd=ROOT))
             self.assertEqual(new['info']['version'], '2.0.0-alpha.47')
             new['info']['version'] = old['info']['version']
             self.assertEqual(old, new)

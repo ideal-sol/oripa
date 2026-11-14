@@ -131,6 +131,44 @@ paths:
           $ref: '#/components/responses/Problem'
         default:
           $ref: '#/components/responses/Problem'
+  /line/{bot_public_id}:
+    post:
+      operationId: receiveLineBotWebhook
+      summary: LINE Messaging API Webhookを受信する
+      description: >-
+        Raw request bodyとX-Line-Signatureを先に検証する。follow／unfollow以外の
+        EventはUser Message本文を保存せず無視する。RedeliveryはwebhookEventIdで
+        冪等に処理し、Reply Tokenを再利用しない。
+      x-idempotency: provider-event-id
+      x-rate-limit: provider-signed-webhook
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - {name: bot_public_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: '#/components/parameters/XLineSignature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineWebhookEnvelope'
+      responses:
+        '200':
+          description: 署名済みWebhookを受理した。空Event配列も200を返す。
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAccepted'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
   /fincode:
     post:
       operationId: receiveFincodePaymentWebhook

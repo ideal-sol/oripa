@@ -48,7 +48,7 @@ final class V2LineFriendService
     }
 
     /** @param list<array<string, mixed>> $events */
-    public function handleEvents(#[SensitiveParameter] array $events, string $requestId): void
+    public function handleEvents(#[SensitiveParameter] array $events, string $requestId, ?int $expectedBotId = null): void
     {
         if (count($events) > 100) {
             throw $this->invalidWebhook();
@@ -56,13 +56,17 @@ final class V2LineFriendService
         foreach ($events as $event) {
             $subject = $event['source']['userId'] ?? null;
             if (is_string($subject) && $subject !== '' && strlen($subject) <= 255) {
-                app(V2LineSubjectVault::class)->backfill($subject);
+                DB::transaction(function () use ($subject, $expectedBotId): void {
+                    $this->settings->setting(true);
+                    if ($expectedBotId !== null && app(V2LineConfiguration::class)->botId() !== $expectedBotId) return;
+                    app(V2LineSubjectVault::class)->backfill($subject);
+                });
             }
             $type = $event['type'] ?? null;
             if (! in_array($type, ['follow', 'unfollow'], true)) {
                 continue;
             }
-            $reply = $this->processEvent($event, $requestId);
+            $reply = $this->processEvent($event, $requestId, $expectedBotId);
             if ($reply !== null) {
                 $this->sendReply(
                     $reply['event_public_id'],
@@ -90,10 +94,10 @@ final class V2LineFriendService
             );
         }
         $subjectHashes = $subjectHashes ?: [$subjectHash];
-        if ($grantReward && LinePendingFollow::query()->whereIn('subject_hash', $subjectHashes)->where('status', 'pending')->exists()) {
+        if ($grantReward && $this->pendingFollows()->whereIn('subject_hash', $subjectHashes)->where('status', 'pending')->exists()) {
             app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
         }
-        $pending = LinePendingFollow::query()
+        $pending = $this->pendingFollows()
             ->whereIn('subject_hash', $subjectHashes)
             ->lockForUpdate()
             ->first();
@@ -141,11 +145,15 @@ final class V2LineFriendService
         User $user,
         bool $friend,
         CarbonImmutable $observedAt,
-        string $requestId
+        string $requestId,
+        ?int $expectedBotId = null,
+        ?int $expectedLoginRevision = null,
+        ?int $expectedBotRevision = null
     ): ?string {
         try {
-            DB::transaction(function () use ($subject, $user, $friend, $observedAt): void {
+            DB::transaction(function () use ($subject, $user, $friend, $observedAt, $expectedBotId, $expectedLoginRevision, $expectedBotRevision): void {
                 $this->settings->setting(true);
+                if (! $this->configurationMatches($expectedBotId, $expectedLoginRevision, $expectedBotRevision)) return;
                 $account = ExternalIdentityAccount::query()->where('provider', 'line')
                     ->where('issuer', 'https://access.line.me')->where('user_id', $user->id)
                     ->whereIn('subject_hash', app(V2LineSubjectVault::class)->hashes($subject))
@@ -154,7 +162,7 @@ final class V2LineFriendService
                 if ($friend) {
                     $this->friendship($account->subject_hash, $user, $observedAt->startOfSecond());
                 } else {
-                    LineFriendship::query()->where('subject_hash', $account->subject_hash)
+                    $this->friendships()->where('subject_hash', $account->subject_hash)
                         ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')
                         ->update(['status' => 'unfollowed', 'unfollowed_at' => $observedAt->startOfSecond()]);
                 }
@@ -167,15 +175,15 @@ final class V2LineFriendService
         if (! $friend) return null;
         // A separate transaction preserves the observed state on financial failure.
         try {
-            DB::transaction(function () use ($subject, $user, $observedAt, $requestId): void {
+            DB::transaction(function () use ($subject, $user, $observedAt, $requestId, $expectedBotId, $expectedLoginRevision, $expectedBotRevision): void {
                 app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
                 $setting = $this->settings->setting(true);
-                if (! $setting->reward_enabled) return;
+                if (! $setting->reward_enabled || ! $this->configurationMatches($expectedBotId, $expectedLoginRevision, $expectedBotRevision)) return;
                 $account = ExternalIdentityAccount::query()->where('provider', 'line')->where('user_id', $user->id)
                     ->whereIn('subject_hash', app(V2LineSubjectVault::class)->hashes($subject))
                     ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->first();
                 if ($account === null) return;
-                $friendship = LineFriendship::query()->where('subject_hash', $account->subject_hash)
+                $friendship = $this->friendships()->where('subject_hash', $account->subject_hash)
                     ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')->lockForUpdate()->first();
                 if ($friendship !== null) $this->grantReward($friendship, $setting, $user, $observedAt->startOfSecond(), $requestId);
             }, 3);
@@ -184,6 +192,15 @@ final class V2LineFriendService
             return 'reward_apply_failed';
         }
         return null;
+    }
+
+    private function configurationMatches(?int $botId, ?int $loginRevision, ?int $botRevision): bool
+    {
+        $configuration = app(V2LineConfiguration::class);
+        $bot = $configuration->currentBot();
+        return ($botId === null || (int) $bot?->id === $botId)
+            && ($loginRevision === null || $configuration->loginRevision() === $loginRevision)
+            && ($botRevision === null || (int) $bot?->authentication_revision === $botRevision);
     }
 
     private function recordCheckFailure(User $user, string $requestId, string $reason): void
@@ -202,10 +219,18 @@ final class V2LineFriendService
     private function observe(ExternalIdentityAccount $account, int $milliseconds, bool $friend): bool
     {
         // Equal-time unfollow wins, regardless of arrival order or observation source.
-        $previous = $account->line_observed_at_ms;
+        $botId = app(V2LineConfiguration::class)->botId();
+        $snapshot = DB::table('line_friend_observations')->where('line_bot_id', $botId)->where('external_identity_account_id', $account->id)->lockForUpdate()->first();
+        $previous = $snapshot?->observed_at_ms;
         if ($previous !== null && ((int) $previous > $milliseconds
-            || ((int) $previous === $milliseconds && (! $account->line_observed_friend || $friend)))) return false;
-        $account->forceFill(['line_observed_at_ms' => $milliseconds, 'line_observed_friend' => $friend])->save();
+            || ((int) $previous === $milliseconds && (! $snapshot->friend || $friend)))) return false;
+        DB::table('line_friend_observations')->updateOrInsert(
+            ['line_bot_id' => $botId, 'external_identity_account_id' => $account->id],
+            ['observed_at_ms' => $milliseconds, 'friend' => $friend]
+        );
+        if (DB::table('line_bots')->where('id', $botId)->value('legacy')) {
+            $account->forceFill(['line_observed_at_ms' => $milliseconds, 'line_observed_friend' => $friend])->save();
+        }
         return true;
     }
 
@@ -213,7 +238,7 @@ final class V2LineFriendService
      * @param array<string, mixed> $event
      * @return array{event_public_id: string, reply_token: string, message: string}|null
      */
-    private function processEvent(#[SensitiveParameter] array $event, string $requestId): ?array
+    private function processEvent(#[SensitiveParameter] array $event, string $requestId, ?int $expectedBotId): ?array
     {
         $eventId = $event['webhookEventId'] ?? null;
         $type = $event['type'] ?? null;
@@ -246,6 +271,7 @@ final class V2LineFriendService
 
         return DB::transaction(function () use (
             $eventHash,
+            $expectedBotId,
             $subjectHash,
             $rawSubject,
             $timestamp,
@@ -259,7 +285,8 @@ final class V2LineFriendService
                 app(\App\Domain\Point\Services\V2FinancialAdmission::class)->enter();
             }
             $setting = $this->settings->setting(true);
-            if (LineWebhookEvent::query()->whereIn('event_id_hash', $this->correlation->hashes('line-webhook-event|'.$eventId))->exists()) {
+            if ($expectedBotId !== null && app(V2LineConfiguration::class)->botId() !== $expectedBotId) return null;
+            if ($this->webhookEvents()->whereIn('event_id_hash', $this->correlation->hashes('line-webhook-event|'.$eventId))->exists()) {
                 $this->audit->record('line.webhook.redelivered', ['request_id' => $requestId,
                     'actor_type' => 'system', 'auth_realm' => 'system', 'target_type' => 'line_webhook_event',
                     'outcome' => 'success', 'reason_code' => 'duplicate_event']);
@@ -269,7 +296,7 @@ final class V2LineFriendService
             $account = ExternalIdentityAccount::query()->where('provider', 'line')
                 ->where('issuer', 'https://access.line.me')->where('subject_hash', $subjectHash)
                 ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->first();
-            $previousEvent = LineWebhookEvent::query()->where('subject_hash', $subjectHash)
+            $previousEvent = $this->webhookEvents()->where('subject_hash', $subjectHash)
                 ->orderByRaw('COALESCE(event_timestamp_ms, EXTRACT(EPOCH FROM occurred_at) * 1000) DESC')
                 ->orderByDesc('event_type')->first();
             $previousTime = $previousEvent?->event_timestamp_ms ?? $previousEvent?->occurred_at?->getTimestampMs();
@@ -278,6 +305,7 @@ final class V2LineFriendService
             if (! $stale && $account !== null) $stale = ! $this->observe($account, $timestamp, $type === 'follow');
             $eventPublicId = (string) Str::uuid7();
             $inserted = DB::table('line_webhook_events')->insertOrIgnore([
+                'line_bot_id' => app(V2LineConfiguration::class)->botId(),
                 'public_id' => $eventPublicId,
                 'event_id_hash' => $eventHash,
                 'subject_hash' => $subjectHash,
@@ -334,7 +362,7 @@ final class V2LineFriendService
                 $eventType = 'identity.line_follow.linked';
                 $rewarded = $friendship->point_operation_id !== null;
             } else {
-                $pending = LinePendingFollow::query()
+                $pending = $this->pendingFollows()
                     ->where('subject_hash', $subjectHash)
                     ->lockForUpdate()
                     ->first();
@@ -348,6 +376,7 @@ final class V2LineFriendService
                 if (! $pending instanceof LinePendingFollow) {
                     $pending = new LinePendingFollow();
                     $pending->forceFill([
+                        'line_bot_id' => app(V2LineConfiguration::class)->botId(),
                         'public_id' => (string) Str::uuid7(),
                         'subject_hash' => $subjectHash,
                         'status' => 'pending',
@@ -400,7 +429,7 @@ final class V2LineFriendService
         User $user,
         \DateTimeInterface $followedAt
     ): LineFriendship {
-        $friendship = LineFriendship::query()
+        $friendship = $this->friendships()
             ->where('subject_hash', $subjectHash)
             ->whereNull('superseded_at')
             ->lockForUpdate()
@@ -423,6 +452,7 @@ final class V2LineFriendService
         if (! $friendship instanceof LineFriendship) {
             $friendship = new LineFriendship();
             $friendship->forceFill([
+                'line_bot_id' => app(V2LineConfiguration::class)->botId(),
                 'public_id' => (string) Str::uuid7(),
                 'subject_hash' => $subjectHash,
                 'user_id' => $user->getKey(),
@@ -451,7 +481,7 @@ final class V2LineFriendService
         \DateTimeInterface $occurredAt,
         string $requestId
     ): void {
-        if ($friendship->point_operation_id !== null) {
+        if ($friendship->point_operation_id !== null || DB::table('line_friendships')->where('user_id', $user->id)->whereNotNull('point_operation_id')->exists()) {
             return;
         }
         if (DB::table('account_closures')->where('user_id', $user->id)->exists()
@@ -499,12 +529,12 @@ final class V2LineFriendService
         string $eventPublicId,
         string $requestId
     ): void {
-        $friendship = LineFriendship::query()
+        $friendship = $this->friendships()
             ->where('subject_hash', $subjectHash)
             ->whereNull('superseded_at')
             ->lockForUpdate()
             ->first();
-        $pending = LinePendingFollow::query()
+        $pending = $this->pendingFollows()
             ->where('subject_hash', $subjectHash)
             ->lockForUpdate()
             ->first();
@@ -546,7 +576,8 @@ final class V2LineFriendService
         string $requestId
     ): void {
         $claimed = DB::transaction(function () use ($eventPublicId): bool {
-            $event = LineWebhookEvent::query()
+            $this->settings->setting(true);
+            $event = $this->webhookEvents()
                 ->where('public_id', $eventPublicId)
                 ->where('reply_status', 'pending')
                 ->lockForUpdate()
@@ -573,39 +604,47 @@ final class V2LineFriendService
             return;
         }
 
-        try {
-            $result = $this->transport->replyText($replyToken, $message);
-        } catch (Throwable) {
-            $result = new \App\Domain\Line\ValueObjects\V2LineReplyResult(
-                false,
-                'transport_failure'
-            );
-        }
-        DB::transaction(function () use ($eventPublicId, $result, $requestId): void {
-            $event = LineWebhookEvent::query()
-                ->where('public_id', $eventPublicId)
-                ->where('reply_status', 'processing')
-                ->lockForUpdate()
-                ->firstOrFail();
-            $event->forceFill([
-                'reply_status' => $result->succeeded ? 'sent' : 'failed',
-                'reply_failure_code' => $result->failureCode,
-            ])->save();
-            $this->audit->record(
-                $result->succeeded
-                    ? 'line.messaging.reply.succeeded'
-                    : 'line.messaging.reply.failed',
-                [
-                    'request_id' => $requestId,
-                    'actor_type' => 'system',
-                    'auth_realm' => 'system',
-                    'target_type' => 'line_webhook_event',
-                    'target_public_id' => $event->public_id,
-                    'outcome' => $result->succeeded ? 'success' : 'failure',
-                    'reason_code' => $result->failureCode,
-                ]
-            );
-        }, 3);
+        DB::transaction(function () use ($eventPublicId, $replyToken, $message, $requestId): void {
+            $this->settings->setting(true);
+            $claimedEvent = LineWebhookEvent::query()->where('public_id', $eventPublicId)->firstOrFail();
+            if ((int) $claimedEvent->line_bot_id !== app(V2LineConfiguration::class)->botId()) {
+                $claimedEvent->forceFill(['reply_status' => 'failed', 'reply_failure_code' => 'configuration_unavailable'])->save();
+                return;
+            }
+            try {
+                $result = $this->transport->replyText($replyToken, $message);
+            } catch (Throwable) {
+                $result = new \App\Domain\Line\ValueObjects\V2LineReplyResult(
+                    false,
+                    'transport_failure'
+                );
+            }
+            DB::transaction(function () use ($eventPublicId, $result, $requestId): void {
+                $event = $this->webhookEvents()
+                    ->where('public_id', $eventPublicId)
+                    ->where('reply_status', 'processing')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $event->forceFill([
+                    'reply_status' => $result->succeeded ? 'sent' : 'failed',
+                    'reply_failure_code' => $result->failureCode,
+                ])->save();
+                $this->audit->record(
+                    $result->succeeded
+                        ? 'line.messaging.reply.succeeded'
+                        : 'line.messaging.reply.failed',
+                    [
+                        'request_id' => $requestId,
+                        'actor_type' => 'system',
+                        'auth_realm' => 'system',
+                        'target_type' => 'line_webhook_event',
+                        'target_public_id' => $event->public_id,
+                        'outcome' => $result->succeeded ? 'success' : 'failure',
+                        'reason_code' => $result->failureCode,
+                    ]
+                );
+            }, 3);
+        }, 1); // Provider side effects must never be retried by the DB transaction.
     }
 
     private function subjectHash(#[SensitiveParameter] string $rawSubject): string
@@ -623,6 +662,21 @@ final class V2LineFriendService
         $right = CarbonImmutable::parse($second);
 
         return $left->greaterThan($right) ? $left : $right;
+    }
+
+    private function friendships(): \Illuminate\Database\Eloquent\Builder
+    {
+        return LineFriendship::query()->where('line_bot_id', app(V2LineConfiguration::class)->botId());
+    }
+
+    private function pendingFollows(): \Illuminate\Database\Eloquent\Builder
+    {
+        return LinePendingFollow::query()->where('line_bot_id', app(V2LineConfiguration::class)->botId());
+    }
+
+    private function webhookEvents(): \Illuminate\Database\Eloquent\Builder
+    {
+        return LineWebhookEvent::query()->where('line_bot_id', app(V2LineConfiguration::class)->botId());
     }
 
     private function invalidWebhook(): V2LineMessagingException

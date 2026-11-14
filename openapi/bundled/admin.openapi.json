@@ -17,6 +17,431 @@
     }
   ],
   "paths": {
+    "/settings/line-login": {
+      "get": {
+        "operationId": "getAdminLineLoginSetting",
+        "summary": "getAdminLineLoginSetting",
+        "description": "Owner/Admin only.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineLoginSetting"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAdminLineLoginSetting",
+        "summary": "updateAdminLineLoginSetting",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineLoginSetting"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineLoginSettingInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots": {
+      "get": {
+        "operationId": "listAdminLineBots",
+        "summary": "listAdminLineBots",
+        "description": "Owner/Admin only.",
+        "x-idempotency": "safe",
+        "x-rate-limit": "admin-read",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBotCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAdminLineBot",
+        "summary": "createAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots/{botId}": {
+      "put": {
+        "operationId": "updateAdminLineBot",
+        "summary": "updateAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots/{botId}/connection": {
+      "post": {
+        "operationId": "connectionAdminLineBot",
+        "summary": "connectionAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotRevision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots/{botId}/activation": {
+      "post": {
+        "operationId": "activationAdminLineBot",
+        "summary": "activationAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotRevision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots/{botId}/quota": {
+      "post": {
+        "operationId": "quotaAdminLineBot",
+        "summary": "quotaAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotRevision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/line-bots/{botId}/followers": {
+      "post": {
+        "operationId": "followersAdminLineBot",
+        "summary": "followersAdminLineBot",
+        "description": "Owner only. Fresh Admin authorization required. Secret input is write-only; no secret or token is returned.",
+        "x-idempotency": "required",
+        "x-rate-limit": "none",
+        "x-cache-policy": "no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized LINE configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineBot"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "botId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineBotRevision"
+              }
+            }
+          }
+        }
+      }
+    },
     "/payments/{paymentId}": {
       "get": {
         "operationId": "getAdminPayment",
@@ -13424,6 +13849,263 @@
       }
     },
     "schemas": {
+      "LineLoginSetting": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secret_configured": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "database",
+              "environment",
+              "unconfigured"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "channel_id",
+          "secret_configured",
+          "source",
+          "revision"
+        ]
+      },
+      "LineLoginSettingInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "pattern": "^[0-9]{1,32}$"
+          },
+          "channel_secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "writeOnly": true
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "channel_id",
+          "channel_secret",
+          "expected_revision"
+        ]
+      },
+      "LineBot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secret_configured": {
+            "type": "boolean"
+          },
+          "basic_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "legacy": {
+            "type": "boolean"
+          },
+          "connection_status": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "pending",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "connected_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quota_snapshot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "quota_fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "followers_snapshot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "followers_fetched_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "webhook_path": {
+            "type": "string"
+          },
+          "webhook_url": {
+            "description": "Complete HTTPS URL from the configured public Origin; null if unavailable or invalid.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "channel_id",
+          "secret_configured",
+          "basic_id",
+          "display_name",
+          "is_active",
+          "legacy",
+          "connection_status",
+          "connected_at",
+          "quota_snapshot",
+          "quota_fetched_at",
+          "followers_snapshot",
+          "followers_fetched_at",
+          "revision",
+          "webhook_path",
+          "webhook_url"
+        ]
+      },
+      "LineBotCollection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineBot"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "LineBotInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "channel_id": {
+            "type": "string",
+            "pattern": "^[0-9]{1,32}$"
+          },
+          "channel_secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "name",
+          "channel_id",
+          "channel_secret"
+        ]
+      },
+      "LineBotUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "channel_id": {
+            "type": "string",
+            "pattern": "^[0-9]{1,32}$"
+          },
+          "channel_secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "writeOnly": true
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "name",
+          "channel_id",
+          "expected_revision"
+        ]
+      },
+      "LineBotRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expected_revision"
+        ]
+      },
       "AdminPaymentAdjustmentInput": {
         "type": "object",
         "additionalProperties": false,
@@ -29801,6 +30483,8 @@
           "identity.admin.session.revoke",
           "identity.line.read",
           "identity.line.manage",
+          "line.bot.read",
+          "line.bot.manage",
           "user.tag.read",
           "agency.read",
           "agency.manage",

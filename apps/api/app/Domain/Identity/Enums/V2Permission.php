@@ -4,6 +4,8 @@ namespace App\Domain\Identity\Enums;
 
 enum V2Permission: string
 {
+    case ReadLineBot = 'line.bot.read';
+    case ManageLineBot = 'line.bot.manage';
     case ReadMemberRankSettings = 'member_rank.settings.read';
     case ManageMemberRankSettings = 'member_rank.settings.manage';
     case ManageMemberRankUser = 'member_rank.user.manage';

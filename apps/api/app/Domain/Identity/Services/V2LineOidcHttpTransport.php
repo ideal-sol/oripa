@@ -55,6 +55,7 @@ final class V2LineOidcHttpTransport implements V2LineOidcTransport
             $response = Http::asForm()
                 ->acceptJson()
                 ->timeout(8)
+                ->withoutRedirecting()
                 ->post(self::TOKEN_ENDPOINT, [
                     'grant_type' => 'authorization_code',
                     'code' => $authorizationCode,
@@ -85,6 +86,7 @@ final class V2LineOidcHttpTransport implements V2LineOidcTransport
             $response = Http::asForm()
                 ->acceptJson()
                 ->timeout(8)
+                ->withoutRedirecting()
                 ->post(self::VERIFY_ENDPOINT, [
                     'id_token' => $idToken,
                     'client_id' => $this->configuration('client_id'),
@@ -116,7 +118,7 @@ final class V2LineOidcHttpTransport implements V2LineOidcTransport
 
     private function configuration(string $key): string
     {
-        $value = config('v2_identity.external_identity.line.'.$key);
+        $value = app(\App\Domain\Line\Services\V2LineConfiguration::class)->login($key);
         if (! is_string($value) || $value === '') {
             throw new V2OidcProtocolException('provider_configuration_unavailable');
         }

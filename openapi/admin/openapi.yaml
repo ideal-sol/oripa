@@ -189,6 +189,277 @@ x-oripa-error-codes:
 servers:
   - url: /admin/api/v2
 paths:
+  /settings/line-login:
+    get:
+      operationId: getAdminLineLoginSetting
+      summary: getAdminLineLoginSetting
+      description: Owner/Admin only.
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineLoginSetting'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: updateAdminLineLoginSetting
+      summary: updateAdminLineLoginSetting
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineLoginSetting'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineLoginSettingInput'
+  /line-bots:
+    get:
+      operationId: listAdminLineBots
+      summary: listAdminLineBots
+      description: Owner/Admin only.
+      x-idempotency: safe
+      x-rate-limit: admin-read
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBotCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createAdminLineBot
+      summary: createAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotInput'
+  /line-bots/{botId}:
+    put:
+      operationId: updateAdminLineBot
+      summary: updateAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - name: botId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotUpdate'
+  /line-bots/{botId}/connection:
+    post:
+      operationId: connectionAdminLineBot
+      summary: connectionAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - name: botId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotRevision'
+  /line-bots/{botId}/activation:
+    post:
+      operationId: activationAdminLineBot
+      summary: activationAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - name: botId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotRevision'
+  /line-bots/{botId}/quota:
+    post:
+      operationId: quotaAdminLineBot
+      summary: quotaAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - name: botId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotRevision'
+  /line-bots/{botId}/followers:
+    post:
+      operationId: followersAdminLineBot
+      summary: followersAdminLineBot
+      description: Owner only. Fresh Admin authorization required. Secret input is write-only; no secret
+        or token is returned.
+      x-idempotency: required
+      x-rate-limit: none
+      x-cache-policy: no-store
+      x-stability: alpha
+      security:
+      - adminSession: []
+      responses:
+        '200':
+          description: Sanitized LINE configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineBot'
+        default:
+          $ref: '#/components/responses/Problem'
+      parameters:
+      - name: botId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineBotRevision'
   /payments/{paymentId}: {"get":{"operationId":"getAdminPayment","summary":"決済詳細","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"reporting.financial.read","x-idempotency":"safe","x-rate-limit":"admin-read","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}}],"responses":{"200":{"description":"決済詳細","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentDetailResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}}}}
   /payments/{paymentId}/refunds: {"post":{"operationId":"prepareAdminPaymentRefund","summary":"返金の準備","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"返金の準備","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentInput"}}}}}}
   /payments/{paymentId}/refunds/{adjustmentId}/complete: {"post":{"operationId":"completeAdminPaymentRefund","summary":"返金済みにする","description":"Providerへの通信・自動通知は行わない。M8の会員ランク連動は未実装。条件競合は日本語の理由付き409。","x-required-permission":"payment.adjustment.manage","x-idempotency":"required","x-rate-limit":"admin-write","x-cache-policy":"private-no-store","x-stability":"alpha","security":[{"adminSession":[]}],"parameters":[{"name":"paymentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"name":"adjustmentId","in":"path","required":true,"schema":{"$ref":"#/components/schemas/OpaqueId"}},{"$ref":"#/components/parameters/IdempotencyKey"}],"responses":{"200":{"description":"返金済みにする","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentAdjustmentResponse"}}}},"default":{"$ref":"#/components/responses/Problem"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminPaymentRefundCompleteInput"}}}}}}
@@ -5654,6 +5925,196 @@ components:
       in: cookie
       name: __Host-oripa_admin_session
   schemas:
+    LineLoginSetting:
+      type: object
+      additionalProperties: false
+      properties:
+        channel_id:
+          type:
+          - string
+          - 'null'
+        secret_configured:
+          type: boolean
+        source:
+          type: string
+          enum:
+          - database
+          - environment
+          - unconfigured
+        revision:
+          type: integer
+          minimum: 1
+      required:
+      - channel_id
+      - secret_configured
+      - source
+      - revision
+    LineLoginSettingInput:
+      type: object
+      additionalProperties: false
+      properties:
+        channel_id:
+          type: string
+          pattern: ^[0-9]{1,32}$
+        channel_secret:
+          type: string
+          minLength: 1
+          maxLength: 255
+          writeOnly: true
+        expected_revision:
+          type: integer
+          minimum: 1
+      required:
+      - channel_id
+      - channel_secret
+      - expected_revision
+    LineBot:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        channel_id:
+          type:
+          - string
+          - 'null'
+        secret_configured:
+          type: boolean
+        basic_id:
+          type:
+          - string
+          - 'null'
+        display_name:
+          type:
+          - string
+          - 'null'
+        is_active:
+          type: boolean
+        legacy:
+          type: boolean
+        connection_status:
+          type: string
+          enum:
+          - unconfigured
+          - pending
+          - succeeded
+          - failed
+        connected_at:
+          type:
+          - string
+          - 'null'
+        quota_snapshot:
+          type:
+          - object
+          - 'null'
+          additionalProperties: true
+        quota_fetched_at:
+          type:
+          - string
+          - 'null'
+        followers_snapshot:
+          type:
+          - object
+          - 'null'
+          additionalProperties: true
+        followers_fetched_at:
+          type:
+          - string
+          - 'null'
+        revision:
+          type: integer
+          minimum: 1
+        webhook_path:
+          type: string
+        webhook_url:
+          description: Complete HTTPS URL from the configured public Origin; null if unavailable or invalid.
+          type:
+          - string
+          - 'null'
+          format: uri
+      required:
+      - id
+      - name
+      - channel_id
+      - secret_configured
+      - basic_id
+      - display_name
+      - is_active
+      - legacy
+      - connection_status
+      - connected_at
+      - quota_snapshot
+      - quota_fetched_at
+      - followers_snapshot
+      - followers_fetched_at
+      - revision
+      - webhook_path
+      - webhook_url
+    LineBotCollection:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineBot'
+      required:
+      - items
+    LineBotInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        channel_id:
+          type: string
+          pattern: ^[0-9]{1,32}$
+        channel_secret:
+          type: string
+          minLength: 1
+          maxLength: 255
+          writeOnly: true
+      required:
+      - name
+      - channel_id
+      - channel_secret
+    LineBotUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        channel_id:
+          type: string
+          pattern: ^[0-9]{1,32}$
+        channel_secret:
+          type: string
+          minLength: 1
+          maxLength: 255
+          writeOnly: true
+        expected_revision:
+          type: integer
+          minimum: 1
+      required:
+      - name
+      - channel_id
+      - expected_revision
+    LineBotRevision:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1
+      required:
+      - expected_revision
     AdminPaymentAdjustmentInput: {"type":"object","additionalProperties":false,"required":["reason"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_case_id":{"type":["string","null"],"maxLength":191}}}
     AdminPaymentRefundCompleteInput: {"type":"object","additionalProperties":false,"required":["reason","provider_refund_confirmed"],"properties":{"reason":{"type":"string","minLength":1,"maxLength":500},"provider_refund_confirmed":{"const":true},"provider_adjustment_id":{"type":["string","null"],"maxLength":191},"rank_after":{"$ref":"#/components/schemas/AdminMemberRankCode"},"rank_preview_token":{"type":"string","pattern":"^[0-9a-f]{64}$"}}}
     AdminPaymentAdjustmentStatus: {"enum":["requested","points_reserved","submitted","processing","succeeded","failed","canceled","manual_review"]}
@@ -10769,6 +11230,8 @@ components:
         - identity.admin.session.revoke
         - identity.line.read
         - identity.line.manage
+        - line.bot.read
+        - line.bot.manage
         - user.tag.read
         - agency.read
         - agency.manage

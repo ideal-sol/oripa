@@ -15,6 +15,15 @@ final class V2LineMessagingHttpTransport implements V2LineMessagingTransport
         #[SensitiveParameter] string $replyToken,
         string $message
     ): V2LineReplyResult {
+        $bot = app(V2LineConfiguration::class)->currentBot();
+        if ($bot?->is_active) {
+            try {
+                app(V2LineBotTransport::class)->reply($bot, $replyToken, $message);
+                return new V2LineReplyResult(true);
+            } catch (Throwable) {
+                return new V2LineReplyResult(false, 'provider_unavailable');
+            }
+        }
         $accessToken = config('v2_line.messaging.channel_access_token');
         $endpoint = config('v2_line.messaging.reply_endpoint');
         $timeout = config('v2_line.messaging.http_timeout_seconds');
@@ -36,6 +45,7 @@ final class V2LineMessagingHttpTransport implements V2LineMessagingTransport
                 ->withToken($accessToken)
                 ->timeout($timeout)
                 ->connectTimeout($timeout)
+                ->withoutRedirecting()
                 ->post($endpoint, [
                     'replyToken' => $replyToken,
                     'messages' => [[

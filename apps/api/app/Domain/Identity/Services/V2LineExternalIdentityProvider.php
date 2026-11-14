@@ -135,7 +135,7 @@ final class V2LineExternalIdentityProvider implements V2ExternalIdentityProvider
 
     private function configuration(string $key): string
     {
-        $value = config('v2_identity.external_identity.line.'.$key);
+        $value = app(\App\Domain\Line\Services\V2LineConfiguration::class)->login($key);
         if (! is_string($value) || $value === '') {
             throw new V2OidcProtocolException('provider_configuration_unavailable');
         }

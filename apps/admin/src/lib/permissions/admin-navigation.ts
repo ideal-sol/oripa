@@ -1,5 +1,12 @@
 import type { AdminPermissionCode } from "@/lib/admin-api/generated";
 
+// The existing LINE page remains visible to Operators for its legacy settings.
+// Its credential/BOT section has separate, stricter permissions.
+export const LINE_BOT_SECTION_PERMISSIONS = {
+  read: "line.bot.read",
+  manage: "line.bot.manage",
+} as const satisfies Record<string, AdminPermissionCode>;
+
 export type AdminRouteId =
   | "inventory-cards"
   | "agencies"
