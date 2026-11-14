@@ -47,6 +47,16 @@ class PolicyGateTest(unittest.TestCase):
         with mock.patch.object(policy_gate, 'load_json', side_effect=published_json):
             policy_gate.validate_admin_skeleton(ROOT, paths)
 
+    def test_line_callback_redirect_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-CALLBACK-REDIRECT-20261113"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "LINE-CALLBACK-REDIRECT-20261114", "LINE-CALLBACK-REDIRECT-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_line_link_friend_task_id_is_exact(self):
         data = fixture("positive.json")
         task = "LINE-LINK-FRIEND-20261105"
@@ -1814,8 +1824,8 @@ class PolicyGateTest(unittest.TestCase):
             dockerfile = root / "apps/admin/Dockerfile"
             dockerfile.write_text(
                 dockerfile.read_text(encoding="utf-8").replace(
-                    "node:22.22.3-alpine@sha256:"
-                    "e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd",
+                    "node:22.23.5-alpine@sha256:"
+                    "1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a",
                     "node:latest",
                 ),
                 encoding="utf-8",
@@ -3969,7 +3979,7 @@ This is a non-Production Skeleton and contains no application implementation.
                     "version": "2.0.0-alpha.23",
                     "private": True,
                     "packageManager": "pnpm@10.12.1",
-                    "engines": {"node": "22.22.3", "pnpm": "10.12.1"},
+                    "engines": {"node": "22.23.5", "pnpm": "10.12.1"},
                     "pnpm": {
                         "overrides": {
                             "@tiptap/extension-bubble-menu": "3.30.5",

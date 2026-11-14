@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from tests.ops.test_production_admin_node import ProductionAdminNodeTest
 
 # Keep the limited-payload regressions in the existing canonical CI entrypoint.
 from tests.ops.test_production_pr666_payload import ProductionLimitedPayloadTest
@@ -430,10 +431,35 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Human-approved source authority mismatch"):
             self.authorize()
 
+    def test_line_production_exact_boundary(self):
+        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        source = "9235350523accdb2c3d41dca869d7d44f0863ba5"
+        self.assertEqual(authority["source_sha"], source)
+        self.assertEqual(authority["pr_number"], 688)
+        self.assertEqual(authority["change_id"], "LINE-CALLBACK-REDIRECT-20261113")
+        self.assertIs(authority["activation_authorized"], False)
+        self.assertEqual(MODULE["git"](ROOT, "rev-parse", source + "^{tree}"),
+                         "f9d41f6566b4c1e771bb7895dabad1639b80b810")
+        old = "4a03489c2e5cdde97c75b6330e5fd65167230833"
+        delta = MODULE["git"](ROOT, "diff", "--name-status", old, source,
+                              "--", "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual(delta, [
+            "A\tapps/api/database/migrations-v2/2026_11_05_000107_add_v2_line_subject_vault.php",
+            "M\tapps/api/database/migrations-v2/README.md",
+        ])
+        ledger = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_text())
+        contract, = [e for e in ledger["immutable_history"] if e["bundle_version"] == "2.0.0-alpha.52"]
+        self.assertEqual(contract["publication"]["artifact_id"], 13742019147)
+        self.assertEqual(contract["manifest_sha256"], "72bd3b18fb36bac68b948e4f936a7b64fce03cc1de95df1b3eedc826e54cee54")
+        for boundary in ["API-only activation", "Admin PR #663", "TOP100 PR #235", "preserve existing payment settings",
+                         "preserve existing Worker/Timer settings", "forward-only", "no LINE reward enablement",
+                         "separate Human GO", "preserve existing client-IP security controls"]:
+            self.assertIn(boundary, authority["authority"])
+
     def test_workflow_exact_source_labels_and_manifest(self):
         workflow = (ROOT / ".github/workflows/platform-production-arm64-artifact.yml").read_text()
         self.assertIn("ref: ${{ steps.authority.outputs.checkout_sha }}", workflow)
-        self.assertEqual(workflow.count('--build-arg "OCI_REVISION=${SOURCE_SHA}"'), 3)
+        self.assertEqual(workflow.count('--build-arg "OCI_REVISION=${SOURCE_SHA}"'), 4)
         self.assertIn('--source-sha "$SOURCE_SHA"', workflow)
         self.assertIn("production-source-authority.json", workflow)
         self.assertIn("path: build-authority", workflow)

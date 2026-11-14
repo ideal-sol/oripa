@@ -65,10 +65,15 @@ def checks_for(get, sha: str) -> dict:
 
 
 def authorize(repository: Path, source_sha: str, workflow_sha: str,
-              change_id: str, pr_number: int, get=api_get) -> dict:
+              change_id: str, pr_number: int, get=api_get, image_mode="agency") -> dict:
     require(bool(FULL_SHA.fullmatch(source_sha)), "invalid source SHA")
     require(bool(FULL_SHA.fullmatch(workflow_sha)), "invalid workflow SHA")
     require(git(repository, "rev-parse", "HEAD") == workflow_sha, "workflow checkout mismatch")
+    require(image_mode in {"agency", "admin-only"}, "production image mode invalid")
+    if image_mode == "admin-only":
+        require(source_sha == LIMITED["ADMIN_SOURCE"], "production admin source mismatch")
+        return authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number, get, admin=True)
+    require(source_sha != LIMITED["ADMIN_SOURCE"], "admin source requires admin-only mode")
     if source_sha == LIMITED["SOURCE"]:
         return authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number, get)
     require(git(repository, "cat-file", "-t", source_sha) == "commit", "source is not a commit")
@@ -115,27 +120,34 @@ def authorize(repository: Path, source_sha: str, workflow_sha: str,
     }
 
 
-def authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number, get):
+def authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number, get, admin=False):
     main_path = f"/repos/{REPOSITORY}/branches/main"
     main = get(main_path)
     require(main.get("protected") is True and main.get("commit", {}).get("sha") == workflow_sha,
             "current protected workflow authority required")
-    spec = LIMITED["specification"](repository)
-    authority = json.loads(git(repository, "show", f"{workflow_sha}:{AUTHORITY_PATH}"))
+    baseline = LIMITED["specification"](repository)
+    spec = LIMITED["admin_specification"](repository) if admin else baseline
+    authority_path = LIMITED["ADMIN_MANIFEST"] if admin else AUTHORITY_PATH
+    authority = json.loads(git(repository, "show", f"{workflow_sha}:{authority_path}"))
     require(authority.get("schema_version") == "1.0"
             and authority.get("repository") == REPOSITORY
-            and authority.get("source_sha") == source_sha == LIMITED["SOURCE"]
-            and authority.get("change_id") == change_id == LIMITED["CHANGE"]
-            and authority.get("pr_number") == pr_number == 666
-            and authority.get("payload_manifest_sha256") == LIMITED["MANIFEST_DIGEST"]
+            and authority.get("source_sha") == source_sha == LIMITED["ADMIN_SOURCE" if admin else "SOURCE"]
+            and authority.get("change_id") == change_id == LIMITED["ADMIN_CHANGE" if admin else "CHANGE"]
+            and authority.get("pr_number") == pr_number == (685 if admin else 666)
+            and (authority.get("baseline_manifest_sha256" if admin else "payload_manifest_sha256") == LIMITED["MANIFEST_DIGEST"])
             and authority.get("activation_authorized") is False
             and str(authority.get("authority", "")).startswith("Human-approved exact Runtime Source:"),
             "Human-approved limited source authority mismatch")
+    if admin:
+        require(authority.get("image_mode") == "admin-only" and authority.get("architecture") == "arm64"
+                and authority.get("baseline_source") == LIMITED["SOURCE"], "production admin scope mismatch")
     reviewed_sources = {}
-    for kind in ("base", "fix"):
-        revision = spec[kind + "_sha"]
+    sources = {kind: (baseline[kind + "_sha"], baseline[kind + "_pr"]) for kind in ("base", "fix")}
+    if admin:
+        sources["node"] = (spec["node_sha"], spec["node_pr"])
+    for kind, (revision, source_pr) in sources.items():
         git(repository, "merge-base", "--is-ancestor", revision, workflow_sha)
-        pull = get(f"/repos/{REPOSITORY}/pulls/{spec[kind + '_pr']}")
+        pull = get(f"/repos/{REPOSITORY}/pulls/{source_pr}")
         head = pull.get("head", {})
         reviewed_sha = head.get("sha", "")
         require(pull.get("merged") is True and pull.get("state") == "closed"
@@ -152,16 +164,18 @@ def authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number
                                   "tree": tree, "checks": checks_for(get, reviewed_sha)}
     evidence = {"source_sha": source_sha, "source_tree": spec["source_tree"],
                 "inventory_sha256": spec["inventory_sha256"], "composition": spec,
-                "checkout_sha": spec["base_sha"], "workflow_sha": workflow_sha,
+                "checkout_sha": baseline["base_sha"], "workflow_sha": workflow_sha,
                 "change_id": change_id, "pr_number": pr_number,
-                "authority_path": AUTHORITY_PATH, "reviewed_sources": reviewed_sources,
+                "authority_path": authority_path, "reviewed_sources": reviewed_sources,
                 "current_checks": checks_for(get, workflow_sha)}
+    if admin:
+        evidence.update(image_mode="admin-only", architecture="arm64", activation_authorized=False)
     # Verify the objects without requiring the derived commit to exist on GitHub.
     with tempfile.TemporaryDirectory(prefix="production-pr666-") as temporary:
         payload = Path(temporary) / "payload"
         git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(repository.resolve()), str(payload))
-        git(payload, "checkout", "--quiet", "--detach", spec["base_sha"])
-        LIMITED["materialize"](repository, payload, evidence)
+        git(payload, "checkout", "--quiet", "--detach", baseline["base_sha"])
+        LIMITED["materialize_admin" if admin else "materialize"](repository, payload, evidence)
     require(get(main_path) == main, "protected main moved during validation")
     return evidence
 
@@ -181,7 +195,7 @@ def main() -> None:
     arguments = parser.parse_args()
     if arguments.materialize:
         evidence = json.loads((Path(os.environ["RUNNER_TEMP"]) / "production-source-authority.json").read_text())
-        LIMITED["materialize"](ROOT, arguments.materialize, evidence)
+        LIMITED["materialize_admin" if evidence.get("image_mode") == "admin-only" else "materialize"](ROOT, arguments.materialize, evidence)
         return
     if arguments.scan_source:
         scan_source(arguments.repository)
@@ -192,6 +206,7 @@ def main() -> None:
     evidence = authorize(
         arguments.repository, os.environ["INPUT_SOURCE_SHA"], os.environ["GITHUB_SHA"],
         os.environ["INPUT_CHANGE_ID"], int(os.environ["INPUT_PR_NUMBER"]),
+        image_mode=os.environ.get("INPUT_IMAGE_MODE", "agency"),
     )
     (Path(os.environ["RUNNER_TEMP"]) / "production-source-authority.json").write_text(
         json.dumps(evidence, indent=2) + "\n", encoding="utf-8",

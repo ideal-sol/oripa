@@ -158,7 +158,7 @@ def validate_authority(repository, revision, path, base_sha):
                                           else "Human-approved exact Runtime Source:"), "AUTHORITY_APPROVAL_STRUCTURE_INVALID")
     if old:
         require(record["target"] == "old-test" and record["platform"] == "linux/amd64"
-                and record["image_mode"] in {"normal", "api-only"}, "AUTHORITY_SCOPE_INVALID")
+                and record["image_mode"] in {"normal", "api-only", "admin-only"}, "AUTHORITY_SCOPE_INVALID")
     if limited:
         import runpy
         import tempfile

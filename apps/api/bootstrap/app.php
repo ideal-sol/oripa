@@ -33,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Addresses are loaded from trustedproxy.proxies when the request is handled.
+        // Trust only the TLS scheme supplied by the explicitly configured ingress.
+        $middleware->trustProxies(headers: \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO);
         $middleware->appendToGroup('api', NormalizeV2AssetResponse::class);
         $middleware->trimStrings(except: ['advertising_code']);
         $middleware->redirectGuestsTo(fn ($request) => null);

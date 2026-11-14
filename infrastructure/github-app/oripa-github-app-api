@@ -440,7 +440,7 @@ def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
         or approval.get("source_sha") != source_sha
         or approval.get("target") != "old-test"
         or approval.get("platform") != "linux/amd64"
-        or approval.get("image_mode") not in {"api-only", "normal"}
+        or approval.get("image_mode") not in {"api-only", "normal", "admin-only"}
         or approval.get("activation_authorized") is not False
         or not str(approval.get("authority", "")).startswith("Human-approved exact OLD Test payload:")
     ):
@@ -650,6 +650,7 @@ def safe_extract(source: Path, destination: Path, old_test: bool = False) -> Non
         allowed_sets = (
             common | {"source-authority.json"},
             common | {"source-authority.json", "oripa-v2-admin-linux-amd64.docker.tar.zst"},
+            {"manifest.json", "SHA256SUMS", "source-authority.json", "oripa-v2-admin-linux-amd64.docker.tar.zst"},
         )
     with zipfile.ZipFile(source) as archive:
         files = [item for item in archive.infolist() if not item.is_dir()]
@@ -730,7 +731,7 @@ def download_preview_artifact(
                 fail("old_test_provenance_mismatch")
             manifest = json.loads((payload / "manifest.json").read_text())
             images = manifest.get("images") if isinstance(manifest, dict) else None
-            expected_images = ["api", "admin"] if authority["image_mode"] == "normal" else ["api"]
+            expected_images = {"normal": ["api", "admin"], "api-only": ["api"], "admin-only": ["admin"]}[authority["image_mode"]]
             if (
                 not isinstance(images, list)
                 or any(not isinstance(item, dict) for item in images)

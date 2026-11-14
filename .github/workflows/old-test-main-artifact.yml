@@ -64,27 +64,30 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/control/scripts/ops/old_test_source_authority.py" --prepare-payload
           test "$(git rev-parse HEAD)" = "$INPUT_SOURCE_SHA"
-          python3 "$GITHUB_WORKSPACE/control/scripts/ops/old_test_source_authority.py" --prepare-recipe
           helper="$GITHUB_WORKSPACE/control/scripts/ops/preview_image_artifact.py"
           python3 "$helper" host-check --architecture amd64
           command -v zstd >/dev/null
           created_at="$(git show -s --format=%cI "$INPUT_SOURCE_SHA")"
           image_mode="$(python3 -c 'import json, os; print(json.load(open(os.environ["RUNNER_TEMP"] + "/source-authority.json"))["image_mode"])')"
-          test "$image_mode" = api-only || test "$image_mode" = normal
-          api_image="oripa-v2-api:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
-          docker build --platform linux/amd64 --target preview \
-            --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
-            --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
-            --build-arg "OCI_CREATED=${created_at}" \
-            --file "$RUNNER_TEMP/approved-api.Dockerfile" --tag "$api_image" .
+          test "$image_mode" = api-only || test "$image_mode" = normal || test "$image_mode" = admin-only
           package_arguments=(
             --output "$RUNNER_TEMP/old-test-images"
             --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER"
             --source-sha "$INPUT_SOURCE_SHA" --created-at "$created_at"
             --artifact-kind old-test --architecture amd64
-            --image-mode "$image_mode" --api-image "$api_image"
+            --image-mode "$image_mode"
           )
-          if [[ "$image_mode" == normal ]]; then
+          if [[ "$image_mode" != admin-only ]]; then
+            python3 "$GITHUB_WORKSPACE/control/scripts/ops/old_test_source_authority.py" --prepare-recipe
+            api_image="oripa-v2-api:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
+            docker build --platform linux/amd64 --target preview \
+              --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
+              --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
+              --build-arg "OCI_CREATED=${created_at}" \
+              --file "$RUNNER_TEMP/approved-api.Dockerfile" --tag "$api_image" .
+            package_arguments+=(--api-image "$api_image")
+          fi
+          if [[ "$image_mode" == normal || "$image_mode" == admin-only ]]; then
             admin_image="oripa-v2-admin:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
             docker build --platform linux/amd64 \
               --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \

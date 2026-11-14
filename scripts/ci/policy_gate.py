@@ -1459,7 +1459,7 @@ def validate_pr_body(
     task_id = metadata_value(body, "Task ID")
     risk = metadata_value(body, "Risk")
     base_sha = metadata_value(body, "Base SHA")
-    if (not TASK_ID.fullmatch(task_id) and task_id not in {"OLDTEST-LINE-ALPHA52", "LINE-LINK-FRIEND-20261105", "PAIDY-ALPHA51-20261106", "NEWPROD-PR666-20261105", "OLDTEST-PR666-20261105", "SHIPPING-ASSET-CDN-20261105", "BANNER-MODEL-20261104", "BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022", "GACHA-ELIGIBILITY-G2-20261022"}) or task_id not in title:
+    if (not TASK_ID.fullmatch(task_id) and task_id not in {"LINE-CALLBACK-REDIRECT-20261113", "OLDTEST-LINE-ALPHA52", "LINE-LINK-FRIEND-20261105", "PAIDY-ALPHA51-20261106", "NEWPROD-PR666-20261105", "OLDTEST-PR666-20261105", "SHIPPING-ASSET-CDN-20261105", "BANNER-MODEL-20261104", "BANNERCSV-F2A-20261011", "SIGNUP-SMS-GATE-20261012", "RANKVIDEO-MULTI-20261015", "PREREG-V14-20261016", "MEMBERRANK-M5-20261018", "MEMBERRANK-M6-20261020", "MEMBERRANK-M8-20261020", "MEMBERRANK-M9-20261020", "CI-PREVIEW-LIBC-20261018", "GACHA-ELIGIBILITY-G1-20261022", "GACHA-ELIGIBILITY-G2-20261022"}) or task_id not in title:
         raise PolicyFailure("pull request Task ID is invalid or absent from title")
     if risk not in {"R1", "R2", "R3", "R4"}:
         raise PolicyFailure("pull request Risk must be R1 through R4")
@@ -2043,7 +2043,7 @@ def validate_workspace_configuration(repository: Path) -> None:
         raise PolicyFailure("package.json: root workspace must be private")
     if package.get("packageManager") != "pnpm@10.12.1":
         raise PolicyFailure("package.json: packageManager must match the V1 lockfile")
-    if package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}:
+    if package.get("engines") != {"node": "22.23.5", "pnpm": "10.12.1"}:
         raise PolicyFailure("package.json: Node and pnpm engines must be exact")
     if package.get("dependencies"):
         raise PolicyFailure("package.json: root runtime dependencies are prohibited")
@@ -2168,7 +2168,7 @@ def validate_admin_skeleton(repository: Path, paths: Iterable[str]) -> None:
         or package.get("version") != release["application_versions"]["admin"]
         or package.get("private") is not True
         or package.get("packageManager") != "pnpm@10.12.1"
-        or package.get("engines") != {"node": "22.22.3", "pnpm": "10.12.1"}
+        or package.get("engines") != {"node": "22.23.5", "pnpm": "10.12.1"}
     ):
         raise PolicyFailure("apps/admin/package.json: Admin App identity is invalid")
     validate_exact_dependency_versions(

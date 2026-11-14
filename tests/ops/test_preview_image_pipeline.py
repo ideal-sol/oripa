@@ -258,7 +258,7 @@ class PreviewImageArtifactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             create_artifact(directory, ("admin",))
-            with self.assertRaisesRegex(artifact.ArtifactError, "manifest_images_invalid"):
+            with self.assertRaisesRegex(artifact.ArtifactError, "admin_only_requires_old_test"):
                 artifact.verify_artifact(
                     directory, task_id=TASK, pr_number=PR, source_sha=HEAD
                 )
@@ -303,7 +303,7 @@ class PreviewImageArtifactTest(unittest.TestCase):
                     "--created-at",
                     "2026-08-12T00:00:00Z",
                     "--image-mode",
-                    "admin-only",
+                    "unsupported-only",
                     "--api-image",
                     "api",
                 ]

@@ -3,6 +3,7 @@ import copy
 import json
 import hashlib
 import io
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,6 +24,47 @@ CONTROL = "c" * 40
 REVIEWED = "d" * 40
 TREE = "e" * 40
 TASK_ID = "PRIZECSV-20261007"
+
+
+class OldTestBuildSelectionTest(unittest.TestCase):
+    def test_workflow_executes_only_selected_builds_without_docker(self):
+        workflow = (ROOT / ".github/workflows/old-test-main-artifact.yml").read_text()
+        script = workflow.split("        run: |\n", 1)[1].split("\n      - name: Upload", 1)[0]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        stub = '''#!/usr/bin/python3
+import json,os,pathlib,subprocess,sys
+name=pathlib.Path(sys.argv[0]).name
+args=sys.argv[1:]
+if name=='python3' and args[0]=='-c':
+    sys.exit(subprocess.call(['/usr/bin/python3',*args]))
+with open(os.environ['CALLS'],'a') as log: log.write(json.dumps([name,*args])+'\\n')
+if name=='git': print(os.environ['INPUT_SOURCE_SHA'] if args[0]=='rev-parse' else '2026-11-12T00:00:00Z')
+if name=='python3' and 'package' in args:
+    pathlib.Path(os.environ['RUNNER_TEMP'],'old-test-images').mkdir()
+'''
+        for mode, expected in (("admin-only", ["apps/admin/Dockerfile"]),
+                               ("api-only", ["approved-api.Dockerfile"]),
+                               ("normal", ["approved-api.Dockerfile", "apps/admin/Dockerfile"])):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                bin_dir = directory / "bin"; bin_dir.mkdir()
+                for name in ("python3", "docker", "git", "zstd"):
+                    path = bin_dir / name; path.write_text(stub); path.chmod(0o755)
+                (directory / "source-authority.json").write_text(json.dumps({"image_mode": mode}))
+                env = os.environ | {"PATH": str(bin_dir) + ":/usr/bin:/bin", "CALLS": str(directory / "calls"),
+                    "GITHUB_WORKSPACE": temporary, "RUNNER_TEMP": temporary,
+                    "INPUT_SOURCE_SHA": HEAD, "INPUT_TASK_ID": TASK, "INPUT_PR_NUMBER": str(PR)}
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], env=env,
+                                        cwd=directory, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = [json.loads(line) for line in (directory / "calls").read_text().splitlines()]
+                builds = [call for call in calls if call[0] == "docker"]
+                self.assertEqual([call[call.index("--file") + 1].replace(temporary + "/", "") for call in builds], expected)
+                self.assertTrue(all(call[1:4] == ["build", "--platform", "linux/amd64"] for call in builds))
+                package = next(call for call in calls if "package" in call)
+                self.assertEqual("--api-image" in package, mode != "admin-only")
+                self.assertEqual("--admin-image" in package, mode != "api-only")
+                self.assertEqual(any("--prepare-recipe" in call for call in calls), mode != "admin-only")
 
 
 class Alpha50ApprovalInventoryTest(unittest.TestCase):
@@ -167,7 +209,7 @@ class LineAlpha52IntegratedApprovalTest(unittest.TestCase):
 
 class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
     def test_exact_pr679_source_retains_contract_and_limits_product_change(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "b120b8c7bd3f2a7e538546e17da37bded5b11e0f:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         source = "64fbfaf5746ae9c677c52129882509a8f130e94c"
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["platform"], approval["image_mode"]),
                          ("OLDTEST-LINE-ALPHA52", 679, source, "linux/amd64", "normal"))
@@ -185,6 +227,31 @@ class LineAlpha52Pr679ApprovalTest(unittest.TestCase):
                      "EmailScope OFF/FriendshipCheck ON/BotPrompt normal", "POST-only", "separate Human Exact Runtime GO",
                      "Runtime switch, live Nginx change and real Migration remain NOT authorized", "NEW Production and LB excluded"):
             self.assertIn(text, approval["authority"])
+
+
+
+class LineTrustedProxyApprovalTest(unittest.TestCase):
+    def test_api_only_source_preserves_runtime_boundaries(self):
+        approval = json.loads(subprocess.check_output(["git", "show", "cc371b08c4c01f7327ab8560fe24724ea262f427:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
+        source = "b66e9a817d53dc77c2b327c3ccdd19790e204d57"
+        self.assertEqual(
+            (approval["task_id"], approval["source_pr"], approval["source_sha"],
+             approval["image_mode"], approval["platform"]),
+            ("TRUSTPROXYRT-20261111", 682, source, "api-only", "linux/amd64"),
+        )
+        self.assertIs(approval["activation_authorized"], False)
+
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+        self.assertEqual(git("rev-parse", source + "^{tree}"), "0ef56df581778c3a00eeb0caf382db874f1d7965")
+        product = git("diff", "--name-only", "64fbfaf5746ae9c677c52129882509a8f130e94c", source,
+                      "--", "apps/api/app", "apps/api/bootstrap", "apps/api/config", "apps/api/routes",
+                      "apps/api/database", "apps/api/composer.lock", "apps/admin", "openapi", "packages")
+        self.assertEqual(product.splitlines(), ["apps/api/bootstrap/app.php", "apps/api/config/trustedproxy.php"])
+        for expected in ("Ledger107 with no Migration", "Client/Testkit alpha.52 Artifact13742019147",
+                         "TTL300 Receipt", "separate Human Exact Runtime GO"):
+            self.assertIn(expected, approval["authority"])
 
 
 class OldTestBuildRecipeTest(unittest.TestCase):
@@ -457,7 +524,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "normal")
+            self.assertEqual(result["image_mode"], "admin-only")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
@@ -548,7 +615,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         self.assertEqual(self.authorize(control=PAYLOAD)["source_sha"], PAYLOAD)
 
     def test_only_explicitly_approved_api_or_api_admin_inventory_is_authority(self):
-        for mode in ("api-only", "normal"):
+        for mode in ("api-only", "normal", "admin-only"):
             self.approval["image_mode"] = mode
             with self.subTest(mode=mode):
                 result = self.authorize()
@@ -584,7 +651,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
     def test_target_architecture_identity_and_activation_scope_fail_closed(self):
         for field, value in (("target", "production"), ("target", "new-server"),
                              ("platform", "linux/arm64"), ("image_mode", "agency"),
-                             ("image_mode", "admin-only"), ("image_mode", ""),
+                             ("image_mode", "admin-agency"), ("image_mode", ""),
                              ("task_id", "OTHER-123"), ("source_pr", 514),
                              ("activation_authorized", True), ("authority", "arbitrary")):
             original = self.approval[field]
@@ -698,7 +765,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
         run = {"event": "workflow_dispatch", "status": "completed", "conclusion": "success",
                "path": wrapper.OLD_WORKFLOW_PATH, "head_branch": "main", "head_sha": CONTROL,
                "run_attempt": 1}
-        for image_mode, mutation in ((mode, change) for mode in ("api-only", "normal")
+        for image_mode, mutation in ((mode, change) for mode in ("api-only", "normal", "admin-only")
                                      for change in ("none", "source", "control", "attempt", "outer", "inventory", "mode")):
             authority["image_mode"] = image_mode
             with self.subTest(mode=image_mode, mutation=mutation), tempfile.TemporaryDirectory() as temporary:
@@ -711,7 +778,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     provenance["run_attempt"] = 2
                 if mutation == "mode":
                     provenance["image_mode"] = "normal" if image_mode == "api-only" else "api-only"
-                image_names = ["api", "admin"] if image_mode == "normal" else ["api"]
+                image_names = {"normal": ["api", "admin"], "api-only": ["api"], "admin-only": ["admin"]}[image_mode]
                 manifest_names = image_names if mutation != "inventory" else list(reversed(image_names)) + ["agency"]
                 with zipfile.ZipFile(archive, "w") as bundle:
                     for name in ["SHA256SUMS"] + [f"oripa-v2-{image}-linux-amd64.docker.tar.zst" for image in image_names]:
@@ -775,10 +842,22 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                     artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
                                              source_sha=HEAD, artifact_kind=kind)
 
-    def test_old_test_rejects_arm64_agency_admin_only_and_reordered_inventory(self):
+    def test_old_test_admin_only_archive_verifies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            create_artifact(directory, ("admin",), artifact_kind="old-test")
+            result = artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                              source_sha=HEAD, artifact_kind="old-test")
+            self.assertEqual([item["name"] for item in result["images"]], ["admin"])
+            for kind in ("preview", "production-candidate"):
+                with self.subTest(kind=kind), self.assertRaises(artifact.ArtifactError):
+                    artifact.verify_artifact(directory, task_id=TASK, pr_number=PR,
+                                             source_sha=HEAD, artifact_kind=kind)
+
+    def test_old_test_rejects_arm64_agency_and_reordered_inventory(self):
         with self.assertRaisesRegex(artifact.ArtifactError, "architecture_invalid"):
             artifact.validate_target("old-test", "arm64")
-        for names in (("api", "admin", "agency"), ("admin",), ("admin", "api")):
+        for names in (("api", "admin", "agency"), ("admin", "api")):
             with self.subTest(names=names), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 create_artifact(directory, names, artifact_kind="old-test")
@@ -846,7 +925,7 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
                          "control/scripts/ops/old_test_source_authority.py",
                          "--platform linux/amd64 --target preview", "--artifact-kind old-test",
                          'OCI_REVISION=${INPUT_SOURCE_SHA}', "persist-credentials: false",
-                         "source-authority.json", 'if [[ "$image_mode" == normal ]]; then',
+                         "source-authority.json", 'if [[ "$image_mode" == normal || "$image_mode" == admin-only ]]; then',
                          '--file apps/admin/Dockerfile', '--admin-image "$admin_image"',
                          '--image-mode "$image_mode"', 'test "$image_mode" = api-only || test "$image_mode" = normal'):
             self.assertIn(required, workflow)
@@ -862,3 +941,38 @@ class OldTestArtifactBoundaryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NodeAdminApprovalTest(unittest.TestCase):
+    def test_readiness_classifier_keeps_old_test_scope_and_activation_boundary(self):
+        from scripts.release.readiness import change, records
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        def git(_repository, *args):
+            if args[0] == "show":
+                return json.dumps(approval).encode()
+            if args[0] == "rev-parse":
+                return (TREE + "\n").encode()
+            self.assertEqual(args[:2], ("merge-base", "--is-ancestor"))
+            return b""
+        with mock.patch.object(change, "git", side_effect=git):
+            result = change.validate_authority(ROOT, HEAD, wrapper.OLD_AUTHORITY_PATH, CONTROL)
+            self.assertEqual(result["source_sha"], approval["source_sha"])
+            for key, invalid in (("target", "production"), ("platform", "linux/arm64"),
+                                 ("image_mode", "agency"), ("activation_authorized", True)):
+                original = approval[key]
+                approval[key] = invalid
+                with self.subTest(key=key), self.assertRaises(records.RecordError):
+                    change.validate_authority(ROOT, HEAD, wrapper.OLD_AUTHORITY_PATH, CONTROL)
+                approval[key] = original
+
+    def test_exact_admin_only_source_and_retained_api(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"]),
+                         ("NODEADM-20261112", 685, "d76f0442c5eeb122ffd946f8d265edc000e7d97b", "admin-only", "linux/amd64"))
+        self.assertIs(approval["activation_authorized"], False)
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", approval["source_sha"] + "^{tree}"), "e0ef92bd08ce9d89f096c61fc8b85e377f672a0c")
+        self.assertEqual(git("diff", "--name-only", "81c8147095d4b79bc2d47bf58938b01809db4b58", approval["source_sha"], "--", "apps/api", "apps/agency", "pnpm-lock.yaml", "openapi", "packages"), "")
+        for text in ("No API or Agency Build or restart", "Ledger107/no Migration", "TTL300 Receipt", "separate Human Exact Runtime GO", "Production Authority/Artifacts/Stage unchanged"):
+            self.assertIn(text, approval["authority"])
