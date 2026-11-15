@@ -1,5 +1,19 @@
 # V2 Migration Root
 
+## LINE recipient recovery (000110 reservation)
+
+`LINE-DELIVERY-20261109-D2` reserves
+`2026_11_15_000110_add_v2_line_recovered_friends.php` under the exclusive shared
+Migration Allocation flock, acquired before allocation. Base main
+`13cdc57f4d60e22836618034899e9f64a9885770`;31 remote branches,20 open PRs,
+83 local refs, worktree migration filenames, task policies and shared reservations
+were checked. No competing110 or LINE DDL was found.107/108/109 are unchanged.
+The additive table records encrypted follower-list observations without invented
+follow dates or reward claims. Binding/ciphertext are immutable; observation time
+is monotonic. Retain schema on rollback; use a reviewed forward correction.
+Logical110 reservation remains unavailable for reuse through Draft review.
+Only isolated synthetic application is authorized; operational activation deferred.
+
 ## LINE authentication revision (000109 reservation)
 
 `LINE-DELIVERY-20261109-D1` reserves

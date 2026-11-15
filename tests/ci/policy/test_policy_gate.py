@@ -28,7 +28,17 @@ class PolicyGateTest(unittest.TestCase):
         task = "LINE-DELIVERY-20261109-D1"
         policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
                                     data["changed_paths"], data["base_sha"])
-        for invalid in (task + "A", "LINE-DELIVERY-20261109-D2", "LINE-DELIVERY-*"):
+        for invalid in (task + "A", "LINE-DELIVERY-20261109-D3", "LINE-DELIVERY-*"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
+    def test_line_delivery_d2_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "LINE-DELIVERY-20261109-D2"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", task + "0", "LINE-DELIVERY-20261109-D3"):
             with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
                 policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
                                             data["changed_paths"], data["base_sha"])
