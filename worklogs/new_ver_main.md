@@ -13698,6 +13698,8 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 
 ## LINE-DELIVERY-20261109-D2 — recipient eligibility Draft
 
+- Initial Draft690 CI policy gate failed because110 was missing from the policy gate's exact migration inventory (unit suite had passed). Added only the exact110 entry in both required-path and migration-set inventories; no accepted-path expansion, check bypass or assertion weakening. Subsequent gates skipped/failed by dependency are not PASS. The correction and latest Human decision share the next ordinary push; final-head checks replace this initial result.
+
 - Human-decision correction verification:15 D2 tests/77 assertions PASS. Covers check-OFF inheritance, no reward with rewards enabled, one subject before/after linking, same-BOT/subject fences, later block, stale follow/recovery and real refollow with fake D1 transport. Exact15-path scan and protected107/108/109 byte checks PASS. No schema change after the verified final110; previous-head CI is not used for the new final head.
 
 - Latest Human decision2026-11-15 supersedes the earlier recovery-only exclusion: valid D7 observations qualify after same-subject/same-BOT member linking even with friendship check OFF. Resolver derives association dynamically, transfers one candidate between groups, prioritizes newer block/unfollow and negative ties, rejects mismatched identities/BOTs and invokes no reward operation. D7 timestamps are actual acquisition observations, not invented follow dates. Unobserved/delayed block limitation is explicitly handed to D3. Draft PR690 initial head updated for this decision; final-head CI/review must replace earlier-head evidence.
