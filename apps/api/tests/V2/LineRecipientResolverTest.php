@@ -147,6 +147,9 @@ final class LineRecipientResolverTest extends TestCase
         self::assertSame($first->subject_hash, app(V2LineSubjectVault::class)->canonicalHash('rotation-subject'));
         self::assertCount(1, $this->recipients());
         self::assertTrue(app(V2LineRecipientResolver::class)->eligibleBeforeSend($this->recipients()[0], Purpose::Transactional));
+        $this->identityOnly('rotation-subject');
+        self::assertCount(1, $this->recipients(Group::LinkedMembers));
+        self::assertSame([], $this->recipients(Group::UnlinkedFriends));
     }
 
     public function test_corrupt_ciphertext_is_rejected_at_immediate_send_boundary(): void
@@ -185,6 +188,7 @@ final class LineRecipientResolverTest extends TestCase
     public function test_other_bot_recovery_is_not_used_and_stale_registration_is_rejected(): void
     {
         $this->recover('only-old-bot');
+        $this->identityOnly('only-old-bot');
         DB::table('line_bots')->where('id', $this->bot->id)->update(['is_active' => false]);
         DB::table('line_bots')->insert(['public_id' => (string) Str::uuid7(), 'name' => 'Other synthetic BOT',
             'channel_id' => '2222222', 'channel_secret_ciphertext' => Crypt::encryptString('synthetic-other'),
@@ -233,13 +237,88 @@ final class LineRecipientResolverTest extends TestCase
 
     private function linked(string $subject): User
     {
+        $user = $this->identityOnly($subject);
+        app(V2LineFriendService::class)->applyObservation($subject, $user, true, CarbonImmutable::now(), (string) Str::uuid7());
+        return $user;
+    }
+
+    private function identityOnly(string $subject): User
+    {
         $email = Str::uuid7().'@example.test';
         $user = User::query()->create(['email_display' => $email, 'email_normalized' => $email,
             'email_verified_at' => now(), 'password_hash' => '$argon2id$synthetic', 'password_login_enabled' => true, 'state' => 'active']);
         ExternalIdentityAccount::query()->create(['user_id' => $user->id, 'provider' => 'line',
             'issuer' => 'https://access.line.me', 'subject_hash' => app(V2LineSubjectVault::class)->canonicalHash($subject),
             'linked_at' => now(), 'last_authenticated_at' => now()]);
-        app(V2LineFriendService::class)->applyObservation($subject, $user, true, CarbonImmutable::now(), (string) Str::uuid7());
+        // Existing OAuth completion's vault/reconciliation connection points.
+        app(V2LineSubjectVault::class)->backfill($subject);
+        app(V2LineFriendService::class)->reconcileIdentity(app(V2LineSubjectVault::class)->canonicalHash($subject),
+            $user, (string) Str::uuid7(), true, app(V2LineSubjectVault::class)->hashes($subject));
         return $user;
+    }
+
+    public function test_human_d7_observation_survives_later_link_with_friend_check_off_without_reward(): void
+    {
+        config(['v2_line.friendship_check_enabled' => false]);
+        $this->recover('recovered-before-link');
+        $before = DB::table('line_recovered_friends')->sole();
+        $old = $this->recipients(Group::UnlinkedFriends)[0];
+        DB::table('line_messaging_settings')->update(['reward_enabled' => true, 'reward_point_amount' => 500]);
+        $operations = DB::table('point_operations')->count();
+        $user = $this->identityOnly('recovered-before-link');
+        self::assertSame([], $this->recipients(Group::UnlinkedFriends));
+        $linked = $this->recipients(Group::LinkedMembers);
+        self::assertCount(1, $linked);
+        self::assertCount(1, $this->recipients());
+        self::assertSame($user->id, $linked[0]->userId);
+        self::assertSame('line_recovered_friends', $linked[0]->source);
+        self::assertTrue(app(V2LineRecipientResolver::class)->eligibleBeforeSend($linked[0], Purpose::Promotional));
+        self::assertFalse(app(V2LineRecipientResolver::class)->eligibleBeforeSend($old, Purpose::Transactional));
+        self::assertEquals($before, DB::table('line_recovered_friends')->sole());
+        self::assertSame(0, DB::table('line_friendships')->where('line_bot_id', $this->bot->id)->count());
+        self::assertSame($operations, DB::table('point_operations')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_d7_linked_observation_yields_to_newer_block_and_recovers_only_on_new_follow(): void
+    {
+        $subject = 'recovery-block-refollow';
+        $time = now()->subMinute()->getTimestampMs();
+        app(V2LineRecoveredFriendRegistry::class)->record((int) $this->bot->id, 1, $subject, $time);
+        $user = $this->identityOnly($subject);
+        $ref = $this->recipients()[0];
+        $service = app(V2LineFriendService::class);
+        $event = ['type' => 'unfollow', 'timestamp' => $time + 1000,
+            'source' => ['type' => 'user', 'userId' => $subject], 'webhookEventId' => 'synthetic-d7-block'];
+        $service->handleEvents([$event], (string) Str::uuid7(), (int) $this->bot->id);
+        $service->handleEvents([$event], (string) Str::uuid7(), (int) $this->bot->id);
+        self::assertSame([], $this->recipients());
+        self::assertFalse(app(V2LineRecipientResolver::class)->eligibleBeforeSend($ref, Purpose::Transactional));
+        // A delayed recovery response and old follow must not resurrect a blocked recipient.
+        app(V2LineRecoveredFriendRegistry::class)->record((int) $this->bot->id, 1, $subject, $time);
+        $event['type'] = 'follow'; $event['replyToken'] = 'synthetic-only';
+        $event['timestamp'] = $time; $event['webhookEventId'] = 'synthetic-d7-old-follow';
+        $service->handleEvents([$event], (string) Str::uuid7(), (int) $this->bot->id);
+        self::assertSame([], $this->recipients());
+        // Real later follow restores eligibility. Existing D1 reply uses a fake only.
+        $this->app->instance(\App\Domain\Line\Contracts\V2LineMessagingTransport::class,
+            new class implements \App\Domain\Line\Contracts\V2LineMessagingTransport {
+                public function replyText(#[\SensitiveParameter] string $replyToken, string $message): \App\Domain\Line\ValueObjects\V2LineReplyResult
+                {
+                    return new \App\Domain\Line\ValueObjects\V2LineReplyResult(true);
+                }
+            });
+        $event['timestamp'] = $time + 2000; $event['webhookEventId'] = 'synthetic-d7-refollow';
+        app(V2LineFriendService::class)->handleEvents([$event], (string) Str::uuid7(), (int) $this->bot->id);
+        self::assertCount(1, $this->recipients(Group::LinkedMembers));
+        Http::assertNothingSent();
+    }
+
+    public function test_d7_subject_mismatch_cannot_inherit_another_members_observation(): void
+    {
+        $this->recover('actual-recovered-subject');
+        $this->identityOnly('different-subject');
+        self::assertSame([], $this->recipients(Group::LinkedMembers));
+        self::assertCount(1, $this->recipients(Group::UnlinkedFriends));
     }
 }

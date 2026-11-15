@@ -33,8 +33,9 @@ different BOT. Existing timestamps and equal-time negative precedence govern
 the union of webhook, account observation and recovered follower observations.
 
 Current LINE issuer/provider identity, active/restricted member state (matching
-the existing vault), no account_closures row, current matching friendship,
-friend state and encrypted subject are required for linked members. Invalidated
+the existing vault), no account_closures row, a current matching friendship or
+valid same-BOT recovered observation, friend state and encrypted subject are
+required for linked members. Invalidated
 member identities do not become an unlinked audience by fallback. Historical
 superseded identities alone do not authorize delivery. Claimed terminal pending
 rows are never reused as unlinked recipients.
@@ -63,11 +64,25 @@ same subject through key rotation. Classification reads identity state afresh,
 so pending→claimed/linked cannot produce two recipients. Recovery alone never
 creates a reward or changes D1 terminal rows.
 
-A recovered-only subject whose member links while friendship checking is OFF
-has no observed follow date or line_friendships row. It is excluded until an
-actual follow or friendship API observation creates that row. This fail-closed
-case is explicitly raised with Human; do not fabricate a follow date to qualify
-it or silently alter existing reward reconciliation. D7 ingestion remains future.
+Human decision2026-11-15 explicitly permits a recovered-only subject to qualify
+after later LINE linking even when friendship checking is OFF and no
+line_friendships row exists. Identity association is derived from the same
+canonical LINE HMAC and BOT scope on every resolution, rather than copying
+membership or fabricating a follow date. The one recovered source reference is
+reclassified from unlinked to linked; the old unlinked reference fails recheck.
+No reward/reconciliation operation is invoked by resolution or recovery ingestion.
+The actual existing linking reconciliation remains unchanged; recovery alone
+cannot grant a benefit even when rewards are enabled.
+
+A newer recorded unfollow/negative observation overrides the D7 snapshot;
+equal-time negative wins. A later real follow can restore eligibility. Missing
+or inconsistent subject binding, conflicting member ownership or a different
+BOT fails closed. D7 records evidence of friendship at acquisition, not permanent
+deliverability. Webhook delivery can be delayed or absent, so an unobserved block
+cannot be detected locally. D3 must re-read the latest recorded state immediately
+before sending and must handle the provider's actual delivery limitations; it
+must never treat an old D7 snapshot as proof of current delivery. No real D7
+acquisition or extra friend-check API call is introduced by D2.
 
 ## Follow-on boundaries
 

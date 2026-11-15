@@ -120,9 +120,15 @@ final class V2LineRecipientResolver
             $pending = $sources['line_pending_follows']->get($hash);
             $recovered = $sources['line_recovered_friends']->get($hash);
             if ($linked) {
-                if ($friendship === null || (int) $friendship->user_id !== (int) $account->user_id
-                    || $friendship->status !== 'friend' || $friendship->unfollowed_at !== null) continue;
-                $source = 'line_friendships'; $row = $friendship;
+                if ($friendship !== null && (int) $friendship->user_id !== (int) $account->user_id) continue;
+                if ($friendship !== null && $friendship->status === 'friend' && $friendship->unfollowed_at === null
+                    && is_string($friendship->subject_ciphertext) && $friendship->subject_ciphertext !== '') {
+                    $source = 'line_friendships'; $row = $friendship;
+                } elseif ($recovered !== null) {
+                    // Human D2/D7 decision: a real follower-list observation survives
+                    // later linking, without inventing a follow date or granting a reward.
+                    $source = 'line_recovered_friends'; $row = $recovered;
+                } else continue;
             } else {
                 if ($friendship !== null || ($pending !== null && $pending->status === 'claimed')) continue;
                 if ($pending !== null && $pending->status === 'pending' && $pending->unfollowed_at === null) {
@@ -135,6 +141,9 @@ final class V2LineRecipientResolver
             $latest = -1; $friend = false;
             $states = [];
             if ($recovered !== null) $states[] = [(int) $recovered->observed_at_ms, true];
+            foreach ([$friendship, $pending] as $history) {
+                if ($history?->unfollowed_at !== null) $states[] = [\Carbon\CarbonImmutable::parse($history->unfollowed_at)->getTimestampMs(), false];
+            }
             if (($event = $events->get($hash)) !== null) $states[] = [(int) $event->observed_at_ms, $event->event_type === 'follow'];
             foreach ($observations->get($hash, collect()) as $observation) $states[] = [(int) $observation->observed_at_ms, (bool) $observation->friend];
             foreach ($states as [$time, $value]) {
