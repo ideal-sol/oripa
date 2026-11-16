@@ -66,7 +66,11 @@ class ProductionPR692PayloadTest(unittest.TestCase):
         self.assertEqual(result['validation_path'], 'NORMAL_STRICT_CI')
         self.assertEqual(result['authority_records'][0]['provenance'], 'EXACT_PR692_DERIVED_PAYLOAD')
         from scripts.release.readiness.adapters import verify_change_authority
-        self.assertEqual(len(verify_change_authority(result, self.get)['source_checks']), 2)
+        def get(path):
+            if path.endswith('/branches/main'):
+                return {'protected': True, 'commit': {'sha': self.spec['fix_sha']}}
+            return self.get(path)
+        self.assertEqual(len(verify_change_authority(result, get)['source_checks']), 2)
         self.assertIs(self.authorize()['activation_authorized'], False)
 
     def test_bad_evidence_fails_closed(self):
