@@ -313,3 +313,12 @@ at zero. No wallet, lot, payment amount or prior ledger entry is rewritten.
 The migration is allocated under the shared Migration Allocation Lock.
 Operational application is deferred. Retain schema and histories on rollback;
 an older writer that performs automatic demotion must not be restored.
+
+## LINE delivery management (000114)
+
+Reserved for LINE-DELIVERY-20261109-D5 under the shared allocation lock after
+31 live heads,88 refs,20 open PRs,worktrees,policies and shared reservations were audited.
+Adds fixed-schema segment snapshots, creation request identities and immutable
+media intents/manifests.107–113 are unchanged. Forward-only: retain schema and
+verified media; never roll back to a writer that ignores configured segments.
+Operational migration and runtime activation remain deferred.

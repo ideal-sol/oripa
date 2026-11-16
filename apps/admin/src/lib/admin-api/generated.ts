@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: f6b61ac590e19d3db05f581e4f823318fc069727d202fdae821761109e5a91ba
+// Contract SHA-256: ecc16522c4bcb74687f3cdc314bd2f42d596be092262cea4eda6e160b568273e
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2951,6 +2951,32 @@ export interface AdminCatalogDetail<T> {
 export type AdminCatalogVisibility = "all" | "visible" | "hidden";
 export type AdminCatalogDirection = "asc" | "desc";
 
+export type LineDeliverySummary = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "id": string; "revision": number; "status": string; "scheduled_at": string | null; "created_by": string | null; "created_at": string; "recipient_count": number; "planned_count": number; "bot_id": string | null; "authentication_revision": number | null; "batch_counts": LineDeliveryCounts; "recipient_counts": LineDeliveryCounts; };
+export type LineDeliverySegment = { "purchase_min"?: number; "purchase_max"?: number; "points_min"?: number; "points_max"?: number; "purchase_within_days"?: number; "purchase_absent_days"?: number; "registered_from"?: string; "registered_to"?: string; "followed_from"?: string; "followed_to"?: string; "rank_levels"?: Array<number>; };
+export type LineDeliveryPacing = { "push_every": number; "push_wait_seconds": number; "multicast_wait_seconds": number; };
+export type LineDeliveryMessage = { "type": "text"; "text": string; } | { "type": "image" | "video"; "originalContentUrl": string; "previewImageUrl": string; } | { "type": "imagemap"; "baseUrl": string; "altText": string; "height": number; "layout": "full"; "links": Array<string>; } | { "type": "image_carousel"; "altText": string; "columns": Array<{ "imageUrl": string; "uri": string; "label"?: string; }>; };
+export type LineDeliveryInput = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "segment": LineDeliverySegment; "messages": Array<LineDeliveryMessage>; "pacing": LineDeliveryPacing; "expected_revision": number; "mode": "draft" | "now" | "scheduled"; "scheduled_at": string | null; "request_key": string; };
+export type LineDeliveryPreviewInput = { "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "segment": LineDeliverySegment; "messages": Array<LineDeliveryMessage>; "pacing": LineDeliveryPacing; };
+export type LineDeliveryPreview = { "recipient_count": number; "remaining": number; "sufficient": boolean; "method": "push" | "multicast"; "duration_seconds": number; };
+export type LineDeliveryCounts = { "accepted": number; "failed": number; "unknown": number; "skipped": number; "pending": number; "sending": number; "retrying": number; };
+export type LineDeliveryRow = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "segment": LineDeliverySegment; "messages": Array<LineDeliveryMessage>; "pacing": LineDeliveryPacing; "id": string; "revision": number; "status": string; "scheduled_at": string | null; "created_by": string | null; "created_at": string; "recipient_count": number; "planned_count": number; "bot_id": string | null; "authentication_revision": number | null; "batch_counts": LineDeliveryCounts; "recipient_counts": LineDeliveryCounts; };
+export type LineDeliveryBatch = { "id": string; "status": string; "method": string; "attempts": number; "recipient_count": number; "reason_code": string | null; "not_before": string; };
+export type LineDeliveryDetail = { "data": LineDeliveryRow; "batches": Array<LineDeliveryBatch>; "next_batch_cursor": number | null; };
+export type LineDeliveryList = { "data": Array<LineDeliverySummary>; "next_cursor": number | null; };
+export type LineDeliveryRevision = { "expected_revision": number; "request_key": string; };
+export type LineDeliveryResend = { "request_key": string; "confirmation": "すでに届いている可能性があります"; };
+export type LineDeliveryResult = { "id": string; };
+export type LineDeliveryDefaults = { "revision": number; "pacing": LineDeliveryPacing; };
+export type LineDeliveryDefaultsInput = { "expected_revision": number; "pacing": LineDeliveryPacing; };
+export type LineQuotaPeriod = { "month": string; "configured": boolean; "opening_used": number; "approved_limit": number; "effective_limit": number; "reserved": number; "unknown": number; "accepted": number; "remaining": number; "evidence_id": string | null; "baseline_cut_at": string | null; "verified_at": string | null; };
+export type LineQuotaState = { "bot_id": string; "authentication_revision": number; "halted": boolean; "halt_reason": string | null; "periods": Array<LineQuotaPeriod>; };
+export type LineQuotaBaseline = { "bot_id": string; "authentication_revision": number; "month": string; "opening_used": number; "approved_limit": number; "evidence_id": string; "verified_at": string; "confirmation": "課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました"; };
+export type LineQuotaHalt = { "bot_id": string; "authentication_revision": number; "evidence_id": string; };
+export type LineMediaFile = { "mime": "image/jpeg" | "image/png" | "video/mp4"; "bytes": number; "sha256": string; };
+export type LineMediaIntentInput = { "kind": "image" | "video" | "imagemap" | "carousel"; "original": LineMediaFile; "preview"?: LineMediaFile; };
+export type LineMediaUpload = { "slot": "original" | "preview"; "url": string; "headers": Record<string, unknown>; };
+export type LineMediaIntent = { "id": string; "expires_at": string; "uploads": Array<LineMediaUpload>; };
+export type LineMediaAsset = { "id": string; "kind": string; "original_url": string; "preview_url": string; "width": number; "height": number; };
 export type LineAutomatedMessage = { "type": "text"; "text": string; };
 export type LineAutomatedSetting = { "event": "shipping" | "payment" | "first_purchase" | "rank_promotion"; "revision": number; "enabled": boolean; "category": "transactional" | "promotional"; "messages": Array<LineAutomatedMessage>; "effective_at": string | null; };
 export type LineAutomatedInput = { "enabled": boolean; "category": "transactional" | "promotional"; "expected_revision": number; "messages": Array<LineAutomatedMessage>; };

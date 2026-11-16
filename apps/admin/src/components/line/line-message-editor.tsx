@@ -1,0 +1,79 @@
+"use client";
+
+import { useState } from "react";
+import { AdminApiClient } from "@/lib/admin-api/client";
+import type { LineDeliveryMessage, LineMediaAsset, LineMediaIntentInput } from "@/lib/admin-api/generated";
+
+const types = ["text", "image", "video", "imagemap", "image_carousel"] as const;
+const names = ["テキスト", "画像", "動画", "イメージマップ", "画像カルーセル"];
+function MediaPreview({ url }: { url: string }) {
+  if (!url.startsWith("https://")) return null;
+  // Verified CDN media must not be relayed through the Admin image optimizer.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="送信内容の参考プレビュー" referrerPolicy="no-referrer" style={{ maxWidth: 320, maxHeight: 320, objectFit: "contain" }} />;
+}
+export function newLineMessage(type: typeof types[number]): LineDeliveryMessage {
+  switch (type) {
+    case "text": return { type, text: "" };
+    case "image": case "video": return { type, originalContentUrl: "", previewImageUrl: "" };
+    case "imagemap": return { type, baseUrl: "", altText: "", height: 1040, layout: "full", links: [""] };
+    case "image_carousel": return { type, altText: "", columns: [] };
+  }
+}
+
+function MediaUpload({ client, kind, onUploaded }: { client: AdminApiClient; kind: LineMediaIntentInput["kind"]; onUploaded: (asset: LineMediaAsset) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  async function metadata(value: File) {
+    const digest = await crypto.subtle.digest("SHA-256", await value.arrayBuffer());
+    return { bytes: value.size, mime: value.type as "image/jpeg" | "image/png" | "video/mp4", sha256: Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("") };
+  }
+  async function upload() {
+    if (!file || (kind === "video" && !preview)) return;
+    setBusy(true); setStatus("ファイルを検証中…");
+    try {
+      if (file.size > (kind === "video" ? 200 : 10) * 1024 * 1024 || (preview && preview.size > 1024 * 1024)) throw new Error();
+      const intent = await client.createLineMedia({ kind, original: await metadata(file), ...(preview ? { preview: await metadata(preview) } : {}) });
+      for (const target of intent.uploads) {
+        const body = target.slot === "original" ? file : preview!;
+        const headers = Object.fromEntries(Object.entries(target.headers).filter(([key]) => !["content-length", "host"].includes(key.toLowerCase())));
+        const response = await fetch(target.url, { method: "PUT", body, headers: headers as Record<string, string>, credentials: "omit", referrerPolicy: "no-referrer" });
+        if (!response.ok) throw new Error();
+      }
+      const asset = await client.finalizeLineMedia(intent.id); onUploaded(asset); setStatus("実体検証済みファイルを選択しました。");
+    } catch { setStatus("アップロードまたは実体検証に失敗しました。形式・容量・縦横比、再認証、CDN設定を確認してください。"); }
+    finally { setBusy(false); }
+  }
+  return <fieldset disabled={busy}>
+    <legend>{kind === "video" ? "MP4（200MB以下）と同じ縦横比のプレビュー" : kind === "carousel" ? "正方形のJPEG/PNG（10MB以下）" : "JPEG/PNG（10MB以下）"}</legend>
+    <input aria-label="アップロードするファイル" type="file" accept={kind === "video" ? "video/mp4" : "image/jpeg,image/png"} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+    {kind === "video" && <label>プレビュー（JPEG/PNG・1MB以下）<input type="file" accept="image/jpeg,image/png" onChange={(e) => setPreview(e.target.files?.[0] ?? null)} /></label>}
+    <button type="button" disabled={!file || (kind === "video" && !preview)} onClick={() => void upload()}>アップロードして実体検証</button>
+    <p role="status">{status}</p>
+  </fieldset>;
+}
+
+/** Shared D5/D6 editor. It only emits the fixed Admin message contract. */
+export function LineMessageEditor({ messages, onChange, client, disabled = false }: { messages: LineDeliveryMessage[]; onChange: (m: LineDeliveryMessage[]) => void; client: AdminApiClient; disabled?: boolean }) {
+  const replace = (index: number, m: LineDeliveryMessage) => onChange(messages.map((old, i) => i === index ? m : old));
+  const move = (i: number, delta: number) => { const copy = [...messages]; [copy[i], copy[i + delta]] = [copy[i + delta], copy[i]]; onChange(copy); };
+  return <fieldset disabled={disabled}><legend>送信メッセージ（1〜5件・混在可能）</legend>
+    <p>表示は参考プレビューです。実LINE表示を保証しません。タグありは1人ずつPush、タグなしは最大500人ずつMulticastです。</p>
+    {messages.map((m, i) => <section key={i} aria-label={`メッセージ ${i + 1}`}>
+      <label>形式<select value={m.type} onChange={(e) => replace(i, newLineMessage(e.target.value as typeof types[number]))}>{types.map((t, index) => <option key={t} value={t}>{names[index]}</option>)}</select></label>
+      {(m.type === "image" || m.type === "video") && <MediaPreview url={m.previewImageUrl} />}
+      {m.type === "imagemap" && m.baseUrl && <MediaPreview url={m.baseUrl + "/240"} />}
+      {m.type === "image_carousel" && <div style={{ display: "flex", overflowX: "auto" }}>{m.columns.map((c, j) => <MediaPreview key={j} url={c.imageUrl} />)}</div>}
+      {m.type === "text" && <><label>本文<textarea value={m.text} maxLength={5000} onChange={(e) => replace(i, { ...m, text: e.target.value })} /></label><p>{m.text.length}/5000（UTF-16単位）</p><div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div></>}
+      {(m.type === "imagemap" || m.type === "image_carousel") && <label>通知・代替テキスト<textarea maxLength={1500} value={m.altText} onChange={(e) => replace(i, { ...m, altText: e.target.value })} /></label>}
+      {(m.type === "text" || m.type === "imagemap" || m.type === "image_carousel") && <div>{["%username%", "%rank%", "%points%"].map((tag) => <button type="button" key={tag} onClick={() => replace(i, m.type === "text" ? { ...m, text: m.text + tag } : { ...m, altText: m.altText + tag })}>{tag}を挿入</button>)}</div>}
+      {(m.type === "image" || m.type === "video") && <><MediaUpload client={client} kind={m.type} onUploaded={(a) => replace(i, { ...m, originalContentUrl: a.original_url, previewImageUrl: a.preview_url })} />{m.previewImageUrl && <p>検証済みメディアを選択済み</p>}</>}
+      {m.type === "imagemap" && <><MediaUpload client={client} kind="imagemap" onUploaded={(a) => replace(i, { ...m, baseUrl: a.original_url, height: a.height })} /><label>画像全体のリンク先<input type="url" value={m.links[0]} onChange={(e) => replace(i, { ...m, links: [e.target.value] })} /></label><p>画像全体の1領域です。HTTPS・許可ホストのみ。URLは入力どおりに使用します。</p></>}
+      {m.type === "image_carousel" && <>{m.columns.map((c, j) => <fieldset key={j}><legend>画像 {j + 1}</legend><label>HTTPSリンク<input type="url" value={c.uri} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, uri: e.target.value } : v) })} /></label><label>ボタン文言（任意）<input maxLength={20} value={c.label ?? ""} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, label: e.target.value } : v) })} /></label><button type="button" onClick={() => replace(i, { ...m, columns: m.columns.filter((_, k) => j !== k) })}>画像を削除</button></fieldset>)}{m.columns.length < 10 && <MediaUpload client={client} kind="carousel" onUploaded={(a) => replace(i, { ...m, columns: [...m.columns, { imageUrl: a.original_url, uri: "" }] })} />}</>}
+      <button type="button" disabled={i === 0} onClick={() => move(i, -1)}>上へ</button><button type="button" disabled={i === messages.length - 1} onClick={() => move(i, 1)}>下へ</button><button type="button" disabled={messages.length === 1} onClick={() => onChange(messages.filter((_, j) => j !== i))}>メッセージを削除</button>
+    </section>)}
+    <button type="button" disabled={messages.length >= 5} onClick={() => onChange([...messages, newLineMessage("text")])}>メッセージを追加</button>
+  </fieldset>;
+}

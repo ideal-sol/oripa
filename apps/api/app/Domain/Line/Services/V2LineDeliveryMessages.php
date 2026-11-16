@@ -30,15 +30,15 @@ final class V2LineDeliveryMessages
             }
             if ($m['type'] === 'imagemap') {
                 if (! is_int($m['height']) || $m['height'] < 2 || $m['height'] > 10000) $this->invalid();
-                $count = match ($m['layout']) { 'full' => 1, 'horizontal', 'vertical' => 2, 'grid' => 4, default => $this->invalid() };
+                $count = $m['layout'] === 'full' ? 1 : $this->invalid();
                 if (! is_array($m['links']) || ! array_is_list($m['links']) || count($m['links']) !== $count) $this->invalid();
-                foreach ($m['links'] as $url) $this->url($url, 1000);
+                foreach ($m['links'] as $url) $this->link($url);
             }
             if ($m['type'] === 'image_carousel') {
                 if (! is_array($m['columns']) || ! array_is_list($m['columns']) || count($m['columns']) < 1 || count($m['columns']) > 10) $this->invalid();
                 foreach ($m['columns'] as $column) {
                     if (! is_array($column) || array_diff(array_keys($column), ['imageUrl', 'uri', 'label']) || ! isset($column['imageUrl'], $column['uri'])) $this->invalid();
-                    $this->url($column['imageUrl']); $this->url($column['uri'], 1000);
+                    $this->url($column['imageUrl']); $this->link($column['uri']);
                     if (isset($column['label'])) {
                         $this->text($column['label'], 20);
                         if (preg_match('/%[a-zA-Z0-9_]+%/', $column['label'])) $this->invalid();
@@ -101,6 +101,15 @@ final class V2LineDeliveryMessages
         if (! is_string($value) || trim($value) === '' || ! mb_check_encoding($value, 'UTF-8') || $this->units($value) > $limit) $this->invalid();
         preg_match_all('/%([a-zA-Z0-9_]+)%/', $value, $matches);
         if (array_diff($matches[1], ['username', 'rank', 'points'])) $this->invalid();
+    }
+
+    private function link(mixed $value): void
+    {
+        $this->url($value, 1000);
+        $host = strtolower((string) parse_url($value, PHP_URL_HOST));
+        $allowed = config('v2_line.delivery_allowed_link_hosts', []);
+        if (! is_array($allowed) || ! in_array($host, $allowed, true) || parse_url($value, PHP_URL_USER) !== null
+            || parse_url($value, PHP_URL_PASS) !== null || ! in_array(parse_url($value, PHP_URL_PORT), [null, 443], true)) $this->invalid();
     }
 
     private function url(mixed $value, int $limit = 2000): void

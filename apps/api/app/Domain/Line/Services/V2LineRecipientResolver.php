@@ -29,11 +29,13 @@ final class V2LineRecipientResolver
     /** Bounded keyset traversal. References must be rechecked immediately before sending.
      * @return \Generator<int, V2LineRecipient>
      */
-    public function resolve(V2LineRecipientGroup $group, V2LineDeliveryPurpose $purpose, int $chunkSize = 200): \Generator
+    public function resolve(V2LineRecipientGroup $group, V2LineDeliveryPurpose $purpose, int $chunkSize = 200, array $segment = []): \Generator
     {
         if ($chunkSize < 1 || $chunkSize > 500) throw new InvalidArgumentException('Invalid recipient chunk size.');
         $bot = $this->activeBot();
         if ($bot === null) return;
+        $segment = app(V2LineDeliverySegment::class)->normalize($segment);
+        $instant = \Carbon\CarbonImmutable::now();
         $after = '';
         do {
             $page = DB::transaction(function () use ($bot, $after, $chunkSize, $group): array {
@@ -47,7 +49,7 @@ final class V2LineRecipientResolver
                 $hashes = DB::query()->fromSub($query, 'subjects')->orderBy('subject_hash')->limit($chunkSize)->pluck('subject_hash')->all();
                 return [$hashes, $hashes === [] ? [] : $this->classify($bot, $hashes, $group)];
             });
-            foreach ($page[1] as [$reference]) yield $reference;
+            foreach (app(V2LineDeliverySegment::class)->filter($page[1], $segment, $instant) as [$reference]) yield $reference;
             if ($page[0] === []) return;
             $after = end($page[0]);
         } while (count($page[0]) === $chunkSize);

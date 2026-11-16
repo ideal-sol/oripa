@@ -12,6 +12,22 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  listAdminLineDeliveries: ["get", "/line-deliveries"],
+  createAdminLineDelivery: ["post", "/line-deliveries"],
+  getAdminLineDelivery: ["get", "/line-deliveries/{deliveryId}"],
+  updateAdminLineDelivery: ["put", "/line-deliveries/{deliveryId}"],
+  cancelAdminLineDelivery: ["post", "/line-deliveries/{deliveryId}/cancel"],
+  duplicateAdminLineDelivery: ["post", "/line-deliveries/{deliveryId}/duplicate"],
+  previewAdminLineDelivery: ["post", "/line-deliveries/preview-count"],
+  resendAdminLineDelivery: ["post", "/line-deliveries/batches/{batchId}/resend"],
+  getAdminLineDeliveryDefaults: ["get", "/line-deliveries/defaults"],
+  updateAdminLineDeliveryDefaults: ["put", "/line-deliveries/defaults"],
+  getAdminLineQuota: ["get", "/line-deliveries/quota"],
+  confirmAdminLineQuota: ["post", "/line-deliveries/quota/baseline"],
+  haltAdminLineQuota: ["post", "/line-deliveries/quota/halt"],
+  createAdminLineMedia: ["post", "/line-deliveries/media"],
+  finalizeAdminLineMedia: ["post", "/line-deliveries/media/{mediaId}/finalize"],
+
   getAdminLineAutomatedSettings: ["get", "/line-automated-settings"],
   updateAdminLineAutomatedSettings: ["put", "/line-automated-settings/{event}"],
   getAdminLineLoginSetting: ["get", "/settings/line-login"],
@@ -824,6 +840,7 @@ const b2Declarations = ["AdminB2ShippingExport", "AdminB2ShippingWarning"].map(n
 
 function lineType(schema) {
   if (!schema) throw new Error("Missing LINE management schema");
+  if (schema.oneOf) return schema.oneOf.map(lineType).join(" | ");
   if (schema.$ref) return schema.$ref.split("/").at(-1);
   if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
   if (Array.isArray(schema.type)) return schema.type.map((type) => lineType({...schema, type})).join(" | ");
@@ -835,7 +852,7 @@ function lineType(schema) {
   }
   return schema.type === "integer" || schema.type === "number" ? "number" : schema.type;
 }
-const lineTypes = ["LineAutomatedMessage","LineAutomatedSetting","LineAutomatedInput","LineAutomatedCollection","LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
+const lineTypes = ["LineDeliverySummary","LineDeliverySegment","LineDeliveryPacing","LineDeliveryMessage","LineDeliveryInput","LineDeliveryPreviewInput","LineDeliveryPreview","LineDeliveryCounts","LineDeliveryRow","LineDeliveryBatch","LineDeliveryDetail","LineDeliveryList","LineDeliveryRevision","LineDeliveryResend","LineDeliveryResult","LineDeliveryDefaults","LineDeliveryDefaultsInput","LineQuotaPeriod","LineQuotaState","LineQuotaBaseline","LineQuotaHalt","LineMediaFile","LineMediaIntentInput","LineMediaUpload","LineMediaIntent","LineMediaAsset","LineAutomatedMessage","LineAutomatedSetting","LineAutomatedInput","LineAutomatedCollection","LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
 
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}

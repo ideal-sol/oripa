@@ -1,3 +1,4 @@
+import type { LineDeliveryInput, LineDeliveryList, LineDeliveryDetail, LineDeliveryPreviewInput, LineDeliveryPreview, LineDeliveryDefaults, LineDeliveryDefaultsInput, LineDeliveryRevision, LineDeliveryResend, LineDeliveryResult, LineQuotaState, LineQuotaBaseline, LineQuotaHalt, LineMediaIntentInput, LineMediaIntent, LineMediaAsset } from "./generated";
 import type { LineAutomatedCollection, LineAutomatedInput, LineAutomatedSetting, LineBot, LineBotCollection, LineBotInput, LineBotUpdate, LineLoginSetting, LineLoginSettingInput } from "./generated";
 import type { AdminShippingMinimumPointSettingResponse, AdminShippingMinimumPointSettingUpdate, AdminShippingMinimumPointSettingMutationResult } from "./generated";
 import {
@@ -3369,6 +3370,20 @@ export class AdminApiClient {
     return this.request("GET", `/banner-management/imports/${encodeURIComponent(id)}/failures`, { signal, responseFormat: "csv" });
   }
 
+  listLineDeliveries(cursor = 0): Promise<LineDeliveryList> { return this.request("GET", `/line-deliveries?cursor=${cursor}`); }
+  getLineDelivery(id: string, cursor = 0): Promise<LineDeliveryDetail> { return this.request("GET", `/line-deliveries/${encodeURIComponent(id)}?cursor=${cursor}`); }
+  saveLineDelivery(id: string | null, body: LineDeliveryInput): Promise<LineDeliveryDetail> { return this.request(id ? "PUT" : "POST", `/line-deliveries${id ? "/" + encodeURIComponent(id) : ""}`, { body }); }
+  actionLineDelivery(id: string, action: "cancel" | "duplicate", body: LineDeliveryRevision): Promise<LineDeliveryDetail> { return this.request("POST", `/line-deliveries/${encodeURIComponent(id)}/${action}`, { body }); }
+  previewLineDelivery(body: LineDeliveryPreviewInput): Promise<LineDeliveryPreview> { return this.request("POST", "/line-deliveries/preview-count", { body }); }
+  getLineDeliveryDefaults(): Promise<LineDeliveryDefaults> { return this.request("GET", "/line-deliveries/defaults"); }
+  updateLineDeliveryDefaults(body: LineDeliveryDefaultsInput): Promise<LineDeliveryDefaults> { return this.request("PUT", "/line-deliveries/defaults", { body }); }
+  resendLineDelivery(id: string, body: LineDeliveryResend): Promise<LineDeliveryResult> { return this.request("POST", `/line-deliveries/batches/${encodeURIComponent(id)}/resend`, { body }); }
+  getLineQuota(): Promise<LineQuotaState> { return this.request("GET", "/line-deliveries/quota"); }
+  confirmLineQuota(body: LineQuotaBaseline): Promise<LineQuotaState> { return this.request("POST", "/line-deliveries/quota/baseline", { body }); }
+  haltLineQuota(body: LineQuotaHalt): Promise<LineQuotaState> { return this.request("POST", "/line-deliveries/quota/halt", { body }); }
+  createLineMedia(body: LineMediaIntentInput): Promise<LineMediaIntent> { return this.request("POST", "/line-deliveries/media", { body }); }
+  finalizeLineMedia(id: string): Promise<LineMediaAsset> { return this.request("POST", `/line-deliveries/media/${encodeURIComponent(id)}/finalize`); }
+
   getLineAutomatedSettings(): Promise<LineAutomatedCollection> {
     return this.request("GET", "/line-automated-settings");
   }
@@ -3380,6 +3395,7 @@ export class AdminApiClient {
   private async request<T>(
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
+      | `/line-deliveries${string}`
       | `/line-bots${string}`
       | `/line-automated-settings${string}`
       | "/settings/line-login"
@@ -3415,6 +3431,7 @@ export class AdminApiClient {
   ): Promise<T> {
     if (
       (!path.startsWith("/auth/") &&
+        !path.startsWith("/line-deliveries") &&
         !path.startsWith("/line-bots") &&
         !path.startsWith("/line-automated-settings") &&
         path !== "/settings/line-login" &&
