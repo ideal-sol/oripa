@@ -1,4 +1,4 @@
-import type { LineBot, LineBotCollection, LineBotInput, LineBotUpdate, LineLoginSetting, LineLoginSettingInput } from "./generated";
+import type { LineAutomatedCollection, LineAutomatedInput, LineAutomatedSetting, LineBot, LineBotCollection, LineBotInput, LineBotUpdate, LineLoginSetting, LineLoginSettingInput } from "./generated";
 import type { AdminShippingMinimumPointSettingResponse, AdminShippingMinimumPointSettingUpdate, AdminShippingMinimumPointSettingMutationResult } from "./generated";
 import {
   ADMIN_API_BASE_PATH,
@@ -3369,10 +3369,19 @@ export class AdminApiClient {
     return this.request("GET", `/banner-management/imports/${encodeURIComponent(id)}/failures`, { signal, responseFormat: "csv" });
   }
 
+  getLineAutomatedSettings(): Promise<LineAutomatedCollection> {
+    return this.request("GET", "/line-automated-settings");
+  }
+
+  updateLineAutomatedSettings(event: LineAutomatedSetting["event"], body: LineAutomatedInput): Promise<LineAutomatedCollection> {
+    return this.request("PUT", `/line-automated-settings/${event}`, { body });
+  }
+
   private async request<T>(
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
       | `/line-bots${string}`
+      | `/line-automated-settings${string}`
       | "/settings/line-login"
       | `/auth/${string}`
       | `/agencies${string}`
@@ -3407,6 +3416,7 @@ export class AdminApiClient {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/line-bots") &&
+        !path.startsWith("/line-automated-settings") &&
         path !== "/settings/line-login" &&
         path !== "/agencies" &&
         !path.startsWith("/agencies?") &&

@@ -103,7 +103,7 @@ final class V2MemberRankAdminService
                         'setting_revision' => $version['revision'], 'request_id' => $context->requestId,
                         'occurred_at' => V2DatabaseTimestamp::format($instant),
                     ]);
-                    DB::table('member_rank_changes')->insert([
+            app(V2MemberRankChangeRecorder::class)->insert([
                         'user_id' => $user->id, 'from_level' => $state->level, 'to_level' => $this->level($request['rank']),
                         'reason' => 'manual', 'month' => $difference['month'], 'rank_points' => $difference['after_points'],
                         'setting_revision' => $version['revision'], 'manual_change_id' => $manualId,

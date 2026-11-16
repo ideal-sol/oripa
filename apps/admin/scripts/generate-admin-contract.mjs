@@ -12,6 +12,8 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  getAdminLineAutomatedSettings: ["get", "/line-automated-settings"],
+  updateAdminLineAutomatedSettings: ["put", "/line-automated-settings/{event}"],
   getAdminLineLoginSetting: ["get", "/settings/line-login"],
   updateAdminLineLoginSetting: ["put", "/settings/line-login"],
   listAdminLineBots: ["get", "/line-bots"],
@@ -833,7 +835,7 @@ function lineType(schema) {
   }
   return schema.type === "integer" || schema.type === "number" ? "number" : schema.type;
 }
-const lineTypes = ["LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
+const lineTypes = ["LineAutomatedMessage","LineAutomatedSetting","LineAutomatedInput","LineAutomatedCollection","LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
 
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}

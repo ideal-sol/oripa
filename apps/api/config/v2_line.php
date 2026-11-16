@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'automated_worker_enabled' => env('V2_LINE_AUTOMATED_WORKER_ENABLED', false),
     'friendship_check_enabled' => env('V2_LINE_FRIENDSHIP_CHECK_ENABLED', false),
     'messaging' => [
         'channel_secret' => env('LINE_MESSAGING_CHANNEL_SECRET'),
