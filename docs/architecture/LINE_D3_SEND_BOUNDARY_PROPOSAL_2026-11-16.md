@@ -50,6 +50,10 @@ coordination with delivery. Member and identity locks additionally fence member
 state and revocation. Send lock acquisition has a2-second timeout, individual
 DB statements5 seconds, final validation a5-second elapsed budget, and delivery
 HTTP a10-second aggregate budget including at most one3-second token renewal.
+PostgreSQL17 transaction_timeout is locally20 seconds for each send phase, so
+a stopped/paused client cannot retain the singleton indefinitely. This is a
+transaction-local source setting, not a server/ENV change. A synthetic paused
+client test proves server termination, lock release and original-key recovery.
 Redis cache access and quota requests do not run inside the send transaction.
 Pacing is persisted scheduling, never sleep under a transaction.
 The D2 single-reference predicate delegates to its bounded batch equivalent:
@@ -149,3 +153,6 @@ They confirm original-key/content retries,24-hour validity,200/409 acceptance,
 Push5 messages,Multicast500 users/5 messages, quota endpoints, multiple429
 causes, UTF-16 text counting and1500-character altText. No conflicting provider
 decision was inferred.
+
+[PostgreSQL17 transaction timeout](https://www.postgresql.org/docs/17/runtime-config-client.html#GUC-TRANSACTION-TIMEOUT)
+defines the server-enforced transaction duration, including an idle client.

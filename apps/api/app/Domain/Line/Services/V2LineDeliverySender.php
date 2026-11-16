@@ -160,6 +160,9 @@ final class V2LineDeliverySender
 
     private function lock(): void
     {
+        // PostgreSQL17 also releases locks if the client is paused or disappears
+        // during HTTP; PHP/HTTP timeouts alone cannot bound a stopped process.
+        DB::statement("SET LOCAL transaction_timeout = '20s'");
         DB::statement("SET LOCAL lock_timeout = '2s'");
         DB::statement("SET LOCAL statement_timeout = '5s'");
         app(V2LineMessagingSettingService::class)->setting(true);

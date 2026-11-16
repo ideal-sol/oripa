@@ -187,6 +187,36 @@ final class LineDeliveryTest extends TestCase
         } finally { DB::rollBack(); }
     }
 
+    public function test_paused_client_loses_send_locks_and_recovers_only_the_original_request(): void
+    {
+        $id = $this->batch(); $requests = []; $released = false;
+        config(['database.connections.d3_observer' => config('database.connections.pgsql')]);
+        $observer = DB::connection('d3_observer');
+        $this->fake([200, 409], function ($r) use ($observer, &$requests, &$released): void {
+            $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')];
+            self::assertSame('20s', DB::selectOne('SHOW transaction_timeout')->transaction_timeout);
+            if (count($requests) !== 1) return;
+            $pid = DB::selectOne('SELECT pg_backend_pid() AS pid')->pid;
+            // Fault injection: provider accepted, but the client process stops
+            // progressing before it records the response. No real HTTP/worker.
+            usleep(21_000_000);
+            self::assertSame(0, $observer->table('pg_stat_activity')->where('pid', $pid)->count());
+            $observer->transaction(function () use ($observer): void {
+                $observer->statement("SET LOCAL lock_timeout = '100ms'");
+                self::assertNotNull($observer->table('line_messaging_settings')->where('id', 1)->lockForUpdate()->first());
+            });
+            $released = true;
+        });
+        try { app(V2LineDeliverySender::class)->send($id); self::fail('Expired transaction committed.'); }
+        catch (\PDOException) { self::assertTrue($released); }
+        DB::purge('pgsql');
+        self::assertSame('sending', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame($requests[0], $requests[1]);
+        self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+    }
+
     public function test_switch_and_unfollow_before_first_send_skip_without_http(): void
     {
         $id = $this->batch();
