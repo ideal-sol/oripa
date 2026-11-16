@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from tests.ops.test_production_pr692_payload import ProductionPR692PayloadTest
 from tests.ops.test_production_admin_node import ProductionAdminNodeTest
 
 # Keep the limited-payload regressions in the existing canonical CI entrypoint.
@@ -432,7 +433,7 @@ class ProductionSourceAuthorityTest(unittest.TestCase):
             self.authorize()
 
     def test_line_production_exact_boundary(self):
-        authority = json.loads((ROOT / MODULE["AUTHORITY_PATH"]).read_text())
+        authority = json.loads(MODULE["git"](ROOT, "show", "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9:" + MODULE["AUTHORITY_PATH"]))
         source = "9235350523accdb2c3d41dca869d7d44f0863ba5"
         self.assertEqual(authority["source_sha"], source)
         self.assertEqual(authority["pr_number"], 688)
