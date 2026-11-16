@@ -305,4 +305,76 @@ final class LineAutomatedTest extends TestCase
             }
         }
     }
+
+    public function test_concurrent_success_writers_and_consumers_keep_one_first_purchase_and_three_charges(): void
+    {
+        $this->enable('payment'); $this->enable('first_purchase'); $this->baseline();
+        $user = $this->linked();
+        [, $first] = $this->rankPayment($user, 10000);
+        [, $second] = $this->rankPayment($user, 20000);
+        // This test owns a disposable schema: commit fixtures so separate processes see them.
+        DB::commit();
+        $this->concurrent([
+            fn () => app(\App\Domain\Payment\V2\Services\V2PaymentService::class)->confirmSucceeded($first->id),
+            fn () => app(\App\Domain\Payment\V2\Services\V2PaymentService::class)->confirmSucceeded($second->id),
+        ]);
+        $this->concurrent([
+            fn () => app(V2LineAutomatedWorker::class)->run('concurrent-d4-a'),
+            fn () => app(V2LineAutomatedWorker::class)->run('concurrent-d4-b'),
+        ]);
+        app(V2LineAutomatedWorker::class)->run('concurrent-d4-replay');
+        self::assertSame(2, DB::table('payment_point_grants')->count());
+        self::assertSame(3, DB::table('line_delivery_batches')->count());
+        self::assertSame(3, DB::table('line_quota_charges')->count());
+        self::assertSame(1, DB::table('line_automated_outcomes')->where('event', 'first_purchase')->where('status', 'queued')->count());
+        $paymentId = DB::table('payment_point_grants')->orderBy('id')->value('payment_id');
+        $paymentUuid = DB::table('payments')->where('id', $paymentId)->value('public_id');
+        $outboxId = DB::table('outbox_messages')->where('deduplication_key', 'payment.succeeded:'.$paymentUuid)->value('id');
+        self::assertDatabaseHas('line_automated_outcomes', ['outbox_id' => $outboxId, 'event' => 'first_purchase', 'status' => 'queued']);
+        Http::assertNothingSent();
+    }
+
+    /** Execute synthetic domain calls with separate DB connections and a common start barrier. */
+    private function concurrent(array $actions): void
+    {
+        self::assertTrue(function_exists('pcntl_fork'), 'The isolated PHP test fixture requires pcntl.');
+        DB::disconnect();
+        $children = [];
+        foreach ($actions as $action) {
+            $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+            self::assertIsArray($sockets);
+            $pid = pcntl_fork();
+            self::assertGreaterThanOrEqual(0, $pid);
+            if ($pid === 0) {
+                fclose($sockets[0]);
+                pcntl_alarm(30);
+                fread($sockets[1], 1);
+                DB::reconnect();
+                try {
+                    DB::statement("SET lock_timeout = '15s'");
+                    $action();
+                    Http::assertNothingSent();
+                    fwrite($sockets[1], 'PASS');
+                    $exit = 0;
+                } catch (\Throwable $error) {
+                    fwrite($sockets[1], get_class($error));
+                    $exit = 1;
+                }
+                DB::disconnect();
+                fclose($sockets[1]);
+                exit($exit);
+            }
+            fclose($sockets[1]);
+            $children[] = [$pid, $sockets[0]];
+        }
+        foreach ($children as [, $socket]) fwrite($socket, '1');
+        $results = [];
+        foreach ($children as [$pid, $socket]) {
+            pcntl_waitpid($pid, $status);
+            $results[] = [pcntl_wifexited($status) ? pcntl_wexitstatus($status) : -1, stream_get_contents($socket)];
+            fclose($socket);
+        }
+        DB::reconnect();
+        self::assertSame(array_fill(0, count($actions), [0, 'PASS']), $results);
+    }
 }
