@@ -41,6 +41,12 @@ final class LineAutomatedMigrationTest extends TestCase
             try { $migration->down(); self::fail('Reverse migration erased history'); }
             catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
             self::assertSame(4, DB::table('line_automated_templates')->count());
+            // CI rebuilds this disposable schema; PostgreSQL functions survive table recreation.
+            // Exercise the actual fresh command twice without disabling the history guard.
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                self::assertSame(0, Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]));
+                self::assertSame(4, DB::table('line_automated_templates')->where('revision', 0)->count());
+            }
         } finally {
             while (DB::transactionLevel() > 0) DB::rollBack();
             DB::purge('pgsql'); config(['database.connections.pgsql' => $original]);

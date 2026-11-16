@@ -37,7 +37,7 @@ return new class extends Migration
                 FOREIGN KEY(event,template_revision) REFERENCES line_automated_template_versions(event,revision),
                 CHECK ((status = 'queued') = (batch_id IS NOT NULL))
             );
-            CREATE FUNCTION v2_line_automated_history_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION v2_line_automated_history_guard() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN RAISE EXCEPTION 'LINE automated history is immutable'; END;
             $$;
             CREATE TRIGGER v2_line_template_version_immutable BEFORE UPDATE OR DELETE ON line_automated_template_versions
