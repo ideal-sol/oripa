@@ -150,7 +150,14 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(0, $service->autoExchangeExpired()['processed']);
         CarbonImmutable::setTestNow($deadline);
         $before = (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance');
+        $walletBefore = DB::table('wallets')->where('user_id', $user->id)->sole();
+        $walletAudits = DB::table('audit_logs')->where('action_code', 'point.wallet_initialized')->count();
         self::assertSame(['processed' => 1, 'failed' => 0], $service->autoExchangeExpired());
+        $walletAfter = DB::table('wallets')->where('user_id', $user->id)->sole();
+        foreach (['id', 'paid_balance', 'paid_reserved_balance', 'free_reserved_balance'] as $field) {
+            self::assertSame($walletBefore->$field, $walletAfter->$field, $field);
+        }
+        self::assertSame($walletAudits, DB::table('audit_logs')->where('action_code', 'point.wallet_initialized')->count());
         self::assertSame('converted', DB::table('user_prizes')->where('id', $prize->id)->value('status'));
         self::assertSame($before + (int) $prize->exchange_point_snapshot, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         $request = DB::table('prize_exchange_requests')->where('user_id', $user->id)->sole();

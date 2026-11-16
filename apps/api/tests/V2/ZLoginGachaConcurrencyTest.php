@@ -146,7 +146,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
         $context = $this->adminContext();
         $this->raceExternalIds($context);
         $this->app->instance(V2CryptographicRandomSource::class, new V2CryptographicRandomSource(static fn (): int => 1));
-        foreach (['daily', 'signup', 'same_key', 'last_inventory'] as $scenario) {
+        foreach (['signup', 'daily', 'same_key', 'last_inventory'] as $scenario) {
             $input = app(V2GachaCopyService::class)->projection('0198a001-0000-7000-8000-000000000011', true);
             $input = [...$input, 'gacha_type' => $scenario === 'signup' ? 'signup_once' : 'login_daily',
                 'price_points' => 0, 'minimum_exchange_points' => $scenario === 'signup' ? null : 0,
@@ -157,6 +157,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
                 $prize['percentage'] = '50';
                 $prize['external_id'] = null;
                 $prize['initial_inventory'] = $scenario === 'last_inventory' ? 1 : 3;
+                unset($prize['source_prize_id']); // New fixture identity after clearing external_id.
             }
             unset($prize);
             $composition = app(V2GachaCompositionService::class);
@@ -188,6 +189,23 @@ final class ZLoginGachaConcurrencyTest extends TestCase
             self::assertSame(1, (int) DB::table('prize_inventories')->whereIn('gacha_version_prize_id',
                 DB::table('catalog_gacha_version_prizes')->where('gacha_version_id', $version->id)->select('id'))->sum('awarded_count'));
             self::assertSame(0, DB::table('wallets')->whereIn('user_id', [$firstUser->id, $secondUser->id])->count());
+            if ($scenario === 'signup') {
+                $prize = DB::table('user_prizes')->where('user_id', $firstUser->id)->sole();
+                \Carbon\CarbonImmutable::setTestNow($prize->storage_expires_at);
+                config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true]);
+                try {
+                    $exchanges = $this->race($gacha->public_id, $workers, true);
+                    self::assertSame(['completed', 'completed'], array_column($exchanges, 'status'));
+                    self::assertSame(1, array_sum(array_column($exchanges, 'id')));
+                    self::assertSame(1, DB::table('prize_exchange_requests')->where('user_id', $firstUser->id)->count());
+                    self::assertSame(1, DB::table('point_operations')->where('user_id', $firstUser->id)->count());
+                    self::assertDatabaseHas('wallets', ['user_id' => $firstUser->id, 'paid_balance' => 0, 'free_balance' => $prize->exchange_point_snapshot]);
+                    self::assertSame(['processed' => 0, 'failed' => 0], app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class)->autoExchangeExpired());
+                } finally {
+                    \Carbon\CarbonImmutable::setTestNow();
+                    config(['v2_prize_shipping.seven_day_auto_convert_enabled' => false]);
+                }
+            }
         }
     }
 
@@ -257,7 +275,7 @@ final class ZLoginGachaConcurrencyTest extends TestCase
             ->where('relation.gacha_version_id', $version->id)->where('prize.external_id', 'RACE-CARD')->count());
     }
 
-    private function race(string $gachaId, array $workers): array
+    private function race(string $gachaId, array $workers, bool $autoExchange = false): array
     {
         $startAt = microtime(true) + 0.5;
         $processes = [];
@@ -274,8 +292,13 @@ final class ZLoginGachaConcurrencyTest extends TestCase
                 }
                 DB::reconnect();
                 try {
-                    $response = app(V2DrawService::class)->create(User::query()->findOrFail($userId), $gachaId, 1, $key, (string) Str::uuid7());
-                    $result = ['status' => 'completed', 'id' => $response['id'], 'replay' => $response['idempotent_replay']];
+                    if ($autoExchange) {
+                        $response = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class)->autoExchangeExpired();
+                        $result = ['status' => $response['failed'] === 0 ? 'completed' : 'failed', 'id' => $response['processed']];
+                    } else {
+                        $response = app(V2DrawService::class)->create(User::query()->findOrFail($userId), $gachaId, 1, $key, (string) Str::uuid7());
+                        $result = ['status' => 'completed', 'id' => $response['id'], 'replay' => $response['idempotent_replay']];
+                    }
                 } catch (V2DrawException $exception) {
                     $result = ['status' => $exception->errorCode];
                 } catch (\Throwable $exception) {
