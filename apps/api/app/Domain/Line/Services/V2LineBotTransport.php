@@ -12,6 +12,63 @@ use Throwable;
 final class V2LineBotTransport
 {
     private const HOST = 'https://api.line.me';
+    private array $deliveryTokens = [];
+    private ?array $refreshedDeliveryToken = null;
+
+    public function __debugInfo(): array { return ['credentials' => '[redacted]']; }
+
+    public function cacheRefreshedDeliveryToken(): void
+    {
+        if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0) throw $this->unavailable();
+        if ($this->refreshedDeliveryToken === null) return;
+        [$key, $token, $expires] = $this->refreshedDeliveryToken;
+        $this->refreshedDeliveryToken = null;
+        Cache::put($key, Crypt::encryptString($token), min($expires, 900) - 120);
+    }
+
+    public function warmDeliveryToken(#[SensitiveParameter] object $bot): void
+    {
+        if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0) throw $this->unavailable();
+        $this->deliveryTokens = [$bot->id.':'.$bot->authentication_revision => $this->token($bot, false)];
+    }
+
+    /** Frozen JSON bytes only. Total dispatch budget includes token renewal; no DB retry. */
+    public function deliver(#[SensitiveParameter] object $bot, string $method, string $retryKey, #[SensitiveParameter] string $json): array
+    {
+        if (! in_array($method, ['push', 'multicast'], true)
+            || ! preg_match('/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/', $retryKey)) throw $this->unavailable();
+        $deadline = hrtime(true) + 10_000_000_000;
+        $lastStatus = 0;
+        try {
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                // Existing token request has a three-second upper bound.
+                if ($deadline - hrtime(true) < 3_100_000_000) return ['status' => $lastStatus, 'request_id' => null];
+                if ($attempt === 0) $token = $this->deliveryTokens[$bot->id.':'.$bot->authentication_revision] ?? null;
+                else {
+                    [$token, $expires] = $this->issueToken($bot);
+                    $this->refreshedDeliveryToken = [$this->cacheKey($bot), $token, $expires];
+                }
+                if (! is_string($token)) throw $this->unavailable();
+                $remaining = ($deadline - hrtime(true)) / 1_000_000_000;
+                if ($remaining <= 0) return ['status' => 0, 'request_id' => null];
+                // Once another request starts, an earlier401 says nothing about
+                // whether this attempt was accepted before a connection failure.
+                $lastStatus = 0;
+                $response = Http::acceptJson()->withToken($token)->withoutRedirecting()
+                    ->connectTimeout(min(5, $remaining))->timeout($remaining)
+                    ->withHeaders(['X-Line-Retry-Key' => $retryKey])->withBody($json, 'application/json')
+                    ->post(self::HOST.'/v2/bot/message/'.$method);
+                unset($token);
+                $lastStatus = $response->status();
+                if ($response->status() === 401 && $attempt === 0) continue;
+                $id = $response->header($response->status() === 409 ? 'x-line-accepted-request-id' : 'x-line-request-id');
+                return ['status' => $response->status(), 'request_id' => is_string($id) && preg_match('/\A[a-zA-Z0-9_-]{1,128}\z/', $id) ? $id : null];
+            }
+        } catch (Throwable) {
+            // No request, recipient, token, provider body or exception chain escapes.
+        }
+        return ['status' => $lastStatus === 401 ? 401 : 0, 'request_id' => null];
+    }
 
     public function get(#[SensitiveParameter] object $bot, string $resource, array $query = []): array
     {
@@ -49,10 +106,17 @@ final class V2LineBotTransport
 
     private function token(#[SensitiveParameter] object $bot, bool $refresh): string
     {
-        $key = 'v2:line:token:'.$bot->public_id.':'.$bot->revision.':'.hash('sha256', (string) $bot->channel_secret_ciphertext);
+        $key = $this->cacheKey($bot);
         if ($refresh) Cache::forget($key);
         $cached = Cache::get($key);
         if (is_string($cached)) return Crypt::decryptString($cached);
+        [$token, $expires] = $this->issueToken($bot);
+        Cache::put($key, Crypt::encryptString($token), min($expires, 900) - 120);
+        return $token;
+    }
+
+    private function issueToken(#[SensitiveParameter] object $bot): array
+    {
         if (! is_string($bot->channel_id) || ! is_string($bot->channel_secret_ciphertext)) throw $this->unavailable();
         $response = Http::asForm()->acceptJson()->withoutRedirecting()->connectTimeout(3)->timeout(3)
             ->post(self::HOST.'/oauth2/v3/token', [
@@ -62,8 +126,12 @@ final class V2LineBotTransport
         $token = $response->json('access_token');
         $expires = $response->json('expires_in');
         if (! $response->successful() || ! is_string($token) || $token === '' || ! is_int($expires) || $expires <= 120) throw $this->unavailable();
-        Cache::put($key, Crypt::encryptString($token), min($expires, 900) - 120);
-        return $token;
+        return [$token, $expires];
+    }
+
+    private function cacheKey(#[SensitiveParameter] object $bot): string
+    {
+        return 'v2:line:token:'.$bot->public_id.':'.$bot->revision.':'.hash('sha256', (string) $bot->channel_secret_ciphertext);
     }
 
     private function unavailable(): V2LineMessagingException
