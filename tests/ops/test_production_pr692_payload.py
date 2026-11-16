@@ -88,6 +88,17 @@ class ProductionPR692PayloadTest(unittest.TestCase):
                 self.authorize()
             self.authority[key] = old
 
+    def test_same_tree_alternate_reviewed_head_is_rejected(self):
+        original = self.get
+        def get(path):
+            response = original(path)
+            if path.endswith('/pulls/692'):
+                response['head']['sha'] = self.spec['fix_sha']
+            return response
+        self.get = get
+        with self.assertRaisesRegex(ValueError, 'limited merged PR mismatch'):
+            self.authorize()
+
     def test_manifest_tampering_and_main_movement_rejected(self):
         for raw in (b'{}', json.dumps({**self.spec, 'source_sha': self.head}).encode()):
             with patch.dict(H['specification'].__globals__, git=lambda *args: raw), self.assertRaisesRegex(ValueError, 'specification mismatch'):
