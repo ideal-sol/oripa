@@ -23,6 +23,17 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_pr692_authority_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "NEWPROD-PR692-AUTHORITY"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", "NEWPROD-PR693-AUTHORITY", "NEWPROD-*-AUTHORITY"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
+
     def test_line_delivery_d3_task_id_is_exact(self):
         data = fixture("positive.json")
         task = "LINE-DELIVERY-20261109-D3"

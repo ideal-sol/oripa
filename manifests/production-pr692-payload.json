@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "task_id": "NEWPROD-PR692-AUTHORITY",
+  "kind": "task-limited-derived-payload",
+  "base_sha": "9235350523accdb2c3d41dca869d7d44f0863ba5",
+  "base_pr": 688,
+  "base_tree": "f9d41f6566b4c1e771bb7895dabad1639b80b810",
+  "base_reviewed_sha": "a1396bac60a6bfa8151240cd91d743b288e0076f",
+  "fix_sha": "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9",
+  "fix_pr": 692,
+  "fix_tree": "a35e1d52da7c3adbe568c59a799dc7fd02d050d5",
+  "fix_reviewed_sha": "690c70547dbac9b8acc57a2350f5cc54ad86444d",
+  "files": {
+    "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php": {
+      "before": "e43907d546a5035ae4b7a76920e9ebc6e36b6613",
+      "after": "030ecd03ec4431432b92648d997eb6b623d8336c"
+    }
+  },
+  "source_sha": "516fe7a946683103ed68ee4875d5ea3d94327a0d",
+  "source_tree": "53bf0e809b9724392e5af6eda75b1d1c15d333e2",
+  "inventory_sha256": "4d33d8e2de4f08a41af6e009391eda9d53fb38d3201aa3eeacc15f82ad81254e",
+  "commit_content": "tree 53bf0e809b9724392e5af6eda75b1d1c15d333e2\nparent 9235350523accdb2c3d41dca869d7d44f0863ba5\nauthor Oripa Limited Payload <payload@example.invalid> 1794801600 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1794801600 +0000\n\nNEWPROD-PR692-AUTHORITY derived payload; NOT a merged commit\n",
+  "image_mode": "agency",
+  "activation_scope": [
+    "api"
+  ],
+  "activation_authorized": false
+}
