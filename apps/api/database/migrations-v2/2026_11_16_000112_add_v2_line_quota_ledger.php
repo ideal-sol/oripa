@@ -37,7 +37,7 @@ return new class extends Migration
             CREATE INDEX line_quota_charges_batch ON line_quota_charges(batch_id);
             CREATE OR REPLACE FUNCTION v2_line_quota_history_guard() RETURNS trigger AS $$
             BEGIN
-                IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'LINE quota history is retained'; END IF;
+                IF TG_OP IN ('DELETE', 'TRUNCATE') THEN RAISE EXCEPTION 'LINE quota history is retained'; END IF;
                 IF TG_TABLE_NAME = 'line_quota_periods' AND TG_OP = 'UPDATE' THEN
                     IF (to_jsonb(NEW) - 'effective_limit') IS DISTINCT FROM (to_jsonb(OLD) - 'effective_limit')
                         OR NEW.effective_limit > OLD.effective_limit THEN
@@ -59,7 +59,12 @@ return new class extends Migration
                 FOR EACH ROW EXECUTE FUNCTION v2_line_quota_history_guard();
             CREATE TRIGGER line_quota_charges_guard BEFORE INSERT OR UPDATE OR DELETE ON line_quota_charges
                 FOR EACH ROW EXECUTE FUNCTION v2_line_quota_history_guard();
+            CREATE TRIGGER line_quota_accounts_delete_guard BEFORE DELETE ON line_quota_accounts
+                FOR EACH ROW EXECUTE FUNCTION v2_line_quota_history_guard();
             SQL);
+        foreach (['line_quota_accounts', 'line_quota_periods', 'line_quota_charges'] as $table) {
+            DB::unprepared("CREATE TRIGGER {$table}_truncate_guard BEFORE TRUNCATE ON {$table} FOR EACH STATEMENT EXECUTE FUNCTION v2_line_quota_history_guard();");
+        }
     }
 
     public function down(): void { throw new RuntimeException('Forward-only LINE quota migration.'); }

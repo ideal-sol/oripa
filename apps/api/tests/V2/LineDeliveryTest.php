@@ -283,6 +283,70 @@ final class LineDeliveryTest extends TestCase
         self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id', $this->bot->id)->exists());
     }
 
+    public function test_quota_delete_and_truncate_guards_preserve_balances_and_unknown_history(): void
+    {
+        $botId = $this->bot->id;
+        $batch = $this->batch(); $this->fake([0]); app(V2LineDeliverySender::class)->send($batch);
+        self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id', $batch)->value('state'));
+        $quota = app(V2LineDeliveryQuota::class);
+        $month = $quota->month(app(V2LineDeliverySender::class)->clock());
+        $remaining = $quota->available($botId, $month);
+        self::assertSame(999, $remaining);
+        // No period FK protects this independently halted account.
+        $this->newBot(); $quota->halt($this->admin(), $this->bot->id, (string) Str::uuid());
+        $haltedBotId = $this->bot->id;
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id', $haltedBotId)->exists());
+        $tables = ['line_quota_accounts', 'line_quota_periods', 'line_quota_charges'];
+        $snapshot = function () use ($tables): string {
+            $rows = [];
+            foreach ($tables as $table) $rows[$table] = DB::table($table)->orderBy('line_bot_id')->get()->all();
+            return json_encode($rows, JSON_THROW_ON_ERROR);
+        };
+        $before = $snapshot();
+        $statements = [
+            'DELETE FROM line_quota_charges' => 'P0001',
+            'DELETE FROM line_quota_periods' => 'P0001',
+            'DELETE FROM line_quota_accounts' => 'P0001',
+            'DELETE FROM line_quota_accounts WHERE line_bot_id = '.$haltedBotId => 'P0001',
+            'TRUNCATE line_quota_charges' => 'P0001',
+            // PostgreSQL first refuses omitted FK dependents; explicit lists exercise the parent trigger.
+            'TRUNCATE line_quota_periods' => '0A000',
+            'TRUNCATE line_quota_accounts' => '0A000',
+            'TRUNCATE line_quota_periods, line_quota_charges' => 'P0001',
+            'TRUNCATE line_quota_accounts, line_quota_periods, line_quota_charges' => 'P0001',
+            'TRUNCATE line_quota_charges CASCADE' => 'P0001',
+            'TRUNCATE line_quota_periods CASCADE' => 'P0001',
+            'TRUNCATE line_quota_accounts CASCADE' => 'P0001',
+            'TRUNCATE line_quota_accounts RESTART IDENTITY CASCADE' => 'P0001',
+        ];
+        // Exercise both the fixture owner and a non-owner with genuine DELETE/TRUNCATE grants.
+        // Role creation/grants are in this transaction and disappear on rollback.
+        $role = 'd3_quota_guard_'.bin2hex(random_bytes(8));
+        DB::beginTransaction();
+        try {
+            DB::statement('CREATE ROLE '.$role.' NOLOGIN NOSUPERUSER');
+            DB::statement('GRANT USAGE ON SCHEMA '.$this->schema.' TO '.$role);
+            DB::statement('GRANT SELECT, DELETE, TRUNCATE ON '.implode(', ', $tables).' TO '.$role);
+            foreach ([false, true] as $restricted) {
+                if ($restricted) DB::statement('SET LOCAL ROLE '.$role);
+                foreach ($tables as $table) self::assertTrue(DB::selectOne("SELECT has_table_privilege(current_user, ?, 'TRUNCATE') AS allowed", [$table])->allowed);
+                foreach ($statements as $sql => $state) {
+                    try { DB::transaction(fn () => DB::statement($sql), 1); self::fail('Quota history was erased: '.$sql); }
+                    catch (\Illuminate\Database\QueryException $e) {
+                        self::assertSame($state, $e->errorInfo[0], $sql);
+                        if ($state === 'P0001') self::assertStringContainsString('LINE quota history is retained', $e->getMessage());
+                    }
+                    self::assertSame($before, $snapshot(), $sql);
+                }
+                if ($restricted) DB::statement('RESET ROLE');
+            }
+        } finally { DB::rollBack(); }
+        self::assertSame($before, $snapshot());
+        self::assertSame($remaining, $quota->available($botId, $month));
+        self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id', $batch)->value('state'));
+        self::assertTrue(DB::table('line_quota_accounts')->where('line_bot_id', $haltedBotId)->value('halted'));
+    }
+
     private function fake(array $codes, ?\Closure $check = null): void
     {
         Http::swap(new \Illuminate\Http\Client\Factory);
