@@ -150,6 +150,12 @@ final class LineDeliveryManagementTest extends TestCase
     public function test_media_manifest_is_verified_and_immutable_and_duplicate_finalize_rejected(): void
     {
         config(['v2_assets.public_base_url'=>'https://cdn.example.test']);
+        $unverified='https://cdn.example.test/line-delivery/'.Str::uuid().'/original';
+        try {
+            app(\App\Domain\Line\Services\V2LineDeliveryMessages::class)->render([['type'=>'image','originalContentUrl'=>$unverified,'previewImageUrl'=>$unverified]]);
+            self::fail('Unverified manifest accepted.');
+        } catch (\Illuminate\Database\RecordNotFoundException) { self::assertTrue(true); }
+        Http::assertNothingSent();
         $image=imagecreatetruecolor(1040,520); ob_start(); imagepng($image); $bytes=ob_get_clean(); imagedestroy($image);
         $storage=new class($bytes) extends V2LineMediaStorage {
             public array $published=[];

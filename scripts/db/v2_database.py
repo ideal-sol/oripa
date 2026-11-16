@@ -120,6 +120,8 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.line_friend_observations",
     "public.line_friendships",
     "public.line_login_settings",
+    "public.line_media_assets",
+    "public.line_media_intents",
     "public.line_messaging_settings",
     "public.line_pending_follows",
     "public.line_quota_accounts",
