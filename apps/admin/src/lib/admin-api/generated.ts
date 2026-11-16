@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 3c5ad229b6aaa3012f221df890edcdb4737a48f1e4831b7bd47f3d537412df4f
+// Contract SHA-256: f6b61ac590e19d3db05f581e4f823318fc069727d202fdae821761109e5a91ba
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2951,6 +2951,10 @@ export interface AdminCatalogDetail<T> {
 export type AdminCatalogVisibility = "all" | "visible" | "hidden";
 export type AdminCatalogDirection = "asc" | "desc";
 
+export type LineAutomatedMessage = { "type": "text"; "text": string; };
+export type LineAutomatedSetting = { "event": "shipping" | "payment" | "first_purchase" | "rank_promotion"; "revision": number; "enabled": boolean; "category": "transactional" | "promotional"; "messages": Array<LineAutomatedMessage>; "effective_at": string | null; };
+export type LineAutomatedInput = { "enabled": boolean; "category": "transactional" | "promotional"; "expected_revision": number; "messages": Array<LineAutomatedMessage>; };
+export type LineAutomatedCollection = { "data": Array<LineAutomatedSetting>; };
 export type LineLoginSetting = { "channel_id": string | null; "secret_configured": boolean; "source": "database" | "environment" | "unconfigured"; "revision": number; };
 export type LineLoginSettingInput = { "channel_id": string; "channel_secret": string; "expected_revision": number; };
 export type LineBot = { "id": string; "name": string; "channel_id": string | null; "secret_configured": boolean; "basic_id": string | null; "display_name": string | null; "is_active": boolean; "legacy": boolean; "connection_status": "unconfigured" | "pending" | "succeeded" | "failed"; "connected_at": string | null; "quota_snapshot": Record<string, unknown> | null; "quota_fetched_at": string | null; "followers_snapshot": Record<string, unknown> | null; "followers_fetched_at": string | null; "revision": number; "webhook_path": string; "webhook_url": string | null; };

@@ -134,7 +134,7 @@ final class V2MemberRankCorrectionService
 
     private function change(int $userId, int $entryId, object $state, int $level, string $reason, int $total, array $version, CarbonImmutable $instant): void
     {
-        DB::table('member_rank_changes')->insert([
+            app(V2MemberRankChangeRecorder::class)->insert([
             'user_id' => $userId, 'from_level' => $state->level, 'to_level' => $level, 'reason' => $reason,
             'month' => $this->entry($userId, $entryId)->month, 'rank_points' => $total, 'setting_revision' => $version['revision'],
             'point_entry_id' => $entryId, 'occurred_at' => V2DatabaseTimestamp::format($instant),

@@ -12,6 +12,20 @@ final class V2LineRecipientResolver
 {
     private const SOURCES = ['line_friendships', 'line_pending_follows', 'line_recovered_friends'];
 
+    /** Individual domain notifications must never select an unlinked friend. */
+    public function linkedMember(int $userId, V2LineDeliveryPurpose $purpose): ?V2LineRecipient
+    {
+        if (DB::transactionLevel() < 1) throw new \LogicException('Member resolution requires the caller transaction.');
+        app(V2LineMessagingSettingService::class)->setting(true);
+        $bot = $this->activeBot();
+        if ($bot === null) return null;
+        $hashes = DB::table('external_identity_accounts')->where('user_id', $userId)->where('provider', 'line')
+            ->where('issuer', 'https://access.line.me')->whereNull('revoked_at')->whereNull('superseded_at')->pluck('subject_hash')->all();
+        $refs = $this->classify($bot, $hashes, V2LineRecipientGroup::LinkedMembers);
+        if (count($refs) !== 1 || $refs[0][0]->userId !== $userId) return null;
+        return $this->eligibleBeforeSend($refs[0][0], $purpose) ? $refs[0][0] : null;
+    }
+
     /** Bounded keyset traversal. References must be rechecked immediately before sending.
      * @return \Generator<int, V2LineRecipient>
      */

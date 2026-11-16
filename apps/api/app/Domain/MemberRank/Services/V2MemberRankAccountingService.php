@@ -93,7 +93,7 @@ final class V2MemberRankAccountingService
             }
         }
         if ($reachedLevel > (int) $state->level) {
-            DB::table('member_rank_changes')->insert([
+            app(V2MemberRankChangeRecorder::class)->insert([
                 'user_id' => $payment->user_id, 'from_level' => $state->level, 'to_level' => $reachedLevel,
                 'reason' => 'promotion', 'month' => $month, 'rank_points' => $rankPoints,
                 'setting_revision' => $version['revision'], 'point_entry_id' => $entryId,

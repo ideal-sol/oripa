@@ -70,6 +70,23 @@ services:
     networks:
       - v2_private
 
+  line-automated-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - line-automated
+    command: [php, artisan, 'v2:line:work-automated-events', '--limit=100']
+    environment:
+      <<: *v2_api_environment
+      V2_LINE_AUTOMATED_WORKER_ENABLED: ${V2_LINE_AUTOMATED_WORKER_ENABLED:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    networks:
+      - v2_private
+
   line-delivery-worker:
     build:
       context: .

@@ -1071,6 +1071,17 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame(1, DB::table('mail_deliveries')
             ->where('event_key', 'shipping.completed:'.$first['id'])->count());
         self::assertSame(9, DB::table('shipping_request_status_histories')->count());
+        config(['v2_line.automated_worker_enabled' => true]);
+        DB::table('line_automated_template_versions')->insert(['event' => 'shipping', 'revision' => 1, 'enabled' => true,
+            'category' => 'transactional', 'messages_ciphertext' => Crypt::encryptString(json_encode([['type' => 'text', 'text' => '%shipping_url%']])),
+            'effective_at' => '2026-01-01T00:00:00Z', 'created_by_admin_id' => $admin->id]);
+        DB::table('line_automated_templates')->where('event', 'shipping')->update(['revision' => 1]);
+        $lineWorker = app(\App\Domain\Line\Services\V2LineAutomatedWorker::class);
+        $lineWorker->run('synthetic-shipping');
+        $lineWorker->run('synthetic-shipping-replay');
+        self::assertSame(1, DB::table('line_automated_outcomes')->where('reason_code', 'shipping_url_unsupported')->count());
+        self::assertSame(2, DB::table('line_automated_outcomes')->where('reason_code', 'already_shipped')->count());
+        self::assertSame(0, DB::table('line_delivery_batches')->count());
         self::assertDatabaseHas('audit_logs', ['action_code' => 'shipping.status_changed']);
         self::assertDatabaseHas('outbox_messages', ['event_type' => 'shipping.status.changed']);
         try {

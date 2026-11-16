@@ -55,7 +55,7 @@ final class V2MemberRankEventPromotionService
             ]);
         }
         if ($level > (int) $state->level) {
-            DB::table('member_rank_changes')->insert([
+            app(V2MemberRankChangeRecorder::class)->insert([
                 'user_id' => $userId, 'from_level' => $state->level, 'to_level' => $level, 'reason' => 'promotion',
                 'month' => $month, 'rank_points' => $points, 'setting_revision' => $version['revision'],
                 'cumulative_event_id' => $eventId, 'occurred_at' => $timestamp,

@@ -18,6 +18,7 @@ import {
 
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
 import { LineBotManagement } from "./line-bot-management";
+import { LineAutomatedSettings } from "./line-automated-settings";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { ProtectedAdminRoute } from "@/components/permissions/protected-admin-route";
 import { AdminPageHeader } from "@/components/shell/admin-page-header";
@@ -178,6 +179,7 @@ export function LineMessagingSettings() {
             title="LINE設定"
           />
           <LineBotManagement />
+          <LineAutomatedSettings />
           {busy === "load" ? (
             <section className="module-state" role="status">
               <LoaderCircle className="spin" size={24} aria-hidden="true" />

@@ -170,6 +170,8 @@ Route::prefix('v2')
             ->name('v2.admin.identity.line-messaging.show');
         Route::get('/settings/line-login', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-login.show');
         Route::put('/settings/line-login', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-login.update');
+        Route::get('/line-automated-settings', \App\Http\Controllers\V2\V2AdminLineAutomatedController::class)->name('v2.admin.line-automated.index');
+        Route::put('/line-automated-settings/{event}', \App\Http\Controllers\V2\V2AdminLineAutomatedController::class)->whereIn('event', ['shipping', 'payment', 'first_purchase', 'rank_promotion'])->name('v2.admin.line-automated.update');
         Route::get('/line-bots', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-bots.index');
         Route::post('/line-bots', \App\Http\Controllers\V2\V2AdminLineBotController::class)->name('v2.admin.line-bots.create');
         Route::put('/line-bots/{botId}', \App\Http\Controllers\V2\V2AdminLineBotController::class)->whereUuid('botId')->name('v2.admin.line-bots.update');
