@@ -13735,3 +13735,5 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 - Authority Merge, Source Merge, formal Production Build, Stage, operational migration, Runtime/ALB/Worker/Timer changes NOT RUN, not authorized. Build0, Runtime Activation0, check rerun0 at initial push. Branch/worktree retained for Human review; no merge actor/squash SHA. Later authority SHA must be exact protected main after explicit GO; this Draft is not workflow authority.
 
 - Initial CI stopped at PR Lane metadata formatting (missing bullet prefix); body corrected without gate changes. Added negative regression for an alternate reviewed HEAD with the same tree; final-head CI retry count1 required. Formal Build/Runtime counts remain0.
+
+- CI attempt2 identified remaining PR template headings; replaced body with full required sections and local schema validation. The chosen Change ID also requires an exact entry in the existing Task ID compatibility allowlist; only this ID is added, with all metadata/path/Lane gates preserved. Bounded CI blocker handled in this PR; final-head retry count2. No Production Build or Runtime activation.
