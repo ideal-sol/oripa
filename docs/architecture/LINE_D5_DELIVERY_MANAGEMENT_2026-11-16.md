@@ -70,7 +70,9 @@ fixed argv, local files only, MOV/MP4 demuxing, disabled external data reference
 15-second wall/10-second CPU/512MiB address-space limits and bounded probe/output.
 The process inherits no application environment; stream decoding heuristics are
 disabled with -nofind_stream_info. This verifies MP4 container metadata, not
-complete playback of every frame. Missing/invalid dimensions fail closed.
+complete playback of every frame. Missing/invalid dimensions or video-track
+duration fail closed. Track duration is read directly from MP4 metadata: ffprobe8
+does not synthesize format duration with stream discovery disabled.
 Missing dependencies reject media. Real CDN/IAM/CORS configuration remains a
 later Human operation; this Change supplies no real credentials or bucket changes.
 

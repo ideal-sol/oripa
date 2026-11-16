@@ -6910,10 +6910,15 @@ components:
           type:
           - integer
           - 'null'
+        estimated_dispatch_end:
+          type:
+          - string
+          - 'null'
       required:
       - data
       - batches
       - next_batch_cursor
+      - estimated_dispatch_end
     LineDeliveryList:
       type: object
       additionalProperties: false

@@ -43,7 +43,7 @@ final class V2LineMediaInspector
         $process = new Process(['/usr/bin/prlimit', '--as=536870912', '--cpu=10', '--nofile=32', '--',
             '/usr/bin/ffprobe', '-v', 'error', '-protocol_whitelist', 'file', '-max_alloc', '67108864',
             '-probesize', '8388608', '-analyzeduration', '5000000', '-threads', '1', '-nofind_stream_info',
-            '-show_entries', 'format=format_name,duration:stream=codec_type,codec_name,width,height,sample_aspect_ratio',
+            '-show_entries', 'format=format_name:stream=codec_type,codec_name,width,height,sample_aspect_ratio,duration',
             '-of', 'json', '-format_whitelist', 'mov', '-f', 'mov', '-enable_drefs', '0', '-use_absolute_path', '0', '-i', $path], dirname($path), $environment, null, 15);
         $output = ''; $size = 0;
         try {
@@ -62,7 +62,10 @@ final class V2LineMediaInspector
             || $width > 12000 || $height > 12000 || $width * $height > self::MAX_PIXELS
             || ! in_array($v['sample_aspect_ratio'] ?? '1:1', ['1:1', 'N/A'], true)
             || ! str_contains($data['format']['format_name'] ?? '', 'mp4')
-            || ! is_numeric($data['format']['duration'] ?? null) || (float) $data['format']['duration'] <= 0) $this->reject();
+            // Read the video track duration directly: newer ffprobe versions do not
+            // calculate format duration when heuristic stream discovery is disabled.
+            || ! is_numeric($v['duration'] ?? null) || ! is_finite((float) $v['duration'])
+            || (float) $v['duration'] <= 0) $this->reject();
         $p = $this->image($preview, self::PREVIEW_BYTES);
         if ($p['width'] * $height !== $p['height'] * $width) $this->reject();
         return ['mime' => 'video/mp4', 'width' => $width, 'height' => $height, 'bytes' => filesize($path), 'sha256' => hash_file('sha256', $path)];

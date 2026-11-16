@@ -36,7 +36,8 @@ final class V2LineDeliveryAdmin
             ->selectSub(fn($q)=>$q->from('line_delivery_recipients as r')->whereColumn('r.batch_id','b.id')->selectRaw('count(*)'),'recipient_count')
             ->orderBy('b.id')->limit(101)->get();
         return ['data'=>$this->row($d),'batches'=>$b->take(100)->map(fn($r)=>['id'=>$r->public_id,'status'=>$r->status,'method'=>$r->method,'attempts'=>$r->attempts,
-            'reason_code'=>$r->reason_code,'not_before'=>$r->not_before,'recipient_count'=>(int)$r->recipient_count])->all(),'next_batch_cursor'=>$b->count()>100 ? $b[99]->id : null];
+            'reason_code'=>$r->reason_code,'not_before'=>$r->not_before,'recipient_count'=>(int)$r->recipient_count])->all(),'next_batch_cursor'=>$b->count()>100 ? $b[99]->id : null,
+            'estimated_dispatch_end'=>DB::table('line_delivery_batches')->where('delivery_id',$d->id)->max('not_before')];
     }
 
     public function save(V2AdminAuthorizationContext $context,?string $publicId,array $input): array

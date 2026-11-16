@@ -133,6 +133,7 @@ final class LineDeliveryManagementTest extends TestCase
         self::assertSame($preview['recipient_count'],DB::table('line_delivery_recipients')->count());
         self::assertSame($user->id,DB::table('line_delivery_recipients')->value('user_id'));
         self::assertSame(1,$q->reserved($this->bot->id));
+        self::assertNotNull($s->detail($saved['data']['id'])['estimated_dispatch_end']);
         try { DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->update(['baseline_cut_at'=>now()->subHour()]); self::fail('Baseline evidence rewritten'); }
         catch (\Illuminate\Database\QueryException) { self::assertTrue(true); }
         Http::assertNotSent(fn($r)=>preg_match('~/message/(push|multicast)$~',$r->url())===1);

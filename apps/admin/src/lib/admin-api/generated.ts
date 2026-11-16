@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: ecc16522c4bcb74687f3cdc314bd2f42d596be092262cea4eda6e160b568273e
+// Contract SHA-256: 0b22ada5c4c9e20a9b5cf5f37f90a70a90223cc1cb7fe8a046f83ef2bcbb358b
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2961,7 +2961,7 @@ export type LineDeliveryPreview = { "recipient_count": number; "remaining": numb
 export type LineDeliveryCounts = { "accepted": number; "failed": number; "unknown": number; "skipped": number; "pending": number; "sending": number; "retrying": number; };
 export type LineDeliveryRow = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "segment": LineDeliverySegment; "messages": Array<LineDeliveryMessage>; "pacing": LineDeliveryPacing; "id": string; "revision": number; "status": string; "scheduled_at": string | null; "created_by": string | null; "created_at": string; "recipient_count": number; "planned_count": number; "bot_id": string | null; "authentication_revision": number | null; "batch_counts": LineDeliveryCounts; "recipient_counts": LineDeliveryCounts; };
 export type LineDeliveryBatch = { "id": string; "status": string; "method": string; "attempts": number; "recipient_count": number; "reason_code": string | null; "not_before": string; };
-export type LineDeliveryDetail = { "data": LineDeliveryRow; "batches": Array<LineDeliveryBatch>; "next_batch_cursor": number | null; };
+export type LineDeliveryDetail = { "data": LineDeliveryRow; "batches": Array<LineDeliveryBatch>; "next_batch_cursor": number | null; "estimated_dispatch_end": string | null; };
 export type LineDeliveryList = { "data": Array<LineDeliverySummary>; "next_cursor": number | null; };
 export type LineDeliveryRevision = { "expected_revision": number; "request_key": string; };
 export type LineDeliveryResend = { "request_key": string; "confirmation": "すでに届いている可能性があります"; };
