@@ -15,7 +15,7 @@ use Throwable;
 
 final class V2LineSubjectVault
 {
-    private const TABLES = ['external_identity_accounts', 'line_friendships', 'line_pending_follows'];
+    private const TABLES = ['external_identity_accounts', 'line_friendships', 'line_pending_follows', 'line_recovered_friends'];
 
     public function __construct(private readonly V2IdentityCorrelation $correlation) {}
 
@@ -95,6 +95,17 @@ final class V2LineSubjectVault
         } catch (Throwable) {
             Log::warning('line_subject_read_failed', ['reason_code' => 'subject_unavailable']);
             return null;
+        }
+    }
+
+    /** Only the immediate pre-send boundary may perform this binding check. */
+    public function deliveryBindingMatches(#[SensitiveParameter] object $row): bool
+    {
+        try {
+            return is_string($row->subject_ciphertext)
+                && in_array($row->subject_hash, $this->hashes($this->decrypt($row->subject_ciphertext)), true);
+        } catch (Throwable) {
+            return false;
         }
     }
 

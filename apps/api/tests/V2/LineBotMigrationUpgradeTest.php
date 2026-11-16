@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (str_contains($path, '_000108_') || str_contains($path, '_000109_')) continue;
+                if (preg_match('/_0001(?:08|09|10)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -78,6 +78,8 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $botBefore = (array) DB::table('line_bots')->where('id', $legacy->id)->sole();
             $authenticationMigration = require database_path('migrations-v2/2026_11_11_000109_separate_v2_line_bot_auth_revision.php');
             $authenticationMigration->up();
+            $recoveryMigration = require database_path('migrations-v2/2026_11_15_000110_add_v2_line_recovered_friends.php');
+            $recoveryMigration->up();
             $botAfter = (array) DB::table('line_bots')->where('id', $legacy->id)->sole();
             self::assertSame(9, $botAfter['authentication_revision']);
             unset($botAfter['authentication_revision']);
