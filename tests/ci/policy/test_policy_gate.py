@@ -23,6 +23,16 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_oldtest_basesync_task_id_is_exact(self):
+        data = fixture("positive.json")
+        task = "OLDTEST-BASESYNC-20261116"
+        policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", task), task,
+                                    data["changed_paths"], data["base_sha"])
+        for invalid in (task + "A", task + "0", "OLDTEST-BASESYNC-20261117"):
+            with self.subTest(task_id=invalid), self.assertRaises(policy_gate.PolicyFailure):
+                policy_gate.validate_pr_body(data["pr_body"].replace("GOV-008", invalid), invalid,
+                                            data["changed_paths"], data["base_sha"])
+
     def test_line_delivery_d4_task_id_is_exact(self):
         data = fixture("positive.json")
         task = "LINE-DELIVERY-20261109-D4"

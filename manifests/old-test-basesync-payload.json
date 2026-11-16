@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "task_id": "OLDTEST-BASESYNC-20261116",
+  "kind": "old-test-pr688-pr692-derived-payload",
+  "base_sha": "b66e9a817d53dc77c2b327c3ccdd19790e204d57",
+  "base_pr": 682,
+  "base_tree": "0ef56df581778c3a00eeb0caf382db874f1d7965",
+  "line_sha": "9235350523accdb2c3d41dca869d7d44f0863ba5",
+  "line_pr": 688,
+  "line_tree": "f9d41f6566b4c1e771bb7895dabad1639b80b810",
+  "fix_sha": "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9",
+  "fix_pr": 692,
+  "fix_tree": "a35e1d52da7c3adbe568c59a799dc7fd02d050d5",
+  "files": {
+    "apps/api/app/Domain/Identity/Services/V2ExternalIdentityService.php": {
+      "before": "76d00fbdfab44d9117486dac851ea61d3e65d414",
+      "after": "113a95e010e25b7be9e2735d6d36b25fcf1b7b1c",
+      "fix": "line"
+    },
+    "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php": {
+      "before": "e43907d546a5035ae4b7a76920e9ebc6e36b6613",
+      "after": "030ecd03ec4431432b92648d997eb6b623d8336c",
+      "fix": "fix"
+    }
+  },
+  "source_sha": "c87d956804fbb1f31b9959535122e047155786fd",
+  "source_tree": "b42e40a2e71c547e8133c92ea33990a2224686a8",
+  "inventory_sha256": "8bbadaefd9a5717d6082f83656707beb879abf7da09b27df05d3eb7a6a007fa3",
+  "commit_content": "tree b42e40a2e71c547e8133c92ea33990a2224686a8\nparent b66e9a817d53dc77c2b327c3ccdd19790e204d57\nauthor Oripa Limited Payload <payload@example.invalid> 1794816000 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1794816000 +0000\n\nOLDTEST-BASESYNC-20261116 derived payload; NOT a merged commit\n",
+  "image_mode": "api-only",
+  "activation_authorized": false
+}

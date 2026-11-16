@@ -58,7 +58,10 @@ def main() -> None:
     if sys.argv[1:] == ["--prepare-payload"]:
         authority = json.loads((Path(os.environ["RUNNER_TEMP"]) / "source-authority.json").read_text())
         if authority.get("payload_kind"):
-            helper = runpy.run_path(str(ROOT / "scripts/ops/old_test_pr666_payload.py"))
+            helper_path = ("scripts/ops/old_test_basesync_payload.py"
+                           if authority["payload_kind"] == "old-test-pr688-pr692-derived-payload"
+                           else "scripts/ops/old_test_pr666_payload.py")
+            helper = runpy.run_path(str(ROOT / helper_path))
             helper["materialize"](ROOT, Path(os.environ["GITHUB_WORKSPACE"]) / "payload", authority)
         return
     if sys.argv[1:] == ["--prepare-recipe"]:
