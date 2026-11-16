@@ -96,16 +96,102 @@ are trusted domain integration, not public permission to send.
 
 ## Quota and pacing
 
-Estimate and resolve use fresh provider quota, and the first broadcast dispatch
-checks again. Quota compares recipients, not HTTP requests. Reservations are
-serialized under the singleton. Active deliveries and potentially consumed
-current-month local attempts are counted conservatively even if the provider
-may already include them, protecting against consumption-report lag. This can
-block earlier than the actual monthly limit; it must never be represented as
-an exact provider remaining count. Insufficient admission sends no broadcast
-batch. Provider/account-manager consumption outside this application cannot be
-atomically reserved, so an unexpected refusal after some acceptance is recorded
-honestly rather than claimed as an atomic provider-wide delivery.
+The latest Human decision adopts exclusive Oripoke management of paid
+Push/Multicast. OA Manager remains for settings such as rich menus; paid direct,
+scheduled/step sends and independent API senders must be disabled operationally.
+The prior overlap-based quota design and its review conclusion are superseded.
+Additive000112 introduces BOT accounts, immutable JST monthly opening balances
+and unique (BOT, month, batch) charges.000107–000111 remain byte-identical.
+The existing immutable UUIDv4 Retry Key identifies each batch.
+
+Admission is `effective_limit - opening_used - sum(charges) - uncarried_unknown`.
+Charges are disjoint reserved/unknown/accepted states, counted once per key per
+possible billing month. Provider totalUsage is never added to local use or
+credited against local history. Opening0/cap200/local accepted100 leaves100
+whether provider usage is0 or100. Exact opening100 with no managed sends also
+leaves100. Accepted counts are recipient upper bounds, not delivered counts.
+
+Broadcast, automated, chat and explicit manual resend all reserve through
+insertBatch/cover under the existing D2 singleton. Resolve admits the entire
+campaign transactionally. Before its first HTTP, prepare covers all outstanding
+batches through the last planned dispatch plus23h and30s boundary margin in
+every possible month. Missing baseline or insufficient capacity stops the
+campaign before any send (C1). Plans beyond the two certifiable months wait.
+Later unexpected suspension or plan changes may stop an already-started
+campaign; this does not promise atomic provider delivery. D4/D6 must retain
+their durable source events on quota refusal and use enqueuePush exclusively.
+
+Phase A commits unknown exposure together with the frozen request. Phase B
+checks committed coverage immediately before HTTP and records acceptance in
+the result transaction. Rollback/crash leaves unknown; a same-key retry never
+adds a second same-month charge. Unknown includes conservative cases such as a
+crash before HTTP. No timer,400/401/429, retry expiry or month reset releases it.
+Skipped unsent reservations also remain held in their reserved months in this
+minimal version. Reclamation needs a separately reviewed evidence-based change.
+
+Near-boundary requests reserve both months. Unknowns carry into every later
+month, even after23h and even if that month's baseline preceded the uncertainty.
+Missing next-month coverage blocks the boundary send. BOTs never share accounts
+or balances; authentication-generation mismatch fails closed too.
+
+Provider reads remain outside send transactions. A lower provider limit only
+lowers the effective ceiling; increases never automatically grant capacity.
+totalUsage above opening plus exposed charges halts the BOT. This detector
+cannot prove exclusivity or detect external sends hidden within conservative
+exposure: Human reporting and exclusive sender ownership are essential.
+
+### Human baseline and incident procedure
+
+These steps are required before later authorized activation. This PR establishes
+no real BOT baseline and introduces no HTTP/CLI activation entry.
+
+1. Keep paid sends disabled. Inventory the exact channel/BOT generation, all
+   previous API clients, credentials, queued requests/retries and OA Manager
+   campaigns/schedules/step messages. Establish exclusive Oripoke paid sending.
+2. Close the accounting period used for the opening balance: stop all paid
+   sends through the observation cut and prove no previous external request
+   can still be accepted. A23h/24h wait, two equal approximate reads, or a
+   screenshot alone does not prove this. Unresolved external outcomes require
+   authoritative provider resolution; keep HOLD. A verified never-used BOT
+   without outstanding requests can establish exact zero.
+3. Human obtains the correct monthly paid usage from OA Manager's authoritative
+   usage view, corroborates finalized per-day paid-source statistics through
+   the closed cut, and verifies no later activity or unresolved earlier work.
+   `unready`, missing source coverage, disagreement, stale data or unknown billing
+   categories means no baseline. Never mechanically sum message-object counts
+   or assume an aggregate identifies a request. A used BOT may start nonzero
+   only with this evidence; otherwise use a proven clean boundary/unused BOT.
+4. Privately record channel/BOT/generation, JST month, exact pre-managed usage,
+   cut and evidence timestamps, paid-source coverage, absence of external
+   in-flight work, verified monthly limit and Human actor. Store only the
+   evidence UUID in application audit/period rows; no credentials/PII in GitHub.
+5. A fresh-MFA Owner invokes confirmBaseline with the explicit Japanese
+   attestation. D5 must expose this management flow; no direct SQL initialization.
+   Missing periods fail closed. Existing attempts lacking ledger coverage are
+   rejected for separate audited reconciliation. Baselines cannot be overwritten.
+   Each next month requires Human verification of zero external opening use,
+   continuing exclusivity and the approved limit; local unknown carry is separate.
+   Only current and immediately following month may be certified; a future
+   baseline must be zero. It is a commitment to exclusive operation, not an API
+   forecast. The upper limit remains conservative if no provider cap is set.
+6. Known/suspected external paid sends or ownership breach: Human immediately
+   calls halt with evidence UUID, stops the independent source, retains all
+   history and reconciles authoritative usage and outstanding requests. halt
+   shares the singleton: it waits for the bounded current request and fences
+   subsequent ones. An accepted HTTP call cannot be retracted. Never subtract
+   an estimated external amount or mint automatic replacement Retry Keys.
+7. Minimal recovery has no same-month rebase. After proving all external
+   uncertainty resolved, a fresh-MFA Owner certifies an unused later month
+   (current/next only). usable_from prevents future confirmation from reopening
+   the incident month. Previously confirmed periods cannot be rewritten: retain
+   HOLD until a new certifiable month or a separately reviewed recovery extension.
+   Local unknowns remain charged. If exclusivity or exact opening usage cannot
+   be proven, do not activate; report the specific missing evidence to Human.
+
+The official [consumption reference](https://developers.line.biz/en/reference/messaging-api/#get-consumption)
+describes totalUsage as approximate and points to OA Manager/sent-message
+statistics for correct counts. Finalized daily counts corroborate a closed cut;
+they are not per-request coverage or proof of in-flight completion.
 
 429 classification ignores provider prose. Fresh remaining quota below the
 batch's recipient count produces failed/quota_exceeded. Otherwise retrying uses
@@ -135,6 +221,8 @@ Synthetic schema fixtures isolate commit tests from all existing test data.
   tags require an explicit D4 event-scoped extension, currently rejected.
 - D5: wire fresh-MFA internal services, media verifier and immutable storage,
   detailed filters and UI; surface possible duplicate delivery before resend.
+  Add audited quota baseline/halt management and display missing months,
+  reserved/unknown/accepted upper bounds, incident HOLD and safe evidence UUID.
 - D6: use individual Push, no broadcast pacing; media3-second processing and
   unsend/retention official-guidance decision remain separate and unresolved.
 - D7: use D2 recovery registry and captured same-BOT generation/timestamp. Stale
@@ -143,7 +231,7 @@ Synthetic schema fixtures isolate commit tests from all existing test data.
 Browser/login/Admin MFA/real LINE: NOT RUN — Human Browser Acceptance Pending.
 Ready/Merge/runtime/operational migrations/ENV/worker startup/real sends:0.
 The dedicated task branch/worktree are retained for Draft review; CONTACT and
-other worktrees are untouched. Allocation111 remains unavailable for reuse;
+other worktrees are untouched. Allocations111/112 remain unavailable for reuse;
 physical lock releases only after recorded Draft handoff.
 
 Official references checked2026-11-16:

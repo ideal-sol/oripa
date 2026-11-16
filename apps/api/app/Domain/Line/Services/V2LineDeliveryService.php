@@ -100,8 +100,8 @@ final class V2LineDeliveryService
         if ($delivery === null) return;
         $refs = iterator_to_array(app(V2LineRecipientResolver::class)->resolve(Group::from($delivery->recipient_group), Purpose::from($delivery->category)));
         $bot = DB::table('line_bots')->where('id', $delivery->line_bot_id)->firstOrFail();
-        $remaining = app(V2LineDeliveryQuota::class)->remaining($bot);
-        DB::transaction(function () use ($delivery, $owner, $refs, $remaining): void {
+        app(V2LineDeliveryQuota::class)->remaining($bot);
+        DB::transaction(function () use ($delivery, $owner, $refs): void {
             app(V2LineMessagingSettingService::class)->setting(true);
             $d = DB::table('line_deliveries')->where('id', $delivery->id)->lockForUpdate()->firstOrFail();
             $now = app(V2LineDeliverySender::class)->clock();
@@ -110,10 +110,8 @@ final class V2LineDeliveryService
                 DB::table('line_deliveries')->where('id', $d->id)->update(['status' => 'cancelled', 'lease_owner' => null, 'lease_until' => null]); return;
             }
             foreach ($refs as $ref) if ($ref->botId !== $d->line_bot_id || $ref->authenticationRevision !== $d->authentication_revision) throw new \RuntimeException('LINE BOT changed during resolution.');
-            // Conservatively count all unresolved reservations, including potentially accepted
-            // requests. Provider consumption may lag; never allocate the same local quota twice.
-            $reserved = app(V2LineDeliveryQuota::class)->reserved($d->line_bot_id);
-            if ($remaining !== null && $remaining < count($refs) + $reserved) {
+            $quota = app(V2LineDeliveryQuota::class);
+            if ($quota->available($d->line_bot_id, $quota->month($now)) < count($refs)) {
                 DB::table('line_deliveries')->where('id', $d->id)->update(['status' => 'blocked_quota', 'recipient_count' => count($refs), 'lease_owner' => null, 'lease_until' => null]); return;
             }
             $messages = json_decode(Crypt::decryptString($d->messages_ciphertext), true, 512, JSON_THROW_ON_ERROR);
@@ -175,6 +173,9 @@ final class V2LineDeliveryService
             'source_type' => $source, 'source_key' => $key, 'delivery_id' => $delivery, 'position' => $position, 'not_before' => $due, 'replaces_batch_id' => $replaces]);
         foreach ($refs as $r) DB::table('line_delivery_recipients')->insert(['batch_id' => $id, 'source_table' => $r->source,
             'source_id' => $r->sourceId, 'user_id' => $r->userId, 'recipient_group' => $r->group->value]);
+        $quota = app(V2LineDeliveryQuota::class);
+        if (! $quota->cover([DB::table('line_delivery_batches')->where('id', $id)->firstOrFail()],
+            [$quota->month(app(V2LineDeliverySender::class)->clock())])) throw new \RuntimeException('LINE quota baseline unavailable or insufficient.');
         return $id;
     }
 

@@ -20,12 +20,11 @@ final class V2LineDeliverySender
         $candidate = DB::table('line_delivery_batches')->where('id', $batchId)->firstOrFail();
         if (! in_array($candidate->status, ['pending', 'sending', 'retrying'], true)) return;
         $transport = app(V2LineBotTransport::class);
-        $remaining = null;
         if ($candidate->delivery_id !== null && ! DB::table('line_delivery_batches')->where('delivery_id', $candidate->delivery_id)->whereNotNull('first_attempted_at')->exists()) {
             $bot = $this->bot($candidate);
-            if ($bot !== null) $remaining = app(V2LineDeliveryQuota::class)->remaining($bot);
+            if ($bot !== null) app(V2LineDeliveryQuota::class)->remaining($bot);
         }
-        $owner = $this->prepare($batchId, $remaining);
+        $owner = $this->prepare($batchId);
         if ($owner === null) return;
         $bot = $this->bot($candidate);
         if ($bot !== null) $transport->warmDeliveryToken($bot);
@@ -57,9 +56,13 @@ final class V2LineDeliverySender
             } catch (\Throwable) {
                 $this->finish($batch, 'unknown', 'payload_unavailable'); $this->completeDelivery($batch->delivery_id); return null;
             }
+            if (! app(V2LineDeliveryQuota::class)->permits($batch, $this->clock())) return null;
             $result = $transport->deliver($bot, $batch->method, $batch->retry_key, $envelope['json']);
             $status = $result['status'];
-            if (in_array($status, [200, 409], true)) $this->finish($batch, 'accepted', null, $result['request_id']);
+            if (in_array($status, [200, 409], true)) {
+                $this->finish($batch, 'accepted', null, $result['request_id']);
+                app(V2LineDeliveryQuota::class)->accepted($batchId);
+            }
             elseif ($status === 401) $this->finish($batch, 'failed', 'bot_auth_failed');
             elseif ($status === 429 || $status === 0 || $status >= 500) {
                 $delay = [30, 120, 600, 1800, 3600][min(4, $batch->attempts - 1)];
@@ -73,7 +76,7 @@ final class V2LineDeliverySender
         $transport->cacheRefreshedDeliveryToken();
         // 429 classification never trusts provider prose and never holds send locks.
         if (($outcome['status'] ?? null) === 429) {
-            try { $remaining = app(V2LineDeliveryQuota::class)->remaining($outcome['bot']); }
+            try { $remaining = app(V2LineDeliveryQuota::class)->providerRemaining($outcome['bot']); }
             catch (\Throwable) { return; } // Finite retries within the immutable 23-hour window.
             $size = DB::table('line_delivery_recipients')->where('batch_id', $batchId)->where('status', 'pending')->count();
             if ($remaining !== null && $remaining < $size) DB::transaction(function () use ($batchId): void {
@@ -87,9 +90,9 @@ final class V2LineDeliverySender
         }
     }
 
-    private function prepare(int $batchId, ?int $remaining): ?string
+    private function prepare(int $batchId): ?string
     {
-        return DB::transaction(function () use ($batchId, $remaining): ?string {
+        return DB::transaction(function () use ($batchId): ?string {
             $started = hrtime(true);
             $this->lock();
             $b = DB::table('line_delivery_batches')->where('id', $batchId)->lockForUpdate()->firstOrFail();
@@ -104,12 +107,12 @@ final class V2LineDeliverySender
                 $this->finish($b, $b->payload_ciphertext === null ? 'skipped' : 'unknown', 'bot_generation_changed');
                 $this->completeDelivery($b->delivery_id); return null;
             }
-            if ($remaining !== null && $b->delivery_id !== null
-                && ! DB::table('line_delivery_batches')->where('delivery_id', $b->delivery_id)->whereNotNull('first_attempted_at')->exists()
-                && $remaining < app(V2LineDeliveryQuota::class)->reserved($b->line_bot_id)) {
-                DB::table('line_deliveries')->where('id', $b->delivery_id)->update(['status' => 'blocked_quota']);
-                DB::table('line_delivery_batches')->where('delivery_id', $b->delivery_id)->where('status', 'pending')
-                    ->update(['status' => 'skipped', 'reason_code' => 'quota_exceeded']);
+            if (! app(V2LineDeliveryQuota::class)->prepare($b, $now)) {
+                if ($b->delivery_id !== null && ! DB::table('line_delivery_batches')->where('delivery_id', $b->delivery_id)->whereNotNull('first_attempted_at')->exists()) {
+                    DB::table('line_deliveries')->where('id', $b->delivery_id)->update(['status' => 'blocked_quota']);
+                    DB::table('line_delivery_batches')->where('delivery_id', $b->delivery_id)->where('status', 'pending')
+                        ->update(['status' => 'skipped', 'reason_code' => 'quota_exceeded']);
+                }
                 return null;
             }
             $values = [];
