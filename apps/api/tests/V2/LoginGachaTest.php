@@ -1024,21 +1024,29 @@ final class LoginGachaTest extends TestCase
         $bad = $this->user();
         $good = $this->user();
         $this->draw($bad, $gacha, 'rollback-signup');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse(now())->addSecond());
         $this->draw($good, $gacha, 'healthy-signup');
         $prize = DB::table('user_prizes')->where('user_id', $bad->id)->sole();
-        CarbonImmutable::setTestNow($prize->storage_expires_at);
+        CarbonImmutable::setTestNow(DB::table('user_prizes')->whereIn('user_id', [$bad->id, $good->id])->max('storage_expires_at'));
         // Fail after wallet, request, operation, lot and ledger writes.
         $armed = true;
-        DB::listen(function ($query) use (&$armed, $bad): void {
+        $injected = false;
+        DB::listen(function ($query) use (&$armed, &$injected, $bad): void {
             if ($armed && str_starts_with($query->sql, 'insert into "outbox_messages"')
                 && DB::table('prize_exchange_requests')->where('user_id', $bad->id)->exists()) {
                 $armed = false;
+                $injected = true;
                 throw new \RuntimeException('Injected exchange outbox failure');
             }
         });
         $service = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class);
-        self::assertSame(['processed' => 1, 'failed' => 1], $service->autoExchangeExpired());
-        self::assertFalse($armed);
+        try {
+            $result = $service->autoExchangeExpired();
+        } finally {
+            $armed = false;
+        }
+        self::assertSame(['processed' => 1, 'failed' => 1], $result);
+        self::assertTrue($injected);
         self::assertDatabaseMissing('wallets', ['user_id' => $bad->id]);
         self::assertDatabaseHas('user_prizes', ['id' => $prize->id, 'status' => 'stored']);
         foreach (['prize_exchange_requests', 'point_operations', 'point_lots'] as $table) {
