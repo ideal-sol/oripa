@@ -978,6 +978,104 @@ final class LoginGachaTest extends TestCase
         }
     }
 
+    public static function automaticExchangeValues(): array
+    {
+        return [[10], [0]];
+    }
+
+    #[DataProvider('automaticExchangeValues')]
+    public function test_signup_prize_auto_exchange_initializes_missing_wallet(int $amount): void
+    {
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true, 'cache.default' => 'array']);
+        $input = $this->input('signup_once');
+        foreach ($input['prizes'] as &$item) $item['exchange_points'] = $amount;
+        unset($item);
+        $gacha = $this->createPublished('signup_once', $input);
+        $user = $this->user();
+        $this->draw($user, $gacha, 'walletless-signup');
+        self::assertDatabaseMissing('wallets', ['user_id' => $user->id]);
+        $prize = DB::table('user_prizes')->where('user_id', $user->id)->sole();
+        CarbonImmutable::setTestNow($prize->storage_expires_at);
+        $service = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class);
+        self::assertSame(['processed' => 1, 'failed' => 0], $service->autoExchangeExpired());
+        self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'paid_balance' => 0, 'free_balance' => $amount]);
+        self::assertDatabaseHas('user_prizes', ['id' => $prize->id, 'status' => $amount ? 'converted' : 'expired']);
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'point.wallet_initialized')->count());
+        foreach (['prize_exchange_requests', 'prize_exchange_request_items', 'point_operations', 'point_lots', 'point_ledger_entries'] as $table) {
+            self::assertSame($amount ? 1 : 0, DB::table($table)->count(), $table);
+        }
+        if ($amount) {
+            $request = DB::table('prize_exchange_requests')->sole();
+            self::assertSame('completed', $request->status);
+            self::assertSame($amount, (int) $request->exchange_point_total);
+            self::assertDatabaseHas('prize_exchange_request_items', ['prize_exchange_request_id' => $request->id, 'user_prize_id' => $prize->id, 'exchange_point_snapshot' => $amount]);
+            $lot = DB::table('point_lots')->sole();
+            self::assertTrue(CarbonImmutable::parse($lot->expire_at)->equalTo(CarbonImmutable::parse($prize->storage_expires_at)->addDays(180)));
+            self::assertDatabaseHas('outbox_messages', ['event_type' => 'prize.exchange.completed']);
+        }
+        self::assertSame(['processed' => 0, 'failed' => 0], $service->autoExchangeExpired());
+        self::assertSame($amount ? 1 : 0, DB::table('point_operations')->count());
+    }
+
+    public function test_walletless_auto_exchange_failure_rolls_back_and_continues_batch(): void
+    {
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true, 'cache.default' => 'array']);
+        $gacha = $this->createPublished('signup_once');
+        $bad = $this->user();
+        $good = $this->user();
+        $this->draw($bad, $gacha, 'rollback-signup');
+        $this->draw($good, $gacha, 'healthy-signup');
+        $prize = DB::table('user_prizes')->where('user_id', $bad->id)->sole();
+        CarbonImmutable::setTestNow($prize->storage_expires_at);
+        // Fail after wallet, request, operation, lot and ledger writes.
+        $armed = true;
+        DB::listen(function ($query) use (&$armed, $bad): void {
+            if ($armed && str_starts_with($query->sql, 'insert into "outbox_messages"')
+                && DB::table('prize_exchange_requests')->where('user_id', $bad->id)->exists()) {
+                $armed = false;
+                throw new \RuntimeException('Injected exchange outbox failure');
+            }
+        });
+        $service = app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class);
+        self::assertSame(['processed' => 1, 'failed' => 1], $service->autoExchangeExpired());
+        self::assertFalse($armed);
+        self::assertDatabaseMissing('wallets', ['user_id' => $bad->id]);
+        self::assertDatabaseHas('user_prizes', ['id' => $prize->id, 'status' => 'stored']);
+        foreach (['prize_exchange_requests', 'point_operations', 'point_lots'] as $table) {
+            self::assertDatabaseMissing($table, ['user_id' => $bad->id]);
+        }
+        self::assertSame(1, DB::table('point_ledger_entries')->count());
+        self::assertSame(1, DB::table('prize_exchange_request_items')->count());
+        self::assertSame(1, DB::table('audit_logs')->where('action_code', 'point.wallet_initialized')->count());
+        self::assertSame(1, DB::table('outbox_messages')->where('event_type', 'prize.exchange.completed')->count());
+        self::assertDatabaseHas('wallets', ['user_id' => $good->id, 'free_balance' => 10]);
+        self::assertSame(['processed' => 1, 'failed' => 0], $service->autoExchangeExpired());
+        self::assertSame(['processed' => 0, 'failed' => 0], $service->autoExchangeExpired());
+    }
+
+    public function test_stale_auto_exchange_candidate_does_not_create_wallet(): void
+    {
+        config(['v2_prize_shipping.seven_day_auto_convert_enabled' => true, 'cache.default' => 'array']);
+        $gacha = $this->createPublished('signup_once');
+        $user = $this->user();
+        $this->draw($user, $gacha, 'stale-signup');
+        $prize = DB::table('user_prizes')->where('user_id', $user->id)->sole();
+        CarbonImmutable::setTestNow($prize->storage_expires_at);
+        $armed = true;
+        DB::listen(function ($query) use (&$armed, $prize): void {
+            if ($armed && str_contains($query->sql, 'from "user_prizes" as "p"')) {
+                $armed = false;
+                DB::table('user_prizes')->where('id', $prize->id)->update(['status' => 'hold']);
+            }
+        });
+        self::assertSame(['processed' => 0, 'failed' => 0], app(\App\Domain\PrizeShipping\Services\V2PrizeShippingService::class)->autoExchangeExpired());
+        self::assertFalse($armed);
+        self::assertDatabaseMissing('wallets', ['user_id' => $user->id]);
+        self::assertSame(0, DB::table('point_operations')->count());
+        self::assertSame(0, DB::table('prize_exchange_requests')->count());
+        self::assertSame(0, DB::table('audit_logs')->where('action_code', 'point.wallet_initialized')->count());
+    }
+
     private function input(string $type = 'login_daily'): array
     {
         $rankId = DB::table('catalog_rank_masters')->orderBy('id')->value('public_id');
