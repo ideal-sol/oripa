@@ -84,8 +84,12 @@ Dependency review (2026-11-16): the isolated Debian Bookworm package is
 ffmpeg7:5.1.9-0+deb12u1; amd64 and arm64 packages are published by Debian.
 [Debian package and copyright](https://packages.debian.org/bookworm/ffmpeg)
 provide ffprobe in the ffmpeg binary package (no standalone ffprobe package).
-The runtime needs libavformat/libavcodec/libavutil and the OS package dependencies;
-no separately operated media service is introduced. Debian's GPL-enabled build
+Runtime stages copy only ffprobe and its package copyright notices from the
+same-architecture build stage and install the eight FFmpeg shared-library
+packages reported by its ELF NEEDED entries, with their OS dependencies.
+ffmpeg/ffplay/qt-faststart executables are not shipped in
+Production/Preview; the encoder is only used by synthetic test fixtures.
+No separately operated media service is introduced. Debian's GPL-enabled build
 and retained package copyright notices apply. GD uses the existing PHP bundled
 extension with JPEG/PNG runtime libraries; Composer dependencies are unchanged.
 

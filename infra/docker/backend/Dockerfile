@@ -87,13 +87,22 @@ RUN apt-get update \
         libzip4 \
         libjpeg62-turbo \
         libpng16-16 \
-        ffmpeg \
+        libavformat59 \
+        libavcodec59 \
+        libavutil57 \
+        libavdevice59 \
+        libavfilter8 \
+        libpostproc56 \
+        libswresample4 \
+        libswscale6 \
         util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite \
     && sed -ri 's/^Listen 80$/Listen 8000/' /etc/apache2/ports.conf
 
 COPY --from=production-build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=production-build /usr/bin/ffprobe /usr/bin/ffprobe
+COPY --from=production-build /usr/share/doc/ffmpeg/ /usr/share/doc/ffmpeg/
 COPY --from=production-build /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY infra/docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY infra/docker/backend/apache-production.conf /etc/apache2/sites-available/000-default.conf
@@ -106,7 +115,10 @@ USER www-data
 
 RUN php -r 'if (!extension_loaded("gd") || !function_exists("imagecreatefromjpeg")) { exit(1); }' \
     && /usr/bin/ffprobe -version >/dev/null \
-    && /usr/bin/prlimit --version >/dev/null
+    && /usr/bin/prlimit --version >/dev/null \
+    && test ! -e /usr/bin/ffmpeg \
+    && test ! -e /usr/bin/ffplay \
+    && test ! -e /usr/bin/qt-faststart
 
 RUN set -eu; \
     php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'; \
@@ -148,11 +160,20 @@ RUN apt-get update \
         libzip4 \
         libjpeg62-turbo \
         libpng16-16 \
-        ffmpeg \
+        libavformat59 \
+        libavcodec59 \
+        libavutil57 \
+        libavdevice59 \
+        libavfilter8 \
+        libpostproc56 \
+        libswresample4 \
+        libswscale6 \
         util-linux \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=build /usr/bin/ffprobe /usr/bin/ffprobe
+COPY --from=build /usr/share/doc/ffmpeg/ /usr/share/doc/ffmpeg/
 COPY --from=build /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY infra/docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY --from=build /var/www/backend/ ./
@@ -162,7 +183,10 @@ RUN mkdir -p storage/app storage/framework/cache storage/framework/sessions stor
 
 RUN php -r 'if (!extension_loaded("gd") || !function_exists("imagecreatefromjpeg")) { exit(1); }' \
     && /usr/bin/ffprobe -version >/dev/null \
-    && /usr/bin/prlimit --version >/dev/null
+    && /usr/bin/prlimit --version >/dev/null \
+    && test ! -e /usr/bin/ffmpeg \
+    && test ! -e /usr/bin/ffplay \
+    && test ! -e /usr/bin/qt-faststart
 
 RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'
 
