@@ -30,6 +30,18 @@ final class MemberRankCumulativeTest extends TestCase
 
     protected function tearDown(): void
     {
+        // Every committed-in-this-transaction real promotion has exactly one event
+        // correlated to the existing immutable history UUID, including monthly/transfer paths.
+        if (DB::transactionLevel() > 0) {
+            $changes = DB::table('member_rank_changes')->whereColumn('to_level', '>', 'from_level')->get();
+            self::assertSame($changes->count(), DB::table('outbox_messages')->where('event_type', 'member_rank.promoted')->count());
+            foreach ($changes as $change) {
+                $event = DB::table('outbox_messages')->where('deduplication_key', 'member_rank.promoted:'.$change->public_id)->sole();
+                $payload = json_decode($event->payload, true);
+                self::assertSame($change->public_id, $payload['change_public_id']);
+                self::assertSame(V2MemberRankSettingsService::CODES[$change->to_level - 1], $payload['to_rank_code']);
+            }
+        }
         while (DB::transactionLevel() > 0) DB::rollBack();
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();

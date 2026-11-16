@@ -91,6 +91,29 @@ final class LineBotManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_automated_notification_http_permissions_mfa_csrf_and_revision(): void
+    {
+        $uri = '/admin/api/v2/line-automated-settings';
+        $input = ['enabled' => true, 'category' => 'transactional', 'messages' => [['type' => 'text', 'text' => 'Synthetic notification']], 'expected_revision' => 0];
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $this->asAdmin($owner)->getJson($uri)->assertOk()->assertJsonCount(4, 'data')->assertJsonPath('data.0.enabled', false);
+        $this->adminMutation($owner, 'PUT', $uri.'/payment', $input)->assertOk();
+        $this->adminMutation($owner, 'PUT', $uri.'/payment', $input)->assertStatus(409)->assertJsonPath('code', 'LINE_AUTOMATED_REVISION_CONFLICT');
+        Auth::forgetGuards();
+        $admin = $this->adminSession(V2AdminRole::Admin);
+        $this->asAdmin($admin)->getJson($uri)->assertOk();
+        $this->adminMutation($admin, 'PUT', $uri.'/payment', [...$input, 'expected_revision' => 1])->assertForbidden();
+        Auth::forgetGuards();
+        $operator = $this->adminSession(V2AdminRole::Operator);
+        $this->asAdmin($operator)->getJson($uri)->assertForbidden();
+        Auth::forgetGuards();
+        $stale = $this->adminSession(V2AdminRole::Owner, now()->subMinutes(6));
+        $this->adminMutation($stale, 'PUT', $uri.'/payment', [...$input, 'expected_revision' => 1])->assertForbidden()->assertJsonPath('code', 'FRESH_MFA_REQUIRED');
+        Auth::forgetGuards();
+        $this->asAdmin($owner)->withHeader('X-XSRF-TOKEN', 'wrong')->putJson($uri.'/payment', [...$input, 'expected_revision' => 1])->assertForbidden()->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
+        Http::assertNothingSent();
+    }
+
     public function test_roles_mfa_csrf_and_unknown_fields_fail_closed(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {

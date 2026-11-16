@@ -4,7 +4,6 @@ namespace App\Domain\MemberRank\Services;
 
 use App\Domain\Outbox\Services\V2OutboxService;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 final class V2MemberRankChangeRecorder
 {
@@ -14,8 +13,7 @@ final class V2MemberRankChangeRecorder
         if (DB::transactionLevel() < 1) throw new \LogicException('Rank history requires the owning transaction.');
         $id = DB::table('member_rank_changes')->insertGetId($attributes);
         if ((int) $attributes['to_level'] <= (int) $attributes['from_level']) return $id;
-        $publicId = (string) Str::uuid();
-        DB::table('member_rank_promotion_identities')->insert(['change_id' => $id, 'public_id' => $publicId]);
+        $publicId = DB::table('member_rank_changes')->where('id', $id)->value('public_id');
         $user = DB::table('users')->where('id', $attributes['user_id'])->firstOrFail();
         app(V2OutboxService::class)->enqueue('member_rank.events', 'member_rank_change', $publicId, 'member_rank.promoted', [
             'user_public_id' => $user->public_id,

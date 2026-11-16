@@ -42,7 +42,7 @@ export function LineAutomatedSettings() {
   }
   return <section aria-label="自動LINE通知" className="settings-panel">
     <h2>自動LINE通知</h2>
-    <p>全通知は初期OFFです。設定ONより前のイベントは送信しません。保存済みの配信内容は後日の編集では変わりません。</p>
+    <p>全通知は初期OFFです。設定変更は変更後に発生したイベントへ適用します。以前のイベントには発生時の設定を使い、後からONにしても過去の通知は送信しません。</p>
     <p>使用できる置換タグ：%username%・%rank%・%points%。%rank%は送信時点の現在ランクです。</p>
     <p>通知のONは送信開始を意味しません。送信処理の有効化と共通送信枠の準備が別途必要です。</p>
     {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}

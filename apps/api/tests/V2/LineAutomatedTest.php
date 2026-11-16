@@ -23,10 +23,19 @@ final class LineAutomatedTest extends TestCase
 
     private object $context;
     private object $bot;
+    private string $schema;
+    private array $originalConnection;
 
     protected function setUp(): void
     {
         parent::setUp();
+        self::assertTrue(app()->environment('testing'));
+        $this->schema = 'd4_synthetic_'.bin2hex(random_bytes(8));
+        $this->originalConnection = config('database.connections.pgsql');
+        DB::statement('CREATE SCHEMA '.$this->schema);
+        config(['database.connections.pgsql.search_path' => $this->schema]);
+        DB::purge('pgsql');
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--path' => 'database/migrations-v2', '--force' => true]);
         $this->configureRankFixture();
         Carbon::setTestNow(); CarbonImmutable::setTestNow();
         DB::beginTransaction();
@@ -44,6 +53,9 @@ final class LineAutomatedTest extends TestCase
     protected function tearDown(): void
     {
         while (DB::transactionLevel() > 0) DB::rollBack();
+        DB::purge('pgsql');
+        config(['database.connections.pgsql' => $this->originalConnection]);
+        DB::statement('DROP SCHEMA '.$this->schema.' CASCADE');
         Carbon::setTestNow(); CarbonImmutable::setTestNow();
         parent::tearDown();
     }
@@ -66,11 +78,11 @@ final class LineAutomatedTest extends TestCase
         return $user;
     }
 
-    private function baseline(): void
+    private function baseline(int $limit = 1000): void
     {
         $quota = app(V2LineDeliveryQuota::class);
         $quota->confirmBaseline($this->context, $this->bot->id, $this->bot->authentication_revision,
-            $quota->month(app(V2LineDeliverySender::class)->clock()), 0, 1000, (string) Str::uuid(),
+            $quota->month(app(V2LineDeliverySender::class)->clock()), 0, $limit, (string) Str::uuid(),
             '課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました');
     }
 
@@ -97,7 +109,7 @@ final class LineAutomatedTest extends TestCase
         self::assertSame(1, DB::table('line_automated_outcomes')->where('event', 'first_purchase')->where('status', 'queued')->count());
         self::assertDatabaseHas('payments', ['id' => $first->id, 'status' => 'succeeded']);
         self::assertDatabaseHas('payments', ['id' => $second->id, 'status' => 'succeeded']);
-        self::assertSame(2, DB::table('member_rank_promotion_identities')->count());
+        self::assertSame(2, DB::table('member_rank_changes')->whereColumn('to_level', '>', 'from_level')->count());
         Http::assertNothingSent();
     }
 
@@ -110,7 +122,7 @@ final class LineAutomatedTest extends TestCase
         self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'status' => 'pending', 'last_error_code' => 'line_automated_handoff_retry']);
         self::assertSame(0, DB::table('line_delivery_batches')->count());
         self::assertSame(0, DB::table('line_automated_outcomes')->whereIn('event', ['payment', 'first_purchase'])->count());
-        self::assertSame(1, DB::table('member_rank_promotion_identities')->count());
+        self::assertSame(1, DB::table('member_rank_changes')->whereColumn('to_level', '>', 'from_level')->count());
         Http::assertNothingSent();
     }
 
@@ -134,7 +146,7 @@ final class LineAutomatedTest extends TestCase
         $this->settleRankPayment($user, 10000);
         self::assertSame(1, DB::table('outbox_messages')->where('event_type', 'member_rank.promoted')->count());
         DB::rollBack();
-        self::assertSame(0, DB::table('member_rank_promotion_identities')->count());
+        self::assertSame(0, DB::table('member_rank_changes')->whereColumn('to_level', '>', 'from_level')->count());
         self::assertSame(0, DB::table('outbox_messages')->where('event_type', 'member_rank.promoted')->count());
         self::assertSame(0, DB::table('member_rank_changes')->count());
     }
@@ -205,11 +217,92 @@ final class LineAutomatedTest extends TestCase
         app(\App\Domain\MemberRank\Services\V2MemberRankTransferService::class)->write($this->context, $other->public_id,
             ['status' => 'transferred', 'equivalent_level' => 4, 'points' => 100000, 'reason' => 'Synthetic transfer', 'expected_revision' => 0], (string) Str::uuid());
         self::assertSame(3, DB::table('outbox_messages')->where('event_type', 'member_rank.promoted')->count());
-        foreach (DB::table('member_rank_promotion_identities as identity')->join('member_rank_changes as change', 'change.id', '=', 'identity.change_id')->get() as $change) {
+        foreach (DB::table('member_rank_changes')->whereColumn('to_level', '>', 'from_level')->get() as $change) {
             $message = DB::table('outbox_messages')->where('deduplication_key', 'member_rank.promoted:'.$change->public_id)->sole();
             $payload = json_decode($message->payload, true);
             self::assertSame($change->public_id, $payload['change_public_id']);
             self::assertSame(\App\Domain\MemberRank\Services\V2MemberRankSettingsService::CODES[$change->to_level - 1], $payload['to_rank_code']);
+        }
+    }
+
+    public function test_later_purchase_processed_first_does_not_take_first_purchase_notification(): void
+    {
+        $this->enable('payment'); $this->enable('first_purchase'); $this->baseline();
+        $user = $this->linked();
+        $first = $this->settleRankPayment($user, 10000);
+        $this->settleRankPayment($user, 20000);
+        $event = DB::table('outbox_messages')->where('deduplication_key', 'payment.succeeded:'.$first->public_id)->sole();
+        DB::table('outbox_messages')->where('id', $event->id)->update(['available_at' => now()->addHour()]);
+        app(V2LineAutomatedWorker::class)->run('later-first');
+        self::assertSame(0, DB::table('line_automated_outcomes')->where('event', 'first_purchase')->where('status', 'queued')->count());
+        DB::table('outbox_messages')->where('id', $event->id)->update(['available_at' => now()]);
+        app(V2LineAutomatedWorker::class)->run('first-later');
+        self::assertDatabaseHas('line_automated_outcomes', ['outbox_id' => $event->id, 'event' => 'first_purchase', 'status' => 'queued']);
+        self::assertSame(3, DB::table('line_delivery_batches')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_quota_hold_is_durable_and_does_not_ack_event_or_erase_domain_success(): void
+    {
+        $this->enable('payment');
+        $p = $this->settleRankPayment($this->linked(), 10000);
+        DB::table('outbox_messages')->where('deduplication_key', 'payment.succeeded:'.$p->public_id)->update(['attempts' => 4]);
+        app(V2LineAutomatedWorker::class)->run('last-attempt');
+        self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'status' => 'failed', 'last_error_code' => 'line_automated_handoff_hold']);
+        self::assertDatabaseHas('payments', ['id' => $p->id, 'status' => 'succeeded']);
+        self::assertSame(0, DB::table('line_delivery_batches')->count());
+        app(V2LineAutomatedWorker::class)->run('no-automatic-revival');
+        self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'attempts' => 5, 'status' => 'failed']);
+        Http::assertNothingSent();
+    }
+
+    public function test_second_notification_quota_failure_rolls_back_first_handoff_without_losing_event(): void
+    {
+        $this->enable('payment'); $this->enable('first_purchase'); $this->baseline(1);
+        $p = $this->settleRankPayment($this->linked(), 10000);
+        app(V2LineAutomatedWorker::class)->run('partial-quota');
+        self::assertSame(0, DB::table('line_delivery_batches')->count());
+        self::assertSame(0, DB::table('line_quota_charges')->count());
+        self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'status' => 'pending']);
+        self::assertSame(0, DB::table('line_automated_outcomes')->whereIn('event', ['payment', 'first_purchase'])->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_expired_lease_is_reclaimed_and_ack_failure_rolls_back_queue_atomically(): void
+    {
+        $this->enable('payment'); $this->baseline();
+        $p = $this->settleRankPayment($this->linked(), 10000);
+        DB::table('outbox_messages')->where('deduplication_key', 'payment.succeeded:'.$p->public_id)->update([
+            'status' => 'processing', 'locked_by' => 'crashed-worker', 'locked_at' => now()->subMinutes(2),
+            'lease_expires_at' => now()->subMinute(), 'attempts' => 1]);
+        DB::unprepared("CREATE FUNCTION d4_test_ack_failure() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF NEW.status = 'delivered' AND NEW.event_type = 'payment.succeeded' THEN RAISE EXCEPTION 'synthetic_ack_failure'; END IF; RETURN NEW; END; \$\$;
+            CREATE TRIGGER d4_test_ack_failure BEFORE UPDATE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION d4_test_ack_failure();");
+        app(V2LineAutomatedWorker::class)->run('reclaimed-worker');
+        self::assertSame(0, DB::table('line_delivery_batches')->count());
+        self::assertSame(0, DB::table('line_quota_charges')->count());
+        self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'status' => 'pending', 'attempts' => 2]);
+        // Remove only the test-owned failpoint; no product guard is disabled.
+        DB::unprepared('DROP TRIGGER d4_test_ack_failure ON outbox_messages; DROP FUNCTION d4_test_ack_failure();');
+        DB::table('outbox_messages')->where('deduplication_key', 'payment.succeeded:'.$p->public_id)->update(['available_at' => now()]);
+        app(V2LineAutomatedWorker::class)->run('recovered-worker');
+        app(V2LineAutomatedWorker::class)->run('duplicate-worker');
+        self::assertSame(1, DB::table('line_delivery_batches')->count());
+        self::assertDatabaseHas('outbox_messages', ['aggregate_public_id' => $p->public_id, 'status' => 'delivered']);
+        Http::assertNothingSent();
+    }
+
+    public function test_template_and_outcome_history_reject_mutation_delete_and_truncate(): void
+    {
+        $this->enable('payment');
+        $this->settleRankPayment($this->rankUser(), 10000);
+        app(V2LineAutomatedWorker::class)->run('immutable-history');
+        foreach (['line_automated_template_versions', 'line_automated_outcomes'] as $table) {
+            $before = DB::table($table)->get()->toJson();
+            foreach (["UPDATE $table SET event = event", "DELETE FROM $table", "TRUNCATE $table CASCADE"] as $sql) {
+                try { DB::transaction(fn () => DB::statement($sql)); self::fail('History mutation accepted'); }
+                catch (\Illuminate\Database\QueryException $e) { self::assertStringContainsString('immutable', $e->getMessage()); }
+                self::assertSame($before, DB::table($table)->get()->toJson());
+            }
         }
     }
 }

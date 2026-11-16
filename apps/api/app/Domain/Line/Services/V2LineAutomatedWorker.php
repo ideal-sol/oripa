@@ -106,8 +106,8 @@ final class V2LineAutomatedWorker
             }
             return [['shipping', (int) $s->user_id, $reason]];
         }
-        $change = DB::table('member_rank_promotion_identities as identity')->join('member_rank_changes as change', 'change.id', '=', 'identity.change_id')
-            ->join('users as user', 'user.id', '=', 'change.user_id')->where('identity.public_id', $message->payload['change_public_id'] ?? null)
+        $change = DB::table('member_rank_changes as change')
+            ->join('users as user', 'user.id', '=', 'change.user_id')->where('change.public_id', $message->payload['change_public_id'] ?? null)
             ->where('user.public_id', $message->payload['user_public_id'] ?? null)->first(['change.user_id', 'change.from_level', 'change.to_level']);
         if ($change === null || $change->to_level <= $change->from_level) throw new \RuntimeException('Invalid promotion event.');
         return [['rank_promotion', (int) $change->user_id, null]];
