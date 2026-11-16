@@ -79,7 +79,11 @@ final class V2PrizeShippingService
                     $user = User::query()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
                     if (! in_array($user->getRawOriginal('state'), ['active', 'restricted'], true)
                         || DB::table('account_closures')->where('user_id', $user->id)->exists()) return 0;
-                    DB::table('wallets')->where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+                    // Prize writers serialize on the user; skip stale candidates before creating a wallet.
+                    $current = DB::table('user_prizes')->where('id', $candidate->id)->firstOrFail();
+                    if (! $this->autoExchangeEligible($current, CarbonImmutable::parse(now())->startOfSecond(), true)) return 0;
+                    $this->assertNoActiveHold([(int) $current->id]);
+                    $this->points->initializeWallet($user->id);
                     $prize = DB::table('user_prizes')->where('id', $candidate->id)->lockForUpdate()->firstOrFail();
                     $now = CarbonImmutable::parse(now())->startOfSecond();
                     if (! $this->autoExchangeEligible($prize, $now, true)) return 0;
