@@ -7,6 +7,16 @@ use PHPUnit\Framework\TestCase;
 
 final class V2LineDeliverySegmentTest extends TestCase
 {
+    public function test_quota_next_month_uses_jst_calendar_at_utc_month_end(): void
+    {
+        $q=new \App\Domain\Line\Services\V2LineDeliveryQuota;
+        foreach (['2026-02-28T15:00:00Z'=>['2026-03-01','2026-04-01'],
+            '2026-01-31T14:59:59Z'=>['2026-01-01','2026-02-01'],
+            '2026-12-31T15:00:00Z'=>['2027-01-01','2027-02-01']] as $instant=>[$current,$next]) {
+            $at=\Carbon\CarbonImmutable::parse($instant);
+            self::assertSame($current,$q->month($at)); self::assertSame($next,$q->nextMonth($at));
+        }
+    }
     public function test_normalizes_rank_set_and_allows_inclusive_equal_bounds(): void
     {
         $s=new V2LineDeliverySegment;

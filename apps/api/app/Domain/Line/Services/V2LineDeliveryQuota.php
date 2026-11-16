@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 final class V2LineDeliveryQuota
 {
     public function month(CarbonImmutable $at): string { return $at->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString(); }
+    public function nextMonth(CarbonImmutable $at): string { return $at->setTimezone('Asia/Tokyo')->startOfMonth()->addMonth()->toDateString(); }
 
     /** Trusted management entry, not HTTP. Evidence UUID identifies a private operational record. */
     public function confirmBaseline(V2AdminAuthorizationContext $context, int $botId, int $revision, string $month,
@@ -25,7 +26,7 @@ final class V2LineDeliveryQuota
             $this->lock();
             $now = app(V2LineDeliverySender::class)->clock();
             if ($cut !== null && ($cut->gt($now) || $this->month($cut) !== $this->month($now))) throw new \InvalidArgumentException('Invalid LINE quota evidence cut.');
-            if (! in_array($month, [$this->month($now), $this->month($now->addMonthNoOverflow())], true)
+            if (! in_array($month, [$this->month($now), $this->nextMonth($now)], true)
                 || ($month !== $this->month($now) && $used !== 0)) throw new \InvalidArgumentException('Invalid LINE quota month.');
             DB::table('line_bots')->where('id', $botId)->where('authentication_revision', $revision)->where('connection_status', 'succeeded')->firstOrFail();
             if (DB::table('line_delivery_batches as b')->where('b.line_bot_id', $botId)->whereNotNull('b.first_attempted_at')
@@ -140,7 +141,7 @@ final class V2LineDeliveryQuota
         foreach ($batches as $b) if (CarbonImmutable::parse($b->not_before)->gt($last)) $last = CarbonImmutable::parse($b->not_before);
         $end = $this->month($last->addHours(23)->addSeconds(30));
         // Only current/next-month baselines can be certified. A longer campaign waits.
-        if ($end > $this->month($now->addMonthNoOverflow())) return false;
+        if ($end > $this->nextMonth($now)) return false;
         $months = [$this->month($now), $end];
         if (! $this->cover($batches, $months)) return false;
         DB::table('line_quota_charges')->where('batch_id', $batch->id)->where('state', 'reserved')->update(['state' => 'unknown', 'updated_at' => $now]);

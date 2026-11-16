@@ -100,8 +100,9 @@ final class V2LineDeliveryAdmin
     public function quota(): array
     {
         $b=$this->bot(); $q=app(V2LineDeliveryQuota::class); $a=DB::table('line_quota_accounts')->where('line_bot_id',$b->id)->first(); $periods=[];
-        foreach ([CarbonImmutable::now(),CarbonImmutable::now()->addMonthNoOverflow()] as $at) {
-            $month=$q->month($at); $p=DB::table('line_quota_periods')->where('line_bot_id',$b->id)->where('month',$month)->first();
+        $now=CarbonImmutable::now();
+        foreach ([$q->month($now),$q->nextMonth($now)] as $month) {
+            $p=DB::table('line_quota_periods')->where('line_bot_id',$b->id)->where('month',$month)->first();
             $counts=DB::table('line_quota_charges')->where('line_bot_id',$b->id)->where('month',$month)->selectRaw('state,SUM(units) as units')->groupBy('state')->pluck('units','state');
             $periods[]=['month'=>$month,'configured'=>$p!==null,'opening_used'=>$p?->opening_used??0,'approved_limit'=>$p?->approved_limit??0,'effective_limit'=>$p?->effective_limit??0,
                 'reserved'=>(int)($counts['reserved']??0),'unknown'=>(int)($counts['unknown']??0),'accepted'=>(int)($counts['accepted']??0),'remaining'=>$q->available($b->id,$month),'evidence_id'=>$p?->evidence_id,'verified_at'=>$p?->verified_at,'baseline_cut_at'=>$p?->baseline_cut_at];
