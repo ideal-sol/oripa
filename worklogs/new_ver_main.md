@@ -13777,6 +13777,27 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 - Local Build0, manual CI rerun0; no Ready, PR merge, operational migration, ENV change, Worker startup, Runtime Activation or real LINE send. Browser/login/Admin MFA remain Human acceptance after separately approved OLD Test reflection. Physical allocation lock retained until verified Draft handoff.
 
 
+## NEWPROD-PR692-AUTHORITY — limited hotfix Draft preparation (2026-11-16)
+
+- Issue none; Risk R3; Lane Strict Change; Activation deferred. Dedicated worktree isolates existing primary/D3 work; no source/migration lock changed. Base protected main 4f9f9a60cdb3bbe754a1931c8db72615e66c85a9.
+- Pin PR688 + PR692's sole approved API hunk as derived Source 516fe7a946683103ed68ee4875d5ea3d94327a0d, tree 53bf0e809b9724392e5af6eda75b1d1c15d333e2; exact manifest and dedicated closed-scope authority validator, preserving PR666/Admin exceptions. LINE D1/D2 and migrations108–110 excluded; alpha.52/Ledger107 preserved.
+- Ledger107 isolated PostgreSQL + derived application: 10 tests/114 assertions PASS; canonical authority/payload/readiness: 90 tests PASS; local policy PASS. Live PR688/692 reviewed-tree and checks verified. Required CI and exact-head review recorded on Draft PR.
+- Canonical ARM64 normal bundle reused; no new mode/workflow. API-only later activation; bundled Admin/Agency cannot authorize their runtime changes. Detailed source/build/security/worker/rollback handoff: docs/operations/deployment/new-production-pr692-limited-hotfix-draft.md.
+- Authority Merge, Source Merge, formal Production Build, Stage, operational migration, Runtime/ALB/Worker/Timer changes NOT RUN, not authorized. Build0, Runtime Activation0, check rerun0 at initial push. Branch/worktree retained for Human review; no merge actor/squash SHA. Later authority SHA must be exact protected main after explicit GO; this Draft is not workflow authority.
+
+- Initial CI stopped at PR Lane metadata formatting (missing bullet prefix); body corrected without gate changes. Added negative regression for an alternate reviewed HEAD with the same tree; final-head CI retry count1 required. Formal Build/Runtime counts remain0.
+
+- CI attempt2 identified remaining PR template headings; replaced body with full required sections and local schema validation. The chosen Change ID also requires an exact entry in the existing Task ID compatibility allowlist; only this ID is added, with all metadata/path/Lane gates preserved. Bounded CI blocker handled in this PR; final-head retry count2. No Production Build or Runtime activation.
+
+
+## NEWPROD-PR692-AUTHORITY — main sync and conflict resolution (2026-11-16)
+
+- Earlier exact-head Source-only Merge GO was stopped safely: main advanced to PR691/D3 squash5d58a271f15dc711c726b1da0f7c6bc66634e46e and the Wrapper refused pr_not_mergeable. No merge occurred. Latest Human GO permits only main integration, conflict resolution, new-head Required CI and Fresh Strict review; any prior Merge permission is suspended for the new HEAD.
+- Reuse the existing branch/worktree. Preserve D3's exact source/schema/guards and Task-ID tests, plus PR693's exact-ID and near-match negative tests; retain both Worklog histories. scripts/ci/policy_gate.py cleanly retains both Changes. No D3 branch or Migration Lock operation.
+- Production limited Source516fe7a946683103ed68ee4875d5ea3d94327a0d / Tree53bf0e809b9724392e5af6eda75b1d1c15d333e2 / Inventory4d33d8e2de4f08a41af6e009391eda9d53fb38d3201aa3eeacc15f82ad81254e remain immutable. Runtime contains only PR688 plus PR692 one hunk; excludes LINE D1/D2/D3 and migrations108–112. Ledger107, alpha.52, current Admin/Agency/Storefront retained; activation_authorized=false.
+- Required CI is requested only by the new non-force push; no manual dispatch/rerun. Existing Ledger107 economic regression evidence reused because limited Runtime Source and dependencies are identical. Focused conflict tests, source reproduction and final-head CI/review results are recorded in PR693. No Production Build, Stage, migration, ENV, ALB, Worker/Timer or Runtime change; stop at validated new HEAD, no Merge.
+
+
 ## LINE-DELIVERY-20261109-D4 — implementation checkpoint, not Draft-ready
 
 - Issue none; R3 / Strict Change / Application Runtime Activation deferred. Human authorization ends at verified Draft PR. Dedicated feat/LINE-DELIVERY-20261109-D4 from5d58a271f15dc711c726b1da0f7c6bc66634e46e; CONTACT and all unrelated worktrees preserved.
@@ -13791,3 +13812,5 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 - D5 handoff: verified media, quota management UI, and eventual separate Storefront shipping URL contract; D6 uses D3 enqueuePush/shared quota; D7 keeps existing linked-member/observed-friend eligibility. Unknown delivery and quota HOLD must retain obligations and must not roll back financial/rank writers.
 
 - Checkpoint result update: existing D3/rank regression completed252 tests/2029 assertions,238 executed without failure and14 dedicated concurrency tests SKIPPED (explicit opt-in fixture absent). No skipped test counted as PASS. Task-only PostgreSQL/Redis stopped after result collection; their data retained. CONTACT original branch/HEAD/Worklog hash unchanged. Required5/Fresh Strict self-review/Draft remain NOT RUN; remote-base continuation decision pending.
+
+- Human approved integration of the known PR693 main update. Both policy test families and both Worklog histories retained; all other PR693 Source/Authority/Payload paths match04cc02d8 byte-for-byte. No Production operation.

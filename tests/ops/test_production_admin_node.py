@@ -58,7 +58,7 @@ class ProductionAdminNodeTest(unittest.TestCase):
         self.assertEqual(evidence["source_tree"], self.spec["source_tree"])
         self.assertEqual(evidence["checkout_sha"], self.baseline["base_sha"])
         self.assertIs(evidence["activation_authorized"], False)
-        line = json.loads((ROOT / M["AUTHORITY_PATH"]).read_text())
+        line = json.loads(M["git"](ROOT, "show", "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9:" + M["AUTHORITY_PATH"]))
         self.assertEqual(line["source_sha"], "9235350523accdb2c3d41dca869d7d44f0863ba5")
 
     def test_no_unreviewed_wrong_source_or_mode(self):
