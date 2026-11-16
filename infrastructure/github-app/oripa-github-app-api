@@ -414,8 +414,72 @@ def authorize_pr666(task_id, pr_number, source_sha, control_sha, get):
             "reviewed_sources": reviewed}
 
 
+BASESYNC_TASK = "OLDTEST-BASESYNC-20261116"
+BASESYNC_SOURCE = "c87d956804fbb1f31b9959535122e047155786fd"
+BASESYNC_MANIFEST = "manifests/old-test-basesync-payload.json"
+BASESYNC_MANIFEST_DIGEST = "241ccc26a6d1a7c168170c549dda83525fee50d7393a1f1ff5bbc5ca1fe1ac98"
+
+
+def basesync_manifest(raw: bytes) -> dict:
+    if hashlib.sha256(raw).hexdigest() != BASESYNC_MANIFEST_DIGEST:
+        fail("basesync_manifest_mismatch")
+    return json.loads(raw)
+
+
+def authorize_basesync(task_id, pr_number, source_sha, control_sha, get):
+    compare_get = get
+    get = get or api_get
+    if (task_id != BASESYNC_TASK or pr_number != "692" or source_sha != BASESYNC_SOURCE
+            or not FULL_SHA.fullmatch(control_sha)):
+        fail("basesync_identity_mismatch")
+    def main_check():
+        main = get(f"/repos/{REPOSITORY}/branches/main")
+        if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
+            fail("old_test_control_not_current_protected_main")
+    main_check()
+    content = get(f"/repos/{REPOSITORY}/contents/{BASESYNC_MANIFEST}?ref={control_sha}")
+    if content.get("encoding") != "base64":
+        fail("basesync_manifest_encoding")
+    manifest = basesync_manifest(base64.b64decode(content["content"]))
+    reviewed = {}
+    for kind in ("base", "line", "fix"):
+        revision = manifest[kind + "_sha"]
+        comparison = api_compare(REPOSITORY, revision, control_sha, get=compare_get)
+        if (comparison.get("status") not in {"ahead", "identical"}
+                or comparison.get("merge_base_commit", {}).get("sha") != revision
+                or comparison.get("base_commit", {}).get("sha") != revision):
+            fail("basesync_source_not_main_ancestor")
+        pull = get(f"/repos/{REPOSITORY}/pulls/{manifest[kind + '_pr']}")
+        head = pull.get("head") or {}
+        if (pull.get("merged") is not True or pull.get("state") != "closed"
+                or pull.get("merge_commit_sha") != revision
+                or pull.get("base", {}).get("ref") != "main"
+                or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+                or head.get("repo", {}).get("full_name") != REPOSITORY
+                or not FULL_SHA.fullmatch(str(head.get("sha", "")))):
+            fail("basesync_merged_pr_mismatch")
+        merged = get(f"/repos/{REPOSITORY}/git/commits/{revision}")
+        review = get(f"/repos/{REPOSITORY}/git/commits/{head['sha']}")
+        if (merged.get("sha") != revision or review.get("sha") != head["sha"]
+                or merged.get("tree", {}).get("sha") != manifest[kind + "_tree"]
+                or merged.get("tree") != review.get("tree")):
+            fail("basesync_reviewed_tree_mismatch")
+        validate_required_checks(head["sha"], get)
+        reviewed[kind] = head["sha"]
+    validate_required_checks(control_sha, get)
+    main_check()
+    return {"task_id": task_id, "source_pr": 692, "source_sha": source_sha,
+            "source_tree": manifest["source_tree"], "reviewed_sha": reviewed["fix"],
+            "control_sha": control_sha, "target": "old-test", "platform": "linux/amd64",
+            "image_mode": "api-only", "authority_path": BASESYNC_MANIFEST,
+            "payload_kind": manifest["kind"], "composition": manifest,
+            "reviewed_sources": reviewed}
+
+
 def authorize_old_test_source(task_id: str, pr_number: str, source_sha: str,
                               control_sha: str, *, get=None) -> dict:
+    if task_id == BASESYNC_TASK or source_sha == BASESYNC_SOURCE:
+        return authorize_basesync(task_id, pr_number, source_sha, control_sha, get)
     if task_id == PR666_TASK or source_sha == PR666_SOURCE:
         return authorize_pr666(task_id, pr_number, source_sha, control_sha, get)
     compare_get = get
