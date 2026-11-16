@@ -1,0 +1,418 @@
+<?php
+
+namespace Tests\V2;
+
+use App\Domain\Line\Enums\V2LineDeliveryPurpose as Purpose;
+use App\Domain\Line\Enums\V2LineRecipientGroup as Group;
+use App\Domain\Line\Services\V2LineDeliveryService;
+use App\Domain\Line\Services\V2LineDeliverySender;
+use App\Domain\Line\Services\V2LineRecipientResolver;
+use App\Domain\Line\Services\V2LineRecoveredFriendRegistry;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+final class LineDeliveryTest extends TestCase
+{
+    private object $bot;
+    private string $schema;
+    private array $originalConnection;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        self::assertTrue(app()->environment('testing'));
+        $this->schema = 'd3_synthetic_'.bin2hex(random_bytes(8));
+        $this->originalConnection = config('database.connections.pgsql');
+        DB::statement('CREATE SCHEMA '.$this->schema);
+        config(['database.connections.pgsql.search_path' => $this->schema]);
+        DB::purge('pgsql');
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--path' => 'database/migrations-v2', '--force' => true]);
+        config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'cache.default' => 'array',
+            'v2_identity.sms_verification.phone_hmac_key' => 'base64:'.base64_encode(str_repeat('p', 32))]);
+        Http::preventStrayRequests();
+        DB::table('line_bots')->where('is_active', true)->update(['is_active' => false]);
+        $id = DB::table('line_bots')->insertGetId(['public_id' => (string) Str::uuid(), 'name' => 'Synthetic D3',
+            'channel_id' => (string) random_int(100000000, 999999999), 'channel_secret_ciphertext' => Crypt::encryptString('synthetic-only'),
+            'is_active' => true, 'connection_status' => 'succeeded', 'connected_at' => now()]);
+        $this->bot = DB::table('line_bots')->where('id', $id)->first();
+    }
+
+    protected function tearDown(): void
+    {
+        DB::disconnect('d3_observer');
+        DB::purge('pgsql');
+        config(['database.connections.pgsql' => $this->originalConnection]);
+        DB::statement('DROP SCHEMA '.$this->schema.' CASCADE');
+        parent::tearDown();
+    }
+
+    private function batch(bool $linked = false): int
+    {
+        app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.str_repeat('1', 32), now()->getTimestampMs());
+        if ($linked) {
+            $email = Str::uuid().'@example.test';
+            $user = \App\Models\V2\User::query()->create(['email_display' => $email, 'email_normalized' => $email,
+                'email_verified_at' => now(), 'password_hash' => '$argon2id$synthetic', 'password_login_enabled' => true, 'state' => 'active', 'display_name' => 'Original synthetic name']);
+            \App\Models\V2\ExternalIdentityAccount::query()->create(['user_id' => $user->id, 'provider' => 'line',
+                'issuer' => 'https://access.line.me', 'subject_hash' => DB::table('line_recovered_friends')->value('subject_hash'),
+                'linked_at' => now(), 'last_authenticated_at' => now()]);
+        }
+        $ref = iterator_to_array(app(V2LineRecipientResolver::class)->resolve(Group::AllFriends, Purpose::Transactional))[0];
+        return app(V2LineDeliveryService::class)->enqueuePush($ref, Purpose::Transactional,
+            [['type' => 'text', 'text' => 'Hello %username% %points%']], 'automated', (string) Str::uuid());
+    }
+
+    private function fake(array $codes, ?\Closure $check = null): void
+    {
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::preventStrayRequests();
+        $index = 0;
+        Http::fake(function ($request) use ($codes, $check, &$index) {
+            if (str_ends_with($request->url(), '/oauth2/v3/token')) return Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]);
+            if (str_ends_with($request->url(), '/quota')) return Http::response(['type' => 'limited', 'value' => 100]);
+            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => 0]);
+            if ($check !== null) $check($request);
+            $code = $codes[min($index++, count($codes) - 1)];
+            if ($code === 0) throw new \Illuminate\Http\Client\ConnectionException('synthetic timeout');
+            return Http::response([], $code, ['x-line-request-id' => 'synthetic-request', 'x-line-accepted-request-id' => 'synthetic-original']);
+        });
+    }
+
+    private function admin(): \App\Domain\Identity\Contracts\V2AdminAuthorizationContext
+    {
+        $public = (string) Str::uuid(); $email = $public.'@example.test'; $hash = hash('sha256', $public);
+        $id = DB::table('admins')->insertGetId(['public_id' => $public, 'email_display' => $email, 'email_normalized' => $email,
+            'email_verified_at' => now(), 'password_hash' => '$argon2id$synthetic', 'role' => 'owner', 'state' => 'active']);
+        DB::table('admin_sessions')->insert(\Tests\Support\V2TimestampFixture::attributes(['session_id_hash' => $hash, 'admin_id' => $id,
+            'mfa_verified_at' => now(), 'requires_mfa_enrollment' => false, 'created_at' => now()->subSecond(), 'last_activity_at' => now(),
+            'idle_expires_at' => now()->addMinutes(15), 'absolute_expires_at' => now()->addHours(8)]));
+        return new \App\Domain\Identity\Contracts\V2AdminAuthorizationContext($id, $public, \App\Domain\Identity\Enums\V2AdminRole::Owner, $hash, hash('sha256', $hash), (string) Str::uuid());
+    }
+
+    public function test_commit_before_send_and_identical_retry_after_timeout(): void
+    {
+        $id = $this->batch(); $requests = [];
+        config(['database.connections.d3_observer' => config('database.connections.'.config('database.default'))]);
+        $this->fake([0, 409], function ($request) use ($id, &$requests): void {
+            $b = DB::connection('d3_observer')->table('line_delivery_batches')->where('id', $id)->first();
+            self::assertNotNull($b->payload_ciphertext);
+            self::assertNotNull($b->first_attempted_at);
+            self::assertMatchesRegularExpression('/^[0-9a-f-]{14}4[0-9a-f-]{21}$/', $b->retry_key);
+            self::assertSame($b->retry_key, $request->header('X-Line-Retry-Key')[0]);
+            self::assertGreaterThan(0, DB::transactionLevel());
+            $requests[] = [$request->body(), $request->header('X-Line-Retry-Key')];
+        });
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame('retrying', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame($requests[0], $requests[1]);
+        $b = DB::table('line_delivery_batches')->where('id', $id)->first();
+        self::assertSame('accepted', $b->status);
+        self::assertSame('synthetic-original', $b->request_id);
+        self::assertStringNotContainsString('Hello', $b->payload_ciphertext);
+        self::assertStringNotContainsString('U'.str_repeat('1', 32), json_encode(DB::table('line_delivery_recipients')->where('batch_id', $id)->get()));
+        DB::disconnect('d3_observer');
+    }
+
+    public function test_401_refresh_is_bounded_and_uses_identical_bytes_and_key(): void
+    {
+        $id = $this->batch(); $requests = [];
+        $this->fake([401, 401], function ($r) use (&$requests): void { $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')]; });
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(2, $requests);
+        self::assertSame($requests[0], $requests[1]);
+        self::assertSame('bot_auth_failed', DB::table('line_delivery_batches')->where('id', $id)->value('reason_code'));
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(2, $requests);
+    }
+
+    public function test_http_status_classification_and_backoff(): void
+    {
+        foreach ([200 => 'accepted', 400 => 'failed', 429 => 'retrying', 500 => 'retrying'] as $code => $state) {
+            $id = $this->batch(); $this->fake([$code]);
+            app(V2LineDeliverySender::class)->send($id);
+            $b = DB::table('line_delivery_batches')->where('id', $id)->first();
+            self::assertSame($state, $b->status);
+            if ($state === 'retrying') self::assertGreaterThan(20, \Carbon\CarbonImmutable::now()->diffInSeconds(\Carbon\CarbonImmutable::parse($b->not_before)));
+        }
+    }
+
+    public function test_timeout_after_401_renewal_remains_uncertain_and_reuses_original_request(): void
+    {
+        $id = $this->batch(); $requests = [];
+        $this->fake([401, 0, 409], function ($r) use (&$requests): void { $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')]; });
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame('retrying', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(3, $requests);
+        self::assertSame($requests[0], $requests[1]);
+        self::assertSame($requests[0], $requests[2]);
+        self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+    }
+
+    public function test_result_commit_failure_replays_only_committed_request(): void
+    {
+        $id = $this->batch(); $requests = [];
+        DB::unprepared("CREATE OR REPLACE FUNCTION d3_test_commit_failure() RETURNS trigger AS \$\$ BEGIN IF NEW.id = {$id} AND NEW.status = 'accepted' THEN RAISE EXCEPTION 'synthetic commit failure'; END IF; RETURN NEW; END; \$\$ LANGUAGE plpgsql; CREATE CONSTRAINT TRIGGER d3_test_commit_failure AFTER UPDATE ON line_delivery_batches DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION d3_test_commit_failure();");
+        $this->fake([200, 409], function ($r) use (&$requests): void { $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')]; });
+        try {
+            app(V2LineDeliverySender::class)->send($id);
+            self::fail('Commit failure not injected.');
+        } catch (\PDOException) {
+            self::assertSame('sending', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        } finally {
+            DB::unprepared('DROP TRIGGER d3_test_commit_failure ON line_delivery_batches; DROP FUNCTION d3_test_commit_failure();');
+        }
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(2, $requests);
+        self::assertSame($requests[0], $requests[1]);
+        self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+    }
+
+    public function test_nested_transaction_is_rejected_before_any_http(): void
+    {
+        $id = $this->batch();
+        DB::beginTransaction();
+        try {
+            app(V2LineDeliverySender::class)->send($id);
+            self::fail('Uncommitted dispatch accepted.');
+        } catch (\LogicException) {
+            Http::assertNothingSent();
+        } finally { DB::rollBack(); }
+    }
+
+    public function test_switch_and_unfollow_before_first_send_skip_without_http(): void
+    {
+        $id = $this->batch();
+        DB::table('line_bots')->where('id', $this->bot->id)->update(['revision' => 2, 'authentication_revision' => 2]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame('skipped', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        Http::assertNothingSent();
+    }
+
+    public function test_payload_commit_failure_sends_nothing(): void
+    {
+        $id = $this->batch();
+        DB::unprepared("CREATE OR REPLACE FUNCTION d3_test_prepare_failure() RETURNS trigger AS \$\$ BEGIN IF NEW.id = {$id} AND NEW.status = 'sending' THEN RAISE EXCEPTION 'synthetic prepare commit failure'; END IF; RETURN NEW; END; \$\$ LANGUAGE plpgsql; CREATE CONSTRAINT TRIGGER d3_test_prepare_failure AFTER UPDATE ON line_delivery_batches DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION d3_test_prepare_failure();");
+        try { app(V2LineDeliverySender::class)->send($id); self::fail('Commit unexpectedly succeeded.'); }
+        catch (\PDOException) {
+            Http::assertNothingSent();
+            self::assertNull(DB::table('line_delivery_batches')->where('id', $id)->value('payload_ciphertext'));
+        }
+    }
+
+    public function test_singleton_member_identity_and_batch_locks_span_http_and_release_promptly(): void
+    {
+        $id = $this->batch(true);
+        $user = DB::table('line_delivery_recipients')->where('batch_id', $id)->value('user_id');
+        config(['database.connections.d3_observer' => config('database.connections.pgsql')]);
+        $observer = DB::connection('d3_observer'); $blocked = [];
+        $this->fake([200], function () use ($observer, $user, $id, &$blocked): void {
+            // These are the exact row fences used by BOT management, webhook/linking,
+            // member suspension, identity revocation and competing send claimants.
+            foreach (['line_messaging_settings' => 1, 'users' => $user,
+                'external_identity_accounts' => DB::table('external_identity_accounts')->where('user_id', $user)->value('id'),
+                'line_delivery_batches' => $id] as $table => $rowId) {
+                $observer->beginTransaction();
+                try {
+                    $observer->statement("SET LOCAL lock_timeout = '100ms'");
+                    $observer->table($table)->where('id', $rowId)->lockForUpdate()->first();
+                    self::fail('Concurrent mutation fence was not held.');
+                } catch (\Illuminate\Database\QueryException $e) {
+                    self::assertSame('55P03', $e->errorInfo[0]); $blocked[] = $table;
+                } finally { $observer->rollBack(); }
+            }
+        });
+        $start = microtime(true);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(4, $blocked);
+        self::assertLessThan(3, microtime(true) - $start);
+        $observer->transaction(function () use ($observer): void {
+            $observer->statement("SET LOCAL lock_timeout = '100ms'");
+            self::assertNotNull($observer->table('line_messaging_settings')->where('id', 1)->lockForUpdate()->first());
+        });
+    }
+
+    public function test_retry_freezes_member_expansion_and_an_active_lease_prevents_reclaim(): void
+    {
+        $id = $this->batch(true); $bodies = [];
+        $this->fake([500, 200], function ($r) use (&$bodies): void { $bodies[] = $r->body(); });
+        app(V2LineDeliverySender::class)->send($id);
+        DB::table('users')->update(['display_name' => 'Changed synthetic name']);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond(), 'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->addMinute()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(1, $bodies);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame($bodies[0], $bodies[1]);
+        self::assertStringContainsString('Original synthetic name', $bodies[1]);
+    }
+
+    public function test_expired_retry_and_changed_member_fail_closed_without_new_key(): void
+    {
+        $id = $this->batch(true); $key = DB::table('line_delivery_batches')->where('id', $id)->value('retry_key');
+        DB::table('line_delivery_batches')->where('id', $id)->update(['status' => 'sending', 'attempts' => 1,
+            'payload_ciphertext' => Crypt::encryptString('synthetic expired envelope'), 'first_attempted_at' => now()->subHours(23)->subSecond(),
+            'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame('unknown', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        self::assertSame($key, DB::table('line_delivery_batches')->where('id', $id)->value('retry_key'));
+        Http::assertNothingSent();
+    }
+
+    public function test_frozen_identity_guards_and_suspended_member_stop_retry_without_replacement(): void
+    {
+        $id = $this->batch(true); $requests = [];
+        $this->fake([500], function ($r) use (&$requests): void { $requests[] = $r->body(); });
+        app(V2LineDeliverySender::class)->send($id);
+        $batch = DB::table('line_delivery_batches')->where('id', $id)->first();
+        foreach ([['retry_key' => (string) Str::uuid()], ['payload_ciphertext' => Crypt::encryptString('changed')],
+            ['first_attempted_at' => now()->addMinute()], ['line_bot_id' => $batch->line_bot_id + 1]] as $change) {
+            try {
+                DB::transaction(fn () => DB::table('line_delivery_batches')->where('id', $id)->update($change));
+                self::fail('Frozen request was mutable.');
+            } catch (\Illuminate\Database\QueryException $e) { self::assertSame('P0001', $e->errorInfo[0]); }
+        }
+        $user = DB::table('line_delivery_recipients')->where('batch_id', $id)->value('user_id');
+        DB::table('users')->where('id', $user)->update(['state' => 'suspended']);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertCount(1, $requests);
+        self::assertSame('unknown', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        self::assertSame($batch->retry_key, DB::table('line_delivery_batches')->where('id', $id)->value('retry_key'));
+    }
+
+    private function scheduled(): int
+    {
+        return DB::table('line_deliveries')->insertGetId(['public_id' => (string) Str::uuid(), 'category' => 'promotional',
+            'recipient_group' => 'all_friends', 'messages_ciphertext' => Crypt::encryptString(json_encode([['type' => 'text', 'text' => 'Synthetic broadcast']])),
+            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing), 'status' => 'scheduled', 'scheduled_at' => now()->subMinute()]);
+    }
+
+    public function test_insufficient_quota_creates_no_batch_and_sends_nothing(): void
+    {
+        app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.str_repeat('2', 32), now()->getTimestampMs());
+        Http::fake(['*/oauth2/v3/token' => Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]),
+            '*/quota' => Http::response(['type' => 'limited', 'value' => 0]), '*/consumption' => Http::response(['totalUsage' => 0])]);
+        $id = $this->scheduled();
+        app(V2LineDeliveryService::class)->resolve($id);
+        self::assertSame('blocked_quota', DB::table('line_deliveries')->where('id', $id)->value('status'));
+        self::assertSame(0, DB::table('line_delivery_batches')->where('delivery_id', $id)->count());
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
+    }
+
+    public function test_501_recipients_are_two_multicast_batches_and_quota_reservations_are_conservative(): void
+    {
+        for ($i = 0; $i < 501; $i++) app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.md5('synthetic-'.$i), now()->getTimestampMs());
+        Http::fake(['*/oauth2/v3/token' => Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]),
+            '*/quota' => Http::response(['type' => 'limited', 'value' => 600]), '*/consumption' => Http::response(['totalUsage' => 0])]);
+        $first = $this->scheduled(); $second = $this->scheduled();
+        app(V2LineDeliveryService::class)->resolve($first);
+        $batches = DB::table('line_delivery_batches')->where('delivery_id', $first)->orderBy('position')->get();
+        self::assertCount(2, $batches);
+        self::assertSame('multicast', $batches[0]->method);
+        self::assertSame(500, DB::table('line_delivery_recipients')->where('batch_id', $batches[0]->id)->count());
+        self::assertSame(1, DB::table('line_delivery_recipients')->where('batch_id', $batches[1]->id)->count());
+        app(V2LineDeliveryService::class)->resolve($second);
+        self::assertSame('blocked_quota', DB::table('line_deliveries')->where('id', $second)->value('status'));
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/multicast'));
+        $sizes = [];
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::preventStrayRequests();
+        Http::fake(function ($request) use (&$sizes) {
+            if (str_ends_with($request->url(), '/oauth2/v3/token')) return Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]);
+            if (str_ends_with($request->url(), '/quota')) return Http::response(['type' => 'limited', 'value' => 600]);
+            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => 0]);
+            self::assertSame('https://api.line.me/v2/bot/message/multicast', $request->url());
+            $sizes[] = count(json_decode($request->body(), true, 512, JSON_THROW_ON_ERROR)['to']);
+            return Http::response([], 200);
+        });
+        $started = microtime(true);
+        foreach ($batches as $batch) app(V2LineDeliverySender::class)->send($batch->id);
+        self::assertSame([500, 1], $sizes);
+        self::assertSame('completed', DB::table('line_deliveries')->where('id', $first)->value('status'));
+        self::assertLessThan(15, microtime(true) - $started);
+    }
+
+    public function test_management_snapshot_fresh_mfa_and_explicit_manual_resend(): void
+    {
+        $context = $this->admin(); $service = app(V2LineDeliveryService::class);
+        $id = $service->save($context, null, 0, Purpose::Promotional, Group::AllFriends, [['type' => 'text', 'text' => 'Synthetic']], null);
+        $service->updateDefaults($context, 1, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(2, 7, 3));
+        self::assertSame(10, $service->pacing(DB::table('line_deliveries')->where('id', $id)->value('pacing'))->pushEvery);
+        $service->cancel($context, $id, 1);
+        self::assertSame('cancelled', DB::table('line_deliveries')->where('id', $id)->value('status'));
+        $batch = $this->batch(); $this->fake([400]); app(V2LineDeliverySender::class)->send($batch);
+        $requestKey = (string) Str::uuid();
+        try { $service->resend($context, $batch, '', $requestKey); self::fail('Missing confirmation accepted.'); }
+        catch (\InvalidArgumentException) { self::assertTrue(true); }
+        $new = $service->resend($context, $batch, 'すでに届いている可能性があります', $requestKey);
+        self::assertSame($new, $service->resend($context, $batch, 'すでに届いている可能性があります', $requestKey));
+        self::assertSame($batch, DB::table('line_delivery_batches')->where('id', $new)->value('replaces_batch_id'));
+        self::assertNotSame(DB::table('line_delivery_batches')->where('id', $batch)->value('retry_key'), DB::table('line_delivery_batches')->where('id', $new)->value('retry_key'));
+        DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => now()->subDay()]);
+        $this->expectException(\App\Domain\Identity\Exceptions\V2AuthenticationException::class);
+        $service->updateDefaults($context, 2, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing);
+    }
+
+    public function test_actual_bot_webhook_link_and_user_state_writers_wait_for_dispatch(): void
+    {
+        $context = $this->admin(); $id = $this->batch(true);
+        $userId = DB::table('line_delivery_recipients')->where('batch_id', $id)->value('user_id');
+        $user = \App\Models\V2\User::findOrFail($userId);
+        $hash = DB::table('line_recovered_friends')->value('subject_hash');
+        DB::table('line_pending_follows')->insert(['public_id' => (string) Str::uuid(), 'line_bot_id' => $this->bot->id,
+            'subject_hash' => $hash, 'subject_ciphertext' => Crypt::encryptString('U'.str_repeat('1', 32)), 'status' => 'pending', 'followed_at' => now()]);
+        config(['database.connections.d3_observer' => config('database.connections.pgsql')]);
+        $observer = DB::connection('d3_observer'); $observer->statement("SET lock_timeout = '100ms'");
+        $blocked = 0;
+        $this->fake([200], function () use ($context, $user, $hash, $id, &$blocked): void {
+            DB::setDefaultConnection('d3_observer');
+            try {
+                $operations = [
+                    fn () => app(\App\Domain\Line\Services\V2LineBotManagement::class)->mutate($context, 'activation', $this->bot->public_id, (string) Str::uuid(), ['expected_revision' => 1]),
+                    fn () => app(\App\Domain\Line\Services\V2LineFriendService::class)->handleEvents([['type' => 'unfollow', 'timestamp' => now()->getTimestampMs(), 'source' => ['type' => 'user', 'userId' => 'U'.str_repeat('1', 32)], 'webhookEventId' => 'synthetic-concurrent']], (string) Str::uuid(), $this->bot->id),
+                    fn () => DB::transaction(fn () => app(\App\Domain\Line\Services\V2LineFriendService::class)->reconcileIdentity($hash, $user, (string) Str::uuid(), false)),
+                    fn () => app(\App\Domain\Identity\Services\V2AdminUserStateService::class)->update($context, $user->public_id, ['status' => 'suspended', 'expected_revision' => 1, 'reason' => 'Synthetic concurrency'], (string) Str::uuid()),
+                    fn () => app(V2LineDeliverySender::class)->send($id),
+                ];
+                foreach ($operations as $operation) {
+                    try { $operation(); self::fail('Concurrent writer unexpectedly succeeded.'); }
+                    catch (\Illuminate\Database\QueryException $e) { self::assertSame('55P03', $e->errorInfo[0]); $blocked++; }
+                }
+            } finally { DB::setDefaultConnection('pgsql'); }
+        });
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame(5, $blocked);
+        self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+        self::assertSame('active', DB::table('users')->where('id', $userId)->value('state'));
+    }
+
+    public function test_http_deadlines_and_quota_429_are_safe(): void
+    {
+        $id = $this->batch(); $sends = 0;
+        Http::fake(function ($request, $options) use (&$sends) {
+            self::assertFalse($options['allow_redirects']);
+            if (str_ends_with($request->url(), '/oauth2/v3/token')) return Http::response(['access_token' => 'synthetic-token', 'expires_in' => 900]);
+            if (str_ends_with($request->url(), '/quota')) {
+                self::assertSame(0, DB::transactionLevel());
+                return Http::response(['type' => 'limited', 'value' => 1]);
+            }
+            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => 1]);
+            $sends++;
+            self::assertLessThanOrEqual(10, $options['timeout']);
+            self::assertLessThanOrEqual(5, $options['connect_timeout']);
+            return Http::response(['message' => 'untrusted provider prose is ignored'], 429);
+        });
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame(1, $sends);
+        self::assertSame('quota_exceeded', DB::table('line_delivery_batches')->where('id', $id)->value('reason_code'));
+        self::assertSame('failed', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
+    }
+}

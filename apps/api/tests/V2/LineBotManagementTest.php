@@ -269,8 +269,11 @@ final class LineBotManagementTest extends TestCase
         } catch (\Illuminate\Database\QueryException $e) {
             self::assertSame('23505', $e->errorInfo[0]);
         }
-        DB::statement('CREATE TABLE line_deliveries (status text NOT NULL)');
-        DB::table('line_deliveries')->insert(['status' => 'sending']);
+        DB::table('line_deliveries')->insert(['public_id' => (string) Str::uuid(), 'status' => 'sending',
+            'category' => 'transactional', 'recipient_group' => 'all_friends',
+            'messages_ciphertext' => Crypt::encryptString(json_encode([['type' => 'text', 'text' => 'Synthetic']])),
+            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing),
+            'line_bot_id' => $one->id, 'authentication_revision' => $one->authentication_revision]);
         $this->action($owner, '/admin/api/v2/line-bots/'.$two->public_id.'/activation', 1)
             ->assertConflict()->assertJsonPath('code', 'LINE_DELIVERY_SENDING');
         self::assertTrue(DB::table('line_bots')->where('id', $one->id)->value('is_active'));

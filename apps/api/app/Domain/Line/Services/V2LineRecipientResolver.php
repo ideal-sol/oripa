@@ -42,27 +42,44 @@ final class V2LineRecipientResolver
     /** No permission to send is cached. D3 must fence the actual transport against state changes. */
     public function eligibleBeforeSend(V2LineRecipient $reference, V2LineDeliveryPurpose $purpose): bool
     {
+        return $this->eligibleBatchBeforeSend([$reference], $purpose)[0];
+    }
+
+    /** Same final predicate for at most one multicast batch; locks survive in the caller.
+     * @param list<V2LineRecipient> $references
+     * @return list<bool>
+     */
+    public function eligibleBatchBeforeSend(array $references, V2LineDeliveryPurpose $purpose): array
+    {
         if (DB::transactionLevel() < 1) throw new \LogicException('Pre-send eligibility requires the caller transaction.');
-        if (! in_array($reference->source, self::SOURCES, true)) return false;
-        return DB::transaction(function () use ($reference): bool {
+        if (! array_is_list($references) || count($references) > 500) throw new InvalidArgumentException('Invalid recipient batch.');
+        foreach ($references as $reference) if (! $reference instanceof V2LineRecipient) throw new InvalidArgumentException('Invalid recipient reference.');
+        return DB::transaction(function () use ($references): array {
             app(V2LineMessagingSettingService::class)->setting(true);
             $bot = $this->activeBot();
-            if ($bot === null || (int) $bot->id !== $reference->botId
-                || (int) $bot->authentication_revision !== $reference->authenticationRevision) return false;
-            if ($reference->userId !== null) {
-                DB::table('users')->where('id', $reference->userId)->lockForUpdate()->first();
-                DB::table('external_identity_accounts')->where('user_id', $reference->userId)
-                    ->where('provider', 'line')->where('issuer', 'https://access.line.me')->orderBy('id')->lockForUpdate()->get();
+            $eligible = array_fill(0, count($references), false);
+            if ($bot === null) return $eligible;
+            $valid = array_filter($references, fn ($r) => in_array($r->source, self::SOURCES, true)
+                && (int) $bot->id === $r->botId && (int) $bot->authentication_revision === $r->authenticationRevision);
+            $users = array_values(array_unique(array_filter(array_map(fn ($r) => $r->userId, $valid), fn ($id) => $id !== null)));
+            if ($users !== []) {
+                DB::table('users')->whereIn('id', $users)->orderBy('id')->lockForUpdate()->get();
+                DB::table('external_identity_accounts')->whereIn('user_id', $users)
+                    ->where('provider', 'line')->where('issuer', 'https://access.line.me')->orderBy('user_id')->orderBy('id')->lockForUpdate()->get();
             }
-            $hash = DB::table($reference->source)->where('id', $reference->sourceId)
-                ->where('line_bot_id', $bot->id)->value('subject_hash');
-            if (! is_string($hash)) return false;
-            $rows = $this->classify($bot, [$hash], $reference->group);
-            foreach ($rows as [$current, $binding]) {
-                if ($current == $reference && app(V2LineSubjectVault::class)->deliveryBindingMatches($binding)) return true;
+            $hashes = [];
+            foreach (self::SOURCES as $source) {
+                $ids = array_map(fn ($r) => $r->sourceId, array_filter($valid, fn ($r) => $r->source === $source));
+                if ($ids !== []) $hashes = [...$hashes, ...DB::table($source)->whereIn('id', $ids)->where('line_bot_id', $bot->id)->pluck('subject_hash')->all()];
             }
-            return false;
-        });
+            if ($hashes === []) return $eligible;
+            $current = [];
+            foreach ($this->classify($bot, array_values(array_unique($hashes)), V2LineRecipientGroup::AllFriends) as [$ref, $binding]) {
+                if (app(V2LineSubjectVault::class)->deliveryBindingMatches($binding)) $current[$ref->source.':'.$ref->sourceId] = $ref;
+            }
+            foreach ($valid as $i => $ref) $eligible[$i] = ($current[$ref->source.':'.$ref->sourceId] ?? null) == $ref;
+            return $eligible;
+        }, 1);
     }
 
     private function activeBot(): ?object
