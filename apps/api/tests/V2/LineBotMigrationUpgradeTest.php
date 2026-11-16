@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -80,6 +80,17 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $authenticationMigration->up();
             $recoveryMigration = require database_path('migrations-v2/2026_11_15_000110_add_v2_line_recovered_friends.php');
             $recoveryMigration->up();
+            $deliveryMigration = require database_path('migrations-v2/2026_11_16_000111_add_v2_line_deliveries.php');
+            $deliveryMigration->up();
+            $deliveryGuards = DB::selectOne("SELECT pg_get_functiondef('v2_line_delivery_history_guard()'::regprocedure) AS definition")->definition;
+            $quotaMigration = require database_path('migrations-v2/2026_11_16_000112_add_v2_line_quota_ledger.php');
+            $quotaMigration->up();
+            self::assertSame(0, DB::table('line_quota_periods')->count());
+            self::assertSame($deliveryGuards, DB::selectOne("SELECT pg_get_functiondef('v2_line_delivery_history_guard()'::regprocedure) AS definition")->definition);
+            try { $quotaMigration->down(); self::fail('Quota history rollback accepted'); }
+            catch (\RuntimeException $e) { self::assertSame('Forward-only LINE quota migration.', $e->getMessage()); }
+            self::assertSame(0, DB::table('line_deliveries')->count());
+            self::assertSame(10, DB::table('line_delivery_settings')->value('push_every'));
             $botAfter = (array) DB::table('line_bots')->where('id', $legacy->id)->sole();
             self::assertSame(9, $botAfter['authentication_revision']);
             unset($botAfter['authentication_revision']);
@@ -125,6 +136,12 @@ final class LineBotMigrationUpgradeTest extends TestCase
                 self::fail('Forward-only migration allowed rollback');
             } catch (\RuntimeException $e) {
                 self::assertSame('Forward-only LINE bot management migration', $e->getMessage());
+            }
+            try {
+                $deliveryMigration->down();
+                self::fail('Delivery history rollback accepted');
+            } catch (\RuntimeException $e) {
+                self::assertSame('Forward-only LINE delivery migration', $e->getMessage());
             }
             try {
                 $authenticationMigration->down();

@@ -70,6 +70,32 @@ services:
     networks:
       - v2_private
 
+  line-delivery-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile
+    profiles:
+      - line-delivery
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          php artisan v2:line:resolve-deliveries
+          php artisan v2:line:work-delivery-batches
+          sleep 1
+        done
+    environment: *v2_api_environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - v2_private
+      - v2_api_egress
+
   identity-mail-worker:
     build:
       context: .
