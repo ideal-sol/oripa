@@ -133,7 +133,7 @@ final class V2LineChatAdmin
             $prefix='line-chat/'.$bot->public_id.'/'.$c->id.'/'.$m->public_id.'/';
             if (! is_string($m->media_key) || ! str_starts_with($m->media_key,$prefix) || ! preg_match('/\A[0-9a-f-]{36}\.bin\z/',substr($m->media_key,strlen($prefix)))) throw new \RuntimeException('LINE_CHAT_MEDIA_UNAVAILABLE');
             $disk=Storage::disk('local');
-            if (! $disk->exists($m->media_key) || $disk->size($m->media_key)>40000000) throw new \RuntimeException('LINE_CHAT_MEDIA_UNAVAILABLE');
+            if (! $disk->exists($m->media_key) || $disk->size($m->media_key)>16777216) throw new \RuntimeException('LINE_CHAT_MEDIA_UNAVAILABLE');
             $body=Crypt::decryptString($disk->get($m->media_key));
             if (strlen($body)!==$m->media_bytes) throw new \RuntimeException('LINE_CHAT_MEDIA_UNAVAILABLE');
             $this->audit($context,'line.chat.attachment.viewed',$messageId);

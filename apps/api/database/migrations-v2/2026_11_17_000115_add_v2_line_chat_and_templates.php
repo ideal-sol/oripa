@@ -39,7 +39,7 @@ return new class extends Migration
                 media_state varchar(24) NOT NULL DEFAULT 'none' CHECK (media_state::text IN ('none','fetching','stored','unavailable','pending_external','cancelled')),
                 media_key varchar(256),
                 media_mime varchar(128),
-                media_bytes bigint CHECK (media_bytes > 0 AND media_bytes <= 20971520),
+                media_bytes bigint CHECK (media_bytes > 0 AND media_bytes <= 8388608),
                 sent_by bigint REFERENCES admins(id),
                 batch_id bigint UNIQUE REFERENCES line_delivery_batches(id),
                 received_at timestamptz NOT NULL,

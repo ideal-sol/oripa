@@ -28,14 +28,14 @@ final class V2LineBotTransport
             if ($remaining <= 0) return ['state' => 'unavailable'];
             $response = Http::withToken($token)->withoutRedirecting()->connectTimeout(min(1, $remaining))->timeout($remaining)
                 ->withOptions(['sink' => $destination, 'decode_content' => false, 'on_headers' => static function ($response): void {
-                    if ((int) $response->getHeaderLine('Content-Length') > 20971520) throw new \RuntimeException('Content limit.');
+                    if ((int) $response->getHeaderLine('Content-Length') > 8388608) throw new \RuntimeException('Content limit.');
                 }, 'progress' => static function ($total, $downloaded) use ($deadline): void {
-                    if ($total > 20971520 || $downloaded > 20971520 || hrtime(true) >= $deadline) throw new \RuntimeException('Content limit.');
+                    if ($total > 8388608 || $downloaded > 8388608 || hrtime(true) >= $deadline) throw new \RuntimeException('Content limit.');
                 }])->get('https://api-data.line.me/v2/bot/message/'.$id.'/content');
             unset($token);
             if ($response->status() === 202) return ['state' => 'pending_external'];
             clearstatcache(true, $destination);
-            if ($response->status() !== 200 || filesize($destination) < 1 || filesize($destination) > 20971520) return ['state' => 'unavailable'];
+            if ($response->status() !== 200 || filesize($destination) < 1 || filesize($destination) > 8388608) return ['state' => 'unavailable'];
             return ['state' => 'stored', 'mime' => strtolower(trim(explode(';', $response->header('Content-Type'))[0]))];
         } catch (Throwable) {
             return ['state' => 'unavailable'];

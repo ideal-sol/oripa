@@ -19,7 +19,8 @@ class V2LineChatMedia
             if ($result['state'] !== 'stored') return ['media_state' => $result['state']];
             clearstatcache(true, $file);
             $size = filesize($file);
-            if ($size < 1 || $size > 20971520) return ['media_state' => 'unavailable'];
+            // Crypt envelopes expand bytes;8MiB leaves headroom under the existing128MiB PHP limit.
+            if ($size < 1 || $size > 8388608) return ['media_state' => 'unavailable'];
             $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($file);
             $allowed = match ($message->type) {
                 'image' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],

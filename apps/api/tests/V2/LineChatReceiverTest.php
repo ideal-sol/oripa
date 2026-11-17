@@ -140,7 +140,7 @@ final class LineChatReceiverTest extends TestCase
             self::assertSame('https://api-data.line.me/v2/bot/message/123/content',$request->url());
             self::assertSame(0,DB::transactionLevel()); self::assertFalse($options['allow_redirects']);
             self::assertFalse($options['decode_content']);
-            foreach ([fn()=>($options['on_headers'])(new \GuzzleHttp\Psr7\Response(200,['Content-Length'=>'20971521'])),fn()=>($options['progress'])(0,20971521)] as $limit) {
+            foreach ([fn()=>($options['on_headers'])(new \GuzzleHttp\Psr7\Response(200,['Content-Length'=>'8388609'])),fn()=>($options['progress'])(0,8388609)] as $limit) {
                 try { $limit(); self::fail('Streaming limit missing'); } catch (\RuntimeException) { self::assertTrue(true); }
             }
             return Http::response($png,200,['Content-Type'=>'image/png']);
@@ -238,7 +238,7 @@ final class LineChatReceiverTest extends TestCase
     public function test_media_202_404_mime_mismatch_size_and_deadline_fail_closed_without_later_retry(): void
     {
         \Illuminate\Support\Facades\Storage::fake('local');
-        foreach ([[202,'','pending_external'],[404,'','unavailable'],[200,'<html>unsafe</html>','unavailable'],[200,str_repeat('x',20971521),'unavailable']] as $i=>[$status,$body,$expected]) {
+        foreach ([[202,'','pending_external'],[404,'','unavailable'],[200,'<html>unsafe</html>','unavailable'],[200,str_repeat('x',8388609),'unavailable']] as $i=>[$status,$body,$expected]) {
             Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
             Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),'https://api-data.line.me/*'=>Http::response($body,$status,['Content-Type'=>'image/png'])]);
             $e=$this->event((string)(100+$i),'image'); $this->receive([$e,$e]);
@@ -275,6 +275,22 @@ final class LineChatReceiverTest extends TestCase
         Http::fake(['https://api-data.line.me/*'=>Http::response('Synthetic unwritable file',200,['Content-Type'=>'text/plain'])]);
         $e=$this->event('300','file'); unset($e['message']['contentProvider']); $this->receive([$e]);
         $m=DB::table('line_chat_messages')->where('line_message_id','300')->first(); self::assertSame('unavailable',$m->media_state); self::assertNull($m->media_key);
+    }
+
+    public function test_maximum_private_file_round_trips_and_one_byte_over_limit_is_unavailable(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $body=str_repeat('x',8388608);
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),'https://api-data.line.me/*'=>Http::response($body,200,['Content-Type'=>'text/plain'])]);
+        $e=$this->event('501','file'); unset($e['message']['contentProvider']); $this->receive([$e]);
+        $m=DB::table('line_chat_messages')->first(); self::assertSame('stored',$m->media_state); self::assertSame(8388608,$m->media_bytes);
+        $id=DB::table('line_conversations')->value('public_id');
+        self::assertSame(hash('sha256',$body),hash('sha256',app(\App\Domain\Line\Services\V2LineChatAdmin::class)->attachment($this->context,$id,$m->public_id)['body']));
+        Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+        Http::fake(['https://api-data.line.me/*'=>Http::response($body.'x',200,['Content-Type'=>'text/plain'])]);
+        $e['webhookEventId']='event-502'; $e['message']['id']='502'; $this->receive([$e]);
+        self::assertSame('unavailable',DB::table('line_chat_messages')->where('line_message_id','502')->value('media_state'));
+        self::assertNull(DB::table('line_chat_messages')->where('line_message_id','502')->value('media_key'));
     }
 
     public function test_concurrent_receive_and_reply_wait_for_fence_then_retries_remain_single(): void

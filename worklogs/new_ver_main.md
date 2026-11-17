@@ -8,6 +8,10 @@
 - Admin related DOM49 PASS before final added template-copy/BOT tests; lint/typecheck PASS, policy356 PASS, DB guard95 PASS, OpenAPI bundle/generated checks PASS. Final tests retain assertions; one reused fake HTTP body was exhausted and its write-failure fixture now supplies a fresh response. Human Browser/E2E NOT RUN — Human Browser Acceptance Pending. CI canonical build is reused; no local image build or manual CI rerun.
 - Draft-only exact39-path policy installed, with no Ready/Merge/runtime operations. Final HEAD, Required5, fresh Strict review and lock readback remain PR handoff gates, not claimed at this commit. Existing FFmpeg SEV-2 acceptance remains Source-only; D7 must preserve BOT-bound friend evidence, no invented follow dates, and require separate runtime GO plus storage/backup/authenticated-access acceptance. Runtime/operational migrations/ENV/Worker/real LINE/S3/CDN/Ready/Merge all0.
 
+### D6 maximum attachment memory check
+
+- Additional isolated no-network/no-storage check on the existing128MiB PHP image reproduced an out-of-memory error encrypting20MiB. Cap incoming content at8MiB in transport, persistence and new115 constraint, with16MiB encrypted-read bound.8MiB round-trip peak68,747,264 bytes under unchanged128MiB limit. Added maximum-size/private-retrieval and plus-one-byte failure tests. No ENV/runtime adjustment or local image build. This source correction requires automatic new-head CI; successful unrelated checks are reused as supporting evidence, never substituted for final-head Required5.
+
 ### D6 Draft PR697 — CI exact inventory registration
 
 - Initial automatic CI stopped at policy-gate because six newly tracked Admin files were missing from its strict exact inventory. Register only the two routes, three components and one DOM test; add exact/missing/unknown-path regression. The full local policy pass also identified the explicit migration inventory, now extended by115 only with missing/duplicate/unregistered rejection tests; full local policy PASS. No scope/security assertion weakened and no CI workflow change. Replacement-head CI is automatic; initial verification builds were skipped, manual rerun0.

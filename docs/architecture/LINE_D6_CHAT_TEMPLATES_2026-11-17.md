@@ -79,7 +79,7 @@ suspended/closed members are hidden. Existing encrypted attachment bytes may
 remain after cancellation, with no normal API reference or retrieval path.
 
 The synchronous media opportunity has an eight-second budget, at most100
-events, one fetch claim per message, fixed LINE host and no redirects,20MiB
+events, one fetch claim per message, fixed LINE host and no redirects,8MiB
 stream/file cap, MIME/type checks and bounded image dimensions. Database lock
 waits are limited to500ms and statements to1500ms. A processing deadline or DB
 failure returns a safe503; previously committed events deduplicate on retry.
