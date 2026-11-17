@@ -12,6 +12,40 @@ use Throwable;
 final class V2LineBotTransport
 {
     private const HOST = 'https://api.line.me';
+    /** D7 only: no DB transaction, redirect, provider prose or token escapes. */
+    public function followerIds(#[SensitiveParameter] object $bot, #[SensitiveParameter] ?string $next): array
+    {
+        if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0) return ['status' => 0];
+        try {
+            $query = ['limit' => 1000];
+            if ($next !== null) $query['start'] = $next;
+            $response = Http::acceptJson()->withToken($this->token($bot, false))->withoutRedirecting()
+                ->connectTimeout(3)->timeout(10)->withOptions([
+                    'decode_content' => false,
+                    'on_headers' => static function ($r): void {
+                        if ((int) $r->getHeaderLine('Content-Length') > 131072) throw new \RuntimeException('Response limit.');
+                    },
+                    'progress' => static function ($total, $downloaded): void {
+                        if ($total > 131072 || $downloaded > 131072) throw new \RuntimeException('Response limit.');
+                    },
+                ])->get(self::HOST.'/v2/bot/followers/ids', $query);
+            if ($response->status() !== 200) return ['status' => $response->status()];
+            if (strlen($response->body()) > 131072) return ['status' => 0];
+            $body = $response->json();
+            if (! is_array($body) || array_diff(array_keys($body), ['userIds', 'next']) !== []
+                || ! isset($body['userIds']) || ! is_array($body['userIds']) || ! array_is_list($body['userIds'])
+                || count($body['userIds']) > 1000) return ['status' => 0];
+            foreach ($body['userIds'] as $id) {
+                if (! is_string($id) || ! preg_match('/\AU[0-9a-f]{32}\z/', $id)) return ['status' => 0];
+            }
+            if (array_key_exists('next', $body) && (! is_string($body['next'])
+                || ! preg_match('/\A[\x21-\x7e]{1,2048}\z/', $body['next']))) return ['status' => 0];
+            return ['status' => 200, 'userIds' => $body['userIds'], 'next' => $body['next'] ?? null];
+        } catch (Throwable) {
+            return ['status' => 0];
+        }
+    }
+
     private array $deliveryTokens = [];
     private ?array $refreshedDeliveryToken = null;
 
