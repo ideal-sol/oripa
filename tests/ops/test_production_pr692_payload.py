@@ -62,7 +62,12 @@ class ProductionPR692PayloadTest(unittest.TestCase):
 
     def test_exact_classification_and_scope(self):
         from scripts.release.readiness.change import classify, validate_change
-        result = validate_change(classify(ROOT, self.spec['fix_sha'], self.head))
+        fixture_head = '04cc02d8ebace3cd0b7cc52a1ba90d83ba523a78'
+        with tempfile.TemporaryDirectory(prefix='pr692-classification-') as temporary:
+            repository = Path(temporary) / 'source'
+            subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(repository)], check=True)
+            subprocess.run(['git', '-C', str(repository), 'checkout', '--quiet', '--detach', fixture_head], check=True)
+            result = validate_change(classify(repository, self.spec['fix_sha'], fixture_head))
         self.assertEqual(result['validation_path'], 'NORMAL_STRICT_CI')
         self.assertEqual(result['authority_records'][0]['provenance'], 'EXACT_PR692_DERIVED_PAYLOAD')
         from scripts.release.readiness.adapters import verify_change_authority
