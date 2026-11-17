@@ -136,6 +136,39 @@ final class LineBotManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_chat_http_roles_csrf_and_template_management_boundaries(): void
+    {
+        $bot=$this->storedBot();
+        DB::table('line_bots')->where('id',$bot->id)->update(['is_active'=>true]);
+        foreach ([V2AdminRole::Owner,V2AdminRole::Admin,V2AdminRole::Operator] as $role) {
+            Auth::forgetGuards(); $token=$this->adminSession($role);
+            $this->asAdmin($token)->getJson('/admin/api/v2/line-chat')->assertOk()->assertJsonStructure(['data','next_page']);
+            $this->asAdmin($token)->withHeader('X-XSRF-TOKEN','wrong')->postJson('/admin/api/v2/line-chat/'.Str::uuid().'/read',['through'=>1])->assertForbidden()->assertJsonPath('code','CSRF_TOKEN_MISMATCH');
+            $response=$this->adminMutation($token,'POST','/admin/api/v2/line-template-categories',['name'=>'Category','sort_order'=>0,'expected_revision'=>0]);
+            if ($role===V2AdminRole::Operator) $response->assertForbidden();
+            else $response->assertOk();
+            $this->asAdmin($token)->getJson('/admin/api/v2/line-chat/'.Str::uuid().'/attachments/'.Str::uuid())->assertNotFound();
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_chat_webhook_requires_signature_and_active_bot_and_retains_unsend(): void
+    {
+        $bot=$this->storedBot();
+        $event=['type'=>'message','webhookEventId'=>'chat-event','timestamp'=>now()->getTimestampMs(),
+            'source'=>['type'=>'user','userId'=>'U'.str_repeat('a',32)],'message'=>['id'=>'123','type'=>'text','text'=>'Synthetic private chat']];
+        $this->postWebhook($event,$bot->public_id)->assertOk(); self::assertSame(0,DB::table('line_chat_messages')->count());
+        DB::table('line_bots')->where('id',$bot->id)->update(['is_active'=>true]);
+        $this->withHeader('X-Line-Signature','invalid')->postJson('/webhooks/v2/line/'.$bot->public_id,['events'=>[$event]])->assertUnauthorized();
+        self::assertSame(0,DB::table('line_chat_messages')->count());
+        $this->postWebhook($event,$bot->public_id)->assertOk(); $this->postWebhook($event,$bot->public_id)->assertOk();
+        self::assertSame(1,DB::table('line_chat_messages')->count());
+        $cancel=[...$event,'type'=>'unsend','webhookEventId'=>'chat-unsend','unsend'=>['messageId'=>'123']];
+        $this->postWebhook($cancel,$bot->public_id)->assertOk();
+        self::assertTrue(DB::table('line_chat_messages')->value('unsent')); self::assertNull(DB::table('line_chat_messages')->value('body_ciphertext'));
+        Http::assertNothingSent();
+    }
+
     public function test_roles_mfa_csrf_and_unknown_fields_fail_closed(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {

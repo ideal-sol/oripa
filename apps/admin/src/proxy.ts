@@ -19,7 +19,7 @@ export function proxy(request: NextRequest) {
       headers: requestHeaders,
     },
   });
-  for (const [name, value] of Object.entries(securityHeaders(nonce))) {
+  for (const [name, value] of Object.entries(securityHeaders(nonce, request.nextUrl.pathname === "/line-chat"))) {
     response.headers.set(name, value);
   }
   return response;
@@ -42,7 +42,7 @@ function isAllowedHost(hostHeader: string | null): boolean {
   return localHosts.has(host) || configured.has(host);
 }
 
-function securityHeaders(nonce: string): Record<string, string> {
+function securityHeaders(nonce: string, chatMedia = false): Record<string, string> {
   const scriptSource = nonce
     ? `'nonce-${nonce}' 'strict-dynamic'`
     : "'none'";
@@ -54,8 +54,8 @@ function securityHeaders(nonce: string): Record<string, string> {
       "default-src 'self'",
       `script-src ${scriptSource}`,
       "style-src 'self'",
-      `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}${assetOrigin ? ` ${assetOrigin}` : ""}`,
-      `media-src 'self'${assetOrigin ? ` ${assetOrigin}` : ""}`,
+      `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}${assetOrigin ? ` ${assetOrigin}` : ""}${chatMedia ? " blob:" : ""}`,
+      `media-src 'self'${assetOrigin ? ` ${assetOrigin}` : ""}${chatMedia ? " blob:" : ""}`,
       "font-src 'self'",
       "connect-src 'self'",
       "object-src 'none'",

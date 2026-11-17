@@ -12,6 +12,18 @@ final class V2LineRecipientResolver
 {
     private const SOURCES = ['line_friendships', 'line_pending_follows', 'line_recovered_friends'];
 
+    /** Chat resolves an exact BOT/subject; never scans or substitutes a different member. */
+    public function chatRecipient(int $botId, string $hash): ?V2LineRecipient
+    {
+        if (DB::transactionLevel() < 1) throw new \LogicException('Chat resolution requires the caller transaction.');
+        app(V2LineMessagingSettingService::class)->setting(true);
+        $bot = $this->activeBot();
+        if ($bot === null || (int) $bot->id !== $botId) return null;
+        $refs = $this->classify($bot, [$hash], V2LineRecipientGroup::AllFriends);
+        if (count($refs) !== 1) return null;
+        return $this->eligibleBeforeSend($refs[0][0], V2LineDeliveryPurpose::Transactional) ? $refs[0][0] : null;
+    }
+
     /** Individual domain notifications must never select an unlinked friend. */
     public function linkedMember(int $userId, V2LineDeliveryPurpose $purpose): ?V2LineRecipient
     {

@@ -53,6 +53,7 @@ final class V2LineMessagingWebhookController
                 || ! isset($payload['events'])
                 || ! is_array($payload['events'])
                 || ! array_is_list($payload['events'])
+                || count($payload['events']) > 100
             ) {
                 throw new V2LineMessagingException(
                     'LINE_WEBHOOK_INVALID',
@@ -61,6 +62,7 @@ final class V2LineMessagingWebhookController
                 );
             }
             $this->lineFriends->handleEvents($payload['events'], $requestId, (int) $bot->id);
+            app(\App\Domain\Line\Services\V2LineChatReceiver::class)->handle($payload['events'], (int) $bot->id, (int) $bot->authentication_revision);
         } catch (JsonException) {
             return $this->problem(
                 $requestId,
@@ -72,6 +74,9 @@ final class V2LineMessagingWebhookController
             );
         } catch (V2LineMessagingException $exception) {
             return $this->problem($requestId, $exception);
+        } catch (\Throwable) {
+            // Chat bodies, ciphertext, attachments and SQL bindings must not reach error reporting.
+            return $this->problem($requestId, new V2LineMessagingException('LINE_WEBHOOK_UNAVAILABLE', 503, 'LINE webhook processing unavailable.', true));
         }
 
         return response()->json([

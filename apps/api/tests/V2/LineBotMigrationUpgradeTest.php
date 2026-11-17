@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10|11|12|13|14)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -89,6 +89,14 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $automatedMigration->up();
             $managementMigration = require database_path('migrations-v2/2026_11_16_000114_add_v2_line_delivery_management.php');
             $managementMigration->up();
+            $chatMigration = require database_path('migrations-v2/2026_11_17_000115_add_v2_line_chat_and_templates.php');
+            $quotaGuard = DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition;
+            $chatMigration->up();
+            self::assertSame(0, DB::table('line_chat_messages')->count());
+            self::assertSame(0, DB::table('line_message_templates')->count());
+            self::assertSame($quotaGuard, DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition);
+            try { $chatMigration->down(); self::fail('Chat history rollback accepted'); }
+            catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
             self::assertSame(0, DB::table('line_media_assets')->count());
             try { $managementMigration->down(); self::fail('Management history rollback accepted'); }
             catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }

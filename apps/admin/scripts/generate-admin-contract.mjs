@@ -12,6 +12,21 @@ const source = await readFile(contractPath, "utf8");
 const contract = JSON.parse(source);
 
 const operations = {
+  listAdminLineChat: ["get", "/line-chat"],
+  listAdminLineChatMedia: ["get", "/line-chat/media"],
+  getAdminLineChat: ["get", "/line-chat/{conversationId}"],
+  readAdminLineChat: ["post", "/line-chat/{conversationId}/read"],
+  statusAdminLineChat: ["put", "/line-chat/{conversationId}/status"],
+  replyAdminLineChat: ["post", "/line-chat/{conversationId}/replies"],
+  attachmentAdminLineChat: ["get", "/line-chat/{conversationId}/attachments/{messageId}"],
+  listAdminLineTemplates: ["get", "/line-templates"],
+  createAdminLineChatTemplate: ["post", "/line-templates"],
+  updateAdminLineChatTemplate: ["put", "/line-templates/{recordId}"],
+  deleteAdminLineChatTemplate: ["delete", "/line-templates/{recordId}"],
+  createAdminLineChatCategory: ["post", "/line-template-categories"],
+  updateAdminLineChatCategory: ["put", "/line-template-categories/{recordId}"],
+  deleteAdminLineChatCategory: ["delete", "/line-template-categories/{recordId}"],
+
   listAdminLineDeliveries: ["get", "/line-deliveries"],
   createAdminLineDelivery: ["post", "/line-deliveries"],
   getAdminLineDelivery: ["get", "/line-deliveries/{deliveryId}"],
@@ -852,7 +867,7 @@ function lineType(schema) {
   }
   return schema.type === "integer" || schema.type === "number" ? "number" : schema.type;
 }
-const lineTypes = ["LineDeliverySummary","LineDeliverySegment","LineDeliveryPacing","LineDeliveryMessage","LineDeliveryInput","LineDeliveryPreviewInput","LineDeliveryPreview","LineDeliveryCounts","LineDeliveryRow","LineDeliveryBatch","LineDeliveryDetail","LineDeliveryList","LineDeliveryRevision","LineDeliveryResend","LineDeliveryResult","LineDeliveryDefaults","LineDeliveryDefaultsInput","LineQuotaPeriod","LineQuotaState","LineQuotaBaseline","LineQuotaHalt","LineMediaFile","LineMediaIntentInput","LineMediaUpload","LineMediaIntent","LineMediaAsset","LineAutomatedMessage","LineAutomatedSetting","LineAutomatedInput","LineAutomatedCollection","LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
+const lineTypes = [...Object.keys(schemas).filter((name) => name.startsWith("LineChat")),"LineDeliverySummary","LineDeliverySegment","LineDeliveryPacing","LineDeliveryMessage","LineDeliveryInput","LineDeliveryPreviewInput","LineDeliveryPreview","LineDeliveryCounts","LineDeliveryRow","LineDeliveryBatch","LineDeliveryDetail","LineDeliveryList","LineDeliveryRevision","LineDeliveryResend","LineDeliveryResult","LineDeliveryDefaults","LineDeliveryDefaultsInput","LineQuotaPeriod","LineQuotaState","LineQuotaBaseline","LineQuotaHalt","LineMediaFile","LineMediaIntentInput","LineMediaUpload","LineMediaIntent","LineMediaAsset","LineAutomatedMessage","LineAutomatedSetting","LineAutomatedInput","LineAutomatedCollection","LineLoginSetting","LineLoginSettingInput","LineBot","LineBotCollection","LineBotInput","LineBotUpdate","LineBotRevision"].map((name) => "export type " + name + " = " + lineType(contract.components.schemas[name]) + ";").join("\n");
 
 const generated = `// Generated from openapi/bundled/admin.openapi.json.
 // Contract SHA-256: ${sha256}
