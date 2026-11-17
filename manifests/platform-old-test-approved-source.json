@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "NODEADM-20261112",
-  "source_pr": 685,
-  "source_sha": "d76f0442c5eeb122ffd946f8d265edc000e7d97b",
+  "task_id": "OLDTEST-LINE-D1-D7-20261117",
+  "source_pr": 698,
+  "source_sha": "510e678c4e2135871b5b68f8933a934600715385",
   "target": "old-test",
   "platform": "linux/amd64",
-  "image_mode": "admin-only",
+  "image_mode": "normal",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR685 Squash d76f0442c5eeb122ffd946f8d265edc000e7d97b, reviewed HEAD 6b89b405759b254b2cda800fe49606606626e379, common Tree e0ef92bd08ce9d89f096c61fc8b85e377f672a0c. Build exactly Admin-only linux/amd64 with Node22.23.5/Alpine3.24.4 from the reviewed multi-platform base index. No API or Agency Build or restart. Storefront independently uses PR239 Squash 160b0d3058cb8113faadb487563a682529212879, reviewed Tree c7dc70ad2065da02e694a00370254b0c2bdf4fe4 and one dedicated-Node22.23.5 GTM-OFF Build. Reuse formal Client/Testkit alpha.52. Preserve API, Ledger107/no Migration, LINE500 coins/configured60days, Paidy TEST/WorkerOFF, UnivaPay TEST, Workers/Timers/ENV/Nginx. Existing Production Authority/Artifacts/Stage unchanged. Security/Artifact Gates, TTL300 Receipt, lock and exact rollback remain mandatory. Runtime activation requires separate Human Exact Runtime GO."
+  "authority": "Human-approved exact OLD Test payload: PR698 Squash 510e678c4e2135871b5b68f8933a934600715385, Tree 746ecea34b598f1080eb36b0ac9eca72eda73062. Integrate LINE D1-D7 and retained PR688/PR692 fixes in one normal API+Admin linux/amd64 formal artifact after separate Human Exact Source Merge GO. Keep Node22.23.5, Storefront, Agency and Client/Testkit alpha.52. PR695 remains on hold and must not be merged, built, modified or activated automatically. Migration108-116 requires separate Human Exact Migration GO and canonical one-shot execution; preserve001-107 and all existing data. Runtime activation requires separate Human Exact Runtime GO. D5 exact-image SBOM/FFmpeg reachability and Security Gate, D6 writable persistent private storage and encrypted backup/restore readiness, financial writer Fence/Drain/rebind/Recovery and retained Worker/Timer verification are prerequisites. New LINE send Worker and D4 automation OFF; no quota baseline, BOT switch, real send, D7 acquisition or reward regrant. Preserve LINE500 coins/configured60days, Paidy TEST/WorkerOFF, UnivaPay TEST/WorkerON and automatic exchange. Security/Artifact Gates, TTL300 Receipt, lock and forward-only recovery remain mandatory. Production Authority/Artifacts/Stage unchanged."
 }

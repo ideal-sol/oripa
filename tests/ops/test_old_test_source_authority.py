@@ -524,7 +524,7 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
             self.assertEqual(result["source_sha"], source)
             self.assertEqual(result["control_sha"], CONTROL)
             self.assertNotEqual(result["source_sha"], result["control_sha"])
-            self.assertEqual(result["image_mode"], "admin-only")
+            self.assertEqual(result["image_mode"], "normal")
             self.assertIs(self.approval["activation_authorized"], False)
             for field, invalid in (("source_sha", CONTROL), ("activation_authorized", True)):
                 original = self.approval[field]
@@ -966,7 +966,9 @@ class NodeAdminApprovalTest(unittest.TestCase):
                 approval[key] = original
 
     def test_exact_admin_only_source_and_retained_api(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output([
+            "git", "show", "510e678c4e2135871b5b68f8933a934600715385:" + wrapper.OLD_AUTHORITY_PATH,
+        ], cwd=ROOT, text=True))
         self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"]),
                          ("NODEADM-20261112", 685, "d76f0442c5eeb122ffd946f8d265edc000e7d97b", "admin-only", "linux/amd64"))
         self.assertIs(approval["activation_authorized"], False)
@@ -976,3 +978,20 @@ class NodeAdminApprovalTest(unittest.TestCase):
         self.assertEqual(git("diff", "--name-only", "81c8147095d4b79bc2d47bf58938b01809db4b58", approval["source_sha"], "--", "apps/api", "apps/agency", "pnpm-lock.yaml", "openapi", "packages"), "")
         for text in ("No API or Agency Build or restart", "Ledger107/no Migration", "TTL300 Receipt", "separate Human Exact Runtime GO", "Production Authority/Artifacts/Stage unchanged"):
             self.assertIn(text, approval["authority"])
+
+
+class IntegratedLineApprovalTest(unittest.TestCase):
+    def test_exact_integrated_source_and_separate_activation_boundaries(self):
+        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.assertEqual((approval["task_id"], approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"]),
+                         ("OLDTEST-LINE-D1-D7-20261117", 698, "510e678c4e2135871b5b68f8933a934600715385", "normal", "linux/amd64"))
+        self.assertIs(approval["activation_authorized"], False)
+        for boundary in ("separate Human Exact Source Merge GO", "separate Human Exact Migration GO",
+                         "separate Human Exact Runtime GO", "PR695 remains on hold", "D6 writable persistent private storage",
+                         "Security Gate", "New LINE send Worker and D4 automation OFF", "Production Authority/Artifacts/Stage unchanged"):
+            self.assertIn(boundary, approval["authority"])
+        source = approval["source_sha"]
+        tree = subprocess.check_output(["git", "rev-parse", source + "^{tree}"], cwd=ROOT, text=True).strip()
+        self.assertEqual(tree, "746ecea34b598f1080eb36b0ac9eca72eda73062")
+        for fix in ("9235350523accdb2c3d41dca869d7d44f0863ba5", "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9"):
+            subprocess.run(["git", "merge-base", "--is-ancestor", fix, source], cwd=ROOT, check=True)
