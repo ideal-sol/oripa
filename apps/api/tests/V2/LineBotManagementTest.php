@@ -138,7 +138,8 @@ final class LineBotManagementTest extends TestCase
 
     public function test_chat_http_roles_csrf_and_template_management_boundaries(): void
     {
-        DB::table('line_bots')->where('legacy',true)->update(['is_active'=>true]);
+        $bot=$this->storedBot();
+        DB::table('line_bots')->where('id',$bot->id)->update(['is_active'=>true]);
         foreach ([V2AdminRole::Owner,V2AdminRole::Admin,V2AdminRole::Operator] as $role) {
             Auth::forgetGuards(); $token=$this->adminSession($role);
             $this->asAdmin($token)->getJson('/admin/api/v2/line-chat')->assertOk()->assertJsonStructure(['data','next_page']);
