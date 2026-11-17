@@ -20,8 +20,7 @@ export function proxy(request: NextRequest) {
     },
   });
   const path = request.nextUrl.pathname;
-  const lineMediaUpload = ["/line-deliveries", "/line-templates", "/line-chat"].includes(path);
-  for (const [name, value] of Object.entries(securityHeaders(nonce, path === "/line-chat", lineMediaUpload))) {
+  for (const [name, value] of Object.entries(securityHeaders(nonce, path === "/line-chat", true))) {
     response.headers.set(name, value);
   }
   return response;
@@ -44,13 +43,14 @@ function isAllowedHost(hostHeader: string | null): boolean {
   return localHosts.has(host) || configured.has(host);
 }
 
-function securityHeaders(nonce: string, chatMedia = false, lineMediaUpload = false): Record<string, string> {
+function securityHeaders(nonce: string, chatMedia = false, allowUpload = false): Record<string, string> {
   const scriptSource = nonce
     ? `'nonce-${nonce}' 'strict-dynamic'`
     : "'none'";
   const imageSource = publicOrigin();
   const assetOrigin = assetPublicOrigin(process.env.V2_ASSET_PUBLIC_BASE_URL);
-  const uploadOrigin = lineMediaUpload
+  // CSP belongs to the initial document, including across client-side navigation.
+  const uploadOrigin = allowUpload
     ? assetPublicOrigin(process.env.V2_LINE_MEDIA_UPLOAD_ORIGIN)
     : null;
   return {

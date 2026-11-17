@@ -124,17 +124,13 @@ function connect(path: string, host = "localhost") {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("LINE direct upload CSP", () => {
-  it.each(["/line-deliveries", "/line-templates", "/line-chat"])("permits one configured HTTPS upload origin on %s", (path) => {
+  it.each(["/login", "/auth/mfa", "/", "/catalog", "/contacts", "/line-deliveries", "/line-templates", "/line-chat"])("permits the same exact upload origin when the initial document is %s", (path) => {
     vi.stubEnv("V2_LINE_MEDIA_UPLOAD_ORIGIN", `${origin}/`);
     expect(connect(path)).toBe(`connect-src 'self' ${origin}`);
     expect(policy(path)).toContain("object-src 'none'");
     expect(policy(path)).toContain("frame-ancestors 'none'");
     expect(policy(path)).toContain("form-action 'self'");
     expect(policy(path)).toContain("'strict-dynamic'");
-  });
-  it.each(["/login", "/catalog", "/contacts", "/line-deliveries/unknown", "/api/admin/line-media"])("does not widen %s", (path) => {
-    vi.stubEnv("V2_LINE_MEDIA_UPLOAD_ORIGIN", origin);
-    expect(connect(path)).toBe("connect-src 'self'");
   });
   it("keeps unknown hosts denied without an upload exception", () => {
     vi.stubEnv("V2_LINE_MEDIA_UPLOAD_ORIGIN", origin);
