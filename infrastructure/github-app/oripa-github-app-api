@@ -295,7 +295,76 @@ def validate_required_checks(head_sha: str, get=None) -> None:
         fail("required_checks_not_successful")
 
 
+LINE698_SOURCE = "510e678c4e2135871b5b68f8933a934600715385"
+LINE698_CONTROL_BASE = "0f970a72da78530107454350cad6a269863253e0"
+LINE698_RECIPE_PATH = "infra/docker/backend/old-test-line-698.Dockerfile"
+LINE698_SOURCE_DOCKERFILE_SHA256 = "2911e9119773b7bad658d90a1e368189f200a4b942b4ed9f93f0bf3ac4c6edb0"
+LINE698_RECIPE_SHA256 = "8643a57c4a271708a924c9fb3435e6ba7a77239e59cf46ea2f26d7faf739aace"
+LINE698_RECIPE_BRANCH = "chore/OLDTEST-LINE-OS-20261117"
+
+
+def validate_line698_recipe(original: bytes, content: bytes) -> None:
+    # Both complete blobs are fixed, including all Production stages. No
+    # caller-supplied digest, package version, path or generic replacement rule.
+    if (hashlib.sha256(original).hexdigest() != LINE698_SOURCE_DOCKERFILE_SHA256
+            or hashlib.sha256(content).hexdigest() != LINE698_RECIPE_SHA256):
+        fail("line698_recipe_bytes_invalid")
+
+
+def authorize_line698_recipe(control_sha: str, get=None) -> dict:
+    get = get or api_get
+    if not FULL_SHA.fullmatch(control_sha):
+        fail("line698_control_invalid")
+    main = get(f"/repos/{REPOSITORY}/branches/main")
+    if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
+        fail("line698_control_not_protected_main")
+    merged = get(f"/repos/{REPOSITORY}/git/commits/{control_sha}")
+    tree = merged.get("tree", {}).get("sha", "")
+    if (merged.get("sha") != control_sha or not FULL_SHA.fullmatch(tree)
+            or [p.get("sha") for p in merged.get("parents", [])] != [LINE698_CONTROL_BASE]):
+        fail("line698_control_parent_or_tree_invalid")
+    # Resolve the squash SHA only after merge. The exact base, task branch,
+    # reviewed tree and recipe bytes avoid a self-referential second control PR.
+    pulls = get(f"/repos/{REPOSITORY}/commits/{control_sha}/pulls?per_page=100")
+    if not isinstance(pulls, list) or len(pulls) != 1:
+        fail("line698_recipe_pull_ambiguous")
+    number = pulls[0].get("number") if isinstance(pulls[0], dict) else None
+    if type(number) is not int or number <= 0:
+        fail("line698_recipe_pull_invalid")
+    pull = get(f"/repos/{REPOSITORY}/pulls/{number}")
+    head = pull.get("head") or {}
+    if (pull.get("state") != "closed" or pull.get("merged") is not True
+            or pull.get("merge_commit_sha") != control_sha
+            or pull.get("base", {}).get("ref") != "main"
+            or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or head.get("repo", {}).get("full_name") != REPOSITORY
+            or head.get("ref") != LINE698_RECIPE_BRANCH
+            or not FULL_SHA.fullmatch(str(head.get("sha", "")))):
+        fail("line698_recipe_merge_invalid")
+    reviewed = get(f"/repos/{REPOSITORY}/git/commits/{head['sha']}")
+    if reviewed.get("sha") != head["sha"] or reviewed.get("tree", {}).get("sha") != tree:
+        fail("line698_recipe_reviewed_tree_invalid")
+    validate_required_checks(head["sha"], get)
+    validate_required_checks(control_sha, get)
+    bodies = []
+    for revision, path in ((LINE698_SOURCE, "infra/docker/backend/Dockerfile"),
+                           (control_sha, LINE698_RECIPE_PATH)):
+        entry = get(f"/repos/{REPOSITORY}/contents/{path}?ref={revision}")
+        if entry.get("type") != "file" or entry.get("encoding") != "base64":
+            fail("line698_recipe_blob_invalid")
+        bodies.append(base64.b64decode("".join(entry["content"].split()), validate=True))
+    validate_line698_recipe(*bodies)
+    return {"build_recipe": {
+        "schema_version": "1.0", "kind": "line698-os-security",
+        "source_sha": LINE698_SOURCE, "recipe_pr": number, "recipe_sha": control_sha,
+        "path": LINE698_RECIPE_PATH, "source_sha256": LINE698_SOURCE_DOCKERFILE_SHA256,
+        "recipe_sha256": LINE698_RECIPE_SHA256, "reviewed_sha": head["sha"], "tree": tree,
+    }}
+
+
 def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> dict:
+    if source_sha == LINE698_SOURCE:
+        return authorize_line698_recipe(control_sha, get)
     compare_get = get
     get = get or api_get
     if source_sha != "b5c28015ef94cb80f6702a61b1237cacd91d9863":
