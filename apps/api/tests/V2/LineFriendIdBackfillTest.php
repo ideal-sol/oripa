@@ -116,7 +116,7 @@ final class LineFriendIdBackfillTest extends TestCase
     {
         return [[['userIds' => [], 'next' => '']], [['userIds' => [], 'next' => null]],
             [['userIds' => [], 'next' => ['invalid']]], [['userIds' => 'invalid']], [['unknown' => []]],
-            [['userIds' => ['invalid']]], [['userIds' => [], 'next' => "bad\nvalue"]]];
+            [['userIds' => ['invalid']]], [['userIds' => [], 'next' => "bad\nvalue"]], [['userIds' => (object) []]]];
     }
 
     #[DataProvider('malformed')]

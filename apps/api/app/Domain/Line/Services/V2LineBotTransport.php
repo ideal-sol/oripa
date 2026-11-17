@@ -31,7 +31,10 @@ final class V2LineBotTransport
                 ])->get(self::HOST.'/v2/bot/followers/ids', $query);
             if ($response->status() !== 200) return ['status' => $response->status()];
             if (strlen($response->body()) > 131072) return ['status' => 0];
-            $body = $response->json();
+            // Preserve JSON object/array distinction, including an empty userIds object.
+            $decoded = json_decode($response->body(), false, 32, JSON_THROW_ON_ERROR);
+            if (! $decoded instanceof \stdClass) return ['status' => 0];
+            $body = get_object_vars($decoded);
             if (! is_array($body) || array_diff(array_keys($body), ['userIds', 'next']) !== []
                 || ! isset($body['userIds']) || ! is_array($body['userIds']) || ! array_is_list($body['userIds'])
                 || count($body['userIds']) > 1000) return ['status' => 0];
