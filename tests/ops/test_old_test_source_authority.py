@@ -361,6 +361,148 @@ class OldTestBuildRecipeTest(unittest.TestCase):
         self.assertIn('source-authority.json', workflow)
 
 
+class Line698BuildRecipeTest(unittest.TestCase):
+    def setUp(self):
+        self.original = subprocess.check_output([
+            "git", "show", wrapper.LINE698_SOURCE + ":infra/docker/backend/Dockerfile",
+        ], cwd=ROOT)
+        self.updated = (ROOT / wrapper.LINE698_RECIPE_PATH).read_bytes()
+        self.main = {"protected": True, "commit": {"sha": CONTROL}}
+        self.merged = {"sha": CONTROL, "tree": {"sha": TREE},
+                       "parents": [{"sha": wrapper.LINE698_CONTROL_BASE}]}
+        self.reviewed = {"sha": REVIEWED, "tree": {"sha": TREE}}
+        self.pulls = [{"number": 700}]
+        self.pull = {"state": "closed", "merged": True, "merge_commit_sha": CONTROL,
+                     "base": {"ref": "main", "repo": {"full_name": wrapper.REPOSITORY}},
+                     "head": {"sha": REVIEWED, "ref": wrapper.LINE698_RECIPE_BRANCH,
+                              "repo": {"full_name": wrapper.REPOSITORY}}}
+
+    def get(self, path):
+        if path.endswith("/branches/main"):
+            return self.main
+        if path.endswith("/git/commits/" + CONTROL):
+            return self.merged
+        if path.endswith("/git/commits/" + REVIEWED):
+            return self.reviewed
+        if path.endswith("/commits/" + CONTROL + "/pulls?per_page=100"):
+            return self.pulls
+        if path.endswith("/pulls/700"):
+            return self.pull
+        if path.endswith("/contents/infra/docker/backend/Dockerfile?ref=" + wrapper.LINE698_SOURCE):
+            body = self.original
+        elif path.endswith("/contents/" + wrapper.LINE698_RECIPE_PATH + "?ref=" + CONTROL):
+            body = self.updated
+        else:
+            raise AssertionError(path)
+        return {"type": "file", "encoding": "base64", "content": base64.b64encode(body).decode()}
+
+    def authorize(self):
+        return wrapper.authorize_old_test_recipe(wrapper.LINE698_SOURCE, CONTROL, self.get)
+
+    def test_exact_source_recipe_and_merged_control_bound_without_second_pr(self):
+        with mock.patch.object(wrapper, "validate_required_checks") as checks, \
+                mock.patch.object(wrapper, "installation_token") as credentials:
+            recipe = self.authorize()["build_recipe"]
+        self.assertEqual(checks.call_args_list, [mock.call(REVIEWED, self.get), mock.call(CONTROL, self.get)])
+        credentials.assert_not_called()
+        self.assertEqual(recipe["recipe_sha"], CONTROL)
+        self.assertEqual(recipe["source_sha"], wrapper.LINE698_SOURCE)
+        self.assertEqual(recipe["recipe_sha256"], hashlib.sha256(self.updated).hexdigest())
+        self.assertNotEqual(recipe["source_sha"], recipe["recipe_sha"])
+
+    def test_no_unmerged_foreign_ambiguous_or_moved_control_authority(self):
+        cases = ("unprotected", "moved", "parent", "multi_parent", "merge_sha", "merged_tree",
+                 "unmerged", "open", "foreign", "foreign_base", "base_ref", "branch",
+                 "review_sha", "review_tree", "no_pull", "many_pulls", "invalid_number")
+        for case in cases:
+            self.setUp()
+            if case == "unprotected": self.main["protected"] = False
+            elif case == "moved": self.main["commit"]["sha"] = REVIEWED
+            elif case == "parent": self.merged["parents"] = [{"sha": wrapper.LINE698_SOURCE}]
+            elif case == "multi_parent": self.merged["parents"].append({"sha": REVIEWED})
+            elif case == "merge_sha": self.pull["merge_commit_sha"] = REVIEWED
+            elif case == "merged_tree": self.merged["tree"]["sha"] = "invalid"
+            elif case == "unmerged": self.pull["merged"] = False
+            elif case == "open": self.pull["state"] = "open"
+            elif case == "foreign": self.pull["head"]["repo"]["full_name"] = "other/repo"
+            elif case == "foreign_base": self.pull["base"]["repo"]["full_name"] = "other/repo"
+            elif case == "base_ref": self.pull["base"]["ref"] = "other"
+            elif case == "branch": self.pull["head"]["ref"] += "-other"
+            elif case == "review_sha": self.reviewed["sha"] = CONTROL
+            elif case == "review_tree": self.reviewed["tree"]["sha"] = "f" * 40
+            elif case == "no_pull": self.pulls = []
+            elif case == "many_pulls": self.pulls *= 2
+            elif case == "invalid_number": self.pulls = [{"number": True}]
+            with self.subTest(case=case), mock.patch.object(wrapper, "validate_required_checks"), \
+                    self.assertRaises(wrapper.WrapperError):
+                self.authorize()
+
+    def test_each_recipe_and_control_check_is_required(self):
+        for failed in (REVIEWED, CONTROL):
+            def checks(sha, get):
+                if sha == failed:
+                    raise wrapper.WrapperError("required_checks_not_successful")
+            with self.subTest(sha=failed), mock.patch.object(wrapper, "validate_required_checks", side_effect=checks), \
+                    self.assertRaises(wrapper.WrapperError):
+                self.authorize()
+
+    def test_changed_source_or_recipe_cannot_supply_a_replacement_digest(self):
+        for target in ("original", "updated"):
+            self.setUp()
+            setattr(self, target, getattr(self, target) + b"RUN arbitrary-command\n")
+            with self.subTest(target=target), mock.patch.object(wrapper, "validate_required_checks"), \
+                    self.assertRaisesRegex(wrapper.WrapperError, "recipe_bytes_invalid"):
+                self.authorize()
+
+    def test_recipe_is_only_four_package_families_and_preserves_media_production(self):
+        old = b"RUN apt-get update \\\n    && apt-get install -y --no-install-recommends \\\n"
+        new = b"RUN apt-get -o Acquire::Retries=0 update \\\n    && apt-get -o Acquire::Retries=0 install -y --no-install-recommends \\\n        apt=2.6.2 libapt-pkg6.0=2.6.2 \\\n    && apt-get install -y --no-install-recommends \\\n"
+        before, preview = self.original.split(b" AS preview\n")
+        build, production = before.split(b"\nFROM php:8.4-apache-bookworm@", 1)
+        self.assertEqual(build.count(old), 1)
+        self.assertEqual(preview.count(old), 1)
+        expected = (build.replace(old, new) + b"\nFROM php:8.4-apache-bookworm@" + production
+                    + b" AS preview\n" + preview.replace(old, new).replace(
+                        b"linux-libc-dev=6.1.190-1",
+                        b"linux-libc-dev=6.1.192-2 \\\n        libbrotli1=1.0.9-2+deb12u1 \\\n        libssl3=3.0.22-1~deb12u2 \\\n        openssl=3.0.22-1~deb12u2"))
+        self.assertEqual(self.updated, expected)
+        self.assertEqual((ROOT / "infra/docker/backend/Dockerfile").read_bytes(), self.original)
+        for line in (b"COPY --from=build /usr/bin/ffprobe /usr/bin/ffprobe",
+                     b"docker-php-ext-configure gd --with-jpeg", b"test ! -e /usr/bin/ffmpeg",
+                     b"test ! -e /usr/bin/ffplay", b"libavformat59", b"libpng16-16"):
+            self.assertEqual(self.updated.count(line), self.original.count(line))
+
+    def test_materialization_fixed_control_bytes_and_unchanged_payload(self):
+        prepare = runpy.run_path(str(ROOT / "scripts/ops/old_test_source_authority.py"))["prepare_recipe"]
+        with mock.patch.object(wrapper, "validate_required_checks"):
+            recipe = self.authorize()["build_recipe"]
+        with tempfile.TemporaryDirectory() as temporary:
+            payload = Path(temporary)
+            dockerfile = payload / "infra/docker/backend/Dockerfile"
+            dockerfile.parent.mkdir(parents=True)
+            dockerfile.write_bytes(self.original)
+            authority = {"source_sha": wrapper.LINE698_SOURCE, "control_sha": CONTROL, "build_recipe": recipe}
+            path = payload / "approved.Dockerfile"
+            with mock.patch("subprocess.check_output", side_effect=[wrapper.LINE698_SOURCE + "\n", CONTROL + "\n", self.updated]):
+                prepare(authority, payload, payload, path)
+            self.assertEqual(path.read_bytes(), self.updated)
+            self.assertEqual(dockerfile.read_bytes(), self.original)
+            with mock.patch("subprocess.check_output", side_effect=[wrapper.LINE698_SOURCE + "\n", CONTROL + "\n", self.updated]), \
+                    self.assertRaises(FileExistsError):
+                prepare(authority, payload, payload, path)
+            for field, value in (("recipe_sha", REVIEWED), ("path", "infra/docker/backend/Dockerfile"),
+                                 ("source_sha", CONTROL), ("source_sha256", "a" * 64),
+                                 ("recipe_sha256", "b" * 64), ("kind", "other")):
+                bad = copy.deepcopy(authority)
+                bad["build_recipe"][field] = value
+                with self.subTest(field=field), mock.patch("subprocess.check_output", side_effect=[wrapper.LINE698_SOURCE + "\n", CONTROL + "\n"]), \
+                        self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    prepare(bad, payload, payload, payload / "rejected")
+            with mock.patch("subprocess.check_output", return_value=wrapper.LINE698_SOURCE + "\n"), \
+                    self.assertRaisesRegex(ValueError, "authority required"):
+                prepare({"source_sha": wrapper.LINE698_SOURCE}, payload, payload, payload / "missing")
+
+
 class GithubReadTransportTest(unittest.TestCase):
     def test_structured_sha_comparison_reaches_canonical_get_transport(self):
         for source, control in ((PAYLOAD, CONTROL), (PAYLOAD.upper(), CONTROL.upper())):
@@ -517,7 +659,20 @@ class OldTestSourceAuthorityTest(unittest.TestCase):
         }
 
         def transport(path):
+            if path.endswith("/branches/main"):
+                return self.main
+            if ("/contents/infra/" in path or "/git/commits/" in path
+                    or path.endswith("/pulls/700") or "/pulls?per_page=100" in path):
+                return recipe_fixture.get(path)
             return self.get(path.replace(f"/pulls/{source_pr}", "/pulls/549"))
+
+        recipe_fixture = Line698BuildRecipeTest()
+        recipe_fixture.setUp()
+        source_get = transport
+        def transport(path):
+            if path.endswith("/git/commits/" + source) or path.endswith("/git/commits/" + self.pull['head']['sha']):
+                return self.get(path)
+            return source_get(path)
 
         with mock.patch.object(wrapper, "installation_token") as credential:
             result = wrapper.authorize_old_test_source(task, source_pr, source, CONTROL, get=transport)

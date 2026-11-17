@@ -38,10 +38,20 @@ def prepare_recipe(authority: dict, payload: Path, control: Path, destination: P
         raise ValueError("payload mismatch")
     original = (payload / "infra/docker/backend/Dockerfile").read_bytes()
     recipe = authority.get("build_recipe")
-    if source == "b5c28015ef94cb80f6702a61b1237cacd91d9863" and not recipe:
+    if source in {"b5c28015ef94cb80f6702a61b1237cacd91d9863", WRAPPER["LINE698_SOURCE"]} and not recipe:
         raise ValueError("recipe authority required")
     content = original
-    if recipe:
+    if source == WRAPPER["LINE698_SOURCE"]:
+        control_sha = subprocess.check_output(["git", "-C", str(control), "rev-parse", "HEAD"], text=True).strip()
+        if (recipe.get("kind") != "line698-os-security" or recipe.get("source_sha") != source
+                or recipe.get("recipe_sha") != control_sha or authority.get("control_sha") != control_sha
+                or recipe.get("path") != WRAPPER["LINE698_RECIPE_PATH"]
+                or recipe.get("source_sha256") != WRAPPER["LINE698_SOURCE_DOCKERFILE_SHA256"]
+                or recipe.get("recipe_sha256") != WRAPPER["LINE698_RECIPE_SHA256"]):
+            raise ValueError("line698 recipe identity mismatch")
+        content = subprocess.check_output(["git", "-C", str(control), "show", f"{control_sha}:{WRAPPER['LINE698_RECIPE_PATH']}"])
+        WRAPPER["validate_line698_recipe"](original, content)
+    elif recipe:
         if recipe["source_sha"] != source or recipe["path"] != "infra/docker/backend/Dockerfile":
             raise ValueError("recipe identity mismatch")
         content = subprocess.check_output(["git", "-C", str(control), "show", f"{recipe['recipe_sha']}:{recipe['path']}"])
