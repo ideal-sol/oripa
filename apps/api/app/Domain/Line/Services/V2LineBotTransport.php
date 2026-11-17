@@ -27,7 +27,7 @@ final class V2LineBotTransport
             $remaining = min(4, ($deadline - hrtime(true)) / 1_000_000_000);
             if ($remaining <= 0) return ['state' => 'unavailable'];
             $response = Http::withToken($token)->withoutRedirecting()->connectTimeout(min(1, $remaining))->timeout($remaining)
-                ->withOptions(['sink' => $destination, 'on_headers' => static function ($response): void {
+                ->withOptions(['sink' => $destination, 'decode_content' => false, 'on_headers' => static function ($response): void {
                     if ((int) $response->getHeaderLine('Content-Length') > 20971520) throw new \RuntimeException('Content limit.');
                 }, 'progress' => static function ($total, $downloaded) use ($deadline): void {
                     if ($total > 20971520 || $downloaded > 20971520 || hrtime(true) >= $deadline) throw new \RuntimeException('Content limit.');

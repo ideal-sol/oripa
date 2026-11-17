@@ -139,6 +139,10 @@ final class LineChatReceiverTest extends TestCase
             if (str_ends_with($request->url(),'/oauth2/v3/token')) return Http::response(['access_token'=>'synthetic','expires_in'=>900]);
             self::assertSame('https://api-data.line.me/v2/bot/message/123/content',$request->url());
             self::assertSame(0,DB::transactionLevel()); self::assertFalse($options['allow_redirects']);
+            self::assertFalse($options['decode_content']);
+            foreach ([fn()=>($options['on_headers'])(new \GuzzleHttp\Psr7\Response(200,['Content-Length'=>'20971521'])),fn()=>($options['progress'])(0,20971521)] as $limit) {
+                try { $limit(); self::fail('Streaming limit missing'); } catch (\RuntimeException) { self::assertTrue(true); }
+            }
             return Http::response($png,200,['Content-Type'=>'image/png']);
         });
         $e=$this->event('123','image'); $this->receive([$e]);
