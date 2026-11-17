@@ -8,6 +8,11 @@
 - Admin related DOM49 PASS before final added template-copy/BOT tests; lint/typecheck PASS, policy356 PASS, DB guard95 PASS, OpenAPI bundle/generated checks PASS. Final tests retain assertions; one reused fake HTTP body was exhausted and its write-failure fixture now supplies a fresh response. Human Browser/E2E NOT RUN — Human Browser Acceptance Pending. CI canonical build is reused; no local image build or manual CI rerun.
 - Draft-only exact39-path policy installed, with no Ready/Merge/runtime operations. Final HEAD, Required5, fresh Strict review and lock readback remain PR handoff gates, not claimed at this commit. Existing FFmpeg SEV-2 acceptance remains Source-only; D7 must preserve BOT-bound friend evidence, no invented follow dates, and require separate runtime GO plus storage/backup/authenticated-access acceptance. Runtime/operational migrations/ENV/Worker/real LINE/S3/CDN/Ready/Merge all0.
 
+### D6 Draft PR697 — CI exact inventory registration
+
+- Initial automatic CI stopped at policy-gate because six newly tracked Admin files were missing from its strict exact inventory. Register only the two routes, three components and one DOM test; add exact/missing/unknown-path regression. No scope/security assertion weakened and no CI workflow change. Replacement-head CI is automatic; initial verification builds were skipped, manual rerun0.
+- Final isolated115 clean/repeated reconstruction,185-table inventory, forward-only rejection and Backup/Restore schema/constraint/ledger plus encrypted chat/template/frozen-request byte parity PASS. Runtime and operational actions remain0. Exact final HEAD, Required5 and fresh Strict evidence are recorded on PR697.
+
 ### D6 final-candidate checks
 
 - Locked-dependency selected backend50 cases:49 PASS, one HTTP fixture attempted to activate an unconfigured legacy BOT and correctly hit the existing database constraint. Replaced it with the existing connected synthetic BOT fixture; focused rerun1/22 PASS. Combined50 cases456 assertions; D6 receiver17/158, D2 recipients15/77, historical107→115 upgrade1/42 PASS. Stream-limit/decompression/private-attachment supplemental1/16 PASS. Admin related51 DOM PASS; quality1220 PHP PASS.

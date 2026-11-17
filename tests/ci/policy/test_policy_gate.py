@@ -23,6 +23,23 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_line_delivery_d6_admin_paths_are_exact(self):
+        paths = policy_gate.tracked_paths(ROOT)
+        expected = {
+            "apps/admin/src/app/line-chat/page.tsx",
+            "apps/admin/src/app/line-templates/page.tsx",
+            "apps/admin/src/components/line/line-chat-workspace.tsx",
+            "apps/admin/src/components/line/line-template-picker.tsx",
+            "apps/admin/src/components/line/line-template-workspace.tsx",
+            "apps/admin/test/line-chat-workspace.test.tsx",
+        }
+        self.assertTrue(expected <= policy_gate.ADMIN_SKELETON_FILES)
+        self._validate_admin_with_published_release(paths)
+        with self.assertRaises(policy_gate.PolicyFailure):
+            self._validate_admin_with_published_release(paths + ["apps/admin/src/app/line-chat/unsafe.tsx"])
+        with self.assertRaises(policy_gate.PolicyFailure):
+            self._validate_admin_with_published_release([p for p in paths if p != "apps/admin/src/app/line-chat/page.tsx"])
+
     def test_line_delivery_d6_task_id_is_exact(self):
         data = fixture("positive.json")
         task = "LINE-DELIVERY-20261109-D6"
