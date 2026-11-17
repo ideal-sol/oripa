@@ -114,6 +114,28 @@ final class LineBotManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_delivery_http_roles_fresh_mfa_csrf_and_safe_listing(): void
+    {
+        $uri = '/admin/api/v2/line-deliveries';
+        $owner = $this->adminSession(V2AdminRole::Owner);
+        $this->asAdmin($owner)->getJson($uri)->assertOk()->assertJsonStructure(['data', 'next_cursor']);
+        Auth::forgetGuards();
+        $admin = $this->adminSession(V2AdminRole::Admin);
+        $this->asAdmin($admin)->getJson($uri)->assertOk();
+        $this->adminMutation($admin, 'POST', $uri, [])->assertForbidden();
+        Auth::forgetGuards();
+        $operator = $this->adminSession(V2AdminRole::Operator);
+        $this->asAdmin($operator)->getJson($uri)->assertForbidden();
+        Auth::forgetGuards();
+        $stale = $this->adminSession(V2AdminRole::Owner, now()->subMinutes(6));
+        $this->adminMutation($stale, 'POST', $uri, [])->assertForbidden()->assertJsonPath('code', 'FRESH_MFA_REQUIRED');
+        Auth::forgetGuards();
+        $this->asAdmin($owner)->withHeader('X-XSRF-TOKEN', 'wrong')->postJson($uri, [])->assertForbidden()->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
+        Auth::forgetGuards();
+        $this->adminMutation($owner, 'POST', $uri, ['raw_where'=>'1=1'])->assertUnprocessable();
+        Http::assertNothingSent();
+    }
+
     public function test_roles_mfa_csrf_and_unknown_fields_fail_closed(): void
     {
         foreach ([V2AdminRole::Admin, V2AdminRole::Operator] as $role) {

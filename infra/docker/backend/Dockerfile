@@ -9,8 +9,13 @@ RUN apt-get update \
         git \
         libpq-dev \
         libzip-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        ffmpeg \
+        util-linux \
         unzip \
-    && docker-php-ext-install pdo_pgsql pcntl zip \
+    && docker-php-ext-configure gd --with-jpeg \
+    && docker-php-ext-install pdo_pgsql pcntl zip gd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 /usr/bin/composer /usr/bin/composer
@@ -32,8 +37,13 @@ RUN apt-get update \
         git \
         libpq-dev \
         libzip-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        ffmpeg \
+        util-linux \
         unzip \
-    && docker-php-ext-install pdo_pgsql pcntl zip \
+    && docker-php-ext-configure gd --with-jpeg \
+    && docker-php-ext-install pdo_pgsql pcntl zip gd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 /usr/bin/composer /usr/bin/composer
@@ -75,11 +85,24 @@ RUN apt-get update \
         curl \
         libpq5 \
         libzip4 \
+        libjpeg62-turbo \
+        libpng16-16 \
+        libavformat59 \
+        libavcodec59 \
+        libavutil57 \
+        libavdevice59 \
+        libavfilter8 \
+        libpostproc56 \
+        libswresample4 \
+        libswscale6 \
+        util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite \
     && sed -ri 's/^Listen 80$/Listen 8000/' /etc/apache2/ports.conf
 
 COPY --from=production-build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=production-build /usr/bin/ffprobe /usr/bin/ffprobe
+COPY --from=production-build /usr/share/doc/ffmpeg/ /usr/share/doc/ffmpeg/
 COPY --from=production-build /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY infra/docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY infra/docker/backend/apache-production.conf /etc/apache2/sites-available/000-default.conf
@@ -89,6 +112,13 @@ RUN mkdir -p storage/app storage/framework/cache storage/framework/sessions stor
     && chown -R www-data:www-data storage bootstrap/cache /tmp/apache2
 
 USER www-data
+
+RUN php -r 'if (!extension_loaded("gd") || !function_exists("imagecreatefromjpeg")) { exit(1); }' \
+    && /usr/bin/ffprobe -version >/dev/null \
+    && /usr/bin/prlimit --version >/dev/null \
+    && test ! -e /usr/bin/ffmpeg \
+    && test ! -e /usr/bin/ffplay \
+    && test ! -e /usr/bin/qt-faststart
 
 RUN set -eu; \
     php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'; \
@@ -128,15 +158,35 @@ RUN apt-get update \
         linux-libc-dev=6.1.190-1 \
         libpq5 \
         libzip4 \
+        libjpeg62-turbo \
+        libpng16-16 \
+        libavformat59 \
+        libavcodec59 \
+        libavutil57 \
+        libavdevice59 \
+        libavfilter8 \
+        libpostproc56 \
+        libswresample4 \
+        libswscale6 \
+        util-linux \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=build /usr/bin/ffprobe /usr/bin/ffprobe
+COPY --from=build /usr/share/doc/ffmpeg/ /usr/share/doc/ffmpeg/
 COPY --from=build /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
 COPY infra/docker/backend/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY --from=build /var/www/backend/ ./
 
 RUN mkdir -p storage/app storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+RUN php -r 'if (!extension_loaded("gd") || !function_exists("imagecreatefromjpeg")) { exit(1); }' \
+    && /usr/bin/ffprobe -version >/dev/null \
+    && /usr/bin/prlimit --version >/dev/null \
+    && test ! -e /usr/bin/ffmpeg \
+    && test ! -e /usr/bin/ffplay \
+    && test ! -e /usr/bin/qt-faststart
 
 RUN php -r 'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) { throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL; require "vendor/autoload.php";'
 

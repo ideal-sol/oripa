@@ -18,28 +18,43 @@ use Illuminate\Support\Str;
 final class V2LineDeliveryService
 {
     public function save(V2AdminAuthorizationContext $context, ?int $id, int $expectedRevision, Purpose $purpose, Group $group,
-        #[\SensitiveParameter] array $messages, ?CarbonImmutable $scheduledAt, ?V2LineDeliveryPacing $pacing = null, #[\SensitiveParameter] string $title = 'LINE配信'): int
+        #[\SensitiveParameter] array $messages, ?CarbonImmutable $scheduledAt, ?V2LineDeliveryPacing $pacing = null, #[\SensitiveParameter] string $title = 'LINE配信', array $segment = [], ?string $requestKey = null): int
     {
         $admin = $this->authorize($context);
         if (trim($title) === '' || ! mb_check_encoding($title, 'UTF-8') || mb_strlen($title) > 100) throw new \InvalidArgumentException('Invalid LINE delivery title.');
         app(V2LineDeliveryMessages::class)->validate($messages);
+        $segment = app(V2LineDeliverySegment::class)->normalize($segment);
+        if ($requestKey !== null && ! Str::isUuid($requestKey)) throw new \InvalidArgumentException('Invalid request key.');
+        $requestHash = hash('sha256', json_encode([$purpose, $group, $messages, $scheduledAt?->toIso8601String(), $pacing, $title, $segment], JSON_THROW_ON_ERROR));
+        $planned = 0;
         // Reservation-time quota is advisory for future membership; resolving checks afresh.
         if ($scheduledAt !== null) {
-            $estimate = $this->estimate($group, $purpose);
+            $estimate = $this->estimate($group, $purpose, $segment);
+            $planned = $estimate['recipient_count'];
+            $bot = DB::table('line_bots')->where('is_active', true)->where('connection_status', 'succeeded')->firstOrFail();
+            $quota = app(V2LineDeliveryQuota::class);
+            if ($quota->available($bot->id, $quota->month($scheduledAt)) < $planned) throw new \RuntimeException('LINE quota insufficient.');
             if (! $estimate['sufficient']) throw new \RuntimeException('LINE quota insufficient.');
         }
-        return DB::transaction(function () use ($context, $admin, $id, $expectedRevision, $purpose, $group, $messages, $scheduledAt, $pacing, $title): int {
+        return DB::transaction(function () use ($context, $admin, $id, $expectedRevision, $purpose, $group, $messages, $scheduledAt, $pacing, $title, $segment, $requestKey, $requestHash, $planned): int {
             app(V2LineMessagingSettingService::class)->setting(true);
+            if ($id === null && $requestKey !== null) {
+                $existing = DB::table('line_deliveries')->where('create_request_key', $requestKey)->first();
+                if ($existing !== null) {
+                    if ($existing->created_by_admin_id !== $admin->id || ! hash_equals($existing->create_request_hash, $requestHash)) throw new \RuntimeException('LINE delivery request conflict.');
+                    return $existing->id;
+                }
+            }
             $row = $id === null ? null : DB::table('line_deliveries')->where('id', $id)->lockForUpdate()->firstOrFail();
             if ($row !== null && (! in_array($row->status, ['draft', 'scheduled'], true) || $row->revision !== $expectedRevision)) throw new \RuntimeException('LINE delivery revision conflict.');
             $snapshot = $pacing ?? ($row === null ? $this->defaults() : $this->pacing($row->pacing));
             $values = ['category' => $purpose->value, 'recipient_group' => $group->value,
-                'title_ciphertext' => Crypt::encryptString($title),
+                'planned_count' => $planned, 'title_ciphertext' => Crypt::encryptString($title), 'segment' => json_encode((object) $segment, JSON_THROW_ON_ERROR),
                 'messages_ciphertext' => Crypt::encryptString(json_encode($messages, JSON_THROW_ON_ERROR)),
                 'pacing' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'scheduled_at' => $scheduledAt,
                 'status' => $scheduledAt === null ? 'draft' : 'scheduled', 'revision' => ($row?->revision ?? 0) + 1,
                 'updated_by_admin_id' => $admin->id, 'updated_at' => now()];
-            if ($row === null) $id = DB::table('line_deliveries')->insertGetId([...$values, 'public_id' => (string) Str::uuid(), 'created_by_admin_id' => $admin->id]);
+            if ($row === null) $id = DB::table('line_deliveries')->insertGetId([...$values, 'public_id' => (string) Str::uuid(), 'created_by_admin_id' => $admin->id, 'create_request_key' => $requestKey, 'create_request_hash' => $requestKey === null ? null : $requestHash]);
             else DB::table('line_deliveries')->where('id', $id)->update($values);
             $this->audit($context, 'line.delivery.saved', $id);
             return $id;
@@ -70,10 +85,14 @@ final class V2LineDeliveryService
         }, 1);
     }
 
-    public function estimate(Group $group, Purpose $purpose): array
+    public function estimate(Group $group, Purpose $purpose, array $segment = []): array
     {
         $bot = DB::table('line_bots')->where('is_active', true)->firstOrFail();
-        $count = iterator_count(app(V2LineRecipientResolver::class)->resolve($group, $purpose));
+        $count = 0; $started = hrtime(true);
+        foreach (app(V2LineRecipientResolver::class)->resolve($group, $purpose, 200, $segment) as $_) {
+            if (hrtime(true) - $started > 25_000_000_000) throw new \RuntimeException('LINE preview time budget exceeded.');
+            $count++;
+        }
         $remaining = app(V2LineDeliveryQuota::class)->remaining($bot);
         return ['recipient_count' => $count, 'remaining' => $remaining, 'sufficient' => $remaining === null || $remaining >= $count];
     }
@@ -98,10 +117,19 @@ final class V2LineDeliveryService
             return DB::table('line_deliveries')->where('id', $id)->first();
         }, 1);
         if ($delivery === null) return;
-        $refs = iterator_to_array(app(V2LineRecipientResolver::class)->resolve(Group::from($delivery->recipient_group), Purpose::from($delivery->category)));
+        $refs = new \SplTempFileObject(2 * 1024 * 1024); $count = 0; $started = hrtime(true);
+        foreach (app(V2LineRecipientResolver::class)->resolve(Group::from($delivery->recipient_group), Purpose::from($delivery->category), 200, json_decode($delivery->segment, true, 32, JSON_THROW_ON_ERROR)) as $ref) {
+            if ($ref->botId !== $delivery->line_bot_id || $ref->authenticationRevision !== $delivery->authentication_revision) throw new \RuntimeException('LINE BOT changed during resolution.');
+            if (hrtime(true) - $started > 25_000_000_000) throw new \RuntimeException('LINE resolution time budget exceeded.');
+            $refs->fwrite(base64_encode(serialize($ref))."\n"); $count++;
+        }
+        $refs->rewind();
         $bot = DB::table('line_bots')->where('id', $delivery->line_bot_id)->firstOrFail();
         app(V2LineDeliveryQuota::class)->remaining($bot);
-        DB::transaction(function () use ($delivery, $owner, $refs): void {
+        DB::transaction(function () use ($delivery, $owner, $refs, $count): void {
+            DB::statement("SET LOCAL lock_timeout = '2s'");
+            DB::statement("SET LOCAL statement_timeout = '5s'");
+            DB::statement("SET LOCAL transaction_timeout = '30s'");
             app(V2LineMessagingSettingService::class)->setting(true);
             $d = DB::table('line_deliveries')->where('id', $delivery->id)->lockForUpdate()->firstOrFail();
             $now = app(V2LineDeliverySender::class)->clock();
@@ -109,20 +137,27 @@ final class V2LineDeliveryService
             if (! DB::table('line_bots')->where('id', $d->line_bot_id)->where('authentication_revision', $d->authentication_revision)->where('is_active', true)->exists()) {
                 DB::table('line_deliveries')->where('id', $d->id)->update(['status' => 'cancelled', 'lease_owner' => null, 'lease_until' => null]); return;
             }
-            foreach ($refs as $ref) if ($ref->botId !== $d->line_bot_id || $ref->authenticationRevision !== $d->authentication_revision) throw new \RuntimeException('LINE BOT changed during resolution.');
             $quota = app(V2LineDeliveryQuota::class);
-            if ($quota->available($d->line_bot_id, $quota->month($now)) < count($refs)) {
-                DB::table('line_deliveries')->where('id', $d->id)->update(['status' => 'blocked_quota', 'recipient_count' => count($refs), 'lease_owner' => null, 'lease_until' => null]); return;
+            if ($quota->available($d->line_bot_id, $quota->month($now)) < $count) {
+                DB::table('line_deliveries')->where('id', $d->id)->update(['status' => 'blocked_quota', 'recipient_count' => $count, 'lease_owner' => null, 'lease_until' => null]); return;
             }
             $messages = json_decode(Crypt::decryptString($d->messages_ciphertext), true, 512, JSON_THROW_ON_ERROR);
             $push = app(V2LineDeliveryMessages::class)->personalized($messages);
             $pacing = $this->pacing($d->pacing);
-            foreach (array_chunk($refs, $push ? 1 : 500) as $i => $chunk) {
+            $i = 0; $chunk = [];
+            foreach ($refs as $line) {
+                if (trim($line) !== '') {
+                    $ref = unserialize(base64_decode(trim($line), true), ['allowed_classes' => [V2LineRecipient::class, Group::class]]);
+                    if (! $ref instanceof V2LineRecipient) throw new \RuntimeException('Invalid internal recipient snapshot.');
+                    $chunk[] = $ref;
+                }
+                if ($chunk === [] || (count($chunk) < ($push ? 1 : 500) && ! $refs->eof() && trim($line) !== '')) continue;
                 $this->insertBatch($chunk, Purpose::from($d->category), $messages, $push ? 'push' : 'multicast', 'delivery', (string) Str::uuid(),
                     $d->id, $i, $now->addSeconds($pacing->offsetSeconds($push ? 'push' : 'multicast', $i)));
+                $i++; $chunk = [];
             }
-            DB::table('line_deliveries')->where('id', $d->id)->update(['status' => $refs === [] ? 'completed' : 'sending',
-                'recipient_count' => count($refs), 'lease_owner' => null, 'lease_until' => null, 'last_dispatched_at' => $now]);
+            DB::table('line_deliveries')->where('id', $d->id)->update(['status' => $count === 0 ? 'completed' : 'sending',
+                'recipient_count' => $count, 'lease_owner' => null, 'lease_until' => null, 'last_dispatched_at' => $now]);
         }, 1);
     }
 

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'delivery_allowed_link_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env('V2_LINE_DELIVERY_ALLOWED_LINK_HOSTS', ''))))),
     'automated_worker_enabled' => env('V2_LINE_AUTOMATED_WORKER_ENABLED', false),
     'friendship_check_enabled' => env('V2_LINE_FRIENDSHIP_CHECK_ENABLED', false),
     'messaging' => [

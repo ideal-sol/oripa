@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10|11|12|13)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12|13|14)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -87,6 +87,12 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $quotaMigration->up();
             $automatedMigration = require database_path('migrations-v2/2026_11_16_000113_add_v2_line_automated_notifications.php');
             $automatedMigration->up();
+            $managementMigration = require database_path('migrations-v2/2026_11_16_000114_add_v2_line_delivery_management.php');
+            $managementMigration->up();
+            self::assertSame(0, DB::table('line_media_assets')->count());
+            try { $managementMigration->down(); self::fail('Management history rollback accepted'); }
+            catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
+
             self::assertSame(4, DB::table('line_automated_templates')->where('revision', 0)->count());
             self::assertSame(0, DB::table('line_automated_template_versions')->count());
             self::assertSame(0, DB::table('line_automated_outcomes')->count());

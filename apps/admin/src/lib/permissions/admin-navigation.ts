@@ -41,6 +41,7 @@ export type AdminRouteId =
   | "pre-registration-settings"
   | "member-rank-settings"
   | "gacha-notice-settings"
+  | "line-deliveries"
   | "line-settings"
   | "mail-settings"
   | "catalog"
@@ -136,6 +137,7 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("pre-registration-settings", "事前登録特典設定", "/settings/pre-registration", "pre_registration.settings.read", "settings"),
   route("member-rank-settings", "会員ランク設定", "/settings/member-ranks", "member_rank.settings.read", "settings"),
   route("gacha-notice-settings", "ガチャ注意事項設定", "/settings/gacha-notices", "catalog.read", "settings"),
+  route("line-deliveries", "LINE一斉配信", "/line-deliveries", "line.bot.read", "line-settings"),
   route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
   route("mail-settings", "メール設定", "/settings/mail", "content.read", "settings"),
 
@@ -186,6 +188,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "member-rank-settings",
     "gacha-notice-settings",
     "line-settings",
+    "line-deliveries",
     "mail-settings",
   ]),
 ]);
