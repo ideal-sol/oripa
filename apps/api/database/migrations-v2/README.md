@@ -120,6 +120,19 @@ requires a forward correction. Only disposable task databases are authorized
 for test application. OLD Test, NEW and Production application and Runtime
 activation remain deferred pending separate Human approval.
 
+## D7 encrypted follower acquisition — 000116
+
+Human explicitly permits D7-only temporary encrypted staging to establish full
+pagination success before formal recovery.000116 was allocated under the shared
+exclusive Migration Allocation Lock after109 refs,21 open PR heads,68 worktrees,
+active policies and the permanent ledger were audited. It adds bounded encrypted
+staging and immutable BOT/generation run progress;000107–000115 are unchanged.
+Failed/expired/completed staging is manually cleaned; no worker is introduced.
+Formal recovery history remains immutable. Source rollback retains schema and
+aggregate progress;down rejects. Application is authorized only in isolated
+synthetic tests. Operational migration and runtime activation remain deferred.
+See the [D7 design/runbook](../../../../docs/architecture/LINE_D7_FRIEND_ID_BACKFILL_2026-11-17.md).
+
 ## Purpose
 
 This directory is the only Laravel migration root for the new V2 database.

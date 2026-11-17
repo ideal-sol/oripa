@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15|16)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -92,6 +92,10 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $chatMigration = require database_path('migrations-v2/2026_11_17_000115_add_v2_line_chat_and_templates.php');
             $quotaGuard = DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition;
             $chatMigration->up();
+            $stagingMigration = require database_path('migrations-v2/2026_11_17_000116_add_v2_line_friend_id_staging.php');
+            $stagingMigration->up();
+            self::assertSame(0, DB::table('line_friend_id_runs')->count());
+            self::assertSame(0, DB::table('line_friend_id_staging')->count());
             self::assertSame(0, DB::table('line_chat_messages')->count());
             self::assertSame(0, DB::table('line_message_templates')->count());
             self::assertSame($quotaGuard, DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition);
