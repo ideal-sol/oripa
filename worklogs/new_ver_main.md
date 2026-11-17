@@ -10,7 +10,7 @@
 
 ### D6 Draft PR697 — CI exact inventory registration
 
-- Initial automatic CI stopped at policy-gate because six newly tracked Admin files were missing from its strict exact inventory. Register only the two routes, three components and one DOM test; add exact/missing/unknown-path regression. No scope/security assertion weakened and no CI workflow change. Replacement-head CI is automatic; initial verification builds were skipped, manual rerun0.
+- Initial automatic CI stopped at policy-gate because six newly tracked Admin files were missing from its strict exact inventory. Register only the two routes, three components and one DOM test; add exact/missing/unknown-path regression. The full local policy pass also identified the explicit migration inventory, now extended by115 only with missing/duplicate/unregistered rejection tests; full local policy PASS. No scope/security assertion weakened and no CI workflow change. Replacement-head CI is automatic; initial verification builds were skipped, manual rerun0.
 - Final isolated115 clean/repeated reconstruction,185-table inventory, forward-only rejection and Backup/Restore schema/constraint/ledger plus encrypted chat/template/frozen-request byte parity PASS. Runtime and operational actions remain0. Exact final HEAD, Required5 and fresh Strict evidence are recorded on PR697.
 
 ### D6 final-candidate checks

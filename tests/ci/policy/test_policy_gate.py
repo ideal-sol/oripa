@@ -23,6 +23,23 @@ def fixture(name):
 
 
 class PolicyGateTest(unittest.TestCase):
+    def test_line_delivery_d6_migration_inventory_is_exact(self):
+        relative = "apps/api/database/migrations-v2/2026_11_17_000115_add_v2_line_chat_and_templates.php"
+        self.assertIn(relative, policy_gate.V2_IDENTITY_REQUIRED_FILES)
+        for change in ("missing", "duplicate_number", "unregistered_number"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                paths = self.copy_v2_identity_boundary(root)
+                policy_gate.validate_v2_identity_boundary(root, paths)
+                migration = root / relative
+                if change == "missing":
+                    migration.unlink()
+                else:
+                    number = "000115" if change == "duplicate_number" else "000116"
+                    shutil.copy2(migration, migration.with_name(f"2026_11_17_{number}_unregistered.php"))
+                with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
+                    policy_gate.validate_v2_identity_boundary(root, paths)
+
     def test_line_delivery_d6_admin_paths_are_exact(self):
         paths = policy_gate.tracked_paths(ROOT)
         expected = {
