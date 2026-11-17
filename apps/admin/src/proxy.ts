@@ -19,7 +19,9 @@ export function proxy(request: NextRequest) {
       headers: requestHeaders,
     },
   });
-  for (const [name, value] of Object.entries(securityHeaders(nonce, request.nextUrl.pathname === "/line-chat"))) {
+  const path = request.nextUrl.pathname;
+  const lineMediaUpload = ["/line-deliveries", "/line-templates", "/line-chat"].includes(path);
+  for (const [name, value] of Object.entries(securityHeaders(nonce, path === "/line-chat", lineMediaUpload))) {
     response.headers.set(name, value);
   }
   return response;
@@ -42,12 +44,15 @@ function isAllowedHost(hostHeader: string | null): boolean {
   return localHosts.has(host) || configured.has(host);
 }
 
-function securityHeaders(nonce: string, chatMedia = false): Record<string, string> {
+function securityHeaders(nonce: string, chatMedia = false, lineMediaUpload = false): Record<string, string> {
   const scriptSource = nonce
     ? `'nonce-${nonce}' 'strict-dynamic'`
     : "'none'";
   const imageSource = publicOrigin();
   const assetOrigin = assetPublicOrigin(process.env.V2_ASSET_PUBLIC_BASE_URL);
+  const uploadOrigin = lineMediaUpload
+    ? assetPublicOrigin(process.env.V2_LINE_MEDIA_UPLOAD_ORIGIN)
+    : null;
   return {
     "Cache-Control": "private, no-store",
     "Content-Security-Policy": [
@@ -57,7 +62,7 @@ function securityHeaders(nonce: string, chatMedia = false): Record<string, strin
       `img-src 'self' data:${imageSource ? ` ${imageSource}` : ""}${assetOrigin ? ` ${assetOrigin}` : ""}${chatMedia ? " blob:" : ""}`,
       `media-src 'self'${assetOrigin ? ` ${assetOrigin}` : ""}${chatMedia ? " blob:" : ""}`,
       "font-src 'self'",
-      "connect-src 'self'",
+      `connect-src 'self'${uploadOrigin ? ` ${uploadOrigin}` : ""}`,
       "object-src 'none'",
       "base-uri 'none'",
       "frame-ancestors 'none'",

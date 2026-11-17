@@ -48,6 +48,14 @@ image build成立だけをProduction利用やActivationとは扱わない。
 
 ## Local Verification
 
+LINEの画像・動画Uploadは、署名付きURLでBrowserから既存S3へ直接PUTする。
+有効化時にはAdminのRuntime ENV `V2_LINE_MEDIA_UPLOAD_ORIGIN` に、署名付きURLと
+同じ正確なHTTPS Originを設定する（Bucket/Regionに対応するOrigin、Path・Query・
+Wildcard・複数Origin不可）。未設定時は `connect-src 'self'` を維持する。
+設定したOriginの接続許可は `/line-deliveries`、`/line-templates`、`/line-chat` のみに
+適用する。CDN Originとは別設定で、CORS・IAM・署名検証・Admin MFAを代替しない。
+設定例や秘密値をRepositoryへ記録せず、既存BucketのCORSと権限を個別に確認する。
+
 Root Workspaceで次を実行する。
 
 ```text
