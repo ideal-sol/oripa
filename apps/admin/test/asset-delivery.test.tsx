@@ -13,6 +13,13 @@ const asset = { id: "10000000-0000-4000-8000-000000000001", media_type: "image" 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Asset CDN delivery", () => {
+  it("allows authenticated chat blobs only in image/media directives on the chat page", () => {
+    const policy = proxy(new NextRequest("http://localhost/line-chat", { headers: { host: "localhost" } })).headers.get("Content-Security-Policy")!;
+    expect(policy).toContain("media-src 'self' blob:");
+    expect(policy).toContain("object-src 'none'");
+    expect(policy.split(";").find((v) => v.trim().startsWith("script-src"))).not.toContain("blob:");
+    expect(proxy(new NextRequest("http://localhost/line-templates", { headers: { host: "localhost" } })).headers.get("Content-Security-Policy")).not.toContain("blob:");
+  });
   it.each(["gacha", "top-banner", "rank-masters", "rank-effects"])("resolves %s without changing the API origin", (prefix) => {
     expect(assetDeliveryUrl(`/${prefix}/2026/10/file-1_v2.webp`, origin)).toBe(`${origin}/${prefix}/2026/10/file-1_v2.webp`);
   });

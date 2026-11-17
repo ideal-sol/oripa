@@ -322,3 +322,11 @@ Adds fixed-schema segment snapshots, creation request identities and immutable
 media intents/manifests.107–113 are unchanged. Forward-only: retain schema and
 verified media; never roll back to a writer that ignores configured segments.
 Operational migration and runtime activation remain deferred.
+# D6 chat and templates — 000115
+
+Reserved for LINE-DELIVERY-20261109-D6 on 2026-11-17 after exclusive shared
+Migration Allocation flock session91053 and inspection of88 refs, registered
+Worktrees,21 open PRs and the shared reservation ledger. Logical115 remains
+unavailable for reuse. Adds chat history/event identities and template/category
+tables;107–114 remain byte-identical. Forward-only; operational application0.
+Physical lock disposition is recorded at the verified checkpoint/handoff.

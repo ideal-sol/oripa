@@ -309,7 +309,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 type FetchImplementation = typeof fetch;
 
 interface RequestOptions {
-  responseFormat?: "csv";
+  responseFormat?: "csv" | "binary";
   body?: unknown;
   idempotencyKey?: string;
   signal?: AbortSignal;
@@ -3388,6 +3388,17 @@ export class AdminApiClient {
     return this.request("GET", "/line-automated-settings");
   }
 
+  listLineChat(page = 1, status = "", unread = false, search = ""): Promise<import("./generated").LineChatList> { return this.request("GET", `/line-chat?page=${page}&status=${encodeURIComponent(status)}&unread=${unread ? 1 : 0}&search=${encodeURIComponent(search)}`); }
+  getLineChat(id: string, before = 0): Promise<import("./generated").LineChatDetail> { return this.request("GET", `/line-chat/${encodeURIComponent(id)}?before=${before}`); }
+  readLineChat(id: string, through: number): Promise<import("./generated").LineChatResult> { return this.request("POST", `/line-chat/${encodeURIComponent(id)}/read`, { body: { through } }); }
+  statusLineChat(id: string, status: "open" | "closed", expected_revision: number): Promise<import("./generated").LineChatResult> { return this.request("PUT", `/line-chat/${encodeURIComponent(id)}/status`, { body: { status, expected_revision } }); }
+  replyLineChat(id: string, body: import("./generated").LineChatReplyInput): Promise<import("./generated").LineChatResult> { return this.request("POST", `/line-chat/${encodeURIComponent(id)}/replies`, { body }); }
+  lineChatAttachment(id: string, message: string): Promise<Blob> { return this.request("GET", `/line-chat/${encodeURIComponent(id)}/attachments/${encodeURIComponent(message)}`, { responseFormat: "binary" }); }
+  lineChatMedia(page = 1): Promise<import("./generated").LineChatMediaList> { return this.request("GET", `/line-chat/media?page=${page}`); }
+  lineTemplates(bot = "", category = "", page = 1): Promise<import("./generated").LineChatTemplateList> { const q = new URLSearchParams({ page: String(page), ...(bot ? { bot_id: bot } : {}), ...(category ? { category_id: category } : {}) }); return this.request("GET", `/line-templates?${q}`); }
+  saveLineTemplate(kind: "templates" | "template-categories", id: string | null, body: import("./generated").LineChatTemplateInput | import("./generated").LineChatCategoryInput): Promise<import("./generated").LineChatTemplateResult> { return this.request(id ? "PUT" : "POST", `/line-${kind}${id ? "/" + encodeURIComponent(id) : ""}`, { body }); }
+  deleteLineTemplate(kind: "templates" | "template-categories", id: string, body: import("./generated").LineChatDeleteInput): Promise<import("./generated").LineChatResult> { return this.request("DELETE", `/line-${kind}/${encodeURIComponent(id)}`, { body }); }
+
   updateLineAutomatedSettings(event: LineAutomatedSetting["event"], body: LineAutomatedInput): Promise<LineAutomatedCollection> {
     return this.request("PUT", `/line-automated-settings/${event}`, { body });
   }
@@ -3395,6 +3406,9 @@ export class AdminApiClient {
   private async request<T>(
     method: "DELETE" | "GET" | "POST" | "PUT",
     path:
+      | `/line-chat${string}`
+      | `/line-templates${string}`
+      | `/line-template-categories${string}`
       | `/line-deliveries${string}`
       | `/line-bots${string}`
       | `/line-automated-settings${string}`
@@ -3432,6 +3446,9 @@ export class AdminApiClient {
     if (
       (!path.startsWith("/auth/") &&
         !path.startsWith("/line-deliveries") &&
+        !path.startsWith("/line-chat") &&
+        !path.startsWith("/line-templates") &&
+        !path.startsWith("/line-template-categories") &&
         !path.startsWith("/line-bots") &&
         !path.startsWith("/line-automated-settings") &&
         path !== "/settings/line-login" &&
@@ -3530,7 +3547,7 @@ export class AdminApiClient {
       if (response.status === 204) {
         return undefined as T;
       }
-      if (options.responseFormat === "csv") {
+      if (options.responseFormat === "csv" || options.responseFormat === "binary") {
         return (await response.blob()) as T;
       }
       return (await response.json()) as T;

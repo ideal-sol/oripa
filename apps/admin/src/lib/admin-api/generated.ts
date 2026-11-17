@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 0b22ada5c4c9e20a9b5cf5f37f90a70a90223cc1cb7fe8a046f83ef2bcbb358b
+// Contract SHA-256: 9c52acd6c4a60d944379e0cfcc4206d5d2878f001521434bfd7f52ce8e2bc039
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -9,6 +9,10 @@ export const ADMIN_PERMISSION_CODES = [
   "identity.admin.session.revoke",
   "identity.line.read",
   "identity.line.manage",
+  "line.chat.read",
+  "line.chat.reply",
+  "line.template.read",
+  "line.template.manage",
   "line.bot.read",
   "line.bot.manage",
   "user.tag.read",
@@ -2951,6 +2955,22 @@ export interface AdminCatalogDetail<T> {
 export type AdminCatalogVisibility = "all" | "visible" | "hidden";
 export type AdminCatalogDirection = "asc" | "desc";
 
+export type LineChatConversation = { "id": string; "bot_id": string; "member_id": string | null; "name": string; "rank_level": number | null; "points": number | null; "status": "open" | "closed"; "revision": number; "unread_count": number; "last_message_at": string; "summary": string; };
+export type LineChatList = { "data": Array<LineChatConversation>; "next_page": number | null; };
+export type LineChatMessage = { "id": string; "sequence": number; "direction": "inbound" | "outbound"; "type": string; "unsent": boolean; "body": null | { "text"?: string; "title"?: string; "address"?: string; "packageId"?: string; "stickerId"?: string; } | Array<LineDeliveryMessage>; "media_state": string; "has_attachment": boolean; "received_at": string; "batch_status": string | null; };
+export type LineChatDetail = { "conversation": LineChatConversation; "messages": Array<LineChatMessage>; "next_before": number | null; };
+export type LineChatReplyInput = { "request_key": string; "messages": Array<LineDeliveryMessage>; };
+export type LineChatReadInput = { "through": number; };
+export type LineChatStatusInput = { "status": "open" | "closed"; "expected_revision": number; };
+export type LineChatResult = { "id": string; };
+export type LineChatCategory = { "id": string; "name": string; "sort_order": number; "revision": number; };
+export type LineChatTemplate = { "id": string; "name": string; "category_id": string | null; "revision": number; "messages": Array<LineDeliveryMessage>; };
+export type LineChatTemplateList = { "bot_id": string; "data": Array<LineChatTemplate>; "next_page": number | null; "categories": Array<LineChatCategory>; "bots": Array<{ "id": string; "name": string; "is_active": boolean; }>; };
+export type LineChatTemplateInput = { "bot_id": string; "expected_revision": number; "name": string; "category_id": string | null; "messages": Array<LineDeliveryMessage>; };
+export type LineChatCategoryInput = { "bot_id": string; "expected_revision": number; "name": string; "sort_order": number; };
+export type LineChatDeleteInput = { "bot_id": string; "expected_revision": number; };
+export type LineChatTemplateResult = { "id": string; "revision": number; };
+export type LineChatMediaList = { "data": Array<LineMediaAsset>; "next_page": number | null; };
 export type LineDeliverySummary = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "id": string; "revision": number; "status": string; "scheduled_at": string | null; "created_by": string | null; "created_at": string; "recipient_count": number; "planned_count": number; "bot_id": string | null; "authentication_revision": number | null; "batch_counts": LineDeliveryCounts; "recipient_counts": LineDeliveryCounts; };
 export type LineDeliverySegment = { "purchase_min"?: number; "purchase_max"?: number; "points_min"?: number; "points_max"?: number; "purchase_within_days"?: number; "purchase_absent_days"?: number; "registered_from"?: string; "registered_to"?: string; "followed_from"?: string; "followed_to"?: string; "rank_levels"?: Array<number>; };
 export type LineDeliveryPacing = { "push_every": number; "push_wait_seconds": number; "multicast_wait_seconds": number; };

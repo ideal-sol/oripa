@@ -9,6 +9,7 @@ final class V2PermissionAuthorizer
 {
     private const ROLE_PERMISSIONS = [
         'owner' => [
+            'line.chat.read', 'line.chat.reply', 'line.template.read', 'line.template.manage',
             'member_rank.settings.read',
             'member_rank.settings.manage',
             'member_rank.user.manage',
@@ -52,6 +53,7 @@ final class V2PermissionAuthorizer
             'contact.manage',
         ],
         'admin' => [
+            'line.chat.read', 'line.chat.reply', 'line.template.read', 'line.template.manage',
             'member_rank.settings.read',
             'member_rank.settings.manage',
             'member_rank.user.manage',
@@ -91,6 +93,7 @@ final class V2PermissionAuthorizer
             'contact.manage',
         ],
         'operator' => [
+            'line.chat.read', 'line.chat.reply', 'line.template.read',
             'member_rank.settings.read',
             'pre_registration.settings.read',
             'agency.read',

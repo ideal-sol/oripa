@@ -45,7 +45,7 @@ it("keeps read-only controls disabled without D4 HOLD recovery", async () => {
   expect(screen.getByRole("button", { name: "新規配信" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: /HOLD.*復旧|一括復旧/ })).toBeNull();
 });
-it("edits mixed formats without split imagemap regions or D6 templates", async () => {
+it("edits mixed formats with template loading and without split imagemap regions", async () => {
   render(<LineDeliveryWorkspace />); await screen.findByText("配信はありません。");
   fireEvent.click(screen.getByRole("button", { name: "新規配信" }));
   fireEvent.change(screen.getByLabelText("形式"), { target: { value: "imagemap" } });
@@ -53,5 +53,5 @@ it("edits mixed formats without split imagemap regions or D6 templates", async (
   expect(screen.queryByText("4分割")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "メッセージを追加" }));
   expect(screen.getAllByLabelText("形式")).toHaveLength(2);
-  expect(screen.queryByRole("button", { name: "テンプレートを選択" })).toBeNull();
+  expect(screen.getByRole("button", { name: "テンプレートを選択" })).toBeEnabled();
 });

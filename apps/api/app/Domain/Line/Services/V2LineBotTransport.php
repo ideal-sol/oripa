@@ -17,6 +17,31 @@ final class V2LineBotTransport
 
     public function __debugInfo(): array { return ['credentials' => '[redacted]']; }
 
+    /** Fixed host, bounded streamed content; caller owns and removes the private temp file. */
+    public function chatContent(#[SensitiveParameter] object $bot, string $id, string $destination, int $deadline): array
+    {
+        if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0 || ! preg_match('/\A[0-9]{1,128}\z/', $id)) return ['state' => 'unavailable'];
+        try {
+            if ($deadline - hrtime(true) < 3_100_000_000) return ['state' => 'unavailable'];
+            $token = $this->token($bot, false);
+            $remaining = min(4, ($deadline - hrtime(true)) / 1_000_000_000);
+            if ($remaining <= 0) return ['state' => 'unavailable'];
+            $response = Http::withToken($token)->withoutRedirecting()->connectTimeout(min(1, $remaining))->timeout($remaining)
+                ->withOptions(['sink' => $destination, 'on_headers' => static function ($response): void {
+                    if ((int) $response->getHeaderLine('Content-Length') > 20971520) throw new \RuntimeException('Content limit.');
+                }, 'progress' => static function ($total, $downloaded) use ($deadline): void {
+                    if ($total > 20971520 || $downloaded > 20971520 || hrtime(true) >= $deadline) throw new \RuntimeException('Content limit.');
+                }])->get('https://api-data.line.me/v2/bot/message/'.$id.'/content');
+            unset($token);
+            if ($response->status() === 202) return ['state' => 'pending_external'];
+            clearstatcache(true, $destination);
+            if ($response->status() !== 200 || filesize($destination) < 1 || filesize($destination) > 20971520) return ['state' => 'unavailable'];
+            return ['state' => 'stored', 'mime' => strtolower(trim(explode(';', $response->header('Content-Type'))[0]))];
+        } catch (Throwable) {
+            return ['state' => 'unavailable'];
+        }
+    }
+
     public function cacheRefreshedDeliveryToken(): void
     {
         if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0) throw $this->unavailable();
