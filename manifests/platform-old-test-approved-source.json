@@ -2,11 +2,11 @@
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
   "task_id": "OLDTEST-LINE-D1-D7-20261117",
-  "source_pr": 701,
-  "source_sha": "5f39bf474c0edc8195f70cde443d94396bd05e13",
+  "source_pr": 706,
+  "source_sha": "a24f02d8dd2af264179201b52d2d780c51c9c18b",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR701 Squash 5f39bf474c0edc8195f70cde443d94396bd05e13, Tree 0c2b254c56c68d604187a7a186da90d21146bfb8. Preserve PR698 LINE D1-D7, PR688/PR692 fixes, migrations001-116 and Client/Testkit alpha.52; add the reviewed Admin direct-upload CSP correction. Reuse exact PR700 OS Security Recipe at b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a with fixed complete bytes; retain PR583 historical authority. One normal API+Admin linux/amd64 formal Build only after separate Human Exact Control Merge and Build GO. Keep Node22.23.5, Storefront and Agency. PR695 remains on hold. Migration108-116, Executor installation and Runtime activation require separate Exact Human GO through the existing Canonical financial Fence/Drain, paired DB/private-file backup, D6 same-volume RW, forward-only Recovery and retained Worker/Timer checks. New LINE sender and D4 automation OFF; no quota baseline, BOT change, real send, D7 acquisition or reward regrant without separate Human GO. CVE-2026-107678 accepted by Human only for OLD Test full-feature verification; other Security Gates remain unchanged. Preserve LINE500/configured60days, Paidy TEST/OFF, UnivaPay TEST/ON and automatic exchange. Security/Artifact Gates, TTL300 and locks remain mandatory. Production Authority/Payload unchanged."
+  "authority": "Human-approved exact OLD Test payload: PR706 Squash a24f02d8dd2af264179201b52d2d780c51c9c18b / Tree ab772163e4b301a2ef8c1faad464ac6d0e847a3b removes only additional LINE D1-D7 reauthentication. Normal Admin authentication, permissions, CSRF, audit, Quota, media protection and D7 Human approval remain. Reuse exact PR700 recipe b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a, complete bytes and historical PR583/698/701 authority; source API/Admin Dockerfiles equal PR701. Contract alpha.52, Node22.23.5 and Ledger116; migrations=[] with no replay. Control Merge and one normal API+Admin linux/amd64 formal Build require GO-1; exact Runtime and Technical acceptance require GO-2. Preserve existing LINE/Webhook/S3/D6 RW/SMS/rank/UnivaPay TEST/Paidy TEST/Timer settings. Security/Artifact Gates, TTL300, financial Fence/Drain and Recovery remain mandatory. Existing dependency findings remain recorded, no new risk acceptance. Human OLD-only FFmpeg CVE-2026-107678 acceptance retained. No sender/D4/BOT/Quota/send/D7 activation or Production Authority change. PR695/703 remain deferred."
 }
