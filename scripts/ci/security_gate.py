@@ -153,7 +153,7 @@ def pnpm_findings(audit: dict, lock: str) -> list[dict]:
         or "importers:" not in lock
     ):
         raise SecurityFailure("pnpm audit counts or lockfile are missing or malformed")
-    advisory_counts = Counter()
+    affected_version_counts = Counter()
     findings = []
     for audit_id, advisory in audit["advisories"].items():
         if (
@@ -164,10 +164,10 @@ def pnpm_findings(audit: dict, lock: str) -> list[dict]:
             or advisory["severity"] not in severities
         ):
             raise SecurityFailure("pnpm advisory is malformed")
-        advisory_counts[advisory["severity"]] += 1
         advisory_id = str(advisory.get("url", "")).rstrip("/").split("/")[-1]
         if not re.fullmatch(r"GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}", advisory_id):
             raise SecurityFailure("pnpm advisory identity is missing or malformed")
+        seen_versions = set()
         for finding in advisory["findings"]:
             if (
                 not isinstance(finding, dict)
@@ -177,6 +177,12 @@ def pnpm_findings(audit: dict, lock: str) -> list[dict]:
                 or not isinstance(advisory.get("module_name"), str)
             ):
                 raise SecurityFailure("pnpm advisory finding is malformed")
+            if finding["version"] in seen_versions:
+                raise SecurityFailure("pnpm advisory contains duplicate affected versions")
+            seen_versions.add(finding["version"])
+            # pnpm10's registry report counts affected version findings, not
+            # advisory IDs or dependency paths. Preserve every path below.
+            affected_version_counts[advisory["severity"]] += 1
             package_version = re.escape(advisory["module_name"] + "@" + finding["version"])
             if not re.search(
                 r"(?m)^  ['\"]?" + package_version + r"(?:\([^\n]*\))?['\"]?:$", lock
@@ -194,7 +200,7 @@ def pnpm_findings(audit: dict, lock: str) -> list[dict]:
                         "path": path,
                     }
                 )
-    if any(counts[severity] != advisory_counts[severity] for severity in severities):
+    if any(counts[severity] != affected_version_counts[severity] for severity in severities):
         raise SecurityFailure("pnpm audit advisory counts are inconsistent")
     validate_findings(findings, "pnpm")
     return sorted(findings, key=lambda item: json.dumps(item, sort_keys=True))

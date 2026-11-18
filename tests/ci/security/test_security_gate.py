@@ -223,6 +223,38 @@ class SecurityGateTest(unittest.TestCase):
         audit["metadata"]["vulnerabilities"]["moderate"] = 0
         self.assertEqual(security_gate.pnpm_findings(audit, self.pnpm_lock()), [])
 
+    def test_pnpm_counts_affected_versions_and_preserves_all_dependency_paths(self):
+        audit = self.pnpm_audit()
+        audit["advisories"]["1"]["findings"] = [
+            {"version": "1.0.0", "paths": [".>fixture", ".>tool>fixture"]},
+            {"version": "2.0.0", "paths": [".>other-tool>fixture"]},
+        ]
+        audit["metadata"]["vulnerabilities"]["moderate"] = 2
+        lock = self.pnpm_lock() + "  fixture@2.0.0:\n"
+        findings = security_gate.pnpm_findings(audit, lock)
+        self.assertEqual(len(findings), 3)
+        self.assertEqual({row["version"] for row in findings}, {"1.0.0", "2.0.0"})
+        self.assertEqual({row["path"] for row in findings}, {".>fixture", ".>tool>fixture", ".>other-tool>fixture"})
+        for incorrect in (0, 1, 3):
+            audit["metadata"]["vulnerabilities"]["moderate"] = incorrect
+            with self.subTest(count=incorrect), self.assertRaisesRegex(security_gate.SecurityFailure, "counts are inconsistent"):
+                security_gate.pnpm_findings(audit, lock)
+
+    def test_pnpm_duplicate_version_cannot_satisfy_metadata_count(self):
+        audit = self.pnpm_audit()
+        audit["advisories"]["1"]["findings"].append({"version": "1.0.0", "paths": [".>second>fixture"]})
+        audit["metadata"]["vulnerabilities"]["moderate"] = 2
+        with self.assertRaisesRegex(security_gate.SecurityFailure, "duplicate affected versions"):
+            security_gate.pnpm_findings(audit, self.pnpm_lock())
+
+    def test_pnpm_multiple_advisories_are_not_deduplicated_by_version(self):
+        audit = self.pnpm_audit()
+        audit["advisories"]["2"] = copy.deepcopy(audit["advisories"]["1"])
+        audit["advisories"]["2"]["url"] = "https://github.com/advisories/GHSA-abcd-1234-5678"
+        audit["metadata"]["vulnerabilities"]["moderate"] = 2
+        rows = security_gate.pnpm_findings(audit, self.pnpm_lock())
+        self.assertEqual({row["advisory_id"] for row in rows}, {"GHSA-1234-5678-9abc", "GHSA-abcd-1234-5678"})
+
     def test_composer_lock_mismatch_and_incomplete_identity_fail_closed(self):
         for package, advisory in (("absent", {"advisoryId": "fixture"}), ("fixture", {})):
             with self.subTest(package=package), self.assertRaises(security_gate.SecurityFailure):
