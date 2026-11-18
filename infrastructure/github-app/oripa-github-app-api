@@ -420,7 +420,54 @@ def authorize_line701_recipe(control_sha: str, get=None) -> dict:
     }}
 
 
+LINE706_SOURCE = "a24f02d8dd2af264179201b52d2d780c51c9c18b"
+LINE706_TREE = "ab772163e4b301a2ef8c1faad464ac6d0e847a3b"
+LINE706_REVIEWED = "fe767b2e7bc35063e3e64507c3a1db974155ab77"
+LINE706_PARENT = "bfb84acd214eb148585d2b4212a0199ec254d34c"
+
+
+def authorize_line706_recipe(control_sha: str, get=None) -> dict:
+    # Reuse all historical PR700 recipe provenance/bytes checks, including the
+    # structured native Compare transport. Only this exact additional source
+    # may receive the existing fixed recipe.
+    result = authorize_line701_recipe(control_sha, get)
+    comparison = api_compare(REPOSITORY, LINE706_SOURCE, control_sha, get=get)
+    if (comparison.get("status") not in {"ahead", "identical"}
+            or comparison.get("merge_base_commit", {}).get("sha") != LINE706_SOURCE
+            or comparison.get("base_commit", {}).get("sha") != LINE706_SOURCE):
+        fail("line706_source_not_ancestor")
+    read = get or api_get
+    pull = read(f"/repos/{REPOSITORY}/pulls/706")
+    if (pull.get("state") != "closed" or pull.get("merged") is not True
+            or pull.get("merge_commit_sha") != LINE706_SOURCE
+            or pull.get("base", {}).get("ref") != "main"
+            or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("sha") != LINE706_REVIEWED):
+        fail("line706_source_merge_invalid")
+    for revision in (LINE706_SOURCE, LINE706_REVIEWED):
+        commit = read(f"/repos/{REPOSITORY}/git/commits/{revision}")
+        if commit.get("sha") != revision or commit.get("tree", {}).get("sha") != LINE706_TREE:
+            fail("line706_source_tree_invalid")
+        if revision == LINE706_SOURCE and [p.get("sha") for p in commit.get("parents", [])] != [LINE706_PARENT]:
+            fail("line706_source_parent_invalid")
+    validate_required_checks(LINE706_REVIEWED, read)
+    for path in ("infra/docker/backend/Dockerfile", "apps/admin/Dockerfile"):
+        bodies = []
+        for revision in (LINE701_SOURCE, LINE706_SOURCE):
+            entry = read(f"/repos/{REPOSITORY}/contents/{path}?ref={revision}")
+            if entry.get("type") != "file" or entry.get("encoding") != "base64":
+                fail("line706_dockerfile_blob_invalid")
+            bodies.append(base64.b64decode("".join(entry["content"].split()), validate=True))
+        if bodies[0] != bodies[1]:
+            fail("line706_dockerfile_changed")
+    result["build_recipe"].update(kind="line706-os-security", source_sha=LINE706_SOURCE)
+    return result
+
+
 def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> dict:
+    if source_sha == LINE706_SOURCE:
+        return authorize_line706_recipe(control_sha, get)
     if source_sha == LINE701_SOURCE:
         return authorize_line701_recipe(control_sha, get)
     if source_sha == LINE698_SOURCE:

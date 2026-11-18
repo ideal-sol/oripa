@@ -607,6 +607,83 @@ class Line701BuildRecipeTest(unittest.TestCase):
                 prepare(authority, payload, payload, payload / "not-ancestor")
 
 
+class Line706BuildRecipeTest(unittest.TestCase):
+    def setUp(self):
+        self.history = Line701BuildRecipeTest(); self.history.setUp()
+        self.source = {"sha": wrapper.LINE706_SOURCE, "tree": {"sha": wrapper.LINE706_TREE}, "parents": [{"sha": wrapper.LINE706_PARENT}]}
+        self.reviewed = {"sha": wrapper.LINE706_REVIEWED, "tree": {"sha": wrapper.LINE706_TREE}}
+        self.pull = {"state": "closed", "merged": True, "merge_commit_sha": wrapper.LINE706_SOURCE,
+                     "base": {"ref": "main", "repo": {"full_name": wrapper.REPOSITORY}},
+                     "head": {"sha": wrapper.LINE706_REVIEWED, "repo": {"full_name": wrapper.REPOSITORY}}}
+        self.blobs = {}
+        for sha in (wrapper.LINE701_SOURCE, wrapper.LINE706_SOURCE):
+            for path in ("infra/docker/backend/Dockerfile", "apps/admin/Dockerfile"):
+                self.blobs[(sha, path)] = subprocess.check_output(["git", "show", sha + ":" + path], cwd=ROOT)
+
+    def get(self, path):
+        if path.endswith("/pulls/706"): return self.pull
+        for value in (self.source, self.reviewed):
+            if path.endswith("/git/commits/" + value["sha"]): return value
+        for (sha, name), body in self.blobs.items():
+            if path.endswith("/contents/" + name + "?ref=" + sha):
+                return {"type": "file", "encoding": "base64", "content": base64.b64encode(body).decode()}
+        return self.history.get(path)
+
+    def recipe(self, native=False):
+        return wrapper.authorize_old_test_recipe(wrapper.LINE706_SOURCE, CONTROL, None if native else self.get)["build_recipe"]
+
+    def test_native_and_injected_exact_recipe(self):
+        with mock.patch.object(wrapper, "validate_required_checks"):
+            expected = self.recipe()
+            with mock.patch.object(wrapper, "_github_get_response", side_effect=lambda path, **kw: io.BytesIO(json.dumps(self.get(path)).encode())) as transport:
+                self.assertEqual(self.recipe(native=True), expected)
+            self.assertEqual(len([c for c in transport.call_args_list if "/compare/" in c.args[0]]), 3)
+        self.assertEqual(expected["source_sha"], wrapper.LINE706_SOURCE)
+        self.assertEqual(expected["recipe_sha"], wrapper.LINE701_RECIPE_COMMIT)
+        self.assertEqual(expected["recipe_sha256"], wrapper.LINE698_RECIPE_SHA256)
+
+    def test_wrong_source_provenance_and_dockerfiles_rejected(self):
+        for case in ("merge", "head", "base", "tree", "reviewed_tree", "parent", "api", "admin", "ancestor", "unmerged"):
+            self.setUp()
+            if case == "merge": self.pull["merge_commit_sha"] = CONTROL
+            elif case == "head": self.pull["head"]["sha"] = CONTROL
+            elif case == "base": self.pull["base"]["ref"] = "other"
+            elif case == "tree": self.source["tree"]["sha"] = TREE
+            elif case == "reviewed_tree": self.reviewed["tree"]["sha"] = TREE
+            elif case == "parent": self.source["parents"] = []
+            elif case == "api": self.blobs[(wrapper.LINE706_SOURCE, "infra/docker/backend/Dockerfile")] += b"RUN arbitrary\n"
+            elif case == "admin": self.blobs[(wrapper.LINE706_SOURCE, "apps/admin/Dockerfile")] += b"RUN arbitrary\n"
+            elif case == "ancestor": self.history.ancestor = False
+            elif case == "unmerged": self.pull["merged"] = False
+            with self.subTest(case=case), mock.patch.object(wrapper, "validate_required_checks"), self.assertRaises(wrapper.WrapperError): self.recipe()
+
+    def test_recipe_checks_and_arbitrary_source_denied(self):
+        with mock.patch.object(wrapper, "validate_required_checks", side_effect=wrapper.WrapperError("checks")), self.assertRaises(wrapper.WrapperError): self.recipe()
+        self.assertEqual(wrapper.authorize_old_test_recipe("f" * 40, CONTROL, self.get), {})
+
+    def test_native_recipe_materialization_and_archive_bytes(self):
+        prepare = runpy.run_path(str(ROOT / "scripts/ops/old_test_source_authority.py"))["prepare_recipe"]
+        with mock.patch.object(wrapper, "validate_required_checks"), mock.patch.object(wrapper, "_github_get_response", side_effect=lambda path, **kw: io.BytesIO(json.dumps(self.get(path)).encode())):
+            recipe = self.recipe(native=True)
+        with tempfile.TemporaryDirectory() as temp:
+            payload = Path(temp); file = payload / "infra/docker/backend/Dockerfile"; file.parent.mkdir(parents=True); file.write_bytes(self.blobs[(wrapper.LINE706_SOURCE, "infra/docker/backend/Dockerfile")])
+            authority = {"source_sha": wrapper.LINE706_SOURCE, "control_sha": CONTROL, "build_recipe": recipe}
+            with mock.patch("subprocess.check_output", side_effect=[wrapper.LINE706_SOURCE + "\n", CONTROL + "\n", self.history.updated]), mock.patch("subprocess.run"):
+                prepare(authority, payload, payload, payload / "recipe")
+            self.assertEqual((payload / "recipe").read_bytes(), self.history.updated)
+            for field in recipe:
+                bad = copy.deepcopy(authority); bad["build_recipe"][field] = "invalid"
+                with self.subTest(field=field), mock.patch("subprocess.check_output", side_effect=[wrapper.LINE706_SOURCE + "\n", CONTROL + "\n"]), self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    prepare(bad, payload, payload, payload / "bad")
+            with mock.patch("subprocess.check_output", return_value=wrapper.LINE706_SOURCE + "\n"), self.assertRaisesRegex(ValueError, "authority required"):
+                prepare({"source_sha": wrapper.LINE706_SOURCE}, payload, payload, payload / "missing")
+        raw = subprocess.check_output(["git", "archive", wrapper.LINE706_SOURCE, "infra/docker/backend/Dockerfile", "apps/admin/Dockerfile"], cwd=ROOT)
+        import tarfile
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            for name in ("infra/docker/backend/Dockerfile", "apps/admin/Dockerfile"):
+                self.assertEqual(archive.extractfile(name).read(), self.blobs[(wrapper.LINE701_SOURCE, name)])
+
+
 class GithubReadTransportTest(unittest.TestCase):
     def test_structured_sha_comparison_reaches_canonical_get_transport(self):
         for source, control in ((PAYLOAD, CONTROL), (PAYLOAD.upper(), CONTROL.upper())):
@@ -1257,8 +1334,8 @@ class IntegratedLineApprovalTest(unittest.TestCase):
 
     def test_current_source_keeps_line_product_migrations_and_contracts(self):
         approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
-        self.assertEqual(approval["source_sha"], wrapper.LINE701_SOURCE)
-        self.assertEqual(approval["source_pr"], 701)
+        self.assertEqual(approval["source_sha"], wrapper.LINE706_SOURCE)
+        self.assertEqual(approval["source_pr"], 706)
         self.assertEqual(approval["task_id"], "OLDTEST-LINE-D1-D7-20261117")
         self.assertEqual(approval["image_mode"], "normal")
         self.assertEqual(approval["platform"], "linux/amd64")
