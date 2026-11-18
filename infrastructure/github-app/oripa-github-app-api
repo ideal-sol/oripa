@@ -362,7 +362,66 @@ def authorize_line698_recipe(control_sha: str, get=None) -> dict:
     }}
 
 
+LINE701_SOURCE = "5f39bf474c0edc8195f70cde443d94396bd05e13"
+LINE701_TREE = "0c2b254c56c68d604187a7a186da90d21146bfb8"
+LINE701_RECIPE_COMMIT = "b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a"
+LINE701_RECIPE_REVIEWED = "c02207ce7498bad635eb29eecf292733f3a0ffb0"
+LINE701_RECIPE_TREE = "1b3adc77482c36adaebddd1ea3ea253ef0fd61cd"
+
+
+def authorize_line701_recipe(control_sha: str, get=None) -> dict:
+    get = get or api_get
+    if not FULL_SHA.fullmatch(control_sha):
+        fail("line701_control_invalid")
+    main = get(f"/repos/{REPOSITORY}/branches/main")
+    if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
+        fail("line701_control_not_protected_main")
+    for revision in (LINE701_SOURCE, LINE701_RECIPE_COMMIT):
+        comparison = api_compare(REPOSITORY, revision, control_sha, get=get)
+        if (comparison.get("status") not in {"ahead", "identical"}
+                or comparison.get("merge_base_commit", {}).get("sha") != revision
+                or comparison.get("base_commit", {}).get("sha") != revision):
+            fail("line701_recipe_or_source_not_ancestor")
+    source = get(f"/repos/{REPOSITORY}/git/commits/{LINE701_SOURCE}")
+    if (source.get("sha") != LINE701_SOURCE or source.get("tree", {}).get("sha") != LINE701_TREE
+            or [p.get("sha") for p in source.get("parents", [])] != [LINE701_RECIPE_COMMIT]):
+        fail("line701_source_identity_invalid")
+    pull = get(f"/repos/{REPOSITORY}/pulls/700")
+    if (pull.get("state") != "closed" or pull.get("merged") is not True
+            or pull.get("merge_commit_sha") != LINE701_RECIPE_COMMIT
+            or pull.get("base", {}).get("ref") != "main"
+            or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("ref") != LINE698_RECIPE_BRANCH
+            or pull.get("head", {}).get("sha") != LINE701_RECIPE_REVIEWED):
+        fail("line701_recipe_merge_invalid")
+    for revision in (LINE701_RECIPE_COMMIT, LINE701_RECIPE_REVIEWED):
+        commit = get(f"/repos/{REPOSITORY}/git/commits/{revision}")
+        if commit.get("sha") != revision or commit.get("tree", {}).get("sha") != LINE701_RECIPE_TREE:
+            fail("line701_recipe_reviewed_tree_invalid")
+        if revision == LINE701_RECIPE_COMMIT and [p.get("sha") for p in commit.get("parents", [])] != [LINE698_CONTROL_BASE]:
+            fail("line701_recipe_parent_invalid")
+        validate_required_checks(revision, get)
+    bodies = []
+    for revision, path in ((LINE701_SOURCE, "infra/docker/backend/Dockerfile"),
+                           (LINE701_RECIPE_COMMIT, LINE698_RECIPE_PATH)):
+        entry = get(f"/repos/{REPOSITORY}/contents/{path}?ref={revision}")
+        if entry.get("type") != "file" or entry.get("encoding") != "base64":
+            fail("line701_recipe_blob_invalid")
+        bodies.append(base64.b64decode("".join(entry["content"].split()), validate=True))
+    validate_line698_recipe(*bodies)
+    return {"build_recipe": {
+        "schema_version": "1.0", "kind": "line701-os-security",
+        "source_sha": LINE701_SOURCE, "recipe_pr": 700, "recipe_sha": LINE701_RECIPE_COMMIT,
+        "path": LINE698_RECIPE_PATH, "source_sha256": LINE698_SOURCE_DOCKERFILE_SHA256,
+        "recipe_sha256": LINE698_RECIPE_SHA256, "reviewed_sha": LINE701_RECIPE_REVIEWED,
+        "tree": LINE701_RECIPE_TREE,
+    }}
+
+
 def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> dict:
+    if source_sha == LINE701_SOURCE:
+        return authorize_line701_recipe(control_sha, get)
     if source_sha == LINE698_SOURCE:
         return authorize_line698_recipe(control_sha, get)
     compare_get = get
