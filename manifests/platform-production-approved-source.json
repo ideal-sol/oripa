@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "516fe7a946683103ed68ee4875d5ea3d94327a0d",
-  "change_id": "NEWPROD-PR692-AUTHORITY",
-  "pr_number": 692,
-  "payload_manifest_sha256": "9b7fe6debf645b33e112d8cef92f2f0a3b074dcdad56fbb9d89e3cf1e3949c1d",
-  "authority": "Human-approved exact Runtime Source: Draft preparation only for PR #688 base plus PR #692 wallet initialization one hunk (+5/-1). Authority Merge, formal Build, Stage and Activation require separate Human GO. API-only activation; current Admin image preserved (PR #663 excluded); Agency and Storefront preserved. Contract alpha.52; Ledger107; no migrations. LINE delivery D1/D2 and migrations108-110 excluded. Preserve payment, member rank, LINE rewards, Worker/Timer and F2-B settings. No Production operations authorized by this Draft.",
+  "source_sha": "42cac7fd8e176b8686fedffc7673734036bf670e",
+  "change_id": "NEWPROD-DRAWTZ-20261118",
+  "pr_number": 705,
+  "payload_manifest_sha256": "3f4fbd4ef3b98a72fb7ea700ef2a1a1489997d3f340a5c7f9442d4af02da46e8",
+  "authority": "Human-approved exact Runtime Source: Draft preparation only. PR688 plus preserved PR692 wallet fix plus PR705 DateTimeInterface hunk only; existing Production baseline 516fe7a946683103ed68ee4875d5ea3d94327a0d. OLD-side Handoff is not a live NEW Runtime measurement: NEW Codex must confirm current API/consumer Source, Tree, immutable image and Ledger107 before any Runtime GO; mismatch HOLD. Contract alpha.52, migrations001-107 only; LINE delivery D1-D7, migrations108+, later Admin and other main changes excluded. API-only activation; image_mode=agency uses existing formal workflow after separate Authority Merge and Build GO. Admin/Storefront/Agency stay unchanged. Preserve F2-B, six Timer commands/schedules/flags and member-rank Worker, payment and LINE settings; selected API image consumers follow the approved image only under Runtime GO. Latest Human sequence: technical preparation -> maintenance -> Drain -> final financial Gate -> API-only Cutover -> normal public recovery. No Merge/Build/Stage/Runtime authorization in this Draft.",
   "activation_authorized": false
 }

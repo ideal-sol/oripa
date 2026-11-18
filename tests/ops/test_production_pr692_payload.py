@@ -17,7 +17,8 @@ class ProductionPR692PayloadTest(unittest.TestCase):
     def setUp(self):
         self.spec = H['specification'](ROOT)
         self.head = M['git'](ROOT, 'rev-parse', 'HEAD')
-        self.authority = json.loads(M['git'](ROOT, 'show', 'HEAD:' + M['AUTHORITY_PATH']))
+        # Preserve the historical PR693 authority independently of later candidates.
+        self.authority = json.loads(M['git'](ROOT, 'show', '04cc02d8ebace3cd0b7cc52a1ba90d83ba523a78:' + M['AUTHORITY_PATH']))
         self.bad = None
 
     def get(self, path):
