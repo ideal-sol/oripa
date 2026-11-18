@@ -91,9 +91,21 @@ final class LineBotManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_line_service_mutation_accepts_absent_mfa_timestamp(): void
+    {
+        $token = $this->adminSession(V2AdminRole::Owner);
+        $request = \Illuminate\Http\Request::create('/', 'GET', [], ['__Host-oripa_admin_session' => $token]);
+        $context = app(\App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer::class)->context($request);
+        DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => null]);
+        $result = app(\App\Domain\Line\Services\V2LineBotManagement::class)->mutate($context, 'create', null, 'absent-mfa', $this->botInput());
+        self::assertSame(1, $result['revision']);
+        Http::assertNothingSent();
+    }
+
     public function test_automated_notification_http_permissions_without_fresh_mfa_csrf_and_revision(): void
     {
         $this->getJson('/admin/api/v2/line-automated-settings')->assertUnauthorized();
+        Auth::forgetGuards();
         $uri = '/admin/api/v2/line-automated-settings';
         $input = ['enabled' => true, 'category' => 'transactional', 'messages' => [['type' => 'text', 'text' => 'Synthetic notification']], 'expected_revision' => 0];
         $owner = $this->adminSession(V2AdminRole::Owner);
@@ -118,6 +130,7 @@ final class LineBotManagementTest extends TestCase
     public function test_delivery_http_roles_without_fresh_mfa_csrf_and_safe_listing(): void
     {
         $this->getJson('/admin/api/v2/line-deliveries')->assertUnauthorized();
+        Auth::forgetGuards();
         $uri = '/admin/api/v2/line-deliveries';
         $owner = $this->adminSession(V2AdminRole::Owner);
         $this->asAdmin($owner)->getJson($uri)->assertOk()->assertJsonStructure(['data', 'next_cursor']);
@@ -131,6 +144,12 @@ final class LineBotManagementTest extends TestCase
         Auth::forgetGuards();
         $stale = $this->adminSession(V2AdminRole::Owner, now()->subMinutes(6));
         $this->adminMutation($stale, 'POST', $uri, [])->assertUnprocessable();
+        $this->adminMutation($stale, 'POST', $uri, [
+            'title' => 'Synthetic draft', 'category' => 'promotional', 'recipient_group' => 'all_friends',
+            'segment' => [], 'messages' => [['type' => 'text', 'text' => 'Synthetic']],
+            'pacing' => ['push_every' => 10, 'push_wait_seconds' => 5, 'multicast_wait_seconds' => 0],
+            'mode' => 'draft', 'scheduled_at' => null, 'expected_revision' => 0, 'request_key' => (string) Str::uuid(),
+        ])->assertOk()->assertJsonPath('data.status', 'draft');
         Auth::forgetGuards();
         $this->asAdmin($owner)->withHeader('X-XSRF-TOKEN', 'wrong')->postJson($uri, [])->assertForbidden()->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
         Auth::forgetGuards();
@@ -521,7 +540,7 @@ final class LineBotManagementTest extends TestCase
         DB::table('admin_sessions')->insert(V2TimestampFixture::attributes([
             'session_id_hash' => app(V2SessionPolicy::class)->hashSessionId($token),
             'admin_id' => $adminId,
-            'mfa_verified_at' => $mfaVerifiedAt,
+            'mfa_verified_at' => $mfaVerifiedAt ?? now()->subDay(),
             'requires_mfa_enrollment' => false,
             'created_at' => $created,
             'last_activity_at' => now(),

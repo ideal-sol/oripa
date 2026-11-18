@@ -658,6 +658,7 @@ final class LineDeliveryTest extends TestCase
     public function test_management_snapshot_without_fresh_mfa_and_explicit_manual_resend(): void
     {
         $context = $this->admin(); $service = app(V2LineDeliveryService::class);
+        DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => null]);
         $id = $service->save($context, null, 0, Purpose::Promotional, Group::AllFriends, [['type' => 'text', 'text' => 'Synthetic']], null);
         $service->updateDefaults($context, 1, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(2, 7, 3));
         self::assertSame(10, $service->pacing(DB::table('line_deliveries')->where('id', $id)->value('pacing'))->pushEvery);
