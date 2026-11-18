@@ -127,7 +127,14 @@ class ProductionPR705PayloadTest(unittest.TestCase):
         from scripts.release.readiness.change import classify, validate_change
         from scripts.release.readiness.adapters import verify_change_authority
         base = '3ff2eda41ebf6e18a5a5d8668a6031ec66d0e33f'
-        change = validate_change(classify(ROOT, base, self.head))
+        # This regression describes the historical PR705 control, not later
+        # unrelated authority updates present in the current test checkout.
+        control = 'bfb84acd214eb148585d2b4212a0199ec254d34c'
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot = Path(temporary) / 'control'
+            subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout', str(ROOT), str(snapshot)], check=True)
+            subprocess.run(['git', '-C', str(snapshot), 'checkout', '-q', '--detach', control], check=True)
+            change = validate_change(classify(snapshot, base, control))
         self.assertEqual(change['authority_records'][0]['provenance'], 'EXACT_PR705_DERIVED_PAYLOAD')
         self.assertEqual(change['authority_records'][0]['source_pr'], 705)
         original = self.get
