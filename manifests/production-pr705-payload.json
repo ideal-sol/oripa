@@ -1,0 +1,41 @@
+{
+  "base_sha": "9235350523accdb2c3d41dca869d7d44f0863ba5",
+  "base_pr": 688,
+  "base_tree": "f9d41f6566b4c1e771bb7895dabad1639b80b810",
+  "base_reviewed_sha": "a1396bac60a6bfa8151240cd91d743b288e0076f",
+  "schema_version": "1.0",
+  "task_id": "NEWPROD-DRAWTZ-20261118",
+  "kind": "task-limited-derived-payload",
+  "wallet_sha": "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9",
+  "wallet_pr": 692,
+  "wallet_tree": "a35e1d52da7c3adbe568c59a799dc7fd02d050d5",
+  "wallet_reviewed_sha": "690c70547dbac9b8acc57a2350f5cc54ad86444d",
+  "existing_source": "516fe7a946683103ed68ee4875d5ea3d94327a0d",
+  "existing_tree": "53bf0e809b9724392e5af6eda75b1d1c15d333e2",
+  "existing_manifest_sha256": "9b7fe6debf645b33e112d8cef92f2f0a3b074dcdad56fbb9d89e3cf1e3949c1d",
+  "wallet_files": {
+    "apps/api/app/Domain/PrizeShipping/Services/V2PrizeShippingService.php": {
+      "before": "e43907d546a5035ae4b7a76920e9ebc6e36b6613",
+      "after": "030ecd03ec4431432b92648d997eb6b623d8336c"
+    }
+  },
+  "fix_sha": "3ff2eda41ebf6e18a5a5d8668a6031ec66d0e33f",
+  "fix_pr": 705,
+  "fix_tree": "b85567730183030e5ab006c681aff5bb74bb6e0b",
+  "fix_reviewed_sha": "f213d9f849fadfb03d73b2301ee93cf684add5ed",
+  "files": {
+    "apps/api/app/Domain/Draw/Services/V2DrawEligibilityService.php": {
+      "before": "7d2a2dbbc7f0b6bf5f4a05a498dba09015752780",
+      "after": "b2a74c20b28ce1bf5ce660fd9b516be5eb23dbb0"
+    }
+  },
+  "source_sha": "42cac7fd8e176b8686fedffc7673734036bf670e",
+  "source_tree": "e215dedcc1437fe2865aaa73282608f0708914e4",
+  "inventory_sha256": "42f389c8e97f14c9a0909c6a4862b824b9a56cf7aafd345f7675c656e66a91f3",
+  "commit_content": "tree e215dedcc1437fe2865aaa73282608f0708914e4\nparent 516fe7a946683103ed68ee4875d5ea3d94327a0d\nauthor Oripa Limited Payload <payload@example.invalid> 1794960000 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1794960000 +0000\n\nNEWPROD-DRAWTZ-20261118 derived payload; NOT a merged commit\n",
+  "image_mode": "agency",
+  "activation_scope": [
+    "api"
+  ],
+  "activation_authorized": false
+}
