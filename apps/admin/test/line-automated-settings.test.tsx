@@ -4,7 +4,7 @@ import type { LineAutomatedSetting } from "@/lib/admin-api/generated";
 const access = vi.hoisted(() => ({ writable: true }));
 vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ permissions: new Set(access.writable ? ["line.bot.read", "line.bot.manage"] : ["line.bot.read"]) }) }));
 import { LineAutomatedSettings } from "@/components/line/line-automated-settings";
-import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import { AdminApiClient } from "@/lib/admin-api/client";
 const rows: LineAutomatedSetting[] = (["shipping", "payment", "first_purchase", "rank_promotion"] as const).map((event) => ({event, revision: 0, enabled: false, category: event === "shipping" || event === "payment" ? "transactional" : "promotional", messages: [{ type: "text", text: "通知" }], effective_at: null}));
 beforeEach(() => { access.writable = true; vi.spyOn(AdminApiClient.prototype, "getLineAutomatedSettings").mockResolvedValue({ data: structuredClone(rows) }); });
 afterEach(() => vi.restoreAllMocks());
@@ -26,11 +26,14 @@ it("enforces read only and fixed transactional categories", async () => {
   for (const button of screen.getAllByRole("button", { name: "通知設定を保存" })) expect(button).toBeDisabled();
   for (const input of screen.getAllByRole("checkbox")) expect(input).toBeDisabled();
 });
-it("offers MFA and does not automatically replay a failed save", async () => {
-  const save = vi.spyOn(AdminApiClient.prototype, "updateLineAutomatedSettings").mockRejectedValue(new AdminApiError(403, "FRESH_MFA_REQUIRED", null, null, false));
+it("saves without an additional authentication form", async () => {
+  const save = vi.spyOn(AdminApiClient.prototype, "updateLineAutomatedSettings").mockResolvedValue({ data: rows });
+  const reauthenticate = vi.spyOn(AdminApiClient.prototype, "reauthenticate");
   render(<LineAutomatedSettings />);
   await screen.findByRole("heading", { name: "決済完了" });
   fireEvent.click(screen.getAllByRole("button", { name: "通知設定を保存" })[0]);
-  expect(await screen.findByLabelText("認証コード")).toBeVisible();
+  expect(await screen.findByText("発送完了を保存しました。")).toBeVisible();
   expect(save).toHaveBeenCalledOnce();
+  expect(reauthenticate).not.toHaveBeenCalled();
+  expect(screen.queryByText(/再認証|認証コード|セキュリティキー/)).toBeNull();
 });

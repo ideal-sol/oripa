@@ -68,7 +68,7 @@ final class V2LineTemplates
         },1);
     }
 
-    /** Reply-scoped read-only selection; Owner/Fresh-MFA upload path remains unchanged. */
+    /** Reply-scoped read-only selection; Owner-authorized upload path remains unchanged. */
     public function media(Context $c, int $page = 1): array
     {
         app(V2LineChatAdmin::class)->authorize($c,true);

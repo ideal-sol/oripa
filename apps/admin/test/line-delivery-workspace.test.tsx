@@ -29,7 +29,7 @@ it("shows persisted batch progress and a qualified completion estimate", async (
   expect(screen.getByText(/完了目安：/)).toHaveTextContent("実配達の完了時刻ではありません");
 });
 it("creates scheduled-now intent with revision, never a null draft intent", async () => {
-  const save = vi.spyOn(AdminApiClient.prototype, "saveLineDelivery").mockRejectedValue(new AdminApiError(403, "FRESH_MFA_REQUIRED", null, null, false));
+  const save = vi.spyOn(AdminApiClient.prototype, "saveLineDelivery").mockRejectedValue(new AdminApiError(409, "LINE_DELIVERY_REVISION_CONFLICT", null, null, false));
   vi.spyOn(window, "confirm").mockReturnValue(true);
   render(<LineDeliveryWorkspace />); await screen.findByText("配信はありません。");
   fireEvent.click(screen.getByRole("button", { name: "新規配信" }));
@@ -37,7 +37,8 @@ it("creates scheduled-now intent with revision, never a null draft intent", asyn
   fireEvent.change(screen.getByLabelText("本文"), { target: { value: "<script>test</script>" } });
   fireEvent.click(screen.getByRole("button", { name: "今すぐ配信" }));
   await waitFor(() => expect(save).toHaveBeenCalledWith(null, expect.objectContaining({ mode: "now", expected_revision: 0, request_key: expect.any(String) })));
-  expect(await screen.findByRole("alert")).toHaveTextContent("再認証が必要");
+  expect(await screen.findByRole("alert")).toHaveTextContent("同時更新");
+  expect(screen.queryByText(/再認証|認証コード|セキュリティキー/)).toBeNull();
   expect(save).toHaveBeenCalledOnce(); expect(document.querySelector("script")).toBeNull();
 });
 it("keeps read-only controls disabled without D4 HOLD recovery", async () => {

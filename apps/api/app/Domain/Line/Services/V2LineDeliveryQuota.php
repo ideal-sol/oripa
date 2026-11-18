@@ -193,7 +193,6 @@ final class V2LineDeliveryQuota
     {
         $authorization = app(V2AdminFreshMfaAuthorizer::class);
         $authorization->authorizePermission($context, V2Permission::ManageLineBot);
-        if (! $authorization->isFresh($authorization->validSessionForReauthentication($context))) throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('FRESH_MFA_REQUIRED', 403, 'Fresh Admin authentication is required.');
     }
 
     private function audit(V2AdminAuthorizationContext $context, string $action, int $botId, string $evidenceId): void

@@ -72,20 +72,17 @@ describe("LINE BOT configuration", () => {
     expect(document.body.textContent).not.toContain("synthetic-ui-secret");
   });
 
-  it("offers existing MFA reauthentication without replaying a secret mutation", async () => {
-    const update = vi.spyOn(AdminApiClient.prototype, "updateLineLoginSetting").mockRejectedValue(
-      new AdminApiError(403, "FRESH_MFA_REQUIRED", bot.id, null, false),
-    );
-    const reauthenticate = vi.spyOn(AdminApiClient.prototype, "reauthenticate").mockResolvedValue({} as never);
+  it("saves once without an additional authentication form", async () => {
+    const update = vi.spyOn(AdminApiClient.prototype, "updateLineLoginSetting").mockResolvedValue({} as never);
+    const reauthenticate = vi.spyOn(AdminApiClient.prototype, "reauthenticate");
     render(<LineBotManagement />);
     await screen.findByDisplayValue("1234567");
     fireEvent.change(screen.getByLabelText("新しいログインChannel secret"), {target: {value: "synthetic-ui-secret"}});
     fireEvent.click(screen.getByRole("button", {name: "ログイン設定を保存"}));
-    fireEvent.change(await screen.findByLabelText("認証アプリのコード"), {target: {value: "123456"}});
-    fireEvent.click(screen.getByRole("button", {name: "認証アプリで再認証"}));
-    await waitFor(() => expect(reauthenticate).toHaveBeenCalledWith({method: "totp", code: "123456"}));
+    expect(await screen.findByText("LINEログイン設定を保存しました。")).toBeVisible();
     expect(update).toHaveBeenCalledOnce();
-    await waitFor(() => expect(screen.queryByLabelText("認証アプリのコード")).toBeNull());
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(screen.queryByText(/再認証|認証コード|認証アプリ|セキュリティキー/)).toBeNull();
   });
 
   it("keeps admin read-only and hides the panel from operators", async () => {

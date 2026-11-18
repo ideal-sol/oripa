@@ -230,9 +230,6 @@ final class V2LineDeliveryService
     {
         $authorization = app(V2AdminFreshMfaAuthorizer::class);
         $admin = $authorization->authorizePermission($context, V2Permission::ManageLineBot);
-        if (! $authorization->isFresh($authorization->validSessionForReauthentication($context))) {
-            throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('FRESH_MFA_REQUIRED', 403, 'Fresh Admin authentication is required.');
-        }
         return $admin;
     }
 

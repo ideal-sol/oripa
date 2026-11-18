@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { LineAutomatedSetting } from "@/lib/admin-api/generated";
-import { getWebauthnAssertion } from "@/lib/admin-api/webauthn";
 
 const names = { shipping: "発送完了", payment: "決済完了", first_purchase: "初回購入", rank_promotion: "会員ランク昇格" };
 
@@ -17,8 +16,6 @@ export function LineAutomatedSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("読み込み中…");
-  const [mfa, setMfa] = useState(false);
-  const [code, setCode] = useState("");
   useEffect(() => {
     if (!readable) return;
     let active = true;
@@ -34,11 +31,10 @@ export function LineAutomatedSettings() {
     try { await action(); setStatus(message); }
     catch (caught) {
       const c = caught instanceof AdminApiError ? caught.code : "";
-      if (c === "FRESH_MFA_REQUIRED") { setMfa(true); setError("保存には管理者の再認証が必要です。"); }
-      else setError(c === "LINE_AUTOMATED_REVISION_CONFLICT" ? "設定が変更されています。再読込して編集し直してください。"
+      setError(c === "LINE_AUTOMATED_REVISION_CONFLICT" ? "設定が変更されています。再読込して編集し直してください。"
         : c === "LINE_AUTOMATED_INPUT_INVALID" ? "本文の文字数・置換タグ・区分を確認してください。"
         : c === "AUTHORIZATION_DENIED" ? "操作権限がありません。" : "処理に失敗しました。再試行してください。");
-    } finally { setBusy(false); setCode(""); }
+    } finally { setBusy(false); }
   }
   return <section aria-label="自動LINE通知" className="settings-panel">
     <h2>自動LINE通知</h2>
@@ -46,17 +42,6 @@ export function LineAutomatedSettings() {
     <p>使用できる置換タグ：%username%・%rank%・%points%。%rank%は送信時点の現在ランクです。</p>
     <p>通知のONは送信開始を意味しません。送信処理の有効化と共通送信枠の準備が別途必要です。</p>
     {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
-    {mfa && writable && <form onSubmit={(e) => { e.preventDefault(); void perform(async () => {
-      await client.reauthenticate({ method: "totp", code }); setMfa(false);
-    }, "再認証しました。保存をもう一度実行してください。"); }}>
-      <label>認証コード<input type="password" autoComplete="one-time-code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} required /></label>
-      <button disabled={busy}>再認証</button>
-      <button type="button" disabled={busy} onClick={() => void perform(async () => {
-        const options = await client.createReauthenticationWebauthnOptions();
-        const credential = await getWebauthnAssertion(options.options);
-        await client.reauthenticate({ method: "webauthn", challenge_token: options.challenge_token, credential }); setMfa(false);
-      }, "再認証しました。保存をもう一度実行してください。")}>セキュリティキーで再認証</button>
-    </form>}
     <button type="button" disabled={busy} onClick={() => void perform(async () => setRows((await client.getLineAutomatedSettings()).data), "再読込しました。")}>通知設定を再読込</button>
     {rows.map((row) => {
       const unsupported = row.messages.some((m) => m.text.includes("%shipping_url%"));

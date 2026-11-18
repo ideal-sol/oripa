@@ -1,5 +1,7 @@
 # D4 automated LINE notifications
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D4; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Authorization ends at Draft PR,
 Required Checks and Fresh Strict self-review. No Ready, merge or activation.

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import { getWebauthnAssertion } from "@/lib/admin-api/webauthn";
 import type { LineDeliveryInput, LineDeliverySummary, LineDeliveryDetail, LineDeliveryPreview, LineDeliveryDefaults, LineQuotaState, LineQuotaBaseline, LineDeliverySegment } from "@/lib/admin-api/generated";
 import { LineMessageEditor, newLineMessage } from "./line-message-editor";
 
@@ -23,14 +22,14 @@ export function LineDeliveryWorkspace() {
   const [preview, setPreview] = useState<LineDeliveryPreview | null>(null); const [schedule, setSchedule] = useState("");
   const [defaults, setDefaults] = useState<LineDeliveryDefaults>({ revision: 1, pacing }); const [quota, setQuota] = useState<LineQuotaState | null>(null);
   const [evidence, setEvidence] = useState(""); const [month, setMonth] = useState(""); const [used, setUsed] = useState(0); const [limit, setLimit] = useState(0); const [cut, setCut] = useState(""); const [attest, setAttest] = useState("");
-  const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("読み込み中…"); const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("読み込み中…");
   const [retryKeys, setRetryKeys] = useState<Record<string, string>>({});
   async function load(next = 0) { const r = await client.listLineDeliveries(next); setRows(r.data); setCursor(r.next_cursor); }
   useEffect(() => { if (!readable) return; let active = true;
     void Promise.all([client.listLineDeliveries(), client.getLineDeliveryDefaults()]).then(([list, d]) => { if (active) { setRows(list.data); setCursor(list.next_cursor); setDefaults(d); setNotice(""); } }).catch(() => { if (active) setError("配信一覧を取得できませんでした。"); });
     return () => { active = false; };
   }, [client, readable]);
-  async function perform(action: () => Promise<void>, message = "更新しました。") { setBusy(true); setError(""); setNotice(""); try { await action(); setNotice(message); } catch (e) { const c = e instanceof AdminApiError ? e.code : ""; setError(c === "FRESH_MFA_REQUIRED" ? "再認証が必要です。認証後に操作を再実行してください。" : c === "LINE_DELIVERY_REVISION_CONFLICT" ? "同時更新を検出しました。再読込してください。" : "操作できませんでした。入力・権限・BOT・Quota・メディア設定を確認してください。"); } finally { setBusy(false); } }
+  async function perform(action: () => Promise<void>, message = "更新しました。") { setBusy(true); setError(""); setNotice(""); try { await action(); setNotice(message); } catch (e) { const c = e instanceof AdminApiError ? e.code : ""; setError(c === "LINE_DELIVERY_REVISION_CONFLICT" ? "同時更新を検出しました。再読込してください。" : "操作できませんでした。入力・権限・BOT・Quota・メディア設定を確認してください。"); } finally { setBusy(false); } }
   function edit(changes: Partial<LineDeliveryInput>) { setInput((old) => old ? { ...old, ...changes } : old); setPreview(null); }
   function select(d: LineDeliveryDetail) { setDetail(d); setInput({ ...d.data, mode: "draft", scheduled_at: null, expected_revision: d.data.revision, request_key: crypto.randomUUID() }); setSchedule(d.data.scheduled_at ? new Date(new Date(d.data.scheduled_at).getTime() + 9 * 3600000).toISOString().slice(0, 16) : ""); setPreview(null); }
   async function save(mode: LineDeliveryInput["mode"]) { if (!input) return; const body = { title: input.title, category: input.category, recipient_group: input.recipient_group, segment: input.segment, messages: input.messages, pacing: input.pacing, expected_revision: input.expected_revision, request_key: input.request_key, mode, scheduled_at: mode === "scheduled" ? new Date(schedule + ":00+09:00").toISOString() : null }; select(await client.saveLineDelivery(detail?.data.id ?? null, body)); await load(); }
@@ -40,7 +39,6 @@ export function LineDeliveryWorkspace() {
   const editable = writable && (!detail || ["draft", "scheduled"].includes(detail.data.status));
   return <main><h1>LINE一斉配信</h1><p>受付済みはLINE APIが受付済みという意味です。実配達・既読は保証しません。</p>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {writable && <details><summary>管理者の再認証</summary><label>認証コード<input type="password" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} /></label><button disabled={busy} onClick={() => void perform(async () => { await client.reauthenticate({ method: "totp", code }); setCode(""); }, "再認証しました。操作を再実行してください。")}>コードで再認証</button><button disabled={busy} onClick={() => void perform(async () => { const o = await client.createReauthenticationWebauthnOptions(); const credential = await getWebauthnAssertion(o.options); await client.reauthenticate({ method: "webauthn", challenge_token: o.challenge_token, credential }); }, "再認証しました。")}>セキュリティキーで再認証</button></details>}
     <button disabled={busy} onClick={() => void perform(() => load(), "一覧を再読込しました。")}>一覧を再読込</button><button disabled={!writable || busy} onClick={() => { setDetail(null); setInput({ ...blank(), pacing: defaults.pacing }); setPreview(null); }}>新規配信</button>
     {rows.length === 0 && <p>配信はありません。</p>}
     <div style={{ overflowX: "auto" }}><table><thead><tr><th>管理名</th><th>区分・対象</th><th>予約（JST）</th><th>状態</th><th>予定／確定人数</th><th>状態別 組／人数</th><th>詳細</th></tr></thead><tbody>{rows.map((r) => <tr key={r.id}><td>{r.title}<small> 作成者 {r.created_by}</small></td><td>{r.category}／{r.recipient_group}</td><td>{jst(r.scheduled_at)}</td><td>{r.status}</td><td>{r.planned_count}／{r.recipient_count}</td><td>{Object.entries(r.batch_counts).map(([s, n]) => <div key={s}>{s}: {n}組／{r.recipient_counts[s as keyof typeof r.recipient_counts]}人</div>)}</td><td><button disabled={busy} onClick={() => void perform(async () => select(await client.getLineDelivery(r.id)), "詳細を取得しました。")}>詳細・編集</button></td></tr>)}</tbody></table></div>
