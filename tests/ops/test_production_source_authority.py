@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from tests.ops.test_production_pr692_payload import ProductionPR692PayloadTest
+from tests.ops.test_production_pr705_payload import ProductionPR705PayloadTest
 from tests.ops.test_production_admin_node import ProductionAdminNodeTest
 
 # Keep the limited-payload regressions in the existing canonical CI entrypoint.

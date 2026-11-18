@@ -17,7 +17,16 @@ def verify_change_authority(change, get=None):
     evidence = []
     records = []
     for authority in change["authority_records"]:
-        if authority.get("provenance") == "EXACT_PR692_DERIVED_PAYLOAD":
+        if authority.get("provenance") == "EXACT_PR705_DERIVED_PAYLOAD":
+            require(authority.get("source_sha") == "42cac7fd8e176b8686fedffc7673734036bf670e"
+                    and authority.get("source_tree") == "e215dedcc1437fe2865aaa73282608f0708914e4"
+                    and authority.get("inventory_sha256") == "42f389c8e97f14c9a0909c6a4862b824b9a56cf7aafd345f7675c656e66a91f3"
+                    and [(r.get("source_pr"), r.get("source_sha")) for r in authority.get("reviewed_sources", [])] == [
+                        (688, "9235350523accdb2c3d41dca869d7d44f0863ba5"),
+                        (692, "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9"),
+                        (705, "3ff2eda41ebf6e18a5a5d8668a6031ec66d0e33f")], "AUTHORITY_PR705_IDENTITY_INVALID")
+            records.extend(authority["reviewed_sources"])
+        elif authority.get("provenance") == "EXACT_PR692_DERIVED_PAYLOAD":
             require(authority.get("source_sha") == "516fe7a946683103ed68ee4875d5ea3d94327a0d"
                     and authority.get("source_tree") == "53bf0e809b9724392e5af6eda75b1d1c15d333e2"
                     and authority.get("inventory_sha256") == "4d33d8e2de4f08a41af6e009391eda9d53fb38d3201aa3eeacc15f82ad81254e"

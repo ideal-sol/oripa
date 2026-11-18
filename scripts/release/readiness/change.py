@@ -145,7 +145,8 @@ def validate_authority(repository, revision, path, base_sha):
     expected |= {"task_id", "source_pr", "target", "platform", "image_mode"} if old else {"change_id", "pr_number"}
     limited = not old and record.get("source_sha") == "cad8be03cbab8b7fba18825a4a9b2a276f402010"
     pr692 = not old and record.get("source_sha") == "516fe7a946683103ed68ee4875d5ea3d94327a0d"
-    if limited or pr692:
+    pr705 = not old and record.get("source_sha") == "42cac7fd8e176b8686fedffc7673734036bf670e"
+    if limited or pr692 or pr705:
         expected.add("payload_manifest_sha256")
     require(isinstance(record, dict) and set(record) == expected, "AUTHORITY_STRUCTURE_INVALID")
     require(record["schema_version"] == "1.0" and record["repository"] == "ideal-sol/oripa"
@@ -160,18 +161,18 @@ def validate_authority(repository, revision, path, base_sha):
     if old:
         require(record["target"] == "old-test" and record["platform"] == "linux/amd64"
                 and record["image_mode"] in {"normal", "api-only", "admin-only"}, "AUTHORITY_SCOPE_INVALID")
-    if limited or pr692:
+    if limited or pr692 or pr705:
         import runpy
         import tempfile
-        helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / ("ops/production_pr692_payload.py" if pr692 else "ops/production_pr666_payload.py")))
+        helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / ("ops/production_pr705_payload.py" if pr705 else ("ops/production_pr692_payload.py" if pr692 else "ops/production_pr666_payload.py"))))
         require(git(repository, "rev-parse", "HEAD").decode().strip() == revision,
                 "AUTHORITY_CHECKOUT_MISMATCH")
         spec = helper["specification"](repository)
-        require(record["change_id"] == helper["CHANGE"] and record["pr_number"] == (692 if pr692 else 666)
+        require(record["change_id"] == helper["CHANGE"] and record["pr_number"] == (705 if pr705 else (692 if pr692 else 666))
                 and record["payload_manifest_sha256"] == helper["MANIFEST_DIGEST"],
                 "AUTHORITY_LIMITED_IDENTITY_INVALID")
         sources = []
-        for kind in ("base", "fix"):
+        for kind in (("base", "wallet", "fix") if pr705 else ("base", "fix")):
             sha = spec[kind + "_sha"]
             git(repository, "merge-base", "--is-ancestor", sha, base_sha)
             sources.append({"source_sha": sha, "source_pr": spec[kind + "_pr"],
@@ -181,10 +182,10 @@ def validate_authority(repository, revision, path, base_sha):
             git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(Path(repository).resolve()), str(payload))
             git(payload, "checkout", "--quiet", "--detach", spec["base_sha"])
             helper["materialize"](repository, payload, {**record, "composition": spec, "source_tree": spec["source_tree"]})
-        return {"path": path, "source_sha": spec["source_sha"], "source_pr": (692 if pr692 else 666),
+        return {"path": path, "source_sha": spec["source_sha"], "source_pr": (705 if pr705 else (692 if pr692 else 666)),
                 "source_tree": spec["source_tree"], "inventory_sha256": spec["inventory_sha256"],
                 "reviewed_sources": sources, "record_digest": digest(record, None),
-                "provenance": "EXACT_PR692_DERIVED_PAYLOAD" if pr692 else "EXACT_PR666_DERIVED_PAYLOAD", "human_approval": "PR_REVIEW_REQUIRED",
+                "provenance": "EXACT_PR705_DERIVED_PAYLOAD" if pr705 else ("EXACT_PR692_DERIVED_PAYLOAD" if pr692 else "EXACT_PR666_DERIVED_PAYLOAD"), "human_approval": "PR_REVIEW_REQUIRED",
                 "activation_authorized": False}
     git(repository, "merge-base", "--is-ancestor", record["source_sha"], base_sha)
     return {"path": path, "source_sha": record["source_sha"],
