@@ -1,5 +1,7 @@
 # D5 LINE delivery management — Draft source design
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D5; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Human approval ends at Draft PR.
 Base main: 64ace8b4c66617db1fc359ae11a331da7d62e92b.

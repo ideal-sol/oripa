@@ -45,7 +45,7 @@ function MediaUpload({ client, kind, onUploaded, selectionOnly = false }: { clie
         if (!response.ok) throw new Error();
       }
       const asset = await client.finalizeLineMedia(intent.id); onUploaded(asset); setStatus("実体検証済みファイルを選択しました。");
-    } catch { setStatus("アップロードまたは実体検証に失敗しました。形式・容量・縦横比、再認証、CDN設定を確認してください。"); }
+    } catch { setStatus("アップロードまたは実体検証に失敗しました。形式・容量・縦横比、権限、CDN設定を確認してください。"); }
     finally { setBusy(false); }
   }
   if (selectionOnly) return <fieldset disabled={busy}><legend>検証済みメディアを選択</legend>

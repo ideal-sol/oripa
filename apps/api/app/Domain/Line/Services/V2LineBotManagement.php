@@ -5,7 +5,6 @@ namespace App\Domain\Line\Services;
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
-use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\Line\Exceptions\V2LineMessagingException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
@@ -34,9 +33,6 @@ final class V2LineBotManagement
     public function mutate(V2AdminAuthorizationContext $context, string $operation, ?string $id, string $key, #[SensitiveParameter] array $input): array
     {
         $admin = $this->authorization->authorizePermission($context, V2Permission::ManageLineBot);
-        if (! $this->authorization->isFresh($this->authorization->validSessionForReauthentication($context))) {
-            throw new V2AuthenticationException('FRESH_MFA_REQUIRED', 403, 'Fresh Admin authentication is required.');
-        }
         $allowed = match ($operation) {
             'login' => ['channel_id', 'channel_secret', 'expected_revision'],
             'create' => ['name', 'channel_id', 'channel_secret'],

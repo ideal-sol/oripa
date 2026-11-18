@@ -265,15 +265,14 @@ final class LineDeliveryTest extends TestCase
         Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
     }
 
-    public function test_quota_baseline_requires_fresh_mfa_and_does_not_adopt_legacy_attempts(): void
+    public function test_quota_baseline_accepts_stale_mfa_and_does_not_adopt_legacy_attempts(): void
     {
         $this->newBot(); $context = $this->admin();
         DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => now()->subDay()]);
-        try {
-            app(V2LineDeliveryQuota::class)->confirmBaseline($context, $this->bot->id, 1, '2026-11-01', 0, 200, (string) Str::uuid(),
-                '課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました');
-            self::fail('Stale MFA accepted');
-        } catch (\App\Domain\Identity\Exceptions\V2AuthenticationException) { self::assertTrue(true); }
+        app(V2LineDeliveryQuota::class)->confirmBaseline($context, $this->bot->id, 1, '2026-11-01', 0, 200, (string) Str::uuid(),
+            '課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました');
+        self::assertTrue(DB::table('line_quota_accounts')->where('line_bot_id', $this->bot->id)->exists());
+        $this->newBot();
         DB::table('line_delivery_batches')->insert(['public_id' => (string) Str::uuid(), 'line_bot_id' => $this->bot->id,
             'authentication_revision' => 1, 'category' => 'transactional', 'method' => 'push', 'source_type' => 'automated',
             'source_key' => (string) Str::uuid(), 'retry_key' => (string) Str::uuid(), 'messages_ciphertext' => Crypt::encryptString('synthetic'),
@@ -656,9 +655,10 @@ final class LineDeliveryTest extends TestCase
         self::assertLessThan(15, microtime(true) - $started);
     }
 
-    public function test_management_snapshot_fresh_mfa_and_explicit_manual_resend(): void
+    public function test_management_snapshot_without_fresh_mfa_and_explicit_manual_resend(): void
     {
         $context = $this->admin(); $service = app(V2LineDeliveryService::class);
+        DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => null]);
         $id = $service->save($context, null, 0, Purpose::Promotional, Group::AllFriends, [['type' => 'text', 'text' => 'Synthetic']], null);
         $service->updateDefaults($context, 1, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(2, 7, 3));
         self::assertSame(10, $service->pacing(DB::table('line_deliveries')->where('id', $id)->value('pacing'))->pushEvery);
@@ -673,8 +673,8 @@ final class LineDeliveryTest extends TestCase
         self::assertSame($batch, DB::table('line_delivery_batches')->where('id', $new)->value('replaces_batch_id'));
         self::assertNotSame(DB::table('line_delivery_batches')->where('id', $batch)->value('retry_key'), DB::table('line_delivery_batches')->where('id', $new)->value('retry_key'));
         DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => now()->subDay()]);
-        $this->expectException(\App\Domain\Identity\Exceptions\V2AuthenticationException::class);
         $service->updateDefaults($context, 2, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing);
+        self::assertSame(3, DB::table('line_delivery_settings')->value('revision'));
     }
 
     public function test_actual_bot_webhook_link_and_user_state_writers_wait_for_dispatch(): void

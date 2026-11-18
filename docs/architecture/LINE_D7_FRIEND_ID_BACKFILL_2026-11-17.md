@@ -1,5 +1,7 @@
 # LINE D7 friend ID recovery — design and manual runbook
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D7; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Base492efde433f49c66ad11d28cd343543688f73b88.
 Authorization ends at Draft PR, Required5 and fresh Strict self-review.

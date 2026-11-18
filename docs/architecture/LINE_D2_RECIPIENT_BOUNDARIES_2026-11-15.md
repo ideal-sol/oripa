@@ -1,5 +1,7 @@
 # LINE D2 recipient boundaries
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D2; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Source implementation and Draft PR only.
 Base:13cdc57f4d60e22836618034899e9f64a9885770 (D1 PR681 integrated).

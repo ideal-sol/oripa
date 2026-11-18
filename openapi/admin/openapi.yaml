@@ -252,7 +252,7 @@ paths:
     get:
       operationId: listAdminLineDeliveries
       summary: listAdminLineDeliveries
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: safe
       x-rate-limit: admin-read
@@ -279,7 +279,7 @@ paths:
     post:
       operationId: createAdminLineDelivery
       summary: createAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -306,7 +306,7 @@ paths:
     get:
       operationId: getAdminLineDelivery
       summary: getAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: safe
       x-rate-limit: admin-read
@@ -339,7 +339,7 @@ paths:
     put:
       operationId: updateAdminLineDelivery
       summary: updateAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -373,7 +373,7 @@ paths:
     post:
       operationId: cancelAdminLineDelivery
       summary: cancelAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -407,7 +407,7 @@ paths:
     post:
       operationId: duplicateAdminLineDelivery
       summary: duplicateAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -441,7 +441,7 @@ paths:
     post:
       operationId: previewAdminLineDelivery
       summary: previewAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -468,7 +468,7 @@ paths:
     post:
       operationId: resendAdminLineDelivery
       summary: resendAdminLineDelivery
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -502,7 +502,7 @@ paths:
     get:
       operationId: getAdminLineDeliveryDefaults
       summary: getAdminLineDeliveryDefaults
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: safe
       x-rate-limit: admin-read
@@ -522,7 +522,7 @@ paths:
     put:
       operationId: updateAdminLineDeliveryDefaults
       summary: updateAdminLineDeliveryDefaults
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -549,7 +549,7 @@ paths:
     get:
       operationId: getAdminLineQuota
       summary: getAdminLineQuota
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: safe
       x-rate-limit: admin-read
@@ -570,7 +570,7 @@ paths:
     post:
       operationId: confirmAdminLineQuota
       summary: confirmAdminLineQuota
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -597,7 +597,7 @@ paths:
     post:
       operationId: haltAdminLineQuota
       summary: haltAdminLineQuota
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -624,7 +624,7 @@ paths:
     post:
       operationId: createAdminLineMedia
       summary: createAdminLineMedia
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -651,7 +651,7 @@ paths:
     post:
       operationId: finalizeAdminLineMedia
       summary: finalizeAdminLineMedia
-      description: Owner/Admin read; Owner and Fresh MFA write. CSRF and revision enforced.
+      description: Owner/Admin read; Owner write; no additional MFA challenge. CSRF and revision enforced.
         Acceptance is not delivery. Runtime deferred.
       x-idempotency: revision-controlled
       x-rate-limit: none
@@ -699,7 +699,7 @@ paths:
     put:
       operationId: updateAdminLineAutomatedSettings
       summary: 自動LINE通知設定を更新
-      description: Owner and Fresh MFA required. Expected revision prevents stale writes. Shipping URL tags block delivery until a separate Storefront Change establishes the detail URL.
+      description: Owner permission required; no additional MFA challenge. Expected revision prevents stale writes. Shipping URL tags block delivery until a separate Storefront Change establishes the detail URL.
       x-idempotency: revision-controlled
       x-rate-limit: none
       x-cache-policy: no-store

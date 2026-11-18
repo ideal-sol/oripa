@@ -165,15 +165,15 @@ final class LineAutomatedTest extends TestCase
         $service->update($this->context, 'payment', ['enabled' => true, 'category' => 'promotional', 'messages' => [['type' => 'text', 'text' => 'Hello']], 'expected_revision' => 0]);
     }
 
-    public function test_stale_revision_and_fresh_mfa_are_enforced_without_exposing_body(): void
+    public function test_stale_revision_is_enforced_and_stale_mfa_does_not_block_updates(): void
     {
         $this->enable('payment', 'Private synthetic body');
         $input = ['enabled' => false, 'category' => 'transactional', 'messages' => [['type' => 'text', 'text' => 'Updated']], 'expected_revision' => 0];
         try { app(V2LineAutomatedSettings::class)->update($this->context, 'payment', $input); self::fail('Stale update accepted'); }
         catch (\App\Domain\Line\Exceptions\V2LineMessagingException $e) { self::assertSame(409, $e->status); }
         DB::table('admin_sessions')->where('admin_id', $this->context->adminId)->update(['mfa_verified_at' => now()->subHour()]);
-        $this->expectException(\App\Domain\Identity\Exceptions\V2AuthenticationException::class);
-        app(V2LineAutomatedSettings::class)->update($this->context, 'payment', [...$input, 'expected_revision' => 1]);
+        $result = app(V2LineAutomatedSettings::class)->update($this->context, 'payment', [...$input, 'expected_revision' => 1]);
+        self::assertSame(2, $result['data'][1]['revision']);
     }
 
     public function test_setting_edits_do_not_change_already_queued_content(): void

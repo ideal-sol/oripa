@@ -1,5 +1,7 @@
 # LINE D1 — credentials and BOT boundaries
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 - Change: LINE-DELIVERY-20261109-D1; R3; Strict Change; Application Runtime Activation: deferred.
 - Authority: approved D1 prompt v1.1 (2026-11-10), specification v1.4 and the latest explicit Human decisions. Scope ends at one Draft PR.
 - Base: `b120b8c7bd3f2a7e538546e17da37bded5b11e0f`. Public API, Storefront Client/Testkit and Storefront source are unchanged.

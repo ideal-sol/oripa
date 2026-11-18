@@ -98,7 +98,6 @@ final class V2LineMediaManager
     private function authorize(V2AdminAuthorizationContext $context): void
     {
         $a=app(V2AdminFreshMfaAuthorizer::class); $a->authorizePermission($context,V2Permission::ManageLineBot);
-        if (! $a->isFresh($a->validSessionForReauthentication($context))) throw new \App\Domain\Identity\Exceptions\V2AuthenticationException('FRESH_MFA_REQUIRED',403,'Fresh Admin authentication is required.');
     }
     private function audit(V2AdminAuthorizationContext $c,string $action,string $id): void
     {

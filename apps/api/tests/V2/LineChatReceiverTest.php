@@ -34,7 +34,7 @@ final class LineChatReceiverTest extends TestCase
         DB::statement('CREATE SCHEMA '.$this->schema); config(['database.connections.pgsql.search_path'=>$this->schema]); DB::purge('pgsql');
         self::assertSame(0,Artisan::call('migrate',['--path'=>'database/migrations-v2','--force'=>true]));
         $this->configureRankFixture(); Carbon::setTestNow(); CarbonImmutable::setTestNow();
-        config(['app.key'=>'base64:'.base64_encode(str_repeat('k',32))]); $this->enableRankFixture(); $this->context=$this->rankAdmin();
+        config(['app.key'=>'base64:'.base64_encode(str_repeat('k',32))]); $this->enableRankFixture(); $this->context=$this->rankAdmin(); DB::table('admin_sessions')->where('admin_id',$this->context->adminId)->update(['mfa_verified_at'=>null]);
         DB::table('line_bots')->where('is_active',true)->update(['is_active'=>false]);
         $id=DB::table('line_bots')->insertGetId(['public_id'=>(string)Str::uuid(),'name'=>'D6 synthetic','channel_id'=>'123456789',
             'channel_secret_ciphertext'=>Crypt::encryptString('synthetic-only'),'is_active'=>true,'connection_status'=>'succeeded','connected_at'=>now()]);

@@ -4,7 +4,6 @@ namespace App\Domain\Line\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Enums\V2Permission;
-use App\Domain\Identity\Exceptions\V2AuthenticationException;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Line\Exceptions\V2LineMessagingException;
@@ -32,9 +31,6 @@ final class V2LineAutomatedSettings
     {
         $auth = app(V2AdminFreshMfaAuthorizer::class);
         $admin = $auth->authorizePermission($context, V2Permission::ManageLineBot);
-        if (! $auth->isFresh($auth->validSessionForReauthentication($context))) {
-            throw new V2AuthenticationException('FRESH_MFA_REQUIRED', 403, 'Fresh Admin authentication is required.');
-        }
         if (! in_array($event, self::EVENTS, true) || array_diff(array_keys($input), ['enabled', 'category', 'messages', 'expected_revision'])
             || ! is_bool($input['enabled'] ?? null) || ! is_int($input['expected_revision'] ?? null)
             || ! in_array($input['category'] ?? null, ['transactional', 'promotional'], true)

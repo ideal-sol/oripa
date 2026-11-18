@@ -1,5 +1,7 @@
 # LINE D6 chat and templates — implementation record
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D6; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Human authorization ends at Draft PR,
 five successful required checks and fresh exact-head Strict self-review.

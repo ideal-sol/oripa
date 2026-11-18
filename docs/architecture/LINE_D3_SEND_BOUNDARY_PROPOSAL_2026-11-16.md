@@ -1,5 +1,7 @@
 # D3 delivery foundation and approved send boundary
 
+> Authorization update (2026-11-18): [latest Human decision](LINE_D1_D7_AUTHORIZATION_OVERRIDE_2026-11-18.md) supersedes all LINE-specific Fresh MFA/TOTP/WebAuthn requirements below. Existing roles, login/session, CSRF and D7 Human/provider attestations remain required.
+
 Change LINE-DELIVERY-20261109-D3; Issue none; R3; Strict Change;
 Application Runtime Activation deferred. Human authorization ends at Draft PR.
 Base: `2810ad2fd5a59b6e8160a4b3a910d21e635b6816` (D2 PR690 merged).

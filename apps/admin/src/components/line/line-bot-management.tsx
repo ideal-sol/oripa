@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
 import type { LineBot, LineLoginSetting } from "@/lib/admin-api/generated";
-import { getWebauthnAssertion } from "@/lib/admin-api/webauthn";
 import { LINE_BOT_SECTION_PERMISSIONS } from "@/lib/permissions/admin-navigation";
 
 export function LineBotManagement() {
@@ -23,8 +22,6 @@ export function LineBotManagement() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [needsMfa, setNeedsMfa] = useState(false);
-  const [mfaCode, setMfaCode] = useState("");
   const load = useCallback(async () => {
     const [collection, setting] = await Promise.all([client.getLineBots(), client.getLineLoginSetting()]);
     setBots(collection.items);
@@ -34,7 +31,6 @@ export function LineBotManagement() {
   const failure = (caught: unknown) => {
     const code = caught instanceof AdminApiError ? caught.code : "";
     if (code === "LINE_CONFIGURATION_REVISION_CONFLICT") return "ほかの操作で更新されました。再読込して入力し直してください。";
-    if (code === "FRESH_MFA_REQUIRED") return "管理者の再認証が必要です。再認証後に操作してください。";
     if (code === "AUTHORIZATION_DENIED") return "この操作の権限がありません。";
     if (code === "LINE_DELIVERY_SENDING") return "送信中の配信が終わってから切り替えてください。";
     if (code === "LINE_BOT_CONNECTION_REQUIRED") return "Channel IDとsecretを登録し、接続確認を完了してください。";
@@ -54,7 +50,6 @@ export function LineBotManagement() {
     setBusy(true); setError(""); setMessage("");
     try { await action(); await load(); setMessage(success); }
     catch (caught) {
-      if (caught instanceof AdminApiError && caught.code === "FRESH_MFA_REQUIRED") setNeedsMfa(true);
       setError(failure(caught));
     }
     finally { setBusy(false); setSecret(""); setLoginSecret(""); }
@@ -65,22 +60,6 @@ export function LineBotManagement() {
     <p>BOT切替時は、LINE Developersの「リンクされた公式アカウント」と、このページの友だち追加URLを新BOTに合わせて変更してください。LINE Developers側の設定は自動変更されません。</p>
     {!writable && <p>参照のみです。登録・変更・接続確認はOwner権限が必要です。</p>}
     {error && <p role="alert" className="notice notice-error">{error}</p>}
-    {needsMfa && writable && <form aria-label="管理者の再認証" onSubmit={(event) => {
-      event.preventDefault();
-      void perform(async () => {
-        try { await client.reauthenticate({method: "totp", code: mfaCode}); setNeedsMfa(false); }
-        finally { setMfaCode(""); }
-      }, "再認証しました。secretを入力し直し、操作をもう一度実行してください。");
-    }}>
-      <label>認証アプリのコード<input type="password" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} required /></label>
-      <button disabled={busy} type="submit">認証アプリで再認証</button>
-      <button disabled={busy} type="button" onClick={() => void perform(async () => {
-        const options = await client.createReauthenticationWebauthnOptions();
-        const credential = await getWebauthnAssertion(options.options);
-        await client.reauthenticate({method: "webauthn", challenge_token: options.challenge_token, credential});
-        setNeedsMfa(false);
-      }, "再認証しました。secretを入力し直し、操作をもう一度実行してください。")}>セキュリティキーで再認証</button>
-    </form>}
     {(busy || message) && <p role="status">{busy ? "処理中です…" : message}</p>}
     <button type="button" disabled={busy} onClick={() => void perform(load, "最新の設定を取得しました。")}>再読込</button>
     <form onSubmit={(event) => { event.preventDefault(); if (!login) return; void perform(() => client.updateLineLoginSetting({channel_id: loginId, channel_secret: loginSecret, expected_revision: login.revision}, crypto.randomUUID()), "LINEログイン設定を保存しました。"); }}>

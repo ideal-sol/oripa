@@ -35,6 +35,7 @@ final class LineDeliveryManagementTest extends TestCase
         self::assertSame(0,Artisan::call('migrate',['--path'=>'database/migrations-v2','--force'=>true]));
         $this->configureRankFixture(); Carbon::setTestNow(); CarbonImmutable::setTestNow();
         config(['app.key'=>'base64:'.base64_encode(str_repeat('k',32))]); $this->enableRankFixture(); $this->context=$this->rankAdmin();
+        DB::table('admin_sessions')->where('admin_id',$this->context->adminId)->update(['mfa_verified_at'=>null]);
         DB::table('line_bots')->where('is_active',true)->update(['is_active'=>false]);
         $id=DB::table('line_bots')->insertGetId(['public_id'=>(string)Str::uuid(),'name'=>'D5 synthetic','channel_id'=>'123456789',
             'channel_secret_ciphertext'=>Crypt::encryptString('synthetic-only'),'is_active'=>true,'connection_status'=>'succeeded','connected_at'=>now()]);
@@ -177,10 +178,10 @@ final class LineDeliveryManagementTest extends TestCase
         self::assertCount(5,$storage->published);
         $this->expectException(\InvalidArgumentException::class); $s->finalize($this->context,$i['id']);
     }
-    public function test_stale_mfa_is_rejected(): void
+    public function test_stale_mfa_allows_authorized_write(): void
     {
         DB::table('admin_sessions')->where('admin_id',$this->context->adminId)->update(['mfa_verified_at'=>now()->subHour()]);
-        $this->expectException(\App\Domain\Identity\Exceptions\V2AuthenticationException::class);
         app(V2LineDeliveryAdmin::class)->authorize($this->context,true);
+        self::assertSame('draft', app(V2LineDeliveryAdmin::class)->save($this->context,null,$this->input())['data']['status']);
     }
 }
