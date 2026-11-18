@@ -38,10 +38,26 @@ def prepare_recipe(authority: dict, payload: Path, control: Path, destination: P
         raise ValueError("payload mismatch")
     original = (payload / "infra/docker/backend/Dockerfile").read_bytes()
     recipe = authority.get("build_recipe")
-    if source in {"b5c28015ef94cb80f6702a61b1237cacd91d9863", WRAPPER["LINE698_SOURCE"]} and not recipe:
+    if source in {"b5c28015ef94cb80f6702a61b1237cacd91d9863", WRAPPER["LINE698_SOURCE"], WRAPPER["LINE701_SOURCE"]} and not recipe:
         raise ValueError("recipe authority required")
     content = original
-    if source == WRAPPER["LINE698_SOURCE"]:
+    if source == WRAPPER["LINE701_SOURCE"]:
+        expected = {
+            "schema_version": "1.0", "kind": "line701-os-security", "source_sha": source,
+            "recipe_pr": 700, "recipe_sha": WRAPPER["LINE701_RECIPE_COMMIT"],
+            "path": WRAPPER["LINE698_RECIPE_PATH"],
+            "source_sha256": WRAPPER["LINE698_SOURCE_DOCKERFILE_SHA256"],
+            "recipe_sha256": WRAPPER["LINE698_RECIPE_SHA256"],
+            "reviewed_sha": WRAPPER["LINE701_RECIPE_REVIEWED"], "tree": WRAPPER["LINE701_RECIPE_TREE"],
+        }
+        control_sha = subprocess.check_output(["git", "-C", str(control), "rev-parse", "HEAD"], text=True).strip()
+        if recipe != expected or authority.get("control_sha") != control_sha:
+            raise ValueError("line701 recipe identity mismatch")
+        for revision in (source, WRAPPER["LINE701_RECIPE_COMMIT"]):
+            subprocess.run(["git", "-C", str(control), "merge-base", "--is-ancestor", revision, control_sha], check=True)
+        content = subprocess.check_output(["git", "-C", str(control), "show", f"{recipe['recipe_sha']}:{recipe['path']}"])
+        WRAPPER["validate_line698_recipe"](original, content)
+    elif source == WRAPPER["LINE698_SOURCE"]:
         control_sha = subprocess.check_output(["git", "-C", str(control), "rev-parse", "HEAD"], text=True).strip()
         if (recipe.get("kind") != "line698-os-security" or recipe.get("source_sha") != source
                 or recipe.get("recipe_sha") != control_sha or authority.get("control_sha") != control_sha
