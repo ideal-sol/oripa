@@ -6,6 +6,8 @@ use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Draw\Exceptions\V2DrawException;
 use App\Domain\Draw\Services\V2CryptographicRandomSource;
 use App\Domain\Draw\Services\V2DrawService;
+use App\Domain\Draw\Services\V2DrawEligibilityService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Point\Services\V2PointService;
@@ -373,6 +375,79 @@ final class DrawVerticalSliceTest extends TestCase
         self::assertSame(0, DB::table('draw_results')->where('result_type', 'point_back')->count());
         self::assertSame(0, (int) DB::table('prize_inventories')->sum('available_quantity'));
         self::assertSame(5, (int) DB::table('prize_inventories')->sum('awarded_count'));
+    }
+
+    public static function registrationWindowCases(): iterable
+    {
+        foreach (['UTC', 'Asia/Tokyo'] as $databaseTimezone) {
+            foreach ([
+                'before_registration' => [1, -1, false],
+                'registration' => [1, 0, true],
+                '15_hours_1_minute' => [1, 15 * 3600 + 60, true],
+                '23_hours_59_minutes' => [1, 24 * 3600 - 60, true],
+                'exactly_24_hours' => [1, 24 * 3600, true],
+                'after_24_hours' => [1, 24 * 3600 + 1, false],
+                '6_days_20_hours' => [7, 6 * 86400 + 20 * 3600, true],
+                'exactly_7_days' => [7, 7 * 86400, true],
+                'after_7_days' => [7, 7 * 86400 + 1, false],
+            ] as $label => $case) {
+                yield $databaseTimezone.' '.$label => [$databaseTimezone, ...$case];
+            }
+        }
+    }
+
+    #[DataProvider('registrationWindowCases')]
+    public function test_registration_window_preserves_database_timezone(
+        string $databaseTimezone,
+        int $eligibleDays,
+        int $elapsedSeconds,
+        bool $eligible
+    ): void {
+        $originalAppTimezone = config('app.timezone');
+        $originalPhpTimezone = date_default_timezone_get();
+        $originalDatabaseTimezone = DB::selectOne('SHOW TIME ZONE')->TimeZone;
+        try {
+            config(['app.timezone' => 'Asia/Tokyo']);
+            date_default_timezone_set('Asia/Tokyo');
+            DB::selectOne("SELECT set_config('TimeZone', ?, false)", [$databaseTimezone]);
+            self::assertSame($databaseTimezone, DB::selectOne('SHOW TIME ZONE')->TimeZone);
+            self::assertSame('Asia/Tokyo', config('app.timezone'));
+            self::assertSame('Asia/Tokyo', date_default_timezone_get());
+
+            [$user] = $this->fixture([5_000], audienceCode: 'first_time_users');
+            $registeredAt = CarbonImmutable::parse('2026-07-20T00:00:00Z');
+            DB::table('users')->where('id', $user->id)->update(V2TimestampFixture::attributes([
+                'created_at' => $registeredAt,
+            ]));
+            $user = User::query()->findOrFail($user->id);
+            self::assertInstanceOf(\DateTimeInterface::class, $user->created_at);
+            self::assertSame($databaseTimezone === 'UTC' ? 0 : 32400, $user->created_at->getOffset());
+            self::assertSame($registeredAt->getTimestamp(), $user->created_at->getTimestamp());
+            $row = DB::table('users')->where('id', $user->id)->first();
+            self::assertIsString($row->created_at);
+            self::assertMatchesRegularExpression('/[+-](?:00|09)(?::?00)?$/', $row->created_at);
+            self::assertSame($registeredAt->getTimestamp(), CarbonImmutable::parse($row->created_at)->getTimestamp());
+
+            $gacha = DB::table('catalog_gachas')->first();
+            $version = DB::table('catalog_gacha_versions')->where('gacha_id', $gacha->id)->first();
+            $version->first_time_eligible_days = $eligibleDays;
+            $occurredAt = $registeredAt->addSeconds($elapsedSeconds);
+            $service = app(V2DrawEligibilityService::class);
+            self::assertSame($eligible, $service->evaluate(
+                $user, (int) $gacha->id, 'first_time_users', $eligibleDays, 0, $occurredAt
+            )['audience_eligible']);
+            try {
+                $service->assertForDraw($user, $gacha, $version, 1, $occurredAt);
+                self::assertTrue($eligible, 'DB-row Draw assertion must reject outside the window.');
+            } catch (V2DrawException $exception) {
+                self::assertFalse($eligible, 'DB-row Draw assertion must accept inside the window.');
+                self::assertSame('GACHA_AUDIENCE_NOT_ELIGIBLE', $exception->errorCode);
+            }
+        } finally {
+            DB::selectOne("SELECT set_config('TimeZone', ?, false)", [$originalDatabaseTimezone]);
+            config(['app.timezone' => $originalAppTimezone]);
+            date_default_timezone_set($originalPhpTimezone);
+        }
     }
 
     public function test_first_time_audience_uses_registration_age_not_draw_history(): void

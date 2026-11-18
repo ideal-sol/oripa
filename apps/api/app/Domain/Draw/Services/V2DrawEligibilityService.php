@@ -249,7 +249,9 @@ final class V2DrawEligibilityService
             return false;
         }
 
-        $registeredAt = CarbonImmutable::parse((string) $user->created_at);
+        $registeredAt = $user->created_at instanceof \DateTimeInterface
+            ? CarbonImmutable::instance($user->created_at)
+            : CarbonImmutable::parse((string) $user->created_at);
 
         return $occurredAt->greaterThanOrEqualTo($registeredAt)
             && $occurredAt->lessThanOrEqualTo($registeredAt->addDays($eligibleDays));
