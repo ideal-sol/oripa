@@ -60,6 +60,11 @@ class PolicyGateTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy_gate.PolicyFailure, "migration set is not exact"):
                     policy_gate.validate_v2_identity_boundary(root, paths)
 
+    def test_line_csp_task_id_is_exact(self):
+        self.assertIsNotNone(policy_gate.TASK_ID.fullmatch("LINE-CSP-20261117"))
+        for task in ("LINE-CSP-20261117-X", "LINE-CSP-20261118", "X-LINE-CSP-20261117"):
+            self.assertIsNone(policy_gate.TASK_ID.fullmatch(task))
+
     def test_line_delivery_d6_admin_paths_are_exact(self):
         paths = policy_gate.tracked_paths(ROOT)
         expected = {
