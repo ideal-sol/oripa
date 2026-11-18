@@ -370,6 +370,7 @@ LINE701_RECIPE_TREE = "1b3adc77482c36adaebddd1ea3ea253ef0fd61cd"
 
 
 def authorize_line701_recipe(control_sha: str, get=None) -> dict:
+    compare_get = get
     get = get or api_get
     if not FULL_SHA.fullmatch(control_sha):
         fail("line701_control_invalid")
@@ -377,7 +378,7 @@ def authorize_line701_recipe(control_sha: str, get=None) -> dict:
     if main.get("protected") is not True or main.get("commit", {}).get("sha") != control_sha:
         fail("line701_control_not_protected_main")
     for revision in (LINE701_SOURCE, LINE701_RECIPE_COMMIT):
-        comparison = api_compare(REPOSITORY, revision, control_sha, get=get)
+        comparison = api_compare(REPOSITORY, revision, control_sha, get=compare_get)
         if (comparison.get("status") not in {"ahead", "identical"}
                 or comparison.get("merge_base_commit", {}).get("sha") != revision
                 or comparison.get("base_commit", {}).get("sha") != revision):

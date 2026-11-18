@@ -532,6 +532,22 @@ class Line701BuildRecipeTest(unittest.TestCase):
     def authorize(self):
         return wrapper.authorize_old_test_recipe(wrapper.LINE701_SOURCE, CONTROL, self.get)["build_recipe"]
 
+    def test_native_default_getter_uses_structured_compare_transport(self):
+        calls = []
+        def response(path, **kwargs):
+            calls.append(path)
+            return io.BytesIO(json.dumps(self.get(path)).encode())
+        with mock.patch.object(wrapper, "_github_get_response", side_effect=response), mock.patch.object(wrapper, "validate_required_checks") as checks:
+            recipe = wrapper.authorize_line701_recipe(CONTROL)["build_recipe"]
+        self.assertEqual(recipe["recipe_sha256"], wrapper.LINE698_RECIPE_SHA256)
+        self.assertEqual(len([path for path in calls if "/compare/" in path]), 2)
+        self.assertEqual(checks.call_count, 2)
+
+    def test_generic_compare_transport_remains_denied(self):
+        with mock.patch.object(wrapper, "_github_get_response") as http, self.assertRaises(wrapper.WrapperError):
+            wrapper.api_get("/repos/ideal-sol/oripa/compare/" + "a" * 40 + "..." + "b" * 40 + "?per_page=1")
+        http.assert_not_called()
+
     def test_new_source_reuses_exact_historical_recipe_with_all_checks(self):
         with mock.patch.object(wrapper, "validate_required_checks") as checks:
             recipe = self.authorize()
