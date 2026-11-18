@@ -6,7 +6,7 @@ Application Runtime Activation: deferred. Source and Draft PR only.
 The explicit Human decision of 2026-11-18 removes every LINE-specific
 additional MFA, TOTP, WebAuthn and Fresh MFA challenge. A normally authenticated
 administrator with the existing operation permission can act without another code,
-including when the session MFA timestamp is absent or older than five minutes.
+without depending on an additional fresh MFA timestamp. Service authorization accepts absent or expired markers; HTTP tests use the existing valid normal-session representation.
 This supersedes the corresponding requirements in the earlier D1–D7 designs.
 It does not change global MFA policy or any non-LINE authentication implementation.
 
@@ -19,6 +19,8 @@ It does not change global MFA policy or any non-LINE authentication implementati
 | D5 | Remove write and media freshness checks and UI; preserve read/write roles, upload MIME/size/hash/generation checks and confirmations. |
 | D6 | Chat/template authorization already uses ordinary permission checks; shared D5 media uploads now need no extra challenge. Reply/template permissions stay distinct. |
 | D7 | No MFA challenge found. CLI Human approval, same-provider confirmation and actor requirements remain unchanged. |
+
+The common HTTP Guard still requires its normal populated session marker. The existing password-only login path also populates that marker; a manually cleared marker is not a valid ordinary HTTP session. This common login/session condition is preserved.
 
 Shared V2AdminFreshMfaAuthorizer is retained for its ordinary session and permission
 methods. Its class name does not imply that authorizePermission checks freshness.

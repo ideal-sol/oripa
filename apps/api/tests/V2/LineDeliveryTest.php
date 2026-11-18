@@ -674,7 +674,7 @@ final class LineDeliveryTest extends TestCase
         self::assertNotSame(DB::table('line_delivery_batches')->where('id', $batch)->value('retry_key'), DB::table('line_delivery_batches')->where('id', $new)->value('retry_key'));
         DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => now()->subDay()]);
         $service->updateDefaults($context, 2, new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing);
-        self::assertSame(3, DB::table('line_delivery_defaults')->value('revision'));
+        self::assertSame(3, DB::table('line_delivery_settings')->value('revision'));
     }
 
     public function test_actual_bot_webhook_link_and_user_state_writers_wait_for_dispatch(): void
