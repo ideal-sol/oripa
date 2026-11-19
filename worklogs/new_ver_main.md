@@ -1,3 +1,9 @@
+## DPPLAN-20261119 — Admin-only first-use approval Plan Draft
+
+- Human authorizes preparation and automatic Plan-only CI measurement only. Issue none; R4 / Strict Change / Activation deferred; base d1235cc55125a6f5ccdcb56a477d82f65c6f1361; dedicated chore/DPPLAN-20261119 worktree. Exactly Plan JSON plus Worklog.
+- Proposed OLD-only Plan binds DPADMIN-20261119 / internal Draft PR710 / test/DPADMIN-20261119 / merged baseline d1235cc55125a6f5ccdcb56a477d82f65c6f1361, admin-only, migration none, five exact paths and frozen Admin dependency preparation plus meaningful Vitest/lint argv. A source HEAD707660c6a85a5e84a4308016819bcca45322576c / Tree bdf3793897247a663c36b2cb6ca148c231bed9bb; dispatch/runtime must revalidate its exact current head.
+- Keep this Plan PR Draft and unmerged. Plan-only Required5, exact planner applicability and queue/execution timings are recorded on its PR after one automatic run; no manual rerun. No Wrapper/Executor/Entry install, Artifact Build/Import, Runtime, Migration, Worker/financial or Production operation. B remains deferred until Human browser confirmation of A.
+
 ## DRAFTPREVIEW-20261119 — PR709 practical-use revision
 
 - Latest Human final construction GO authorizes minimal same-PR improvements, A/B focused verification, final-head Required CI 5/5 and Fresh Strict review; Exact Merge and Runtime GO remain reserved. Reuse PR709 checkpoint `7e36cbb9155ecae3d7d6b056411c333d7c9ee2da` / tree `1fb704bab919a329102e62de983f9b24ae208899`, existing native Artifact/Executor/OS recipe/caches and applicable successful evidence. Issue none; R4 / Strict Change / Activation deferred; existing dedicated branch/worktree and transport policy retained; protected main/base unchanged at `4e958f82606c61b961f8c2b04d5f2ba7c7cd8ef3`.
