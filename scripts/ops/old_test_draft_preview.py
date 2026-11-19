@@ -40,14 +40,22 @@ def authorize(task, number, head_sha, control, *, get, compare=None):
     approval = json.loads(base64.b64decode("".join(document["content"].splitlines()), validate=True))
     require(approval.get("schema_version") == "1.0" and approval.get("target") == "old-test",
             "old_only_plan_required")
+    require(isinstance(approval.get("plans"), list)
+            and all(isinstance(p, dict) for p in approval["plans"]), "plan_inventory_invalid")
     plans = [p for p in approval["plans"] if p.get("task_id") == task and p.get("source_pr") == int(number)]
     require(len(plans) == 1, "approved_plan_required")
     plan = plans[0]
     mode = plan.get("image_mode")
-    require(mode in {"normal", "api-only", "admin-only"}
-            and SHA.fullmatch(str(plan.get("baseline_sha", "")))
+    require(set(plan) == {"task_id", "source_pr", "branch", "baseline_sha", "image_mode",
+                          "migration", "allowed_paths", "focused_commands"}
+            and type(plan["source_pr"]) is int and isinstance(mode, str)
+            and mode in {"normal", "api-only", "admin-only"}
+            and isinstance(plan.get("baseline_sha"), str) and SHA.fullmatch(plan["baseline_sha"])
             and plan.get("migration") == "none"
-            and plan.get("focused_commands") and plan.get("allowed_paths"), "plan_invalid")
+            and isinstance(plan.get("focused_commands"), list) and plan["focused_commands"]
+            and isinstance(plan.get("allowed_paths"), list) and plan["allowed_paths"]
+            and all(isinstance(path, str) and path for path in plan["allowed_paths"])
+            and len(set(plan["allowed_paths"])) == len(plan["allowed_paths"]), "plan_invalid")
     pull = get(f"{prefix}/pulls/{number}")
     head, base = pull.get("head", {}), pull.get("base", {})
     require(pull.get("state") == "open" and pull.get("draft") is True
