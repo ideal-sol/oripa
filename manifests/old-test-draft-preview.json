@@ -11,8 +11,7 @@
       "migration": "none",
       "allowed_paths": [
         "apps/admin/src/app/page.tsx",
-        "apps/admin/src/components/shell/draft-preview-probe.tsx",
-        "apps/admin/test/draft-preview-probe.test.tsx",
+        "apps/admin/test/dashboard-sales-layout.test.tsx",
         "docs/verification/draft-preview-admin-probe.md",
         "worklogs/new_ver_main.md"
       ],
@@ -29,7 +28,7 @@
           "--dir",
           "apps/admin",
           "test",
-          "test/draft-preview-probe.test.tsx"
+          "test/dashboard-sales-layout.test.tsx"
         ],
         [
           "pnpm",
@@ -38,8 +37,7 @@
           "exec",
           "eslint",
           "src/app/page.tsx",
-          "src/components/shell/draft-preview-probe.tsx",
-          "test/draft-preview-probe.test.tsx"
+          "test/dashboard-sales-layout.test.tsx"
         ]
       ]
     }
