@@ -58,6 +58,25 @@ class DraftAuthorityTest(unittest.TestCase):
         self.assertFalse(result['activation_authorized'])
         self.assertEqual(result['source_sha'], HEAD)
 
+    def test_real_contents_api_wrapped_base64(self):
+        def get(path):
+            result = self.get(path)
+            if '/contents/' in path:
+                result['content'] = base64.encodebytes(base64.b64decode(result['content'])).decode()
+                self.assertIn('\n', result['content'])
+            return result
+        self.assertEqual(MODULE['authorize'](TASK, PR, HEAD, CONTROL, get=get)['source_sha'], HEAD)
+
+    def test_ci_mergeability_metadata_is_not_authority_drift(self):
+        calls = []
+        def get(path):
+            result = self.get(path)
+            if '/pulls/' in path:
+                calls.append(path)
+                result['mergeable_state'] = 'blocked' if len(calls) == 1 else 'clean'
+            return result
+        self.assertEqual(MODULE['authorize'](TASK, PR, HEAD, CONTROL, get=get)['source_sha'], HEAD)
+
     def test_modes(self):
         for mode, path in [('api-only', 'apps/api/app/Example.php'), ('normal', 'apps/admin/src/example.tsx')]:
             self.plan.update(image_mode=mode, allowed_paths=[path])

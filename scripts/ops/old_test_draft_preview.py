@@ -36,7 +36,8 @@ def authorize(task, number, head_sha, control, *, get, compare=None):
             "protected_control_required")
     document = get(f"{prefix}/contents/{PLAN_PATH}?ref={control}")
     require(document.get("encoding") == "base64", "plan_encoding_invalid")
-    approval = json.loads(base64.b64decode(document["content"], validate=True))
+    # GitHub Contents API wraps Base64 at 60 columns, including a trailing LF.
+    approval = json.loads(base64.b64decode("".join(document["content"].splitlines()), validate=True))
     require(approval.get("schema_version") == "1.0" and approval.get("target") == "old-test",
             "old_only_plan_required")
     plans = [p for p in approval["plans"] if p.get("task_id") == task and p.get("source_pr") == int(number)]
@@ -97,8 +98,17 @@ def authorize(task, number, head_sha, control, *, get, compare=None):
     commit = get(f"{prefix}/git/commits/{head_sha}")
     tree = commit.get("tree", {}).get("sha", "")
     require(commit.get("sha") == head_sha and SHA.fullmatch(tree), "tree_invalid")
-    require(get(prefix + "/branches/main") == main
-            and get(f"{prefix}/pulls/{number}") == pull, "authority_moved")
+    current_main = get(prefix + "/branches/main")
+    current_pull = get(f"{prefix}/pulls/{number}")
+    # CI completion updates mergeability metadata without changing authority.
+    # Recheck every bound identity field, not volatile unrelated API fields.
+    require(current_main.get("protected") is True and current_main.get("commit", {}).get("sha") == control
+            and all(current_pull.get(key) == pull.get(key) for key in ("state", "draft", "title"))
+            and all(current_pull.get("head", {}).get(key) == head.get(key) for key in ("sha", "ref"))
+            and current_pull.get("head", {}).get("repo", {}).get("full_name") == REPOSITORY
+            and current_pull.get("base", {}).get("ref") == "main"
+            and current_pull.get("base", {}).get("repo", {}).get("full_name") == REPOSITORY,
+            "authority_moved")
     return {"task_id": task, "source_pr": int(number), "source_sha": head_sha,
             "source_tree": tree, "control_sha": control, "target": "old-test",
             "platform": "linux/amd64", "image_mode": mode, "authority_mode": "draft-preview",
