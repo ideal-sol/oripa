@@ -59,12 +59,12 @@ describe("Dashboard sales layout", () => {
     reports.set("reversals", reversals());
   });
 
-  it("shows one exact passive Draft Preview A marker inside the existing shell", () => {
+  it("shows one exact passive Draft Preview B marker inside the existing shell", () => {
     render(<AdminHomePage />);
     const shell = screen.getByTestId("existing-admin-shell");
     const marker = within(shell).getByTestId("draft-preview-probe");
     expect(marker).toBeVisible();
-    expect(marker.textContent?.trim()).toBe("Draft Preview 検証 A");
+    expect(marker.textContent?.trim()).toBe("Draft Preview 検証 B");
     expect(within(shell).getAllByTestId("draft-preview-probe")).toHaveLength(1);
     expect(marker.querySelectorAll("a, button, input, form")).toHaveLength(0);
     expect(shell.firstElementChild).toBe(marker);
