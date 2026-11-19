@@ -1,5 +1,45 @@
 {
   "schema_version": "1.0",
   "target": "old-test",
-  "plans": []
+  "plans": [
+    {
+      "task_id": "DPADMIN-20261119",
+      "source_pr": 710,
+      "branch": "test/DPADMIN-20261119",
+      "baseline_sha": "d1235cc55125a6f5ccdcb56a477d82f65c6f1361",
+      "image_mode": "admin-only",
+      "migration": "none",
+      "allowed_paths": [
+        "apps/admin/src/app/page.tsx",
+        "apps/admin/test/dashboard-sales-layout.test.tsx",
+        "docs/verification/draft-preview-admin-probe.md",
+        "worklogs/new_ver_main.md"
+      ],
+      "focused_commands": [
+        [
+          "pnpm",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@oripa/admin..."
+        ],
+        [
+          "pnpm",
+          "--dir",
+          "apps/admin",
+          "test",
+          "test/dashboard-sales-layout.test.tsx"
+        ],
+        [
+          "pnpm",
+          "--dir",
+          "apps/admin",
+          "exec",
+          "eslint",
+          "src/app/page.tsx",
+          "test/dashboard-sales-layout.test.tsx"
+        ]
+      ]
+    }
+  ]
 }
