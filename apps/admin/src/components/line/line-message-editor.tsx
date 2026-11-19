@@ -11,7 +11,7 @@ function MediaPreview({ url }: { url: string }) {
   if (!url.startsWith("https://")) return null;
   // Verified CDN media must not be relayed through the Admin image optimizer.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="送信内容の参考プレビュー" referrerPolicy="no-referrer" style={{ maxWidth: 320, maxHeight: 320, objectFit: "contain" }} />;
+  return <img src={url} alt="送信内容の参考プレビュー" referrerPolicy="no-referrer" className={styles.mediaPreview} />;
 }
 export function newLineMessage(type: typeof types[number]): LineDeliveryMessage {
   switch (type) {
@@ -73,8 +73,8 @@ export function LineMessageEditor({ messages, onChange, client, disabled = false
       <label>形式<select value={m.type} onChange={(e) => replace(i, newLineMessage(e.target.value as typeof types[number]))}>{types.map((t, index) => <option key={t} value={t}>{names[index]}</option>)}</select></label>
       {(m.type === "image" || m.type === "video") && <MediaPreview url={m.previewImageUrl} />}
       {m.type === "imagemap" && m.baseUrl && <MediaPreview url={m.baseUrl + "/240"} />}
-      {m.type === "image_carousel" && <div style={{ display: "flex", overflowX: "auto" }}>{m.columns.map((c, j) => <MediaPreview key={j} url={c.imageUrl} />)}</div>}
-      {m.type === "text" && <><label>本文<textarea value={m.text} maxLength={5000} onChange={(e) => replace(i, { ...m, text: e.target.value })} /></label><p>{m.text.length}/5000（UTF-16単位）</p><div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div></>}
+      {m.type === "image_carousel" && <div className={styles.carousel}>{m.columns.map((c, j) => <MediaPreview key={j} url={c.imageUrl} />)}</div>}
+      {m.type === "text" && <><label>本文<textarea value={m.text} maxLength={5000} onChange={(e) => replace(i, { ...m, text: e.target.value })} /></label><p>{m.text.length}/5000（UTF-16単位）</p><div className={styles.textPreview}>{m.text}</div></>}
       {(m.type === "imagemap" || m.type === "image_carousel") && <label>通知・代替テキスト<textarea maxLength={1500} value={m.altText} onChange={(e) => replace(i, { ...m, altText: e.target.value })} /></label>}
       {(m.type === "text" || m.type === "imagemap" || m.type === "image_carousel") && <div>{["%username%", "%rank%", "%points%"].map((tag) => <button className="secondary-button" type="button" key={tag} onClick={() => replace(i, m.type === "text" ? { ...m, text: m.text + tag } : { ...m, altText: m.altText + tag })}>{tag}を挿入</button>)}</div>}
       {(m.type === "image" || m.type === "video") && <><MediaUpload selectionOnly={chat} client={client} kind={m.type} onUploaded={(a) => replace(i, { ...m, originalContentUrl: a.original_url, previewImageUrl: a.preview_url })} />{m.previewImageUrl && <p>検証済みメディアを選択済み</p>}</>}

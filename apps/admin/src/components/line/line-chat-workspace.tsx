@@ -18,8 +18,8 @@ function Attachment({ client, conversation, message, type }: { client: AdminApiC
   }).catch(() => setError("添付を取得できませんでした。取消状態を更新してください。")).finally(() => setBusy(false)); }}>添付を表示・ダウンロード</button>
     {/* Authenticated, bounded local blob only; SVG/HTML are never accepted. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    {url && type === "image" && <img src={url} alt="受信画像" style={{ maxWidth: 320, maxHeight: 320 }} />}
-    {url && type === "video" && <video src={url} controls preload="metadata" style={{ maxWidth: 320 }} />}
+    {url && type === "image" && <img src={url} alt="受信画像" className={styles.mediaPreview} />}
+    {url && type === "video" && <video src={url} controls preload="metadata" className={styles.mediaPreview} />}
     {url && type === "audio" && <audio src={url} controls preload="metadata" />}<p role="status">{error}</p></div>;
 }
 

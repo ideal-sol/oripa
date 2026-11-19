@@ -14,11 +14,16 @@
 .surface :where(input:not([type="checkbox"]), select, textarea) { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; min-height: 42px; }
 .surface textarea { resize: vertical; min-height: 100px; }
 .surface input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--forest); }
+.surface input[type="file"]::file-selector-button { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 8px 12px; margin-right: 12px; font: inherit; cursor: pointer; }
+.surface .mediaPreview { max-width: min(320px, 100%); max-height: 320px; object-fit: contain; }
+.carousel { display: flex; overflow-x: auto; gap: 12px; }
+.textPreview { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tableScroll { overflow-x: auto; }
 .surface :where(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--forest); outline-offset: 3px; }
 .surface button { min-height: 44px; margin: 4px 6px 4px 0; white-space: normal; height: auto; max-width: 100%; border-radius: 8px; font-size: 14px; }
 .surface :where(button, input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
 .surface fieldset:disabled { opacity: .8; }
-.surface :where(img, video, audio) { max-width: 100% !important; height: auto; }
+.surface :where(img, video, audio) { max-width: 100%; height: auto; }
 .surface :where([role="alert"], [role="status"]):not(:empty) { padding: 12px 16px; border-radius: 8px; background: var(--surface-muted); }
 .surface [role="alert"]:not(:empty) { background: var(--danger-soft); color: var(--danger); }
 .surface :where(form, article):global(.settings-panel) { margin-block: 16px; }
