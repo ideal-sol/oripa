@@ -31,6 +31,10 @@ it("retries an ambiguous reply using the same UUID and frozen text", async () =>
   fireEvent.click(screen.getByRole("button", { name: "返信を送信キューに登録" }));
   await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   const retry = await screen.findByRole("button", { name: "同じ送信要求の結果を確認" });
+  expect(screen.queryByRole("link", { name: "一覧へ戻る" })).toBeNull();
+  expect(screen.getByRole("button", { name: "一覧へ戻る（送信結果を確認中）" })).toBeDisabled();
+  const unload = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
   await waitFor(() => expect(retry).toBeEnabled()); fireEvent.click(retry);
   await waitFor(() => expect(send).toHaveBeenCalledTimes(2)); expect(send.mock.calls[0]).toEqual(send.mock.calls[1]);
   expect(document.querySelector("script")).toBeNull(); expect(screen.getByLabelText("返信本文")).toBeDisabled();

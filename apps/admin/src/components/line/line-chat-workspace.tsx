@@ -42,6 +42,12 @@ export function LineChatWorkspace({ conversationId }: { conversationId?: string 
   }, [detail]);
   const [messages, setMessages] = useState<LineDeliveryMessage[]>([newLineMessage("text")]);
   const [pending, setPending] = useState<{ id: string; key: string; messages: LineDeliveryMessage[] } | null>(null);
+  useEffect(() => {
+    if (!pending) return;
+    const guard = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [pending]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const selection = useRef(0);
   async function load(page = 1) { setList(await client.listLineChat(page, status, unread, search)); setPage(page); }
   useEffect(() => {
@@ -90,7 +96,7 @@ export function LineChatWorkspace({ conversationId }: { conversationId?: string 
       <span className={styles.preview}>{c.summary || "メッセージなし"}</span><span>{c.status === "open" ? "対応中" : "対応済み"}・未読 {c.unread_count}</span>
     </a>)}</div>
     <nav aria-label="会話のページ送り"><button className="secondary-button" disabled={busy || page === 1} onClick={() => void perform(() => load(page - 1))}>前の会話</button><span>{page}ページ</span><button className="secondary-button" disabled={busy || !list.next_page} onClick={() => void perform(() => load(list.next_page!))}>次の会話</button></nav>
-    </> : <><Link className="secondary-button" href="/line-chat">一覧へ戻る</Link>
+    </> : <>{pending ? <button className="secondary-button" disabled>一覧へ戻る（送信結果を確認中）</button> : <Link className="secondary-button" href="/line-chat">一覧へ戻る</Link>}
     {!detail && !loading && <button className="secondary-button" disabled={busy} onClick={() => void perform(() => open(conversationId))}>最新履歴を取得</button>}
     {detail && <section><h2>{detail.conversation.name} <span className={styles.badge}>{detail.conversation.status === "open" ? "対応中" : "対応済み"}</span></h2>{detail.conversation.member_id && <p><Link href={`/users/${detail.conversation.member_id}`}>会員詳細</Link>／ランク {detail.conversation.rank_level ?? "—"}／{detail.conversation.points}ポイント</p>}
       <button className="secondary-button" disabled={busy} onClick={() => void perform(() => open(detail.conversation.id))}>最新履歴を取得</button>
