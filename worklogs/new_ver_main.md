@@ -14035,7 +14035,7 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 
 - CI found a PR705 historical test using current HEAD, which pulled unrelated later OLD Test authority into an older-base ancestry check. Pin its exact historical merged Control in an isolated disposable checkout; retain provenance/three-source checks. No Production authority or payload change. Scope includes this directly necessary regression fixture. Body metadata normalized to existing canonical LINE task; initial metadata failure corrected without Gate change.
 
-## DPADMIN-CLEANUP-20261119 — Draft Preview verification closeout
+## CLEANUP-20261119 — Draft Preview verification closeout
 
 - Issue none; R4 / Strict Change / Application Runtime Activation none. Base e2c2c9af0bf063ceb532853de21cc5b7a098c885; dedicated Worktree preserves the occupied primary checkout.
 - Human accepted the A and B browser probes from unmerged Draft PR710 and confirmed removal after formal PR706 Admin restoration. Runtime Technical acceptance passed; Human authorized final cleanup. Close PR710 without merging and retain PR history, source verification history and private operational evidence.
