@@ -77,9 +77,11 @@ def authorize(task, number, head_sha, control, *, get, compare=None):
     for item in files:
         path = item.get("filename", "")
         require(item.get("status") in {"added", "modified", "removed"}
-                and path in plan["allowed_paths"] and path.startswith(roots)
+                and path in plan["allowed_paths"]
+                and (path.startswith(roots) or path == "worklogs/new_ver_main.md")
                 and ".." not in path.split("/"), "path_not_approved")
         paths.append(path)
+    require(any(path.startswith(roots) for path in paths), "application_change_required")
     for command in plan["focused_commands"]:
         require(isinstance(command, list) and command
                 and all(isinstance(arg, str) and arg and "\x00" not in arg for arg in command),

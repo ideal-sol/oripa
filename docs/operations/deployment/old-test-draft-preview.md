@@ -35,8 +35,10 @@ The baseline must include the approved test harness. API tests needing a DB must
 use a disposable synthetic DB, never OLD Test data. Such a plan may include its
 bounded DB preparation; it does not inherit the Full DB integration suite.
 
-Plans permit changes only under selected application roots (`apps/admin/src`,
-API `app`, `routes`, `resources`). Schema/migrations, dependencies/locks,
+Plans permit changes under selected application roots (`apps/admin/src`, API
+`app`, `routes`, `resources`), plus the explicitly approved mandatory record
+`worklogs/new_ver_main.md`. A Worklog-only change cannot trigger an image Build.
+Schema/migrations, dependencies/locks,
 workflows, security recipes and test harness changes cannot enter this fast path.
 Renames and a truncated comparison fail closed. Migration work follows the
 existing separately approved forward-only route. Source-only checks cannot prove

@@ -83,6 +83,17 @@ class DraftAuthorityTest(unittest.TestCase):
             self.files = [dict(filename=path, status='modified')]
             self.assertEqual(self.authorize()['image_mode'], mode)
 
+    def test_required_worklog_can_accompany_approved_application_change(self):
+        self.plan['allowed_paths'].append('worklogs/new_ver_main.md')
+        self.files.append(dict(filename='worklogs/new_ver_main.md', status='modified'))
+        self.assertIn('worklogs/new_ver_main.md', self.authorize()['changed_paths'])
+
+    def test_worklog_only_does_not_trigger_application_build(self):
+        self.plan['allowed_paths'] = ['worklogs/new_ver_main.md']
+        self.files = [dict(filename='worklogs/new_ver_main.md', status='modified')]
+        with self.assertRaisesRegex(ValueError, 'application_change_required'):
+            self.authorize()
+
     def test_rejects_identity_scope_security_and_schema(self):
         mutations = [
             lambda: self.pull.update(draft=False), lambda: self.pull.update(state='closed'),
