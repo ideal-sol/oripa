@@ -684,12 +684,28 @@ def dispatch_old_test_artifact(task_id: str, pr_number: str, source_sha: str) ->
     return {**authority, "status": "dispatched"}
 
 
-def artifact_name(task_id: str, head_sha: str, old_test: bool = False) -> str:
-    kind = "old-test" if old_test else "preview"
+def authorize_draft_preview(task_id, pr_number, head_sha, control):
+    # Load the validator from the selected protected control Git object. Never
+    # trust the artifact, a Draft checkout, or the host's older source checkout.
+    if not FULL_SHA.fullmatch(control):
+        fail("draft_control_invalid")
+    main = api_get(f"/repos/{REPOSITORY}/branches/main")
+    if main.get("protected") is not True or main.get("commit", {}).get("sha") != control:
+        fail("draft_control_not_protected_main")
+    relative = "scripts/ops/old_test_draft_preview.py"
+    source = subprocess.check_output(["git", "-C", "/var/www/oripa", "show", f"{control}:{relative}"])
+    namespace = {"__file__": "/var/www/oripa/" + relative, "__name__": "draft_authority"}
+    exec(compile(source, relative, "exec"), namespace)
+    return namespace["authorize"](task_id, pr_number, head_sha, control, get=api_get,
+                                  compare=lambda before, after: api_compare(REPOSITORY, before, after))
+
+
+def artifact_name(task_id: str, head_sha: str, old_test: bool = False, draft: bool = False) -> str:
+    kind = "old-test-draft" if draft else "old-test" if old_test else "preview"
     return f"oripa-{kind}-images-{task_id}-{head_sha}"
 
 
-def validated_run(run_id: int, old_test: bool = False) -> dict:
+def validated_run(run_id: int, old_test: bool = False, draft: bool = False) -> dict:
     run = api_get(f"/repos/{REPOSITORY}/actions/runs/{run_id}")
     if not isinstance(run, dict):
         fail("workflow_run_invalid")
@@ -698,23 +714,23 @@ def validated_run(run_id: int, old_test: bool = False) -> dict:
         run.get("event") != "workflow_dispatch"
         or run.get("status") != "completed"
         or run.get("conclusion") != "success"
-        or path != (OLD_WORKFLOW_PATH if old_test else ".github/workflows/preview-image-build.yml")
+        or path != (".github/workflows/old-test-draft-preview.yml" if draft else OLD_WORKFLOW_PATH if old_test else ".github/workflows/preview-image-build.yml")
         or run.get("head_branch") != "main"
     ):
         fail("workflow_run_rejected")
     return run
 
 
-def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str, *, old_test: bool = False) -> list[dict]:
+def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str, *, old_test: bool = False, draft: bool = False) -> list[dict]:
     if old_test:
         old_test_policy(task_id)
         control = api_get(f"/repos/{REPOSITORY}/branches/main").get("commit", {}).get("sha", "")
-        authorize_old_test_source(task_id, pr_number, head_sha, control)
+        (authorize_draft_preview if draft else authorize_old_test_source)(task_id, pr_number, head_sha, control)
     else:
         policy = secure_policy(task_id)
         validated_pr(policy, pr_number, head_sha)
         validate_required_checks(head_sha)
-    query = urllib.parse.urlencode({"name": artifact_name(task_id, head_sha, old_test), "per_page": "100"})
+    query = urllib.parse.urlencode({"name": artifact_name(task_id, head_sha, old_test, draft), "per_page": "100"})
     result = api_get(f"/repos/{REPOSITORY}/actions/artifacts?{query}")
     if not isinstance(result, dict) or not isinstance(result.get("artifacts"), list):
         fail("artifacts_response_invalid")
@@ -726,11 +742,11 @@ def list_preview_artifacts(task_id: str, pr_number: str, head_sha: str, *, old_t
         run_id = workflow_run.get("id") if isinstance(workflow_run, dict) else None
         if not isinstance(run_id, int):
             continue
-        run = validated_run(run_id, old_test)
+        run = validated_run(run_id, old_test, draft)
         if old_test and run.get("head_sha") != control:
             continue
         digest = artifact.get("digest")
-        if artifact.get("name") != artifact_name(task_id, head_sha, old_test) or not isinstance(digest, str) or not SHA256.fullmatch(digest):
+        if artifact.get("name") != artifact_name(task_id, head_sha, old_test, draft) or not isinstance(digest, str) or not SHA256.fullmatch(digest):
             continue
         output.append(
             {
@@ -859,11 +875,12 @@ def download_preview_artifact(
     destination_value: str,
     *,
     old_test: bool = False,
+    draft: bool = False,
 ) -> dict:
     if old_test:
         old_test_policy(task_id)
         control = api_get(f"/repos/{REPOSITORY}/branches/main").get("commit", {}).get("sha", "")
-        authority = authorize_old_test_source(task_id, pr_number, head_sha, control)
+        authority = (authorize_draft_preview if draft else authorize_old_test_source)(task_id, pr_number, head_sha, control)
     else:
         policy = secure_policy(task_id)
         validated_pr(policy, pr_number, head_sha)
@@ -876,14 +893,14 @@ def download_preview_artifact(
     run_id = workflow_run.get("id") if isinstance(workflow_run, dict) else None
     digest = artifact.get("digest") if isinstance(artifact, dict) else None
     if (
-        artifact.get("name") != artifact_name(task_id, head_sha, old_test)
+        artifact.get("name") != artifact_name(task_id, head_sha, old_test, draft)
         or artifact.get("expired") is True
         or not isinstance(run_id, int)
         or not isinstance(digest, str)
         or not SHA256.fullmatch(digest)
     ):
         fail("artifact_identity_mismatch")
-    run = validated_run(run_id, old_test)
+    run = validated_run(run_id, old_test, draft)
     if old_test and run.get("head_sha") != control:
         fail("old_test_run_control_mismatch")
 
@@ -957,6 +974,8 @@ def download_preview_artifact(
         }
         if old_test:
             metadata.update(control_sha=control, artifact_kind="old-test", architecture="amd64")
+            if draft:
+                metadata["authority_mode"] = "draft-preview"
         (staging / "download-metadata.json").write_bytes(
             (json.dumps(metadata, sort_keys=True, indent=2) + "\n").encode("utf-8")
         )
@@ -1031,6 +1050,14 @@ def main() -> None:
         if len(arguments) != 3:
             fail("old_test_arguments_invalid")
         print(json.dumps(dispatch_old_test_artifact(*arguments), sort_keys=True))
+    elif operation == "old-test-draft-artifacts":
+        if len(arguments) != 3:
+            fail("draft_arguments_invalid")
+        print(json.dumps(list_preview_artifacts(*arguments, old_test=True, draft=True), sort_keys=True))
+    elif operation == "download-old-test-draft-artifact":
+        if len(arguments) != 5:
+            fail("draft_arguments_invalid")
+        print(json.dumps(download_preview_artifact(*arguments, old_test=True, draft=True), sort_keys=True))
     elif operation == "old-test-artifacts":
         if len(arguments) != 3:
             fail("old_test_arguments_invalid")

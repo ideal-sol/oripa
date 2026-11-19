@@ -87,6 +87,7 @@ jobs:
           tests.ops.test_self_review_policy
           tests.ops.test_task_branch_base_sync
           tests.ops.test_task_policy
+          tests.ops.test_old_test_draft_preview
 
       - name: Validate repository policy
         env:
