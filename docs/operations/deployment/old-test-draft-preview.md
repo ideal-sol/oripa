@@ -45,10 +45,12 @@ live schema compatibility: existing runtime migration inventory checks also pass
 For each new Draft head, dispatch `old-test-draft-preview.yml` **from main** with
 Task, PR and full `source_sha`. Mode comes from the approved plan, not arbitrary
 dispatch input. GitHub must report the exact open internal Draft PR and main
-base. Reuse successful exact-head `quality-gate` and `security-gate` evidence;
+base. Reuse successful exact-head `policy-gate` and `security-gate` evidence;
 check App, workflow, event, head and latest check result. Run the approved focused
 commands, build only selected images once and verify the Artifact. Full DB CI,
-integration-gate, ci-gate and squash merge need not finish for Draft preparation.
+quality-gate, integration-gate, ci-gate and squash merge need not finish for Draft
+preparation. Focused validation replaces general quality validation here, avoiding
+an additional full Frontend Build before the selected formal image Build.
 Revalidate PR/main before publication and again during retrieval/preflight.
 
 Reuse a nonexpired successful Artifact for the same head/control/plan; list

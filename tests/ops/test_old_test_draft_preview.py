@@ -25,7 +25,7 @@ class DraftAuthorityTest(unittest.TestCase):
         self.main = dict(protected=True, commit=dict(sha=CONTROL))
         self.workflow = '.github/workflows/platform-ci.yml'
         self.checks = []
-        for i, name in enumerate(('quality-gate', 'security-gate'), 1):
+        for i, name in enumerate(('policy-gate', 'security-gate'), 1):
             self.checks.append(dict(id=i, name=name, head_sha=HEAD, status='completed', conclusion='success',
                 started_at='2026-11-19T00:00:00Z', completed_at='2026-11-19T00:01:00Z',
                 app=dict(id=15368, slug='github-actions', owner=dict(login='github')),

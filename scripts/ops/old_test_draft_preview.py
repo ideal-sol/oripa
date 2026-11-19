@@ -83,7 +83,7 @@ def authorize(task, number, head_sha, control, *, get, compare=None):
     gate = runpy.run_path(str(ROOT / "infrastructure/github-app/check_run_gate.py"))
     checks = gate["list_required_check_runs"](get, repository=REPOSITORY, head_sha=head_sha)
     summary = gate["evaluate_required_check_runs"](
-        checks, head_sha=head_sha, required_checks={"quality-gate", "security-gate"})
+        checks, head_sha=head_sha, required_checks={"policy-gate", "security-gate"})
     require(summary["passed"], "early_checks_required")
     for selected in summary["runs"]:
         check = next(c for c in checks if c.get("id") == selected["id"])
