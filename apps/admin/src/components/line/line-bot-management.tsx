@@ -61,30 +61,30 @@ export function LineBotManagement() {
     {!writable && <p>参照のみです。登録・変更・接続確認はOwner権限が必要です。</p>}
     {error && <p role="alert" className="notice notice-error">{error}</p>}
     {(busy || message) && <p role="status">{busy ? "処理中です…" : message}</p>}
-    <button type="button" disabled={busy} onClick={() => void perform(load, "最新の設定を取得しました。")}>再読込</button>
+    <button className="secondary-button" type="button" disabled={busy} onClick={() => void perform(load, "最新の設定を取得しました。")}>再読込</button>
     <form onSubmit={(event) => { event.preventDefault(); if (!login) return; void perform(() => client.updateLineLoginSetting({channel_id: loginId, channel_secret: loginSecret, expected_revision: login.revision}, crypto.randomUUID()), "LINEログイン設定を保存しました。"); }}>
       <h3>サイト共通のLINEログイン</h3>
       <p>secret: {login?.secret_configured ? "設定済み（保存値は表示できません）" : "未設定"}／設定元: {login?.source === "database" ? "管理画面" : login?.source === "environment" ? "移行期の環境設定" : "未設定"}</p>
       <fieldset disabled={!writable || busy || !login}>
         <label>ログインChannel ID<input value={loginId} onChange={(event) => setLoginId(event.target.value)} required pattern="[0-9]{1,32}" /></label>
         <label>新しいログインChannel secret<input type="password" autoComplete="new-password" value={loginSecret} onChange={(event) => setLoginSecret(event.target.value)} required maxLength={255} /></label>
-        <button type="submit">ログイン設定を保存</button>
+        <button className="primary-button" type="submit">ログイン設定を保存</button>
       </fieldset>
     </form>
     <h3>Messaging API BOT</h3>
     {bots.length === 0 && <p>BOTはまだありません。</p>}
     {bots.map((bot) => <article key={bot.id} className="settings-panel">
-      <h4>{bot.name} {bot.is_active ? "（有効）" : "（無効）"}</h4>
+      <h4>{bot.name} <span className={bot.is_active ? "notice notice-success" : "notice"}>{bot.is_active ? "有効" : "無効"}</span></h4>
       <p>Channel ID: {bot.channel_id ?? "未設定・Human入力待ち"}／secret: {bot.secret_configured ? "設定済み" : "未設定"}</p>
-      <p>接続: {({unconfigured: "未設定", pending: "確認待ち", succeeded: "成功", failed: "失敗"})[bot.connection_status]} {bot.display_name} {bot.basic_id}</p>
-      <label>Webhook URL<input readOnly value={bot.webhook_url ?? ""} /></label>
+      <p className={bot.connection_status === "succeeded" ? "notice notice-success" : bot.connection_status === "failed" ? "notice notice-error" : "notice notice-warning"}>接続: {({unconfigured: "未設定", pending: "確認待ち", succeeded: "成功", failed: "失敗"})[bot.connection_status]} {bot.display_name} {bot.basic_id}</p>
+      <div className="line-webhook"><label>Webhook URL<input readOnly value={bot.webhook_url ?? ""} /></label>
       {bot.webhook_url === null && <p>公開URLが未設定、またはHTTPSの設定が不正なため、Webhook URLを表示できません。サイト管理者に設定を依頼してください。</p>}
-      <button type="button" disabled={!bot.webhook_url} onClick={() => { if (bot.webhook_url) void navigator.clipboard.writeText(bot.webhook_url).then(() => setMessage("Webhook URLをコピーしました。LINE Developersに貼り付けてください。")).catch(() => setError("コピーできませんでした。URLを選択してコピーしてください。")); }}>URLをコピー</button>
+      <button className="secondary-button" type="button" disabled={!bot.webhook_url} onClick={() => { if (bot.webhook_url) void navigator.clipboard.writeText(bot.webhook_url).then(() => setMessage("Webhook URLをコピーしました。LINE Developersに貼り付けてください。")).catch(() => setError("コピーできませんでした。URLを選択してコピーしてください。")); }}>URLをコピー</button></div>
       <p>送信数: {bot.quota_snapshot ? `${bot.quota_snapshot.used ?? "—"} / ${bot.quota_snapshot.type === "none" ? "上限なし" : bot.quota_snapshot.limit ?? "—"}` : "未取得"}（取得日時: {bot.quota_fetched_at ?? "—"}）</p>
       <p>友だち: {bot.followers_snapshot?.status === "ready" ? `${bot.followers_snapshot.followers ?? "—"}／ブロック ${bot.followers_snapshot.blocks ?? "—"}／届く人数 ${bot.followers_snapshot.targetedReaches ?? "—"}` : bot.followers_snapshot ? "取得できませんでした（LINEの集計待ち）" : "未取得"}（取得日時: {bot.followers_fetched_at ?? "—"}）</p>
       <fieldset disabled={!writable || busy}>
-        <button type="button" onClick={() => {setEditing(bot); setName(bot.name); setChannel(bot.channel_id ?? ""); setSecret("");}}>編集</button>
-        {([ ["connection", "接続を確認"], ["activation", "このBOTを有効化"], ["quota", "送信数を取得"], ["followers", "友だち数を取得"] ] as const).map(([operation, label]) => <button key={operation} type="button" disabled={operation === "activation" && (bot.is_active || bot.connection_status !== "succeeded")} onClick={() => void perform(() => client.lineBotAction(bot.id, operation, bot.revision, crypto.randomUUID()), `${label}：完了しました。`)}>{label}</button>)}
+        <button className="secondary-button" type="button" onClick={() => {setEditing(bot); setName(bot.name); setChannel(bot.channel_id ?? ""); setSecret("");}}>編集</button>
+        {([ ["connection", "接続を確認"], ["activation", "このBOTを有効化"], ["quota", "送信数を取得"], ["followers", "友だち数を取得"] ] as const).map(([operation, label]) => <button className={operation === "activation" ? "primary-button" : "secondary-button"} key={operation} type="button" disabled={operation === "activation" && (bot.is_active || bot.connection_status !== "succeeded")} onClick={() => void perform(() => client.lineBotAction(bot.id, operation, bot.revision, crypto.randomUUID()), `${label}：完了しました。`)}>{label}</button>)}
       </fieldset>
     </article>)}
     <form onSubmit={(event) => { event.preventDefault(); void perform(async () => {
@@ -99,8 +99,8 @@ export function LineBotManagement() {
         <p>別の公式アカウントへ変更する場合は、新しいBOTを追加して切り替えてください。</p>
         <label>新しいMessaging API Channel secret<input type="password" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} required={!editing} maxLength={255} /></label>
         <p>保存済みsecretは表示できません。変更する場合は新しい値を入力してください。送信用アクセストークンは自動取得します。</p>
-        <button type="submit">BOTを保存</button>
-        {editing && <button type="button" onClick={() => {setEditing(null); setName(""); setChannel(""); setSecret("");}}>編集をやめる</button>}
+        <button className="primary-button" type="submit">BOTを保存</button>
+        {editing && <button className="secondary-button" type="button" onClick={() => {setEditing(null); setName(""); setChannel(""); setSecret("");}}>編集をやめる</button>}
       </fieldset>
     </form>
   </section>;

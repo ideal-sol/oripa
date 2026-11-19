@@ -1,0 +1,46 @@
+.surface { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.surface :where(fieldset, section, article, form, div, label) { min-width: 0; }
+.surface :where(h2, h3, h4) { margin: 0 0 12px; line-height: 1.5; }
+.surface h2 { font-size: 20px; }
+.surface h3 { font-size: 17px; }
+.surface :where(p, small) { line-height: 1.7; }
+.surface p { margin-block: 8px; }
+.surface :where(fieldset, details) { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 16px 0; background: var(--surface); }
+.surface fieldset { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.surface fieldset > :where(p, fieldset, section, div, h3) { flex-basis: 100%; }
+.surface legend { font-weight: 600; padding: 0 6px; }
+.surface label { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; font-size: 14px; font-weight: 500; margin: 8px 0; }
+.surface label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; flex: 0 1 auto; gap: 10px; }
+.surface :where(input:not([type="checkbox"]), select, textarea) { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; min-height: 42px; }
+.surface textarea { resize: vertical; min-height: 100px; }
+.surface input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--forest); }
+.surface :where(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--forest); outline-offset: 3px; }
+.surface button { min-height: 44px; margin: 4px 6px 4px 0; white-space: normal; height: auto; max-width: 100%; border-radius: 8px; font-size: 14px; }
+.surface :where(button, input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
+.surface fieldset:disabled { opacity: .8; }
+.surface :where(img, video, audio) { max-width: 100% !important; height: auto; }
+.surface :where([role="alert"], [role="status"]):not(:empty) { padding: 12px 16px; border-radius: 8px; background: var(--surface-muted); }
+.surface [role="alert"]:not(:empty) { background: var(--danger-soft); color: var(--danger); }
+.surface :where(form, article):global(.settings-panel) { margin-block: 16px; }
+.surface table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.surface :where(th, td) { padding: 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.surface th { background: var(--surface-muted); }
+.surface summary { cursor: pointer; font-weight: 600; padding: 8px; }
+.settings > :global(.settings-panel) { width: 100%; max-width: 860px; box-sizing: border-box; margin: 0 0 24px; padding: 24px; }
+.surface :global(.line-webhook) { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.conversations { display: grid; gap: 8px; }
+.conversation { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-decoration: none; color: inherit; }
+.conversation:hover { background: var(--forest-soft); border-color: var(--forest); }
+.preview { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; background: var(--forest-soft); color: var(--forest-dark); font-size: 12px; }
+.timeline { max-height: 65vh; overflow-y: auto; overflow-anchor: none; padding: 20px; background: var(--canvas); border-radius: 12px; margin-block: 16px; }
+.day { text-align: center; color: var(--muted); font-size: 13px; margin: 20px 0; }
+.message { max-width: 80%; width: fit-content; padding: 12px 16px; border-radius: 16px 16px 16px 4px; background: var(--surface); border: 1px solid var(--line); margin: 12px 0; white-space: pre-wrap; }
+.outbound { margin-left: auto; background: var(--forest-soft); border-radius: 16px 16px 4px 16px; }
+.meta { color: var(--muted); font-size: 12px; display: block; margin-top: 8px; }
+.composer { border-top: 1px solid var(--line); padding-top: 16px; }
+.composer > fieldset { margin-top: 0; }
+.notificationGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.notificationGrid > form { align-content: start; margin-block: 0 !important; }
+@media (max-width: 1000px) { .notificationGrid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .surface fieldset, .settings > :global(.settings-panel) { padding: 14px; } .surface label { flex-basis: 100%; } .conversation { grid-template-columns: 1fr; } .message { max-width: 94%; } .timeline { padding: 10px; } }

@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "./line-admin.module.css";
 import { useState } from "react";
 import { AdminApiClient } from "@/lib/admin-api/client";
 import type { LineDeliveryMessage, LineMediaAsset, LineMediaIntentInput } from "@/lib/admin-api/generated";
@@ -48,16 +49,16 @@ function MediaUpload({ client, kind, onUploaded, selectionOnly = false }: { clie
     } catch { setStatus("アップロードまたは実体検証に失敗しました。形式・容量・縦横比、権限、CDN設定を確認してください。"); }
     finally { setBusy(false); }
   }
-  if (selectionOnly) return <fieldset disabled={busy}><legend>検証済みメディアを選択</legend>
+  if (selectionOnly) return <fieldset className={styles.surface} disabled={busy}><legend>検証済みメディアを選択</legend>
     <p>有効BOTの検証済みファイルを使用します。新規ファイルはOwnerに登録を依頼してください。</p>
-    <button type="button" disabled={page === null} onClick={() => { setBusy(true); void client.lineChatMedia(page ?? 1).then((r) => { setAssets((old) => [...old, ...r.data]); setPage(r.next_page); }).catch(() => setStatus("メディアを取得できませんでした。")).finally(() => setBusy(false)); }}>メディアを読み込む</button>
-    {assets.filter((a) => a.kind === kind).map((a) => <button type="button" key={a.id} onClick={() => onUploaded(a)}><MediaPreview url={a.preview_url} />{a.width}×{a.height} を選択</button>)}<p role="status">{status}</p>
+    <button className="secondary-button" type="button" disabled={page === null} onClick={() => { setBusy(true); void client.lineChatMedia(page ?? 1).then((r) => { setAssets((old) => [...old, ...r.data]); setPage(r.next_page); }).catch(() => setStatus("メディアを取得できませんでした。")).finally(() => setBusy(false)); }}>メディアを読み込む</button>
+    {assets.filter((a) => a.kind === kind).map((a) => <button className="secondary-button" type="button" key={a.id} onClick={() => onUploaded(a)}><MediaPreview url={a.preview_url} />{a.width}×{a.height} を選択</button>)}<p role="status">{status}</p>
   </fieldset>;
-  return <fieldset disabled={busy}>
+  return <fieldset className={styles.surface} disabled={busy}>
     <legend>{kind === "video" ? "MP4（200MB以下）と同じ縦横比のプレビュー" : kind === "carousel" ? "正方形のJPEG/PNG（10MB以下）" : "JPEG/PNG（10MB以下）"}</legend>
     <input aria-label="アップロードするファイル" type="file" accept={kind === "video" ? "video/mp4" : "image/jpeg,image/png"} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
     {kind === "video" && <label>プレビュー（JPEG/PNG・1MB以下）<input type="file" accept="image/jpeg,image/png" onChange={(e) => setPreview(e.target.files?.[0] ?? null)} /></label>}
-    <button type="button" disabled={!file || (kind === "video" && !preview)} onClick={() => void upload()}>アップロードして実体検証</button>
+    <button className="secondary-button" type="button" disabled={!file || (kind === "video" && !preview)} onClick={() => void upload()}>アップロードして実体検証</button>
     <p role="status">{status}</p>
   </fieldset>;
 }
@@ -66,7 +67,7 @@ function MediaUpload({ client, kind, onUploaded, selectionOnly = false }: { clie
 export function LineMessageEditor({ messages, onChange, client, disabled = false, chat = false }: { messages: LineDeliveryMessage[]; onChange: (m: LineDeliveryMessage[]) => void; client: AdminApiClient; disabled?: boolean; chat?: boolean }) {
   const replace = (index: number, m: LineDeliveryMessage) => onChange(messages.map((old, i) => i === index ? m : old));
   const move = (i: number, delta: number) => { const copy = [...messages]; [copy[i], copy[i + delta]] = [copy[i + delta], copy[i]]; onChange(copy); };
-  return <fieldset disabled={disabled}><legend>送信メッセージ（1〜5件・混在可能）</legend>
+  return <fieldset className={styles.surface} disabled={disabled}><legend>送信メッセージ（1〜5件・混在可能）</legend>
     <p>表示は参考プレビューです。実LINE表示を保証しません。{chat ? "この返信は送信数にカウントされます。" : "タグありは1人ずつPush、タグなしは最大500人ずつMulticastです。"}</p>
     {messages.map((m, i) => <section key={i} aria-label={`メッセージ ${i + 1}`}>
       <label>形式<select value={m.type} onChange={(e) => replace(i, newLineMessage(e.target.value as typeof types[number]))}>{types.map((t, index) => <option key={t} value={t}>{names[index]}</option>)}</select></label>
@@ -75,12 +76,12 @@ export function LineMessageEditor({ messages, onChange, client, disabled = false
       {m.type === "image_carousel" && <div style={{ display: "flex", overflowX: "auto" }}>{m.columns.map((c, j) => <MediaPreview key={j} url={c.imageUrl} />)}</div>}
       {m.type === "text" && <><label>本文<textarea value={m.text} maxLength={5000} onChange={(e) => replace(i, { ...m, text: e.target.value })} /></label><p>{m.text.length}/5000（UTF-16単位）</p><div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div></>}
       {(m.type === "imagemap" || m.type === "image_carousel") && <label>通知・代替テキスト<textarea maxLength={1500} value={m.altText} onChange={(e) => replace(i, { ...m, altText: e.target.value })} /></label>}
-      {(m.type === "text" || m.type === "imagemap" || m.type === "image_carousel") && <div>{["%username%", "%rank%", "%points%"].map((tag) => <button type="button" key={tag} onClick={() => replace(i, m.type === "text" ? { ...m, text: m.text + tag } : { ...m, altText: m.altText + tag })}>{tag}を挿入</button>)}</div>}
+      {(m.type === "text" || m.type === "imagemap" || m.type === "image_carousel") && <div>{["%username%", "%rank%", "%points%"].map((tag) => <button className="secondary-button" type="button" key={tag} onClick={() => replace(i, m.type === "text" ? { ...m, text: m.text + tag } : { ...m, altText: m.altText + tag })}>{tag}を挿入</button>)}</div>}
       {(m.type === "image" || m.type === "video") && <><MediaUpload selectionOnly={chat} client={client} kind={m.type} onUploaded={(a) => replace(i, { ...m, originalContentUrl: a.original_url, previewImageUrl: a.preview_url })} />{m.previewImageUrl && <p>検証済みメディアを選択済み</p>}</>}
       {m.type === "imagemap" && <><MediaUpload selectionOnly={chat} client={client} kind="imagemap" onUploaded={(a) => replace(i, { ...m, baseUrl: a.original_url, height: a.height })} /><label>画像全体のリンク先<input type="url" value={m.links[0]} onChange={(e) => replace(i, { ...m, links: [e.target.value] })} /></label><p>画像全体の1領域です。HTTPS・許可ホストのみ。URLは入力どおりに使用します。</p></>}
-      {m.type === "image_carousel" && <>{m.columns.map((c, j) => <fieldset key={j}><legend>画像 {j + 1}</legend><label>HTTPSリンク<input type="url" value={c.uri} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, uri: e.target.value } : v) })} /></label><label>ボタン文言（任意）<input maxLength={20} value={c.label ?? ""} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, label: e.target.value } : v) })} /></label><button type="button" onClick={() => replace(i, { ...m, columns: m.columns.filter((_, k) => j !== k) })}>画像を削除</button></fieldset>)}{m.columns.length < 10 && <MediaUpload selectionOnly={chat} client={client} kind="carousel" onUploaded={(a) => replace(i, { ...m, columns: [...m.columns, { imageUrl: a.original_url, uri: "" }] })} />}</>}
-      <button type="button" disabled={i === 0} onClick={() => move(i, -1)}>上へ</button><button type="button" disabled={i === messages.length - 1} onClick={() => move(i, 1)}>下へ</button><button type="button" disabled={messages.length === 1} onClick={() => onChange(messages.filter((_, j) => j !== i))}>メッセージを削除</button>
+      {m.type === "image_carousel" && <>{m.columns.map((c, j) => <fieldset className={styles.surface} key={j}><legend>画像 {j + 1}</legend><label>HTTPSリンク<input type="url" value={c.uri} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, uri: e.target.value } : v) })} /></label><label>ボタン文言（任意）<input maxLength={20} value={c.label ?? ""} onChange={(e) => replace(i, { ...m, columns: m.columns.map((v, k) => k === j ? { ...v, label: e.target.value } : v) })} /></label><button className="danger-button" type="button" onClick={() => replace(i, { ...m, columns: m.columns.filter((_, k) => j !== k) })}>画像を削除</button></fieldset>)}{m.columns.length < 10 && <MediaUpload selectionOnly={chat} client={client} kind="carousel" onUploaded={(a) => replace(i, { ...m, columns: [...m.columns, { imageUrl: a.original_url, uri: "" }] })} />}</>}
+      <button className="secondary-button" type="button" disabled={i === 0} onClick={() => move(i, -1)}>上へ</button><button className="secondary-button" type="button" disabled={i === messages.length - 1} onClick={() => move(i, 1)}>下へ</button><button className="danger-button" type="button" disabled={messages.length === 1} onClick={() => onChange(messages.filter((_, j) => j !== i))}>メッセージを削除</button>
     </section>)}
-    <button type="button" disabled={messages.length >= 5} onClick={() => onChange([...messages, newLineMessage("text")])}>メッセージを追加</button>
+    <button className="secondary-button" type="button" disabled={messages.length >= 5} onClick={() => onChange([...messages, newLineMessage("text")])}>メッセージを追加</button>
   </fieldset>;
 }

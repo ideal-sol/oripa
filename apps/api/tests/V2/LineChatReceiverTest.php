@@ -69,6 +69,17 @@ final class LineChatReceiverTest extends TestCase
         self::assertNull(DB::table('line_conversations')->value('user_id'));
         self::assertSame(0,DB::table('line_delivery_batches')->count()); Http::assertNothingSent();
     }
+    public function test_list_preview_is_bounded_and_unsend_never_decrypts_the_removed_body(): void
+    {
+        $event = $this->event(); $event['message']['text'] = str_repeat('あ', 100);
+        $this->receive([$event]);
+        $service = app(\App\Domain\Line\Services\V2LineChatAdmin::class);
+        self::assertSame(str_repeat('あ', 80), $service->listing($this->context)['data'][0]['summary']);
+        $this->receive([$this->unsend($event)]);
+        self::assertSame('取消済み', $service->listing($this->context)['data'][0]['summary']);
+        self::assertNull(DB::table('line_chat_messages')->value('body_ciphertext'));
+        Http::assertNothingSent();
+    }
     public function test_unsend_before_receive_is_a_permanent_tombstone_and_cross_subject_collision_is_rejected(): void
     {
         $e=$this->event(); $this->receive([$this->unsend($e),$e,$this->unsend($e)]);
@@ -193,7 +204,11 @@ final class LineChatReceiverTest extends TestCase
             '課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました');
         $this->receive([$this->event()]); $id=DB::table('line_conversations')->value('public_id');
         $s=app(\App\Domain\Line\Services\V2LineChatAdmin::class); $key=(string)Str::uuid(); $messages=[['type'=>'text','text'=>'Hello %username% %points%']];
+        // The existing reply timestamp contract is seconds, while received events
+        // retain milliseconds. Give this outbound fixture a strictly later time.
+        Carbon::setTestNow(now()->addSeconds(2)); CarbonImmutable::setTestNow(Carbon::now());
         $mid=$s->reply($this->context,$id,$messages,$key); self::assertSame($mid,$s->reply($this->context,$id,$messages,$key));
+        self::assertSame('Hello %username% %points%', $s->listing($this->context)['data'][0]['summary']);
         self::assertSame(1,DB::table('line_delivery_batches')->count()); self::assertSame(1,DB::table('line_quota_charges')->count());
         self::assertSame('transactional',DB::table('line_delivery_batches')->value('category')); self::assertNull(DB::table('line_delivery_recipients')->value('user_id'));
         try { $s->reply($this->context,$id,[['type'=>'text','text'=>'Changed']],$key); self::fail('Key collision accepted'); } catch (\RuntimeException) { self::assertTrue(true); }
