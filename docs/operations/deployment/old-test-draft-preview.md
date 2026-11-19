@@ -24,6 +24,30 @@ PR, source/tree, control, plan, early checks, run ID and attempt.
 
 ## Approve once per PR, iterate exact heads
 
+The PR709 practical-use revision retains protected-main Human approval. It reuses
+the existing `AUTHORITY_FOCUSED` CI execution path for an **exact diff consisting
+only of this Plan JSON and optionally Worklog**, with Activation none/deferred.
+The classifier rechecks the real Git inventory, regular-file modes, strict Plan
+schema, exact allowed paths, meaningful-command declarations and merged baseline
+ancestry. A malformed Plan fails. Code, Workflow, dependency, migration or other
+authority changes cannot self-exempt; they retain normal CI. This construction
+PR itself takes normal Strict CI.
+
+All five Required Check contexts still must succeed, plus fresh Strict review
+and Human approval. Policy/quality/security validation and the existing hash-bound
+exact-source integration-plan recomputation execute; runtime/DB/ARM64 scopes are
+proven NOT_APPLICABLE for Plan data alone. No DB smoke, ARM64 candidate Build or
+application dependency installation is needed for Plan approval. Expected GitHub
+latency is the focused checks/setup/review time (minutes, not a 30–60 minute DB
+run); actual service time depends on runner queues and is not yet benchmarked
+with a live Plan-only PR. Real-Git fixture/CLI tests verify the complete selection
+and mandatory gate aggregation. No extra test PR or manual CI rerun is needed.
+
+Replacing approval with a host-local signature/channel would add provisioning,
+transport and independent CI trust verification. Reusing the protected-main
+focused path changes fewer boundaries. The generic release/readiness authority
+classifier, Production authority manifests and Canonical operations are unchanged.
+
 Before using a feature PR, merge a Human-reviewed entry in
 `manifests/old-test-draft-preview.json` on protected main. Each entry specifies
 `task_id`, numeric `source_pr`, exact `branch`, merged `baseline_sha`, `image_mode`,
@@ -31,15 +55,27 @@ Before using a feature PR, merge a Human-reviewed entry in
 (argument arrays, executed in payload root without a shell). Include locked
 dependency preparation and meaningful tests for the target behavior; a no-op,
 zero-test discovery or tests with skipped assertions are not an accepted plan.
-The baseline must include the approved test harness. API tests needing a DB must
+CI/generation/security control code stays approved; feature test files may change
+with the implementation and remain in the exact inventory. API tests needing a DB must
 use a disposable synthetic DB, never OLD Test data. Such a plan may include its
 bounded DB preparation; it does not inherit the Full DB integration suite.
 
-Plans permit changes under selected application roots (`apps/admin/src`, API
-`app`, `routes`, `resources`), plus the explicitly approved mandatory record
-`worklogs/new_ver_main.md`. A Worklog-only change cannot trigger an image Build.
-Schema/migrations, dependencies/locks,
-workflows, security recipes and test harness changes cannot enter this fast path.
+Plans permit selected implementation roots (`apps/admin/src`, API `app`, `routes`,
+`resources`), feature tests (`apps/admin/test`, `apps/api/tests`), Markdown feature
+specifications under docs/direction, and the mandatory Worklog. Known Public,
+Admin and Webhook OpenAPI sources/bundles, Admin generated client/generator and
+Storefront generated public types may accompany the feature. Every path must be
+explicitly approved; no glob or arbitrary directory grant is accepted. All actual
+paths/statuses/roles are recorded as an exact inventory bound to Source/Tree.
+The final Human Runtime candidate approval also binds that exact head/inventory.
+A specification/test/Worklog-only change cannot trigger an image Build.
+
+Schema/migrations, dependencies/locks, CI/Workflow/control scripts, build recipes,
+environment/configuration, security/governance authority documents and recognized
+authentication/authorization/financial kernel paths remain outside this fast
+path. Boundary changes hidden in shared feature files still require Human review
+and sufficient security regressions; path approval never waives domain policy.
+The ordinary feature tests are not permission to alter CI or its test harness.
 Renames and a truncated comparison fail closed. Migration work follows the
 existing separately approved forward-only route. Source-only checks cannot prove
 live schema compatibility: existing runtime migration inventory checks also pass.
@@ -54,6 +90,16 @@ quality-gate, integration-gate, ci-gate and squash merge need not finish for Dra
 preparation. Focused validation replaces general quality validation here, avoiding
 an additional full Frontend Build before the selected formal image Build.
 Revalidate PR/main before publication and again during retrieval/preflight.
+
+Contract or generated changes automatically require the trusted control-plane
+OpenAPI lint/bundle/document/disclosure validator, byte-exact committed bundles,
+and strict compatibility against the explicit approved baseline. Dispatch has no
+PR event base, so comparison is explicit; missing baseline data fails, and old
+historical breaking-change exemptions do not approve a new Draft break. Existing
+security schemes/defaults/operation overrides cannot change. Relevant Admin and
+public generated-code checks also execute. Include frozen dependency preparation
+in the approved commands when contract tooling is needed. This is contract-focused
+validation, with no application Build or Full DB CI duplicated before image Build.
 
 New dispatches cancel an obsolete in-progress Draft Build for the same PR; this
 workflow performs no Runtime effects. Reuse a nonexpired successful Artifact for the same head/control/plan; list
@@ -124,3 +170,19 @@ and fresh Strict review. Then separately authorize merge and bounded wrapper /
 Executor binding installation. Approve a per-PR focused plan and formal Artifact
 preparation before reviewing the exact Runtime candidate. Runtime switching,
 migrations, Worker and financial operations each retain their explicit GO scope.
+
+## Representative practical-use verification
+
+A: an internal unmerged feature Draft containing API/Admin implementation,
+feature tests, specification and Worklog is authorized with a complete typed
+inventory. Contract/generated additions are also included and trigger mandatory
+focused compatibility checks. Additive real-contract fixtures pass; breaks,
+missing bases, bundle drift, generator failure and security-boundary changes fail.
+
+B: after a push, old-head evidence is rejected. The same approved Plan authorizes
+the new head only after its Policy/Security checks pass. The harness executes
+focused commands and the actual selected Build shell with a Docker stub, verifying
+the new OCI revision and API/Admin selection without quality/DB/aggregate checks.
+These are isolated acceptance fixtures, not a claimed live Runtime cutover or a
+pre-merge execution of the protected-main workflow. Native formal CI for this
+construction PR remains mandatory. Actual OLD Test switching needs separate GO.

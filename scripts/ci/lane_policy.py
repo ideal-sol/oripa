@@ -359,10 +359,10 @@ def main() -> int:
                 proof = verify_change_authority(change)
                 arguments.change_output.with_suffix(".authority.json").write_bytes(canonical(proof))
             arguments.change_output.write_bytes(canonical(change))
-            from scripts.ci.platform_ci_plan import source_only_authority
+            from scripts.ci.platform_ci_plan import source_only_authority, draft_plan_only
             result["validation_path"] = ("AUTHORITY_FOCUSED"
                 if arguments.event_name == "pull_request" and result["activation"] in {"none", "deferred"}
-                and source_only_authority(change) else "NORMAL_STRICT_CI")
+                and (source_only_authority(change) or draft_plan_only(repository, change)) else "NORMAL_STRICT_CI")
             result["change_digest"] = change["record_digest"]
             if arguments.plan_output:
                 from scripts.ci.platform_ci_plan import build_plan

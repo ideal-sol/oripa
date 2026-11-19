@@ -1,12 +1,15 @@
 import copy
+import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import textwrap
 import unittest
+from unittest.mock import patch
 
 from scripts.ci import platform_ci_plan as planner
+from scripts.ci import lane_policy
 from scripts.release.readiness import change, records
 from tests.ci.policy import test_change_evidence as fixtures
 
@@ -103,6 +106,71 @@ class PlatformCIPlanTests(unittest.TestCase):
         plan = self.plan(('worklogs/new_ver_main.md',))
         self.assert_na(plan, *planner.SCOPES)
         self.assertFalse(any(job['required'] for job in plan['jobs'].values()))
+        planner.verify_results(plan, self.results(plan), plan['record_digest'])
+
+    def draft_document(self):
+        return dict(schema_version='1.0', target='old-test', plans=[dict(
+            task_id='DRAFT-TEST', source_pr=123, branch='feat/DRAFT-TEST', baseline_sha=self.base,
+            image_mode='api-only', migration='none', allowed_paths=['apps/api/app/Example.php'],
+            focused_commands=[['php', 'artisan', 'test', '--filter=Example']])])
+
+    def test_draft_plan_approval_reuses_focused_five_gate_path_without_db_or_arm64(self):
+        self.write('manifests/old-test-draft-preview.json', json.dumps(self.draft_document()))
+        self.write('worklogs/new_ver_main.md', 'Human approval: synthetic exact PR scope')
+        record = change.classify(self.repository, self.base, self.commit())
+        self.assertTrue(planner.draft_plan_only(self.repository, record))
+        plan = planner.build_plan(record, lane_key='strict', activation='deferred',
+            event_name='pull_request', validation_path='AUTHORITY_FOCUSED', repository=self.repository)
+        self.assert_na(plan, *planner.SCOPES)
+        self.assertFalse(any(job['required'] for job in plan['jobs'].values()))
+        planner.verify_results(plan, self.results(plan), plan['record_digest'])
+        self.assert_arm64_alignment(plan, 'NOT_APPLICABLE')
+
+    def test_draft_plan_cannot_hide_application_ci_production_or_migration(self):
+        for extra in ('apps/api/app/Example.php', '.github/workflows/platform-ci.yml',
+                      'manifests/platform-production-approved-source.json',
+                      'apps/api/database/migrations-v2/fixture.php'):
+            with self.subTest(extra=extra):
+                self.setUp()
+                self.write('manifests/old-test-draft-preview.json', json.dumps(self.draft_document()))
+                # Do not create an invalid Production authority; identity scope is
+                # rejected before semantic parsing by the focused classifier.
+                if extra.startswith('manifests/platform-production'):
+                    self.authority()
+                else:
+                    self.write(extra, 'changed bytes')
+                record = change.classify(self.repository, self.base, self.commit())
+                self.assertFalse(planner.draft_plan_only(self.repository, record))
+                plan = planner.build_plan(record, lane_key='strict', activation='deferred',
+                    event_name='pull_request', validation_path='NORMAL_STRICT_CI', repository=self.repository)
+                self.assert_required(plan, 'database', 'arm64_artifact')
+
+    def test_invalid_draft_plan_and_unmerged_baseline_fail_closed(self):
+        for key, value in (('migration', 'forward'), ('allowed_paths', ['.github/workflows/ci.yml']),
+                           ('baseline_sha', 'f' * 40), ('focused_commands', [])):
+            with self.subTest(key=key):
+                self.setUp()
+                document = self.draft_document()
+                document['plans'][0][key] = value
+                self.write('manifests/old-test-draft-preview.json', json.dumps(document))
+                record = change.classify(self.repository, self.base, self.commit())
+                with self.assertRaises(ValueError):
+                    planner.draft_plan_only(self.repository, record)
+
+    def test_lane_cli_emits_focused_plan_from_real_exact_inventory(self):
+        self.write('manifests/old-test-draft-preview.json', json.dumps(self.draft_document()))
+        head = self.commit()
+        event = self.repository / 'event.json'
+        event.write_text(json.dumps(dict(pull_request=dict(base=dict(sha=self.base), head=dict(sha=head),
+            body='- Lane: Strict Change\n- Application Runtime Activation: deferred\n- UI Verification: NOT_APPLICABLE\n'))))
+        output = self.repository / 'plan.json'
+        with patch('sys.argv', ['lane-policy', '--repository', str(self.repository), '--event-name', 'pull_request',
+                 '--event-path', str(event), '--change-output', str(self.repository / 'change.json'),
+                 '--plan-output', str(output)]):
+            self.assertEqual(lane_policy.main(), 0)
+        plan = json.loads(output.read_text())
+        self.assertEqual(plan['validation_path'], 'AUTHORITY_FOCUSED')
+        self.assert_na(plan, 'database', 'migration', 'arm64_artifact')
         planner.verify_results(plan, self.results(plan), plan['record_digest'])
 
     def test_authority_with_application_delta_not_exempt(self):

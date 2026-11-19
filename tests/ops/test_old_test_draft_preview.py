@@ -44,9 +44,9 @@ class DraftAuthorityTest(unittest.TestCase):
         if '/check-runs?' in path:
             return dict(total_count=len(self.checks), check_runs=copy.deepcopy(self.checks))
         if '/actions/runs/' in path:
-            return dict(path=self.workflow, head_sha=HEAD, event='pull_request')
+            return dict(path=self.workflow, head_sha=self.pull['head']['sha'], event='pull_request')
         if '/git/commits/' in path:
-            return dict(sha=HEAD, tree=dict(sha='d' * 40))
+            return dict(sha=self.pull['head']['sha'], tree=dict(sha='d' * 40))
         raise AssertionError(path)
 
     def authorize(self):
@@ -57,6 +57,62 @@ class DraftAuthorityTest(unittest.TestCase):
         self.assertEqual(result['authority_mode'], 'draft-preview')
         self.assertFalse(result['activation_authorized'])
         self.assertEqual(result['source_sha'], HEAD)
+
+    def test_a_feature_implementation_tests_and_spec_inventory(self):
+        paths = ['apps/api/app/Example.php', 'apps/api/tests/Feature/ExampleTest.php',
+                 'apps/admin/src/example.tsx', 'apps/admin/test/example.test.tsx',
+                 'docs/operations/catalog-probability/example.md', 'worklogs/new_ver_main.md',
+                 'docs/architecture/catalog-preview-adr.md', 'tests/ci/openapi/test_catalog_preview_contract.py']
+        self.plan.update(image_mode='normal', allowed_paths=paths)
+        self.files = [dict(filename=p, status='modified') for p in paths]
+        result = self.authorize()
+        self.assertEqual(result['changed_paths'], sorted(paths))
+        self.assertEqual(len(result['file_inventory']), len(paths))
+        self.assertEqual({r['role'] for r in result['file_inventory']}, {'runtime', 'test', 'spec'})
+        self.assertTrue(self.pull['draft'])
+
+    def test_b_next_draft_head_reuses_plan_without_waiting_for_full_ci(self):
+        self.test_a_feature_implementation_tests_and_spec_inventory()
+        next_head = 'e' * 40
+        self.pull['head']['sha'] = next_head
+        with self.assertRaises(ValueError):
+            MODULE['authorize'](TASK, PR, HEAD, CONTROL, get=self.get)
+        with self.assertRaisesRegex(ValueError, 'early_checks_required'):
+            MODULE['authorize'](TASK, PR, next_head, CONTROL, get=self.get)
+        for check in self.checks:
+            check['head_sha'] = next_head
+        result = MODULE['authorize'](TASK, PR, next_head, CONTROL, get=self.get)
+        self.assertEqual(result['source_sha'], next_head)
+        self.assertEqual(result['plan'], self.plan)
+        self.assertEqual({c['name'] for c in result['early_checks']}, {'policy-gate', 'security-gate'})
+        # Real focused execution is possible; no quality/integration/ci gate exists.
+        with tempfile.TemporaryDirectory() as temporary:
+            import os
+            result['plan'] = dict(self.plan, focused_commands=[['python3', '-c', 'assert 2 + 2 == 4']])
+            Path(temporary, 'source-authority.json').write_text(json.dumps(result))
+            subprocess.run(['python3', str(ROOT / 'scripts/ops/old_test_draft_focus.py')], check=True,
+                           env=os.environ | {'RUNNER_TEMP': temporary})
+        self.test_selected_builds_in_real_shell_without_docker(
+            head=next_head, selections=[('normal', ['approved-api.Dockerfile', 'apps/admin/Dockerfile'])])
+
+    def test_contract_and_generated_files_are_in_the_exact_inventory(self):
+        self.test_a_feature_implementation_tests_and_spec_inventory()
+        paths = ['openapi/admin/openapi.yaml', 'openapi/bundled/admin.openapi.json',
+                 'apps/admin/src/lib/admin-api/generated.ts']
+        self.plan['allowed_paths'] += paths
+        self.files += [dict(filename=p, status='modified') for p in paths]
+        self.assertEqual(self.authorize()['contract_paths'], sorted(paths))
+
+    def test_strict_paths_cannot_be_approved_as_feature_inputs(self):
+        for path in ['apps/api/app/Domain/Auth/Service.php', 'apps/api/app/Http/Middleware/Guard.php',
+                     'apps/api/config/auth.php', 'apps/api/database/migrations-v2/add.php',
+                     'apps/admin/src/lib/session.ts', 'pnpm-lock.yaml', '.github/workflows/ci.yml',
+                     'scripts/ci/security_gate.py', 'docs/architecture/V2_RELEASE_GATES_FINAL.md', 'openapi/redocly.yaml',
+                     'tests/ci/openapi/test_openapi_contract_gate.py',
+                     'apps/admin/test/setup.ts', 'apps/api/tests/TestCase.php',
+                     'apps/admin/src/lib/admin-api/client.ts']:
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                MODULE['validate_plan'](dict(self.plan, allowed_paths=[path]))
 
     def test_real_contents_api_wrapped_base64(self):
         def get(path):
@@ -173,7 +229,7 @@ class DraftAuthorityTest(unittest.TestCase):
             with self.assertRaises(wrapper['WrapperError']):
                 wrapper['validated_run'](1, True, True)
 
-    def test_selected_builds_in_real_shell_without_docker(self):
+    def test_selected_builds_in_real_shell_without_docker(self, head=HEAD, selections=None):
         workflow = (ROOT / '.github/workflows/old-test-draft-preview.yml').read_text()
         script = workflow.split('      - name: Build and verify approved OLD Test AMD64 images', 1)[1]
         script = script.split('        run: |\n', 1)[1].split('\n      - name:', 1)[0]
@@ -189,7 +245,7 @@ if name=='git': print(os.environ['INPUT_SOURCE_SHA'] if args[0]=='rev-parse' els
 if name=='python3' and 'package' in args:
     pathlib.Path(os.environ['RUNNER_TEMP'],'old-test-images').mkdir()
 '''
-        for mode, expected in [('api-only', ['approved-api.Dockerfile']),
+        for mode, expected in selections or [('api-only', ['approved-api.Dockerfile']),
                                ('admin-only', ['apps/admin/Dockerfile']),
                                ('normal', ['approved-api.Dockerfile', 'apps/admin/Dockerfile'])]:
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
@@ -203,7 +259,7 @@ if name=='python3' and 'package' in args:
                 (root / 'source-authority.json').write_text(json.dumps(dict(image_mode=mode)))
                 env = os.environ | dict(PATH=str(bin_dir) + ':/usr/bin:/bin', CALLS=str(root / 'calls'),
                     GITHUB_WORKSPACE=temporary, RUNNER_TEMP=temporary, INPUT_TASK_ID=TASK,
-                    INPUT_PR_NUMBER=PR, INPUT_SOURCE_SHA=HEAD)
+                    INPUT_PR_NUMBER=PR, INPUT_SOURCE_SHA=head)
                 result = subprocess.run(['bash', '-euo', 'pipefail', '-c', script],
                     cwd=root, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -212,6 +268,7 @@ if name=='python3' and 'package' in args:
                 self.assertEqual([Path(call[call.index('--file') + 1]).name for call in builds],
                                  [Path(path).name for path in expected])
                 self.assertTrue(all('--load' in call and '--cache-from' in call for call in builds))
+                self.assertTrue(all('OCI_REVISION=' + head in call for call in builds))
 
     def test_draft_migration_and_storefront_hold_before_runtime_reads(self):
         helper = runpy.run_path(str(ROOT / 'scripts/ops/old_test_deploy.py'))
@@ -221,6 +278,47 @@ if name=='python3' and 'package' in args:
             deployment = helper['Deployment'](candidate, Path('/unused'))
             with self.assertRaisesRegex(helper['Hold'], 'draft_no_schema_or_storefront'):
                 deployment.preflight()
+
+
+class DraftContractFocusedTest(unittest.TestCase):
+    def test_real_contract_comparison_accepts_addition_and_rejects_break_or_missing_base(self):
+        focus = runpy.run_path(str(ROOT / 'scripts/ops/old_test_draft_focus.py'))
+        for kind in ('additive', 'breaking', 'missing-base', 'bundle-drift', 'generator-failure', 'security-boundary'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                gate = runpy.run_path(str(ROOT / 'scripts/ci/openapi_contract_gate.py'))
+                payload = Path(temporary)
+                generated = {}
+                for surface, data in gate['SURFACES'].items():
+                    document = json.loads((ROOT / data['bundle']).read_text())
+                    if surface == 'public':
+                        if kind == 'breaking':
+                            document['paths'].pop(next(iter(document['paths'])))
+                        else:
+                            document['info']['description'] = document['info'].get('description', '') + '\nDraft additive documentation.'
+                            document['components']['schemas']['ProblemDetails'].setdefault('properties', {})['draft_preview_note'] = {'type': 'string'}
+                        if kind == 'security-boundary':
+                            document['security'] = [{'draftUnapproved': []}]
+                    committed = payload / data['bundle']
+                    committed.parent.mkdir(parents=True, exist_ok=True)
+                    committed.write_text(json.dumps(document))
+                    output = payload / (surface + '.json')
+                    output.write_text(json.dumps(document) + ('\n' if kind == 'bundle-drift' else ''))
+                    generated[surface] = output
+                gate['generate_bundles'] = lambda *_: generated
+                gate['previous_bundle'] = lambda _, __, relative: (
+                    None if kind == 'missing-base' else json.loads((ROOT / relative).read_text()))
+                authority = dict(plan=dict(baseline_sha=BASE), contract_paths=['openapi/public/openapi.yaml'])
+                runner_globals = focus['verify_contracts'].__globals__
+                with patch.object(runner_globals['subprocess'], 'run') as execute:
+                    if kind == 'generator-failure':
+                        execute.side_effect = subprocess.CalledProcessError(1, ['generated-check'])
+                    if kind == 'additive':
+                        focus['verify_contracts'](authority, payload, ROOT, {}, gate)
+                        self.assertEqual(execute.call_args.args[0],
+                            ['pnpm', '--dir', 'packages/storefront-client', 'generate:check'])
+                    else:
+                        with self.assertRaises((ValueError, gate['ContractFailure'], subprocess.CalledProcessError)):
+                            focus['verify_contracts'](authority, payload, ROOT, {}, gate)
 
 
 if __name__ == '__main__':

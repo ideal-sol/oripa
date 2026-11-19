@@ -128,6 +128,24 @@ def source_only_authority(change):
                     or path_components(path) == {"docs"} for path in change["changed_paths"]))
 
 
+def draft_plan_only(repository, change):
+    """OLD-only approval data; no runtime, gate, dependency or Production delta."""
+    path = "manifests/old-test-draft-preview.json"
+    paths = set(change["changed_paths"])
+    if repository is None or path not in paths or not paths <= {path, "worklogs/new_ver_main.md"}:
+        return False
+    actual = git(repository, "diff", "--name-only", change["base_sha"], change["head_sha"]).decode().splitlines()
+    require(set(actual) == paths, "DRAFT_PLAN_INVENTORY_MISMATCH")
+    from scripts.ops.old_test_draft_preview import load_document
+    for relative in paths:
+        entry = git(repository, "ls-tree", change["head_sha"], "--", relative).decode()
+        require(entry.startswith("100644 blob "), "DRAFT_PLAN_MODE_INVALID")
+    document = load_document(git(repository, "show", change["head_sha"] + ":" + path))
+    for plan in document["plans"]:
+        git(repository, "merge-base", "--is-ancestor", plan["baseline_sha"], change["base_sha"])
+    return True
+
+
 def affected_scopes(path):
     components = path_components(path)
     if path in OPERATION_WRAPPER_PATHS:
@@ -166,7 +184,7 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path, rep
         validate_change(change)
     except ValueError:
         valid = False
-    authority = (valid and source_only_authority(change)
+    authority = (valid and (source_only_authority(change) or draft_plan_only(repository, change))
                  and validation_path == "AUTHORITY_FOCUSED" and activation in {"none", "deferred"}
                  and event_name == "pull_request")
     paths = change["changed_paths"]
