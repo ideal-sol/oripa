@@ -154,10 +154,23 @@ final class V2LineChatAdmin
         $unread=DB::table('line_chat_messages')->where('conversation_id',$c->id)->where('direction','inbound')->whereNull('read_at')->where('unsent',false)->count();
         $wallet=$u===null ? null : DB::table('wallets')->where('user_id',$u->id)->first();
         $rank=$u===null ? null : app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)->project($u->id);
+        $summary = '';
+        if ($last !== null) {
+            if ($last->unsent) $summary = '取消済み';
+            else {
+                $labels = ['image'=>'画像','video'=>'動画','audio'=>'音声','file'=>'ファイル','sticker'=>'スタンプ','location'=>'位置情報','imagemap'=>'イメージマップ','image_carousel'=>'画像カルーセル'];
+                if (in_array($last->type, ['text', 'messages'], true)) {
+                    $body = json_decode(Crypt::decryptString($last->body_ciphertext), true, 32, JSON_THROW_ON_ERROR);
+                    $parts = $last->type === 'messages' ? $body : [['type'=>'text','text'=>$body['text'] ?? '']];
+                    $summary = mb_substr(implode(' / ', array_map(static fn (array $m): string => $m['type'] === 'text' ? (string)($m['text'] ?? '') : '【'.($labels[$m['type']] ?? 'メッセージ').'】', $parts)), 0, 80);
+                    $summary = preg_replace('/[\\r\\n\\t]+/u', ' ', $summary);
+                } else $summary = '【'.($labels[$last->type] ?? 'メッセージ').'】';
+            }
+        }
         return ['id'=>$c->public_id,'bot_id'=>DB::table('line_bots')->where('id',$c->line_bot_id)->value('public_id'),
             'member_id'=>$u?->public_id,'name'=>$u?->display_name ?? '未登録の友だち','rank_level'=>$rank!==null && $rank['enabled'] ? $rank['level'] : null,
             'points'=>$u===null ? null : (int)($wallet?->paid_balance ?? 0)+(int)($wallet?->free_balance ?? 0),
             'status'=>$c->status,'revision'=>$c->revision,'unread_count'=>$unread,'last_message_at'=>$c->last_message_at,
-            'summary'=>$last===null ? '' : ($last->unsent ? '取消済み' : ($last->type==='text' ? mb_substr(json_decode(Crypt::decryptString($last->body_ciphertext),true)['text'],0,80) : $last->type))];
+            'summary'=>$summary];
     }
 }

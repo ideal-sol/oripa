@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "./line-admin.module.css";
 import { useEffect, useMemo, useState } from "react";
 import { usePermissions } from "@/components/permissions/permission-provider";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
@@ -37,15 +38,15 @@ export function LineAutomatedSettings() {
     } finally { setBusy(false); }
   }
   return <section aria-label="自動LINE通知" className="settings-panel">
-    <h2>自動LINE通知</h2>
+    <h2>自動LINE通知</h2>{!writable && <p className="notice">参照のみです。通知の変更には管理権限が必要です。</p>}{busy && <p role="status">保存・取得中…</p>}
     <p>全通知は初期OFFです。設定変更は変更後に発生したイベントへ適用します。以前のイベントには発生時の設定を使い、後からONにしても過去の通知は送信しません。</p>
     <p>使用できる置換タグ：%username%・%rank%・%points%。%rank%は送信時点の現在ランクです。</p>
     <p>通知のONは送信開始を意味しません。送信処理の有効化と共通送信枠の準備が別途必要です。</p>
     {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
-    <button type="button" disabled={busy} onClick={() => void perform(async () => setRows((await client.getLineAutomatedSettings()).data), "再読込しました。")}>通知設定を再読込</button>
-    {rows.map((row) => {
+    <button className="secondary-button" type="button" disabled={busy} onClick={() => void perform(async () => setRows((await client.getLineAutomatedSettings()).data), "再読込しました。")}>通知設定を再読込</button>
+    <div className={styles.notificationGrid}>{rows.map((row) => {
       const unsupported = row.messages.some((m) => m.text.includes("%shipping_url%"));
-      return <form key={row.event} onSubmit={(e) => { e.preventDefault(); void perform(async () => {
+      return <form className="settings-panel" key={row.event} onSubmit={(e) => { e.preventDefault(); void perform(async () => {
         const result = await client.updateLineAutomatedSettings(row.event, { enabled: row.enabled, category: row.category, messages: row.messages, expected_revision: row.revision });
         setRows((current) => current.map((r) => r.event === row.event ? result.data.find((saved) => saved.event === row.event)! : r));
       }, `${names[row.event]}を保存しました。`); }}>
@@ -60,12 +61,12 @@ export function LineAutomatedSettings() {
           {row.messages.map((message, i) => <div key={i}>
             <label>本文 {i + 1}<textarea required value={message.text} onChange={(e) => edit(row.event, { messages: row.messages.map((m, index) => index === i ? { type: "text", text: e.target.value } : m) })} /></label>
             <p>{message.text.length} / 5000（UTF-16単位）</p>
-            {row.messages.length > 1 && <button type="button" onClick={() => edit(row.event, { messages: row.messages.filter((_, index) => index !== i) })}>本文 {i + 1} を削除</button>}
+            {row.messages.length > 1 && <button className="danger-button" type="button" onClick={() => edit(row.event, { messages: row.messages.filter((_, index) => index !== i) })}>本文 {i + 1} を削除</button>}
           </div>)}
-          {row.messages.length < 5 && <button type="button" onClick={() => edit(row.event, { messages: [...row.messages, { type: "text", text: "" }] })}>本文を追加</button>}
-          <button disabled={row.messages.some((m) => !m.text.trim() || m.text.length > 5000)}>通知設定を保存</button>
+          {row.messages.length < 5 && <button className="secondary-button" type="button" onClick={() => edit(row.event, { messages: [...row.messages, { type: "text", text: "" }] })}>本文を追加</button>}
+          <button className="primary-button" disabled={row.messages.some((m) => !m.text.trim() || m.text.length > 5000)}>通知設定を保存</button>
         </fieldset>
       </form>;
-    })}
+    })}</div>
   </section>;
 }

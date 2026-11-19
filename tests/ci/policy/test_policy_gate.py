@@ -65,6 +65,26 @@ class PolicyGateTest(unittest.TestCase):
         for task in ("LINE-CSP-20261117-X", "LINE-CSP-20261118", "X-LINE-CSP-20261117"):
             self.assertIsNone(policy_gate.TASK_ID.fullmatch(task))
 
+    def test_line_admin_ux_inventory_is_exact_and_unknown_paths_remain_denied(self):
+        paths = policy_gate.tracked_paths(ROOT)
+        expected = {
+            "apps/admin/e2e/admin-line-ux.spec.ts",
+            "apps/admin/playwright.line-ux.config.ts",
+            "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
+            "apps/admin/src/components/line/line-admin-page.tsx",
+            "apps/admin/src/components/line/line-admin.module.css",
+            "apps/admin/src/components/line/line-chat-reply-provider.tsx",
+            "apps/admin/test/line-chat-csp.test.ts",
+        }
+        self.assertEqual(expected, policy_gate.LINE_ADMIN_UX_FILES)
+        self._validate_admin_with_published_release(paths)
+        for unknown in ("apps/admin/src/app/line-chat/unsafe/page.tsx", "apps/admin/src/components/line/unregistered.tsx"):
+            with self.subTest(path=unknown), self.assertRaises(policy_gate.PolicyFailure):
+                self._validate_admin_with_published_release(paths + [unknown])
+        for missing in expected:
+            with self.subTest(path=missing), self.assertRaises(policy_gate.PolicyFailure):
+                self._validate_admin_with_published_release([p for p in paths if p != missing])
+
     def test_line_delivery_d6_admin_paths_are_exact(self):
         paths = policy_gate.tracked_paths(ROOT)
         expected = {

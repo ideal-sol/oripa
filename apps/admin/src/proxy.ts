@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
     },
   });
   const path = request.nextUrl.pathname;
-  for (const [name, value] of Object.entries(securityHeaders(nonce, path === "/line-chat", true))) {
+  for (const [name, value] of Object.entries(securityHeaders(nonce, path === "/line-chat" || /^\/line-chat\/[^/]+\/?$/.test(path), true))) {
     response.headers.set(name, value);
   }
   return response;

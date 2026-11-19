@@ -17,6 +17,7 @@ import {
 } from "react";
 
 import { Breadcrumb } from "@/components/navigation/breadcrumb";
+import styles from "./line-admin.module.css";
 import { LineBotManagement } from "./line-bot-management";
 import { LineAutomatedSettings } from "./line-automated-settings";
 import { usePermissions } from "@/components/permissions/permission-provider";
@@ -171,7 +172,7 @@ export function LineMessagingSettings() {
   return (
     <AdminShell>
       <ProtectedAdminRoute permission="identity.line.read">
-        <div className="workspace">
+        <div className={`workspace ${styles.surface} ${styles.settings}`}>
           <Breadcrumb item={navigation} />
           <AdminPageHeader
             action={<MessageSquareText size={26} aria-hidden="true" />}

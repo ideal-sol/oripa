@@ -1068,7 +1068,17 @@ SHIPPINGMIN_ADMIN_FILES = {
     "apps/admin/src/components/settings/shipping-minimum-point-settings.tsx",
     "apps/admin/test/shipping-minimum-point-settings.test.tsx",
 }
+LINE_ADMIN_UX_FILES = {
+    "apps/admin/e2e/admin-line-ux.spec.ts",
+    "apps/admin/playwright.line-ux.config.ts",
+    "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
+    "apps/admin/src/components/line/line-admin-page.tsx",
+    "apps/admin/src/components/line/line-admin.module.css",
+    "apps/admin/src/components/line/line-chat-reply-provider.tsx",
+    "apps/admin/test/line-chat-csp.test.ts",
+}
 ADMIN_SKELETON_FILES = {
+    *LINE_ADMIN_UX_FILES,
     *SHIPPINGMIN_ADMIN_FILES,
     "apps/admin/src/components/catalog/rank-video-editor.tsx",
     "apps/admin/test/rank-video-editor.test.tsx",
