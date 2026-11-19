@@ -465,7 +465,53 @@ def authorize_line706_recipe(control_sha: str, get=None) -> dict:
     return result
 
 
+LINE713_SOURCE = "15f5071e93f0646d7f7e6475c7b09a83a5c8d414"
+LINE713_TREE = "a729f9771eeb7c6d09c1060e97f3d6af90a70b86"
+LINE713_REVIEWED = "5cc36877d53c40e2130b8d5217216e540e1950bf"
+LINE713_PARENT = "befd02f8a8c388d596b19a37b72450c1112f7f7b"
+
+
+def authorize_line713_recipe(control_sha: str, get=None) -> dict:
+    # This exact merged successor has the same complete API/Admin Dockerfiles.
+    # Keep all existing PR706/701/700 provenance and immutable Recipe checks.
+    result = authorize_line706_recipe(control_sha, get)
+    comparison = api_compare(REPOSITORY, LINE713_SOURCE, control_sha, get=get)
+    if (comparison.get("status") not in {"ahead", "identical"}
+            or comparison.get("merge_base_commit", {}).get("sha") != LINE713_SOURCE
+            or comparison.get("base_commit", {}).get("sha") != LINE713_SOURCE):
+        fail("line713_source_not_ancestor")
+    read = get or api_get
+    pull = read(f"/repos/{REPOSITORY}/pulls/713")
+    if (pull.get("state") != "closed" or pull.get("merged") is not True
+            or pull.get("merge_commit_sha") != LINE713_SOURCE
+            or pull.get("base", {}).get("ref") != "main"
+            or pull.get("base", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("repo", {}).get("full_name") != REPOSITORY
+            or pull.get("head", {}).get("sha") != LINE713_REVIEWED):
+        fail("line713_source_merge_invalid")
+    for revision in (LINE713_SOURCE, LINE713_REVIEWED):
+        commit = read(f"/repos/{REPOSITORY}/git/commits/{revision}")
+        if commit.get("sha") != revision or commit.get("tree", {}).get("sha") != LINE713_TREE:
+            fail("line713_source_tree_invalid")
+        if revision == LINE713_SOURCE and [p.get("sha") for p in commit.get("parents", [])] != [LINE713_PARENT]:
+            fail("line713_source_parent_invalid")
+    validate_required_checks(LINE713_REVIEWED, read)
+    for path in ("infra/docker/backend/Dockerfile", "apps/admin/Dockerfile"):
+        bodies = []
+        for revision in (LINE706_SOURCE, LINE713_SOURCE):
+            entry = read(f"/repos/{REPOSITORY}/contents/{path}?ref={revision}")
+            if entry.get("type") != "file" or entry.get("encoding") != "base64":
+                fail("line713_dockerfile_blob_invalid")
+            bodies.append(base64.b64decode("".join(entry["content"].split()), validate=True))
+        if bodies[0] != bodies[1]:
+            fail("line713_dockerfile_changed")
+    result["build_recipe"].update(kind="line713-os-security", source_sha=LINE713_SOURCE)
+    return result
+
+
 def authorize_old_test_recipe(source_sha: str, control_sha: str, get=None) -> dict:
+    if source_sha == LINE713_SOURCE:
+        return authorize_line713_recipe(control_sha, get)
     if source_sha == LINE706_SOURCE:
         return authorize_line706_recipe(control_sha, get)
     if source_sha == LINE701_SOURCE:
