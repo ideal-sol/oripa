@@ -73,6 +73,7 @@ class PolicyGateTest(unittest.TestCase):
             "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
             "apps/admin/src/components/line/line-admin-page.tsx",
             "apps/admin/src/components/line/line-admin.module.css",
+            "apps/admin/src/components/line/line-chat-reply-provider.tsx",
             "apps/admin/test/line-chat-csp.test.ts",
         }
         self.assertEqual(expected, policy_gate.LINE_ADMIN_UX_FILES)

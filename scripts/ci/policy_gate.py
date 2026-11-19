@@ -1074,6 +1074,7 @@ LINE_ADMIN_UX_FILES = {
     "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
     "apps/admin/src/components/line/line-admin-page.tsx",
     "apps/admin/src/components/line/line-admin.module.css",
+    "apps/admin/src/components/line/line-chat-reply-provider.tsx",
     "apps/admin/test/line-chat-csp.test.ts",
 }
 ADMIN_SKELETON_FILES = {

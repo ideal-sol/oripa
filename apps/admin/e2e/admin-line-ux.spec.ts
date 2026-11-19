@@ -70,3 +70,50 @@ test("chat navigates to individual history with separate bubbles and back", asyn
   expect((await request).postDataJSON().messages).toEqual([{ type: "text", text: "返信テスト" }]);
   await page.getByRole("link", { name: "一覧へ戻る" }).click(); await expect(page).toHaveURL(/\/line-chat$/);
 });
+test("uncertain reply survives sidebar navigation and confirms the identical request", async ({ page }) => {
+  test.setTimeout(300_000); await mockApi(page);
+  const requests: unknown[] = [];
+  await page.route("**/replies", async (route) => {
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) return route.abort("timedout");
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ id }) });
+  });
+  await page.goto(`/line-chat/${id}`); await expect(page.getByLabel("返信本文")).toBeEnabled();
+  const origin = await page.evaluate(() => performance.timeOrigin);
+  await page.getByLabel("返信本文").fill("navigation retained reply");
+  await page.getByRole("button", { name: "返信を送信キューに登録" }).click();
+  await expect(page.getByRole("button", { name: "同じ送信要求の結果を確認" })).toBeEnabled();
+  await page.locator('.admin-sidebar a[href="/line-templates"]').click();
+  await expect(page.getByRole("heading", { name: "LINEテンプレート", exact: true })).toBeVisible();
+  await page.locator('.admin-sidebar a[href="/line-chat"]').click();
+  await page.getByRole("link", { name: /未登録の友だち.*未読 2/ }).click();
+  await expect(page.getByLabel("返信本文")).toHaveValue("navigation retained reply");
+  await expect(page.getByLabel("返信本文")).toBeDisabled();
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
+  await page.getByRole("button", { name: "同じ送信要求の結果を確認" }).click();
+  await expect(page.getByText("送信キューに登録しました。", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
+});
+test("registered reply with failed history recovers through GET alone and reload requires history review", async ({ page }) => {
+  test.setTimeout(300_000); await mockApi(page);
+  let registrations = 0; let failHistory = false;
+  await page.route("**/replies", async (route) => {
+    registrations++; failHistory = true;
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ id }) });
+  });
+  await page.route(`**/line-chat/${id}*`, async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith(`/line-chat/${id}`) && failHistory) return route.abort("failed");
+    return route.fallback();
+  });
+  await page.goto(`/line-chat/${id}`); await expect(page.getByLabel("返信本文")).toBeEnabled();
+  await page.getByLabel("返信本文").fill("registered once");
+  await page.getByRole("button", { name: "返信を送信キューに登録" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("返信は送信キューに登録されましたが、履歴の更新に失敗しました");
+  await expect(page.getByRole("button", { name: "返信を送信キューに登録" })).toHaveCount(0);
+  failHistory = false; await page.getByRole("button", { name: "最新履歴を取得" }).click();
+  await expect(page.getByText("送信キューに登録しました。", { exact: true })).toBeVisible(); expect(registrations).toBe(1);
+  await page.reload(); await expect(page.getByRole("button", { name: "履歴を確認しました（新しい返信を作成）" })).toBeEnabled();
+  await expect(page.getByLabel("返信本文")).toBeDisabled();
+  await page.getByRole("button", { name: "履歴を確認しました（新しい返信を作成）" }).click();
+  await expect(page.getByLabel("返信本文")).toBeEnabled(); expect(registrations).toBe(1);
+});

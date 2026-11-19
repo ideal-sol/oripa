@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AdminAuthProvider } from "@/components/auth/admin-auth-provider";
 import { AssetDeliveryProvider } from "@/components/catalog/asset-delivery-provider";
 import { PermissionProvider } from "@/components/permissions/permission-provider";
+import { LineChatReplyProvider } from "@/components/line/line-chat-reply-provider";
 import { assetPublicOrigin } from "@/lib/asset-delivery";
 
 import "./globals.css";
@@ -41,7 +42,7 @@ export default async function RootLayout({
       <body>
         <AdminAuthProvider>
           <AssetDeliveryProvider origin={assetPublicOrigin(process.env.V2_ASSET_PUBLIC_BASE_URL)}>
-            <PermissionProvider>{children}</PermissionProvider>
+            <PermissionProvider><LineChatReplyProvider>{children}</LineChatReplyProvider></PermissionProvider>
           </AssetDeliveryProvider>
         </AdminAuthProvider>
       </body>
