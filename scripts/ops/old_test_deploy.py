@@ -203,14 +203,17 @@ class Deployment:
                 and not metadata.st_mode & 0o077, "artifact_directory_invalid")
         download = json.loads((directory / "download-metadata.json").read_bytes())
         task, pull, revision = download["task_id"], str(download["pull_request"]), download["source_commit"]
-        available = decoded([str(WRAPPER), "old-test-artifacts", task, pull, revision])
+        draft = self.candidate.get("authority_mode") == "draft-preview"
+        require((download.get("authority_mode") == "draft-preview") == draft, "artifact_authority_mode_mismatch")
+        available = decoded([str(WRAPPER), "old-test-draft-artifacts" if draft else "old-test-artifacts", task, pull, revision])
         require(any(item["id"] == selected["id"] and item["digest"] == selected["digest"]
                     and item["workflow_run_id"] == download["workflow_run_id"] for item in available),
                 "artifact_rejected_or_expired")
         require(download["artifact_id"] == selected["id"] and download["github_digest"] == selected["digest"]
                 and "sha256:" + download["outer_sha256"] == selected["digest"], "artifact_identity_mismatch")
         wrapper = runpy.run_path(str(WRAPPER))
-        authority = wrapper["authorize_old_test_source"](task, pull, revision, download["control_sha"])
+        authority = wrapper["authorize_draft_preview" if draft else "authorize_old_test_source"](
+            task, pull, revision, download["control_sha"])
         provenance = json.loads((directory / "payload/source-authority.json").read_bytes())
         require(all(provenance.get(key) == value for key, value in authority.items())
                 and provenance["run_id"] == download["workflow_run_id"], "artifact_provenance_mismatch")
@@ -302,6 +305,9 @@ class Deployment:
     def preflight(self, *, preparing: bool = False) -> None:
         candidate = self.candidate
         require(candidate["version"] == 1 and candidate["target"] == "old-test", "candidate_invalid")
+        if candidate.get("authority_mode") == "draft-preview":
+            require(not candidate["migrations"] and set(candidate["services"]) <= {"api", "admin"},
+                    "draft_no_schema_or_storefront")
         require(re.fullmatch(r"[A-Z][A-Z0-9-]{2,31}", candidate["task_id"]), "task_id_invalid")
         require(candidate["services"] and set(candidate["services"]) <= {"api", "admin", "storefront"}
                 and len(set(candidate["services"])) == len(candidate["services"]), "services_invalid")
@@ -743,6 +749,7 @@ def parser() -> argparse.ArgumentParser:
     prepare.add_argument("--storefront-sha")
     prepare.add_argument("--storefront-unit")
     prepare.add_argument("--rollback-schema-compatible", action="store_true")
+    prepare.add_argument("--draft-preview", action="store_true")
     return value
 
 
@@ -756,6 +763,8 @@ def main() -> int:
                 "services": arguments.services, "migrations": arguments.migration,
                 "rollback_schema_compatible": arguments.rollback_schema_compatible,
                 "state": {"phase": "prepared", "migration_attempted": False, "applied": []}}
+            if arguments.draft_preview:
+                candidate["authority_mode"] = "draft-preview"
             require(not arguments.migration or "api" in arguments.services, "migration_requires_api")
             if set(arguments.services) & {"api", "admin"}:
                 require(all((arguments.artifact_directory, arguments.artifact_id, arguments.artifact_digest,
@@ -778,6 +787,8 @@ def main() -> int:
         else:
             private_file(arguments.candidate)
             candidate = json.loads(arguments.candidate.read_bytes())
+            require(candidate.get("authority_mode") != "draft-preview" or arguments.dry_run,
+                    "draft_requires_separately_bound_canonical_executor")
             deployment = Deployment(candidate, arguments.candidate)
             if arguments.dry_run:
                 getattr(deployment, arguments.command)(arguments.go, dry_run=True)

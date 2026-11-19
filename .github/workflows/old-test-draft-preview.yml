@@ -1,0 +1,192 @@
+name: OLD Test Draft Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Approved OLD Test artifact task
+        required: true
+        type: string
+      pr_number:
+        description: Approved internal Draft PR
+        required: true
+        type: number
+      source_sha:
+        description: Exact current Draft HEAD SHA
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: old-test-draft-preview-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    if: github.repository == 'ideal-sol/oripa' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out trusted control
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Authorize exact focused test scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python3 control/scripts/ops/old_test_draft_preview.py
+      - name: Check out exact focused payload
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: payload
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.5"
+      - name: Set up PHP
+        uses: shivammathur/setup-php@20529878ed81ef8e78ddf08b480401e6101a850f # 2.35.3
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          coverage: none
+      - name: Execute approved focused tests
+        working-directory: payload
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.12.1 --activate
+          python3 "$GITHUB_WORKSPACE/control/scripts/ops/old_test_draft_focus.py"
+
+  old-test-api:
+    needs: focused
+    if: github.repository == 'ideal-sol/oripa' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the protected-main control plane
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authorize approved exact Draft head
+        id: authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python3 control/scripts/ops/old_test_draft_preview.py
+
+      - name: Check out the exact approved application payload
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: payload
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Restore PR-scoped BuildKit layers
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/build-cache
+          key: old-draft-${{ inputs.pr_number }}-${{ github.sha }}-${{ inputs.source_sha }}
+          restore-keys: old-draft-${{ inputs.pr_number }}-${{ github.sha }}-
+
+      - name: Build and verify approved OLD Test AMD64 images
+        working-directory: payload
+        env:
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          docker buildx create --use --driver docker-container
+          test "$(git rev-parse HEAD)" = "$INPUT_SOURCE_SHA"
+          helper="$GITHUB_WORKSPACE/control/scripts/ops/preview_image_artifact.py"
+          python3 "$helper" host-check --architecture amd64
+          command -v zstd >/dev/null
+          created_at="$(git show -s --format=%cI "$INPUT_SOURCE_SHA")"
+          image_mode="$(python3 -c 'import json, os; print(json.load(open(os.environ["RUNNER_TEMP"] + "/source-authority.json"))["image_mode"])')"
+          test "$image_mode" = api-only || test "$image_mode" = normal || test "$image_mode" = admin-only
+          package_arguments=(
+            --output "$RUNNER_TEMP/old-test-images"
+            --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER"
+            --source-sha "$INPUT_SOURCE_SHA" --created-at "$created_at"
+            --artifact-kind old-test --architecture amd64
+            --image-mode "$image_mode"
+          )
+          if [[ "$image_mode" != admin-only ]]; then
+            cp "$GITHUB_WORKSPACE/control/infra/docker/backend/old-test-line-698.Dockerfile" "$RUNNER_TEMP/approved-api.Dockerfile"
+            python3 - <<'PY'
+          import os, runpy
+          from pathlib import Path
+          root = Path(os.environ['GITHUB_WORKSPACE'])
+          wrapper = runpy.run_path(str(root / 'control/infrastructure/github-app/oripa-github-app-api'))
+          wrapper['validate_line698_recipe']((root / 'payload/infra/docker/backend/Dockerfile').read_bytes(),
+              (Path(os.environ['RUNNER_TEMP']) / 'approved-api.Dockerfile').read_bytes())
+          PY
+            api_image="oripa-v2-api:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
+            docker buildx build --load --platform linux/amd64 --target preview \
+              --cache-from "type=local,src=$RUNNER_TEMP/build-cache/api" \
+              --cache-to "type=local,dest=$RUNNER_TEMP/build-cache-next/api,mode=max" \
+              --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
+              --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
+              --build-arg "OCI_CREATED=${created_at}" \
+              --file "$RUNNER_TEMP/approved-api.Dockerfile" --tag "$api_image" .
+            package_arguments+=(--api-image "$api_image")
+          fi
+          if [[ "$image_mode" == normal || "$image_mode" == admin-only ]]; then
+            admin_image="oripa-v2-admin:old-test-${INPUT_TASK_ID}-${INPUT_SOURCE_SHA:0:12}"
+            docker buildx build --load --platform linux/amd64 \
+              --cache-from "type=local,src=$RUNNER_TEMP/build-cache/admin" \
+              --cache-to "type=local,dest=$RUNNER_TEMP/build-cache-next/admin,mode=max" \
+              --build-arg "OCI_VERSION=old-test-${INPUT_TASK_ID}" \
+              --build-arg "OCI_REVISION=${INPUT_SOURCE_SHA}" \
+              --build-arg "OCI_CREATED=${created_at}" \
+              --file apps/admin/Dockerfile --tag "$admin_image" .
+            package_arguments+=(--admin-image "$admin_image")
+          fi
+          python3 "$helper" package "${package_arguments[@]}"
+          python3 "$helper" verify \
+            --directory "$RUNNER_TEMP/old-test-images" \
+            --task-id "$INPUT_TASK_ID" --pr-number "$INPUT_PR_NUMBER" \
+            --source-sha "$INPUT_SOURCE_SHA" --artifact-kind old-test --architecture amd64
+          cp "$RUNNER_TEMP/source-authority.json" "$RUNNER_TEMP/old-test-images/source-authority.json"
+          # Replace cache only after every selected image and focused test passes.
+          python3 - <<'PY'
+          import os, pathlib, shutil
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          shutil.rmtree(root / 'build-cache', ignore_errors=True)
+          (root / 'build-cache-next').rename(root / 'build-cache')
+          PY
+
+      - name: Recheck current Draft authority before upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python3 control/scripts/ops/old_test_draft_preview.py
+
+      - name: Upload verified OLD Test artifact and authority
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: oripa-old-test-draft-images-${{ inputs.task_id }}-${{ inputs.source_sha }}
+          path: ${{ runner.temp }}/old-test-images/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1

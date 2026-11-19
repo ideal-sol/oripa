@@ -87,6 +87,7 @@ jobs:
           tests.ops.test_self_review_policy
           tests.ops.test_task_branch_base_sync
           tests.ops.test_task_policy
+          tests.ops.test_old_test_draft_preview
 
       - name: Validate repository policy
         env:
@@ -128,7 +129,7 @@ jobs:
       - name: Validate Authority-only source and continuity
         if: needs.policy-gate.outputs.validation_path == 'AUTHORITY_FOCUSED'
         run: |
-          python3 -m unittest tests.ops.test_old_test_source_authority tests.ops.test_production_source_authority tests.release.test_readiness
+          python3 -m unittest tests.ops.test_old_test_source_authority tests.ops.test_production_source_authority tests.ops.test_old_test_draft_preview tests.release.test_readiness
           python3 -m unittest discover -s tests/ci/policy -p 'test_*.py'
           python3 scripts/ci/quality_gate.py --repository .
           git diff --check
