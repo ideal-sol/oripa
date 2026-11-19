@@ -22,8 +22,8 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: old-test-draft-preview-${{ inputs.task_id }}-${{ inputs.source_sha }}
-  cancel-in-progress: false
+  group: old-test-draft-preview-${{ inputs.pr_number }}
+  cancel-in-progress: true
 
 jobs:
   focused:

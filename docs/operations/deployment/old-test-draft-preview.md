@@ -53,7 +53,8 @@ preparation. Focused validation replaces general quality validation here, avoidi
 an additional full Frontend Build before the selected formal image Build.
 Revalidate PR/main before publication and again during retrieval/preflight.
 
-Reuse a nonexpired successful Artifact for the same head/control/plan; list
+New dispatches cancel an obsolete in-progress Draft Build for the same PR; this
+workflow performs no Runtime effects. Reuse a nonexpired successful Artifact for the same head/control/plan; list
 before dispatch and do not build it again. A new head requires new focused and
 security evidence and new image identity. PR/control-scoped BuildKit layer cache
 reuses unchanged layers; cache is never authority and cannot replace tests or
