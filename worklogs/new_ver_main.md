@@ -1,3 +1,9 @@
+## DPADMIN-20261119 — Admin-only verification Draft A
+
+- Human GO: verification-only Draft display A, focused tests, separate Plan Draft and non-Runtime Binding preparation. Issue none; R4 / Strict Change / Activation deferred; base d1235cc55125a6f5ccdcb56a477d82f65c6f1361; dedicated test/DPADMIN-20261119 worktree. Exactly page, passive component, feature test, verification specification and Worklog; no API/DB/auth/dependency/CI/ENV/domain changes.
+- Existing dashboard shell and content retained. A is a small static paragraph after normal login. Existing Vitest/Testing Library verifies exact text, passive markup and dashboard integration. Local test results and exact HEAD/Tree are recorded on the Draft PR; Browser/image/Runtime checks are NOT RUN.
+- Keep this PR Draft and unmerged. Do not change to B before Human browser confirmation of A. Plan Merge, root installation/Entry changes, Artifact Build/Import, Runtime, migrations, Worker/financial and Production actions require separate GO.
+
 ## DRAFTPREVIEW-20261119 — PR709 practical-use revision
 
 - Latest Human final construction GO authorizes minimal same-PR improvements, A/B focused verification, final-head Required CI 5/5 and Fresh Strict review; Exact Merge and Runtime GO remain reserved. Reuse PR709 checkpoint `7e36cbb9155ecae3d7d6b056411c333d7c9ee2da` / tree `1fb704bab919a329102e62de983f9b24ae208899`, existing native Artifact/Executor/OS recipe/caches and applicable successful evidence. Issue none; R4 / Strict Change / Activation deferred; existing dedicated branch/worktree and transport policy retained; protected main/base unchanged at `4e958f82606c61b961f8c2b04d5f2ba7c7cd8ef3`.
