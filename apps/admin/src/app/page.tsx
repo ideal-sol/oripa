@@ -1,11 +1,12 @@
 import { DashboardHome } from "@/components/shell/dashboard-home";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { DraftPreviewProbe } from "@/components/shell/draft-preview-probe";
 
 export default function AdminHomePage() {
   return (
     <AdminShell>
-      <DraftPreviewProbe />
+      <p className="mb-3 text-xs text-slate-500" data-testid="draft-preview-probe">
+        Draft Preview 検証 A
+      </p>
       <DashboardHome />
     </AdminShell>
   );

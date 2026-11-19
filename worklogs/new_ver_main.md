@@ -1,6 +1,7 @@
 ## DPADMIN-20261119 — Admin-only verification Draft A
 
-- Human GO: verification-only Draft display A, focused tests, separate Plan Draft and non-Runtime Binding preparation. Issue none; R4 / Strict Change / Activation deferred; base d1235cc55125a6f5ccdcb56a477d82f65c6f1361; dedicated test/DPADMIN-20261119 worktree. Exactly page, passive component, feature test, verification specification and Worklog; no API/DB/auth/dependency/CI/ENV/domain changes.
+- Human GO: verification-only Draft display A, focused tests, separate Plan Draft and non-Runtime Binding preparation. Issue none; R4 / Strict Change / Activation deferred; base d1235cc55125a6f5ccdcb56a477d82f65c6f1361; dedicated test/DPADMIN-20261119 worktree. Exactly existing page, existing dashboard test, verification specification and Worklog; no API/DB/auth/dependency/CI/ENV/domain changes.
+- Initial new-file proposal was rejected by the existing Admin skeleton inventory; use existing page/test files instead, without changing CI or reducing assertions. Final-head automatic checks replace obsolete head evidence; no manual rerun.
 - Existing dashboard shell and content retained. A is a small static paragraph after normal login. Existing Vitest/Testing Library verifies exact text, passive markup and dashboard integration. Local test results and exact HEAD/Tree are recorded on the Draft PR; Browser/image/Runtime checks are NOT RUN.
 - Keep this PR Draft and unmerged. Do not change to B before Human browser confirmation of A. Plan Merge, root installation/Entry changes, Artifact Build/Import, Runtime, migrations, Worker/financial and Production actions require separate GO.
 

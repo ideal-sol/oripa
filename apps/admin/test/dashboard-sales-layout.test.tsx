@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 
 import type { DashboardSalesView } from "@/components/shell/use-dashboard-sales-data";
 
@@ -13,6 +14,12 @@ const permissionState = {
 const loadMore = vi.fn(async () => undefined);
 const retry = vi.fn();
 const reports = new Map<DashboardSalesView, unknown>();
+
+vi.mock("@/components/shell/admin-shell", () => ({
+  AdminShell: ({ children }: { children: ReactNode }) => (
+    <main data-testid="existing-admin-shell">{children}</main>
+  ),
+}));
 
 vi.mock("@/components/permissions/permission-provider", () => ({
   usePermissions: () => ({ ...permissionState, role: "owner" }),
@@ -32,6 +39,7 @@ vi.mock("@/components/shell/use-dashboard-sales-data", () => ({
 
 import { DashboardHome } from "@/components/shell/dashboard-home";
 import { DashboardSalesLayout } from "@/components/shell/dashboard-sales-layout";
+import AdminHomePage from "@/app/page";
 
 describe("Dashboard sales layout", () => {
   beforeEach(() => {
@@ -49,6 +57,25 @@ describe("Dashboard sales layout", () => {
     reports.set("monthly-points", monthlyPoints());
     reports.set("daily-points", dailyPoints());
     reports.set("reversals", reversals());
+  });
+
+  it("shows one exact passive Draft Preview A marker inside the existing shell", () => {
+    render(<AdminHomePage />);
+    const shell = screen.getByTestId("existing-admin-shell");
+    const marker = within(shell).getByTestId("draft-preview-probe");
+    expect(marker).toBeVisible();
+    expect(marker.textContent?.trim()).toBe("Draft Preview 検証 A");
+    expect(within(shell).getAllByTestId("draft-preview-probe")).toHaveLength(1);
+    expect(marker.querySelectorAll("a, button, input, form")).toHaveLength(0);
+    expect(shell.firstElementChild).toBe(marker);
+  });
+
+  it("retains the dashboard heading and existing five sales tabs next to the probe", () => {
+    render(<AdminHomePage />);
+    expect(screen.getByRole("heading", { name: "ダッシュボード" })).toBeVisible();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "月別売上", "日別売上", "月別ポイント消費", "日別ポイント消費", "返金/CB履歴",
+    ]);
   });
 
   it("preserves the five-tab order and renders real monthly sales", () => {
