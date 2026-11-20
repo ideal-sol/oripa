@@ -169,3 +169,63 @@ chat receive/reply, authentication, permissions and runtime CSP. Any actual
 provider send requires separate authorization. Recheck active BOT generation,
 storage/CDN configuration, previous November ledger continuity and exact-image
 security before activation. No production or OLD Test runtime is changed.
+
+## PR717 focused follow-up: chat search and quota observations
+
+The additional Human instruction retains this Change/branch/Draft PR and
+Strict/deferred status. The reviewed starting head is
+`fb2802c7186ea8325b52b4c3f674d5c526b7b57f`. Search now uses the nonempty LINE
+display name, otherwise the registered full name (including NULL/empty/space-only
+LINE names). The correlated identity predicate, active/restricted member states,
+revoked/superseded/closure exclusions, status/unread filters and pagination are
+unchanged. Literal LIKE metacharacters remain escaped; the pattern remains a
+bound SQL parameter. Profile acquisition/storage and display behavior are unchanged.
+
+Quota/Sender production source is deliberately unchanged. The initial campaign
+observation precedes whole-campaign admission and unknown-exposure creation;
+the post-prepare observation protects the actual send after a separate commit.
+A lower cap, provider failure or BOT generation change between those points
+must still stop HTTP and retain the committed exposure/key. Reusing the earlier
+observation would miss that change. An observation before exposure also detects
+usage which a newly added unknown charge might otherwise obscure. The post-429
+observation classifies a later provider response and cannot reuse a pre-send
+result. Later batches/retries require fresh observations; no cross-request cache
+or expiry policy is introduced. Monthly admission already avoids HTTP when its
+period exists; missing-month generation performs its own bounded observation.
+
+All measurement uses disposable PostgreSQL17 schemas and fake HTTP with stray
+requests forbidden. Count only GETs to `/v2/bot/message/quota` and its
+`/consumption` endpoint; OAuth and message POSTs are separate. Campaign resolve
+performs two additional GETs beyond the send-only count. Individual chat and
+automated dispatch with an existing monthly period use admission0 / send2.
+Exact measured campaign/retry/month totals, initial fixture failures, final
+focused commands/results and exact-head CI are recorded on PR717.
+
+Large diagnostics completed100 Push with204 GETs (resolve2 + send202) and500
+Push with1004 GETs (resolve2 + send1002). **1000 Push in one campaign did not
+complete in this synthetic environment:** the unchanged five-second Phase A
+validation budget rejected the first batch. A separate isolated diagnostic
+measured4 GETs (resolve2 + pre-prepare2),0 message POSTs,0 attempted batches and0
+accepted batches. This is a throughput HOLD, not a successful1000-recipient
+delivery or an inferred2004-GET result. The diagnostic failure remains recorded.
+No send deadline or reservation check is relaxed. Its per-batch revalidation
+cost requires separate bounded performance investigation and OLD Test capacity
+verification; quota HTTP caching does not resolve that database work.
+
+Keep the long Push diagnostic fixture/results with task evidence; normal
+regression uses actual first/subsequent Push and1000-recipient Multicast plus
+all safety cases. This separates a measured throughput limitation from the
+unchanged fail-closed contract, without counting the failed diagnostic as PASS.
+
+Focused regression command (API directory; disposable synthetic DB, fake HTTP):
+
+```text
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryTest.php tests/V2/LineChatReceiverTest.php tests/V2/LineAutomatedTest.php --filter 'test_name_search|test_unlinked_reply|test_suspended_and_revoked|test_read_watermark|test_quota_get_measurements|test_fresh_post_prepare|test_quota_month|test_quota_unknown|test_quota_parallel|test_quota_lowered|test_monthly_|test_commit_before_send|test_http_deadlines|test_expired_retry|test_switch_and_unfollow|test_result_commit|test_automated_handoff|test_second_notification|test_concurrent_success'
+```
+
+Migration117 and its logical reservation, API/contracts/generated artifacts,
+dependencies, security controls and workflow/CI files remain unchanged by this
+follow-up. `DRAFT_PREVIEW_INELIGIBLE` / Image Mode normal remains. Human OLD Test
+acceptance additionally checks name search with/without LINE names and literal
+search symbols. Before Ready/Merge, Human browser acceptance remains mandatory;
+this handoff does not authorize merge-first validation or a Preview exception.

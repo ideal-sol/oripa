@@ -35,7 +35,9 @@ final class V2LineChatAdmin
                 ->whereColumn('e.subject_hash','line_conversations.subject_hash')->where('e.provider','line')->where('e.issuer','https://access.line.me')
                 ->whereNull('e.revoked_at')->whereNull('e.superseded_at')->whereIn('u.state',['active','restricted'])
                 ->whereNotExists(fn($x)=>$x->selectRaw('1')->from('account_closures as ac')->whereColumn('ac.user_id','u.id'))
-                ->where('u.display_name','ilike','%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%');
+                // Search the visible name: a nonempty LINE name takes precedence over full_name.
+                ->whereRaw("COALESCE(NULLIF(BTRIM(u.display_name), ''), u.full_name) ILIKE ?",
+                    ['%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%']);
         });
         if ($status !== '') $q->where('status', $status);
         if ($unread) $q->whereExists(fn ($q) => $q->selectRaw('1')->from('line_chat_messages as m')->whereColumn('m.conversation_id','line_conversations.id')->where('m.direction','inbound')->whereNull('m.read_at')->where('m.unsent',false));

@@ -113,6 +113,25 @@ final class LineAutomatedTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_automated_handoff_and_dispatch_measure_quota_gets_without_live_http(): void
+    {
+        $this->enable('payment'); $this->baseline(); $user=$this->linked();
+        $this->settleRankPayment($user,10000);
+        // This disposable schema must expose the real D3 commit boundary.
+        DB::commit();
+        app(V2LineAutomatedWorker::class)->run('synthetic-quota-count');
+        Http::assertNothingSent();
+        $batch=DB::table('line_delivery_batches')->sole();
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+            '*/quota'=>Http::response(['type'=>'limited','value'=>1000]),'*/consumption'=>Http::response(['totalUsage'=>0]),
+            '*/push'=>Http::response([],200)]);
+        app(V2LineDeliverySender::class)->send($batch->id);
+        self::assertSame(2,Http::recorded(fn($r)=>$r->method()==='GET' && str_contains($r->url(),'/v2/bot/message/quota'))->count());
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$batch->id)->value('status'));
+        self::assertSame('accepted',DB::table('line_quota_charges')->where('batch_id',$batch->id)->value('state'));
+        fwrite(STDOUT,"\nQUOTA_MEASURE automated_admission=0 automated_dispatch=2\n");
+    }
+
     public function test_quota_failure_keeps_obligation_and_never_rolls_back_payment_or_rank(): void
     {
         $this->enable('payment'); $this->enable('first_purchase');

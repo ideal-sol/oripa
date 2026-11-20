@@ -224,6 +224,14 @@ final class LineChatReceiverTest extends TestCase
         $s->reply($this->context,$id,$messages,(string)Str::uuid());
         self::assertSame($user->id,DB::table('line_delivery_recipients')->orderByDesc('id')->value('user_id'));
         Http::assertNothingSent();
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+            '*/quota'=>Http::response(['type'=>'limited','value'=>10]),'*/consumption'=>Http::response(['totalUsage'=>0]),
+            '*/push'=>Http::response([],200)]);
+        $batch=DB::table('line_delivery_batches')->orderByDesc('id')->first();
+        app(\App\Domain\Line\Services\V2LineDeliverySender::class)->send($batch->id);
+        self::assertSame(2,Http::recorded(fn($r)=>$r->method()==='GET' && str_contains($r->url(),'/v2/bot/message/quota'))->count());
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$batch->id)->value('status'));
+        fwrite(STDOUT,"\nQUOTA_MEASURE chat_admission=0 chat_dispatch=2\n");
     }
 
     public function test_missing_quota_rolls_back_reply_and_unknown_friend_cannot_send(): void
@@ -337,6 +345,71 @@ final class LineChatReceiverTest extends TestCase
             $reply=$s->reply($this->context,$id,$messages,$key); self::assertSame($reply,$s->reply($this->context,$id,$messages,$key));
             self::assertSame(2,DB::table('line_chat_messages')->count()); self::assertSame(1,DB::table('line_delivery_batches')->count()); self::assertSame(1,DB::table('line_quota_charges')->count());
         } finally { DB::purge('d6_observer'); }
+        Http::assertNothingSent();
+    }
+
+    private function searchableMember(string $key, ?string $display, ?string $full): array
+    {
+        $event=$this->event((string)(1000+DB::table('line_conversations')->count())); $event['source']['userId']='U'.md5('search-'.$key);
+        $this->receive([$event]);
+        $conversation=DB::table('line_conversations')->orderByDesc('id')->first();
+        $user=$this->rankUser(); $user->forceFill(['display_name'=>$display,'full_name'=>$full])->save();
+        $identity=\App\Models\V2\ExternalIdentityAccount::query()->create(['user_id'=>$user->id,'provider'=>'line','issuer'=>'https://access.line.me',
+            'subject_hash'=>$conversation->subject_hash,'linked_at'=>now(),'last_authenticated_at'=>now()]);
+        return [$conversation,$user,$identity];
+    }
+
+    public function test_name_search_matches_line_name_and_null_or_empty_full_name_fallback(): void
+    {
+        $s=app(\App\Domain\Line\Services\V2LineChatAdmin::class);
+        foreach ([['LINE名', '隠れた氏名', 'LINE名'], [null, '氏名だけ', '氏名だけ'], ['', '空のLINE名', '空のLINE名'], ['  ', '空白のLINE名', '空白のLINE名']] as $index=>[$display,$full,$visible]) {
+            [$conversation,$user]=$this->searchableMember('fallback-'.$index,$display,$full);
+            $rows=$s->listing($this->context,search:$visible)['data'];
+            self::assertContains($conversation->public_id,array_column($rows,'id'));
+            self::assertSame($visible,$s->detail($this->context,$conversation->public_id)['conversation']['name']);
+            self::assertSame($user->public_id,$s->detail($this->context,$conversation->public_id)['conversation']['member_id']);
+        }
+        self::assertSame([],$s->listing($this->context,search:'隠れた氏名')['data']);
+        Http::assertNothingSent();
+    }
+
+    public function test_name_search_literal_metacharacters_and_ineligible_links(): void
+    {
+        $s=app(\App\Domain\Line\Services\V2LineChatAdmin::class);
+        foreach (['%', '_', '\\', "x' OR 1=1 --"] as $index=>$literal) {
+            [$c]=$this->searchableMember('escape-'.$index,null,'検索'.$literal.'対象');
+            self::assertSame([$c->public_id],array_column($s->listing($this->context,search:$literal)['data'],'id'));
+        }
+        foreach (['active','restricted','suspended','revoked','superseded','closure'] as $state) {
+            [$c,$user,$identity]=$this->searchableMember('excluded-'.$state,null,'対象確認'.$state);
+            if (in_array($state,['active','restricted','suspended'],true)) $user->forceFill(['state'=>$state])->save();
+            if ($state==='revoked') $identity->update(['revoked_at'=>now()]);
+            if ($state==='superseded') $identity->forceFill(['superseded_at'=>now()])->save();
+            if ($state==='closure') DB::table('account_closures')->insert(['user_id'=>$user->id,'completed_at'=>now(),'closed_by'=>'self',
+                'closure_kind'=>'normal','forfeited_points'=>0,'forfeited_prizes'=>0,'request_id'=>(string)Str::uuid()]);
+            $rows=$s->listing($this->context,search:'対象確認'.$state)['data'];
+            self::assertCount(in_array($state,['active','restricted'],true) ? 1 : 0,$rows);
+            if ($rows!==[]) self::assertSame($c->public_id,$rows[0]['id']);
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_name_search_retains_status_unread_and_pagination(): void
+    {
+        $s=app(\App\Domain\Line\Services\V2LineChatAdmin::class); $ids=[];
+        for ($i=0;$i<32;$i++) {
+            [$c]=$this->searchableMember('page-'.$i,$i%2===0 ? '共通検索' : null,'共通検索'); $ids[]=$c->public_id;
+        }
+        $first=$s->listing($this->context,search:'共通検索'); $second=$s->listing($this->context,page:2,search:'共通検索');
+        self::assertCount(30,$first['data']); self::assertSame(2,$first['next_page']); self::assertCount(2,$second['data']); self::assertNull($second['next_page']);
+        self::assertEqualsCanonicalizing($ids,array_column([...$first['data'],...$second['data']],'id'));
+        $last=DB::table('line_conversations')->where('public_id',$ids[31])->sole();
+        $s->status($this->context,$last->public_id,'closed',$last->revision);
+        self::assertSame([$last->public_id],array_column($s->listing($this->context,status:'closed',unread:true,search:'共通検索')['data'],'id'));
+        $through=DB::table('line_chat_messages')->where('conversation_id',$last->id)->max('id');
+        $s->markRead($this->context,$last->public_id,$through);
+        self::assertSame([],$s->listing($this->context,status:'closed',unread:true,search:'共通検索')['data']);
+        self::assertCount(1,$s->listing($this->context,status:'closed',search:'共通検索')['data']);
         Http::assertNothingSent();
     }
 
