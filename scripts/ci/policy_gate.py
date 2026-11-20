@@ -321,6 +321,7 @@ V2_IDENTITY_REQUIRED_FILES = {
     "apps/api/database/migrations-v2/2026_11_17_000115_add_v2_line_chat_and_templates.php",
     "apps/api/database/migrations-v2/2026_11_17_000116_add_v2_line_friend_id_staging.php",
     "apps/api/database/migrations-v2/2026_11_20_000117_add_v2_line_quota_system_actor.php",
+    "apps/api/database/migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php",
     "apps/api/database/migrations-v2/2026_10_11_000082_create_v2_banner_imports.php",
     "apps/api/database/migrations-v2/2026_10_12_000083_add_v2_signup_sms_gate.php",
     "apps/api/database/migrations-v2/2026_10_13_000084_create_v2_banner_asset_operations.php",
@@ -1072,6 +1073,7 @@ SHIPPINGMIN_ADMIN_FILES = {
 LINE_ADMIN_UX_FILES = {
     "apps/admin/e2e/admin-line-ux.spec.ts",
     "apps/admin/playwright.line-ux.config.ts",
+    "apps/admin/playwright.line-csp.config.ts",
     "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
     "apps/admin/src/components/line/line-admin-page.tsx",
     "apps/admin/src/components/line/line-admin.module.css",
@@ -3286,6 +3288,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_11_17_000115_add_v2_line_chat_and_templates.php",
         "2026_11_17_000116_add_v2_line_friend_id_staging.php",
         "2026_11_20_000117_add_v2_line_quota_system_actor.php",
+        "2026_11_20_000118_add_v2_line_quota_initial_origin.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

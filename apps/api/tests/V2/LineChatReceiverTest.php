@@ -162,6 +162,7 @@ final class LineChatReceiverTest extends TestCase
         self::assertSame($png,Crypt::decryptString($disk->get($m->media_key)));
         $service=app(\App\Domain\Line\Services\V2LineChatAdmin::class); $id=DB::table('line_conversations')->value('public_id');
         self::assertSame($png,$service->attachment($this->context,$id,$m->public_id)['body']);
+        $this->getJson('/admin/api/v2/line-chat/'.$id.'/attachments/'.$m->public_id)->assertStatus(401);
         $this->receive([$this->unsend($e)]);
         self::assertNull($service->detail($this->context,$id)['messages'][0]['body']);
         self::assertFalse($service->detail($this->context,$id)['messages'][0]['has_attachment']);
@@ -176,6 +177,72 @@ final class LineChatReceiverTest extends TestCase
         self::assertSame(1,$s->detail($this->context,$id)['conversation']['unread_count']);
         $s->status($this->context,$id,'closed',1); self::assertSame('closed',$s->detail($this->context,$id)['conversation']['status']);
         $this->expectException(\RuntimeException::class); $s->status($this->context,$id,'open',1);
+    }
+
+
+    public function test_verified_media_kind_paging_newest_order_and_generation_are_shared_by_all_roles(): void
+    {
+        $service=app(\App\Domain\Line\Services\V2LineTemplates::class); $expected=[];
+        foreach (['image','video','imagemap','carousel'] as $kind) {
+            for ($i=0;$i<32;$i++) {
+                $id=(string)Str::uuid(); $expected[$kind][]=$id;
+                DB::table('line_media_intents')->insert(['id'=>$id,'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,'kind'=>$kind,
+                    'created_by_admin_id'=>$this->context->adminId,'files'=>'{}','expires_at'=>now()->addMinutes(5)]);
+                DB::table('line_media_assets')->insert(['id'=>$id,'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,'kind'=>$kind,
+                    'created_at'=>'2026-11-20 00:00:00+00', 'manifest'=>json_encode(['id'=>$id,'kind'=>$kind,'width'=>100,'height'=>100,
+                    'original_url'=>'https://cdn.example.test/'.$id,'preview_url'=>'https://cdn.example.test/'.$id])]);
+            }
+            rsort($expected[$kind]);
+            $first=$service->media($this->context,1,$kind); $second=$service->media($this->context,2,$kind);
+            self::assertSame(array_slice($expected[$kind],0,30),array_column($first['data'],'id'));
+            self::assertSame(array_slice($expected[$kind],30),array_column($second['data'],'id'));
+            self::assertSame([$kind],array_values(array_unique(array_column($first['data'],'kind'))));
+            self::assertSame(2,$first['next_page']); self::assertNull($second['next_page']);
+            self::assertSame($this->bot->public_id,$first['bot_id']); self::assertSame(1,$first['authentication_revision']);
+        }
+        $new='00000000-0000-4000-8000-000000000001';
+        DB::table('line_media_intents')->insert(['id'=>$new,'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,'kind'=>'image',
+            'created_by_admin_id'=>$this->context->adminId,'files'=>'{}','expires_at'=>now()->addMinutes(5)]);
+        DB::table('line_media_assets')->insert(['id'=>$new,'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,'kind'=>'image',
+            'created_at'=>'2026-11-20 00:01:00+00','manifest'=>json_encode(['id'=>$new,'kind'=>'image','width'=>100,'height'=>100,
+            'original_url'=>'https://cdn.example.test/new','preview_url'=>'https://cdn.example.test/new'])]);
+        self::assertSame($new,$service->media($this->context,1,'image')['data'][0]['id']);
+        self::assertSame($new,$service->media($this->context)['data'][0]['id']);
+        self::assertCount(30,$service->media($this->context)['data']);
+        foreach (['text',"image' OR 1=1 --",''] as $bad) {
+            try { $service->media($this->context,1,$bad); self::fail('Invalid media kind accepted'); } catch (\InvalidArgumentException) { self::assertTrue(true); }
+        }
+        foreach (\App\Domain\Identity\Enums\V2AdminRole::cases() as $role) {
+            DB::table('admins')->where('id',$this->context->adminId)->update(['role'=>$role->value]);
+            $c=new \App\Domain\Identity\Contracts\V2AdminAuthorizationContext($this->context->adminId,$this->context->adminPublicId,$role,$this->context->sessionIdHash,$this->context->sessionCorrelationHash,(string)Str::uuid());
+            self::assertCount(30,$service->media($c,1,'image')['data']);
+            if ($role->value!=='owner') {
+                try { app(V2LineMediaManager::class)->intent($c,[]); self::fail('Non-Owner upload allowed'); }
+                catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $e) { self::assertSame(403,$e->status); }
+            }
+        }
+        DB::table('admins')->where('id',$this->context->adminId)->update(['role'=>$this->context->role->value]);
+        DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+        self::assertSame([],$service->media($this->context,1,'image')['data']);
+        DB::table('line_bots')->where('id',$this->bot->id)->update(['is_active'=>false]);
+        try { $service->media($this->context); self::fail('Inactive BOT media returned'); }
+        catch (\Illuminate\Database\RecordNotFoundException) { self::assertTrue(true); }
+    }
+
+    public function test_chat_first_reply_automatically_initializes_quota_and_preserves_request_identity(): void
+    {
+        app(\App\Domain\Line\Services\V2LineRecoveredFriendRegistry::class)->record($this->bot->id,1,'U'.str_repeat('a',32),now()->getTimestampMs());
+        $this->receive([$this->event()]);
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+            '*/quota'=>Http::response(['type'=>'limited','value'=>5000]),'*/consumption'=>Http::response(['totalUsage'=>300])]);
+        $service=app(\App\Domain\Line\Services\V2LineChatAdmin::class); $conversation=DB::table('line_conversations')->value('public_id');
+        $key=(string)Str::uuid(); $messages=[['type'=>'text','text'=>'Initial synthetic reply']];
+        $id=$service->reply($this->context,$conversation,$messages,$key);
+        self::assertSame($id,$service->reply($this->context,$conversation,$messages,$key));
+        $p=DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->sole();
+        self::assertSame('system_initial',$p->baseline_origin); self::assertSame(300,$p->opening_used);
+        self::assertSame(1,DB::table('line_quota_charges')->count()); self::assertSame(1,DB::table('line_delivery_batches')->count());
+        Http::assertNotSent(fn ($r)=>str_ends_with($r->url(),'/push'));
     }
 
     public function test_template_revisions_category_restrict_and_copy_are_independent(): void

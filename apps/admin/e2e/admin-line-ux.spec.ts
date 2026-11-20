@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 const id = "01910191-0191-7191-8191-019101910191";
 const conversation = { id, bot_id: id, member_id: null, name: "未登録の友だち", rank_level: null, points: null, status: "open", revision: 1, unread_count: 2, last_message_at: "2026-11-19T00:00:00Z", summary: "こんにちは" };
@@ -116,4 +117,65 @@ test("registered reply with failed history recovers through GET alone and reload
   await expect(page.getByLabel("返信本文")).toBeDisabled();
   await page.getByRole("button", { name: "履歴を確認しました（新しい返信を作成）" }).click();
   await expect(page.getByLabel("返信本文")).toBeEnabled(); expect(registrations).toBe(1);
+});
+
+test.describe("CSP enforced", () => {
+  test.use({ bypassCSP: false });
+  async function attachments(page: Page) {
+    await mockApi(page);
+    const video = Buffer.from(readFileSync("../api/tests/Support/SyntheticLineVideo.php", "utf8").match(/180 => '([^']+)'/)![1], "base64");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=", "base64");
+    const wav = Buffer.alloc(44 + 1600); wav.write("RIFF"); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(8000, 24);
+    wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(1600, 40);
+    await page.route(`**/admin/api/v2/line-chat/${id}?*`, route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ conversation, next_before: null,
+      messages: ["image", "video", "audio"].map((type, n) => ({ ...inbound, id: type, sequence: n + 1, type, body: {}, has_attachment: true, media_state: "stored" })) }) }));
+    await page.route("**/attachments/*", route => {
+      const type = route.request().url().split("/").pop();
+      return route.fulfill({ contentType: type === "image" ? "image/png" : type === "video" ? "video/mp4" : "audio/wav", body: type === "image" ? png : type === "video" ? video : wav });
+    });
+  }
+  async function previews(page: Page) {
+    const buttons=page.getByRole("button",{name:"添付を表示・ダウンロード"});
+    await expect(buttons).toHaveCount(3);
+    for (let i=0;i<3;i++) await buttons.nth(i).click();
+    await expect.poll(()=>page.getByAltText("受信画像").evaluate((el: HTMLImageElement)=>el.naturalWidth)).toBe(1);
+    for (const tag of ["video","audio"]) {
+      await expect.poll(()=>page.locator(tag).evaluate((el: HTMLMediaElement)=>el.readyState)).toBeGreaterThanOrEqual(1);
+      await page.locator(tag).evaluate(async (el: HTMLMediaElement)=>{ el.muted=true; await el.play(); });
+    }
+  }
+  for (const width of [1440,390]) for (const entry of ["direct","/settings/line","/line-templates","/line-deliveries"]) {
+    test(`attachments through ${entry} at ${width}px`,async({page})=>{
+      await page.setViewportSize({width,height:1000}); await attachments(page);
+      const violations:string[]=[];
+      await page.exposeFunction("recordCsp",(directive:string)=>violations.push(directive));
+      await page.addInitScript(()=>document.addEventListener("securitypolicyviolation",e=>{ (window as unknown as {recordCsp:(v:string)=>void}).recordCsp(e.violatedDirective); }));
+      await page.goto(entry==="direct" ? `/line-chat/${id}` : entry);
+      if (entry!=="direct") {
+        if (width===390) await page.getByRole("button",{name:"ナビゲーションを開く"}).click();
+        await page.locator('.admin-sidebar a[href="/line-chat"]').click();
+        await page.getByRole("link",{name:/未登録の友だち.*未読 2/}).click();
+      }
+      await previews(page); expect(violations).toEqual([]);
+    });
+  }
+  test("uncertain reply survives round trip, same key reconfirmation and attachment denial",async({page})=>{
+    await attachments(page); const requests:unknown[]=[]; const violations:string[]=[];
+    await page.exposeFunction("recordCsp",(directive:string)=>violations.push(directive));
+    await page.addInitScript(()=>document.addEventListener("securitypolicyviolation",e=>{ (window as unknown as {recordCsp:(v:string)=>void}).recordCsp(e.violatedDirective); }));
+    await page.route("**/replies",route=>{requests.push(route.request().postDataJSON());return requests.length===1 ? route.abort("timedout") : route.fulfill({contentType:"application/json",body:JSON.stringify({id})});});
+    await page.goto(`/line-chat/${id}`); await previews(page); const origin=await page.evaluate(()=>performance.timeOrigin);
+    await page.getByLabel("返信本文").fill("retained CSP reply"); await page.getByRole("button",{name:"返信を送信キューに登録"}).click();
+    await expect(page.getByRole("button",{name:"同じ送信要求の結果を確認"})).toBeEnabled();
+    await page.locator('.admin-sidebar a[href="/line-templates"]').click();
+    await expect(page.getByRole("heading",{name:"LINEテンプレート",exact:true})).toBeVisible();
+    await page.locator('.admin-sidebar a[href="/line-chat"]').click(); await page.getByRole("link",{name:/未登録の友だち.*未読 2/}).click();
+    await expect(page.getByLabel("返信本文")).toHaveValue("retained CSP reply"); expect(await page.evaluate(()=>performance.timeOrigin)).toBe(origin);
+    await previews(page); await page.getByRole("button",{name:"同じ送信要求の結果を確認"}).click();
+    await expect(page.getByText("送信キューに登録しました。",{exact:true})).toBeVisible(); expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
+    await page.route("**/attachments/*",route=>route.fulfill({status:403,contentType:"application/problem+json",body:JSON.stringify({status:403,code:"AUTHORIZATION_DENIED"})}));
+    await page.getByRole("button",{name:"添付を表示・ダウンロード"}).first().click();
+    await expect(page.getByText("添付を取得できませんでした。取消状態を更新してください。")).toBeVisible(); expect(violations).toEqual([]);
+  });
 });

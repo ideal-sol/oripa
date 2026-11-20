@@ -170,6 +170,11 @@ final class V2LineDeliveryService
     {
         if (! in_array($source, ['automated', 'chat'], true) || ! Str::isUuid($sourceKey)) throw new \InvalidArgumentException('Invalid LINE source.');
         app(V2LineDeliveryMessages::class)->validate($messages);
+        // Nested D4/D6 callers preflight before their own transaction. Direct
+        // callers share that initialization without issuing HTTP under a lock.
+        if (DB::transactionLevel() === 0 && ! DB::table('line_delivery_batches')->where('source_key', $sourceKey)->exists()) {
+            app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        }
         return DB::transaction(function () use ($ref, $purpose, $messages, $source, $sourceKey): int {
             app(V2LineMessagingSettingService::class)->setting(true);
             $existing = DB::table('line_delivery_batches')->where('source_key', $sourceKey)->first();

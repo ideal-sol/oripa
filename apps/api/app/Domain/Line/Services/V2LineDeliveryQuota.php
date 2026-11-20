@@ -22,8 +22,8 @@ final class V2LineDeliveryQuota
         if ($bot === null) return;
         $month = $this->month(app(V2LineDeliverySender::class)->clock());
         $account = DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->first();
-        if ($account === null || $account->halted || $account->authentication_revision !== $bot->authentication_revision
-            || $account->usable_from > $month) return;
+        if ($account !== null && ($account->halted || $account->authentication_revision !== $bot->authentication_revision
+            || $account->usable_from > $month)) return;
         if (! DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $month)->exists()) $this->providerRemaining($bot);
     }
 
@@ -36,7 +36,7 @@ final class V2LineDeliveryQuota
         }, 1);
     }
 
-    /** Caller holds singleton. Existing verified exclusivity is the authority, not approximate usage. */
+    /** Caller holds singleton. Monthly continuation never replaces the opening. */
     private function ensurePeriod(int $botId, int $revision, string $month, ?int $providerLimit = null): void
     {
         if (DB::table('line_quota_periods')->where('line_bot_id', $botId)->where('month', $month)->exists()) return;
@@ -148,27 +148,55 @@ final class V2LineDeliveryQuota
         $quota = $transport->get($bot, '/v2/bot/message/quota');
         $used = $transport->get($bot, '/v2/bot/message/quota/consumption');
         if (! in_array($quota['type'] ?? null, ['none', 'limited'], true)
-            || ($quota['type'] === 'limited' && (! is_int($quota['value'] ?? null) || $quota['value'] < 0))
-            || ! is_int($used['totalUsage'] ?? null) || $used['totalUsage'] < 0) throw new \RuntimeException('LINE quota unavailable.');
+            || ($quota['type'] === 'limited' && (! is_int($quota['value'] ?? null) || $quota['value'] < 0 || $quota['value'] > 9007199254740991))
+            || ! is_int($used['totalUsage'] ?? null) || $used['totalUsage'] < 0 || $used['totalUsage'] > 9007199254740991) throw new \RuntimeException('LINE quota unavailable.');
         DB::transaction(function () use ($bot, $month, $quota, $used): void {
             $this->lock();
             if ($month !== $this->month(app(V2LineDeliverySender::class)->clock())) throw new \RuntimeException('LINE quota observation crossed month.');
             $current = DB::table('line_bots')->where('id', $bot->id)->where('is_active', true)->where('connection_status', 'succeeded')->first();
             if ($current?->authentication_revision !== $bot->authentication_revision) throw new \RuntimeException('LINE BOT revision conflict.');
             $limit = $quota['type'] === 'limited' ? $quota['value'] : null;
+            $this->initialize($bot, $month, $limit, $used['totalUsage']);
             $this->ensurePeriod($bot->id, $bot->authentication_revision, $month, $limit);
             $p = DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $month)->first();
             if ($p === null) return;
             DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->update(['last_checked_at'=>app(V2LineDeliverySender::class)->clock()]);
             $exposed = (int) DB::table('line_quota_charges')->where('line_bot_id', $bot->id)->where('month', $month)->where('state', '<>', 'reserved')->sum('units');
             $carry = (int) $this->uncarried($bot->id, $month)->get()->sum('units');
-            if ($used['totalUsage'] > $p->opening_used + $exposed + $carry) $this->stop($bot->id, 'provider_usage_exceeds_ledger');
+            if ($used['totalUsage'] > $p->opening_used + $exposed + $carry) $this->stop($bot->id,
+                $p->baseline_origin === 'system_initial' ? 'provider_usage_exceeds_estimated_ledger' : 'provider_usage_exceeds_ledger');
             if ($limit !== null) foreach (DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', '>=', $month)->get() as $period) {
                 DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $period->month)
                     ->update(['effective_limit' => min($period->effective_limit, $limit)]);
             }
         }, 1);
         return $quota['type'] === 'none' ? null : max(0, $quota['value'] - $used['totalUsage']);
+    }
+
+    /** Fresh observation, singleton held and BOT/month revalidated by the caller. */
+    private function initialize(object $bot, string $month, ?int $limit, int $used): void
+    {
+        $account = DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->first();
+        if ($account !== null) return; // Never clear a halt, rebase or adopt another generation.
+        if ($limit === null) throw new \RuntimeException('LINE quota numeric limit unavailable.');
+        if (DB::table('line_delivery_batches')->where('line_bot_id', $bot->id)
+                ->where(fn ($q) => $q->whereNotNull('first_attempted_at')->orWhereIn('status', ['sending','retrying','accepted','unknown','failed']))->exists()
+            || DB::table('line_quota_charges')->where('line_bot_id', $bot->id)->exists()) {
+            $this->stop($bot->id, 'initial_history_requires_reconciliation');
+            return;
+        }
+        $now = app(V2LineDeliverySender::class)->clock();
+        $evidence = (string) Str::uuid();
+        DB::table('line_quota_accounts')->insert(['line_bot_id'=>$bot->id,
+            'authentication_revision'=>$bot->authentication_revision, 'usable_from'=>$month,
+            'halted'=>false, 'last_checked_at'=>$now, 'updated_at'=>$now]);
+        DB::table('line_quota_periods')->insert(['line_bot_id'=>$bot->id, 'month'=>$month,
+            'opening_used'=>$used, 'approved_limit'=>$limit, 'effective_limit'=>$limit,
+            'evidence_id'=>$evidence, 'verified_by_admin_id'=>null, 'baseline_origin'=>'system_initial',
+            'authentication_revision'=>$bot->authentication_revision, 'baseline_cut_at'=>$now]);
+        app(V2AuditLogService::class)->record('line.quota.initial.generated', ['request_id'=>$evidence,
+            'actor_type'=>'system', 'auth_realm'=>'system', 'target_type'=>'line_bot',
+            'metadata'=>['record_id'=>$bot->id, 'month'=>$month], 'outcome'=>'success']);
     }
 
     /** All deltas planned under singleton before inserts: whole-campaign admission. */

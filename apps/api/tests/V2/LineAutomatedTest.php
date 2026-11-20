@@ -96,6 +96,27 @@ final class LineAutomatedTest extends TestCase
         app(\App\Domain\Line\Services\V2LineDeliveryMessages::class)->validate([['type' => 'text', 'text' => '%shipping_url%']]);
     }
 
+    public function test_first_automated_notification_initializes_without_human_baseline(): void
+    {
+        $this->enable('payment'); $user=$this->linked(); $payment=$this->settleRankPayment($user,10000);
+        DB::commit();
+        Http::fake(function ($request) {
+            if (str_ends_with($request->url(),'/oauth2/v3/token')) return Http::response(['access_token'=>'synthetic','expires_in'=>900]);
+            if (str_ends_with($request->url(),'/quota')) { self::assertSame(0,DB::transactionLevel()); return Http::response(['type'=>'limited','value'=>5000]); }
+            if (str_ends_with($request->url(),'/consumption')) { self::assertSame(0,DB::transactionLevel()); return Http::response(['totalUsage'=>300]); }
+            return Http::response([],200);
+        });
+        app(V2LineAutomatedWorker::class)->run('synthetic-initial');
+        app(V2LineAutomatedWorker::class)->run('synthetic-initial-replay');
+        $period=DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->sole();
+        self::assertSame('system_initial',$period->baseline_origin); self::assertSame(300,$period->opening_used);
+        self::assertSame(1,DB::table('line_delivery_batches')->count()); self::assertSame(1,DB::table('line_quota_charges')->count());
+        self::assertDatabaseHas('payments',['id'=>$payment->id,'status'=>'succeeded']);
+        $batch=DB::table('line_delivery_batches')->sole(); app(V2LineDeliverySender::class)->send($batch->id);
+        self::assertSame('accepted',DB::table('line_quota_charges')->where('batch_id',$batch->id)->sole()->state);
+        self::assertSame(4699,app(V2LineDeliveryQuota::class)->remaining($this->bot));
+    }
+
     public function test_two_purchases_keep_first_identity_and_two_distinct_obligations_with_shared_quota(): void
     {
         $this->enable('payment'); $this->enable('first_purchase'); $this->baseline();

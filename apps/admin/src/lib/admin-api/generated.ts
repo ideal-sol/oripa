@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 37dcea1ebda37a71c38bf939992b0226db87a335b694f42ece06fd701f281a72
+// Contract SHA-256: 672da5758c0e43556b5409253c75aeea9d9d2467d5b069e31f4d28742cadfbfa
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2970,7 +2970,7 @@ export type LineChatTemplateInput = { "bot_id": string; "expected_revision": num
 export type LineChatCategoryInput = { "bot_id": string; "expected_revision": number; "name": string; "sort_order": number; };
 export type LineChatDeleteInput = { "bot_id": string; "expected_revision": number; };
 export type LineChatTemplateResult = { "id": string; "revision": number; };
-export type LineChatMediaList = { "data": Array<LineMediaAsset>; "next_page": number | null; };
+export type LineChatMediaList = { "data": Array<LineMediaAsset>; "next_page": number | null; "bot_id"?: string; "authentication_revision"?: number; };
 export type LineDeliverySummary = { "title": string; "category": "transactional" | "promotional"; "recipient_group": "linked_members" | "unlinked_friends" | "all_friends"; "id": string; "revision": number; "status": string; "scheduled_at": string | null; "created_by": string | null; "created_at": string; "recipient_count": number; "planned_count": number; "bot_id": string | null; "authentication_revision": number | null; "batch_counts": LineDeliveryCounts; "recipient_counts": LineDeliveryCounts; };
 export type LineDeliverySegment = { "purchase_min"?: number; "purchase_max"?: number; "points_min"?: number; "points_max"?: number; "purchase_within_days"?: number; "purchase_absent_days"?: number; "registered_from"?: string; "registered_to"?: string; "followed_from"?: string; "followed_to"?: string; "rank_levels"?: Array<number>; };
 export type LineDeliveryPacing = { "push_every": number; "push_wait_seconds": number; "multicast_wait_seconds": number; };
@@ -2988,8 +2988,8 @@ export type LineDeliveryResend = { "request_key": string; "confirmation": "す�
 export type LineDeliveryResult = { "id": string; };
 export type LineDeliveryDefaults = { "revision": number; "pacing": LineDeliveryPacing; };
 export type LineDeliveryDefaultsInput = { "expected_revision": number; "pacing": LineDeliveryPacing; };
-export type LineQuotaPeriod = { "baseline_origin"?: "human" | "system" | null; "month": string; "configured": boolean; "opening_used": number; "approved_limit": number; "effective_limit": number; "reserved": number; "unknown": number; "accepted": number; "remaining": number; "evidence_id": string | null; "baseline_cut_at": string | null; "verified_at": string | null; };
-export type LineQuotaState = { "last_checked_at"?: string | null; "bot_id": string; "authentication_revision": number; "halted": boolean; "halt_reason": string | null; "periods": Array<LineQuotaPeriod>; };
+export type LineQuotaPeriod = { "baseline_origin"?: "human" | "system" | "system_initial" | null; "month": string; "configured": boolean; "opening_used": number; "approved_limit": number; "effective_limit": number; "reserved": number; "unknown": number; "accepted": number; "remaining": number; "evidence_id": string | null; "baseline_cut_at": string | null; "verified_at": string | null; };
+export type LineQuotaState = { "automation_state"?: "initialization_pending" | "initialized" | "managed" | "limit_reached" | "provider_error" | "halted"; "last_checked_at"?: string | null; "bot_id": string; "authentication_revision": number; "halted": boolean; "halt_reason": string | null; "periods": Array<LineQuotaPeriod>; };
 export type LineQuotaBaseline = { "bot_id": string; "authentication_revision": number; "month": string; "opening_used": number; "approved_limit": number; "evidence_id": string; "verified_at": string; "confirmation": "課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました"; };
 export type LineQuotaHalt = { "bot_id": string; "authentication_revision": number; "evidence_id": string; };
 export type LineMediaFile = { "mime": "image/jpeg" | "image/png" | "video/mp4"; "bytes": number; "sha256": string; };

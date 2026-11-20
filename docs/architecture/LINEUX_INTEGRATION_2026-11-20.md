@@ -1,7 +1,8 @@
 # LINEUX-20261120 — integrated LINE management source handoff
 
 Status: Draft source change, R3 / Strict Change / Application Runtime Activation
-`deferred`. This document records the Human's integration specification v1.0;
+`deferred`. This document records the Human's integration specification v1.0
+and the subsequent LINE UX/CSP/automatic initial quota v1.1 decision;
 it grants no deployment, provider call, Ready, merge or approval-plan authority.
 Issue: none. Branch: `feat/LINEUX-20261120`. Dedicated worktree preserves the
 occupied checkout and all unrelated worktrees. Base:
@@ -15,7 +16,8 @@ occupied checkout and all unrelated worktrees. Base:
   `line.bot.manage`. Individual chat activates the same group.
 - The upload workspace reuses the existing signed intents, validation, manifests
   and CDN. It supports image, video with preview, imagemap and carousel assets,
-  preview, kind filtering within the displayed page and pagination. Lists and
+  preview, API kind filtering before 30-item pagination and newest-first stable
+  ordering (`created_at DESC, id DESC`). Lists and
   finalization bind the active BOT and authentication generation. Existing
   sending/editing screens only select verified assets.
 - The delivery list uses the shared Admin table, Japanese category/group/status
@@ -53,6 +55,10 @@ the historical exception it does not prove that mechanism caused the OLD Test
 incident.
 
 ## Monthly quota and migration 117
+
+Historical v1.0 decision below: the first Human-baseline prerequisite is
+superseded by the v1.1 automatic-initialization section at the end. Existing
+human/system records and monthly continuation safeguards remain applicable.
 
 The Human confirmed exclusive paid sending through this application. Existing
 Human-proven accounts and periods remain the authority. Current/next JST periods
@@ -384,3 +390,176 @@ dependency, authentication/security-boundary, workflow or infrastructure change.
 must use the separately authorized normal route, apply unchanged117 before
 activation, and check real pacing/provider latency and shared monthly capacity.
 Synthetic throughput PASS does not authorize runtime or real LINE sends.
+
+## v1.1: media selection, enforced CSP and automatic initial quota
+
+Human's additional `line-ux.md` instruction supersedes the first-baseline manual
+prerequisite. Starting HEAD is `f8023cb4da3c506ef2d6d43a4f5ef5f5dd6e0b09`;
+base, Change, branch and Draft PR717 remain unchanged. Final HEAD/Tree, complete
+incremental/cumulative inventory and exact-head CI are recorded on that PR.
+
+### Media and CSP
+
+The optional `kind` query filters image/video/imagemap/carousel before paging.
+Omitting it still lists all kinds. Current connected BOT and authentication
+generation constrain both the list and asset validation. Owner-only upload and
+existing Owner/Admin/Operator read/edit permissions remain unchanged. The UI
+resets page/candidates on type changes, reloads page1 after upload, distinguishes
+errors from empty state, and checks the current BOT/generation before accepting
+a candidate. Send-time asset validation remains authoritative if the BOT changes
+after selection. Optional list BOT/generation fields support this UI check.
+
+Real Chromium uses the production-mode Admin server with `bypassCSP: false`.
+Nine tests cover direct chat, settings/templates/deliveries navigation at1440
+and390px, real PNG/H.264 MP4/WAV playback, and uncertain reply round-trip with
+the same request key and document time origin. All nine pass without a CSP
+violation. A synthetic403 attachment response is rejected in the UI; the API
+regression independently verifies unauthenticated401 and existing unsend guards.
+The transition defect does not reproduce with the current navigation. No proxy,
+CSP, navigation or chat-state source change was needed, and no additional reload
+or CSP relaxation was introduced. API authentication is mocked only in browser
+fixtures; browser results do not claim runtime login verification.
+
+### Initial quota and approximate usage
+
+The [official quota](https://developers.line.biz/ja/reference/messaging-api/#get-quota)
+and [consumption](https://developers.line.biz/ja/reference/messaging-api/#get-consumption)
+responses supply a numeric monthly limit and approximate usage, including
+Official Account Manager sends. `none` does not establish an application-owned
+numeric allowance. A new account therefore requires a valid nonnegative numeric
+limit and usage. Invalid/missing values or provider failure never manufacture
+capacity. Usage at or above the limit is recorded honestly with zero remaining.
+
+First quota viewing/admission obtains HTTP outside a transaction, then takes the
+existing singleton and rechecks active/connected BOT, generation and JST month.
+With no existing account or ambiguous send history it atomically records the
+account, `system_initial` opening and system audit. No fictitious Admin approval
+is stored. A subsequent call preserves the opening. Initialization and quota
+reservation both commit before any message POST. Campaign/chat/automatic/manual
+resend share the existing admission path; nested callers preflight before their
+transaction. No timer, worker, cache or new dependency is introduced.
+
+Opening300 plus100 accepted units means used400; a provider cumulative400 is
+never added again. A lagging350 cannot reduce charges or create more capacity.
+If provider usage exceeds opening plus exposed internal units, its cause cannot
+be distinguished reliably from delayed initial approximation or external sends.
+The separate `provider_usage_exceeds_estimated_ledger` reason retains a
+conservative halt requiring incident reconciliation. This is not claimed to be
+an exact external-send diagnosis. Legacy attempts/charges without a usable
+account similarly stop as `initial_history_requires_reconciliation`. Normal
+uninitialized accounts need no manual baseline; ambiguous incidents are not
+silently rebased. Existing halted accounts, same-BOT generation changes and
+unknown exposure never auto-clear. New BOTs have separate ledgers.
+
+Normal following months keep origin `system` and opening0, inheriting the
+existing conservative limit and unknown carry. Phase A/B, fresh pre-send
+provider checks,429 checks,23-hour retries, frozen keys/payloads, recipient
+revalidation, pacing and whole-campaign reservation remain unchanged. Admin
+distinguishes pending, initialized, managed, limit reached, provider error and
+halted, and explicitly labels estimated usage/remaining capacity.
+
+### Migration118 and activation order
+
+The shared allocation lock covered inspection of live Remote heads, local refs,
+worktrees, policies and coordination reservations.118 was free and is now
+reserved for `2026_11_20_000118_add_v2_line_quota_initial_origin.php`.
+Migration001–117 bytes are unchanged.118 adds `system_initial` with no Admin,
+positive generation matching both BOT and account, and nonnegative opening and
+limit. Only this new origin may truthfully record opening above its actual cap.
+Human/system meanings and all append-only/history/limit-decrease guards remain.
+The upgrade fixture applies118 after116/117 and checks unchanged historical
+rows, valid/invalid actors/generations, immutable history and forbidden down.
+
+Only disposable synthetic PostgreSQL received001–118. Any separately authorized
+normal activation must apply117 then118 before deploying this new code. Do not
+run new code against117-only schema or down-migrate118. Recovery retains schema
+and history and uses reviewed compatible source or a forward correction.
+`DRAFT_PREVIEW_INELIGIBLE`, Image Mode normal, remains unchanged. No approval
+plan was created or edited; this handoff authorizes no runtime operation.
+
+### Verification and OLD Test handoff
+
+Focused commands (API commands use disposable synthetic PostgreSQL/Fake HTTP):
+
+```text
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineBotMigrationUpgradeTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineChatReceiverTest.php tests/V2/LineAutomatedTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryManagementTest.php --filter 'test_quota|test_four_media_formats|test_preview|test_missing'
+pnpm exec vitest run test/line-uploads.test.tsx test/line-delivery-workspace.test.tsx test/line-chat-csp.test.ts test/admin-navigation-hierarchy.test.tsx
+pnpm exec playwright test --config playwright.line-csp.config.ts
+pnpm exec tsc --noEmit
+python3 scripts/ci/openapi_contract_gate.py --repository . --check-bundles
+python3 -m unittest discover -s tests/ci/policy
+```
+
+The CSP server required a local `next build` test compile: one initial stale
+generated-type failure and one successful compile after bundle/client ordering
+was corrected. No distributable Artifact/image build or manual workflow dispatch
+was requested. Failed fixture/diagnostic runs are retained separately; final
+results and full-send measurements are recorded below/on the exact-head PR.
+Existing Paidy repair evidence is reused only for unchanged financial fixtures;
+there is no new financial source or fixture change in v1.1.
+
+OLD Test Human checks remain: upload enough mixed assets to span pages, verify
+new uploads/type switches/non-Owner selection, navigate all chat entry paths and
+play attachments on mobile, preserve an unknown reply across navigation, inspect
+automatic first quota and monthly states, verify actual image security/pacing
+and provider behavior under separate authority. Synthetic API/browser PASS does
+not replace these runtime acceptance checks. Inherited D5 FFmpeg SEV2, D6
+attachment/unsend SEV3 and the existing Next advisory remain separately tracked.
+
+### v1.1 final local results
+
+- Migration upgrade1/68 PASS; management quota/real-media4/65 PASS.
+- Chat/automated full42/431 PASS. Final unauthenticated attachment1/17 PASS.
+- Delivery full43 executed:42 PASS, one FAIL in the old external-send fixture
+  because a newly selected BOT now needs its own provider observation. The
+  missing zero-cap fake is added without weakening its no-inherited-capacity
+  assertion. Final focused10/135 PASS includes that case, all six new initial
+  scenarios, existing human baseline,1000 rows and explicit resend. The old
+  full-run failure remains recorded; it is not relabeled a successful full run.
+- Browser CSP9/9, UI36/36 plus latest upload7/7, TypeScript/scoped ESLint,
+  OpenAPI bundles/base compatibility, policy277, DB helper70 and secret scan0
+  findings PASS. Development UI harness keeps its original6 cases; actual CSP
+  cases run separately against the production-mode server, with no bypass.
+- External full-send profile1/33 PASS. It executes actual domain methods with
+  synthetic DB/Fake LINE HTTP and test-only zero pacing, instrumenting method
+  time and SQL without bindings; no production instrumentation or timing limit
+  change. All campaigns begin without a Human baseline, limit2000/opening300.
+
+| Push recipients | Resolve ms | Batch insertion ms | Initial cover ms | First Phase A ms | First Phase B ms | Resolve / first-send SQL | Quota GET | POST | Completion |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 1 | 181.135 | 6.863 | 17.021 | 37.979 | 48.209 | 72 / 98 | 6 | 1 | PASS |
+| 100 | 343.780 | 215.170 | 20.224 | 51.581 | 79.703 | 270 / 96 | 204 | 100 | PASS |
+| 500 | 3838.588 | 3192.557 | 214.382 | 64.170 | 30.172 | 1088 / 96 | 1004 | 500 | PASS |
+| 1000 | 5983.019 | 4878.257 | 187.584 | 259.977 | 149.843 | 2112 / 97 | 2004 | 1000 | PASS |
+
+For1000, registration plus reservation is5065.841ms and Phase A259.977ms,
+well below the unchanged five-second Phase A guard. Resolve itself is not that
+Phase A deadline. Full1000 has1000 Batches/recipients,1000 accepted quota units,
+completed campaign, and accepted-Batch replay adds no HTTP.
+
+Historical f802 profile used a preexisting Human baseline: registration plus
+reservation2442.959ms, Phase A54.143ms, resolve/first-send SQL2102/95,
+2004GET/1000POST. Current automatic initialization adds10 resolve SQL and2
+first-send SQL, not per-recipient quota work. Current wall times include
+concurrent synthetic regression load and cannot establish a controlled
+before/after latency ratio. The measured safety bound and full-send outcome
+pass; no claim of a faster runtime or production SLA is made.
+
+GET counts remain100/500/1000 Push204/1004/2004, first send4 and later send2
+plus resolve2. Full regression also measures1000 Multicast8,429/retry4/2,
+same-key and month behavior. No provider cache or omitted safety observation.
+
+Final focused command:
+
+```text
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryTest.php --filter 'test_initial_|test_thousand_push_|test_management_snapshot_without_fresh_mfa_and_explicit_manual_resend|test_quota_automatic_opening_balance|test_quota_external_send_halts'
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineChatReceiverTest.php --filter test_private_attachment_is_encrypted_and_authenticated_and_unsend_hides_it
+```
+
+The external full-size diagnostic uses the existing LineDeliveryTest fixture
+through a temporary instrumented copy and stays outside normal CI. The committed
+bounded1000 test covers complete reservations and first/middle/last dispatch.
+New-head Required CI is observed separately; no old-head success is substituted.

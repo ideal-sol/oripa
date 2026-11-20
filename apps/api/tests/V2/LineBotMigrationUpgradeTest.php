@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15|16|17)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15|16|17|18)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -136,6 +136,24 @@ final class LineBotMigrationUpgradeTest extends TestCase
             DB::table('line_quota_periods')->insert($system);
             self::assertSame(2, DB::table('line_quota_periods')->count());
             try { $actorMigration->down(); self::fail('Quota actor rollback accepted'); }
+            catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
+            $existingPeriods = DB::table('line_quota_periods')->orderBy('month')->get()->all();
+            $initialMigration = require database_path('migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php');
+            $initialMigration->up();
+            self::assertEquals($existingPeriods, DB::table('line_quota_periods')->orderBy('month')->get()->all());
+            self::assertSame($quotaGuard, DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition);
+            $initial = [...$system, 'month'=>'2027-01-01', 'baseline_origin'=>'system_initial', 'opening_used'=>300];
+            foreach ([['verified_by_admin_id'=>$admin], ['authentication_revision'=>null], ['authentication_revision'=>0], ['authentication_revision'=>10], ['opening_used'=>-1], ['approved_limit'=>-1], ['baseline_origin'=>'system']] as $invalid) {
+                try { DB::transaction(fn () => DB::table('line_quota_periods')->insert([...$initial, ...$invalid])); self::fail('Invalid initial actor accepted'); }
+                catch (\Illuminate\Database\QueryException $e) { self::assertSame('23514', $e->errorInfo[0]); }
+            }
+            DB::table('line_quota_periods')->insert($initial);
+            DB::table('line_quota_periods')->insert([...$initial, 'month'=>'2027-02-01', 'opening_used'=>2000]);
+            foreach (['opening_used'=>299, 'baseline_origin'=>'system', 'authentication_revision'=>10, 'effective_limit'=>1001] as $column=>$value) {
+                try { DB::transaction(fn () => DB::table('line_quota_periods')->where('month','2027-01-01')->update([$column=>$value])); self::fail('Initial history changed'); }
+                catch (\Illuminate\Database\QueryException $e) { self::assertSame('P0001', $e->errorInfo[0]); }
+            }
+            try { $initialMigration->down(); self::fail('Initial quota rollback accepted'); }
             catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
             self::assertSame($deliveryGuards, DB::selectOne("SELECT pg_get_functiondef('v2_line_delivery_history_guard()'::regprocedure) AS definition")->definition);
             try { $quotaMigration->down(); self::fail('Quota history rollback accepted'); }

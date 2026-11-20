@@ -30,7 +30,7 @@ final class V2AdminLineDeliveryController
                 'index'=>$s->listing((int)$cursor), 'show'=>$s->detail($id,(int)$cursor),
                 'save'=>$s->save($context,$id,$input), 'cancel','duplicate'=>$s->action($context,$id,$op,$input),
                 'preview'=>$s->preview($input), 'defaults'=>$s->defaults(),
-                'defaults-update'=>$this->defaults($s,$context,$input), 'quota'=>$s->quota(),
+                'defaults-update'=>$this->defaults($s,$context,$input), 'quota'=>$s->quota(true),
                 'baseline','halt'=>$s->quotaWrite($context,$op,$input), 'resend'=>$this->resend($s,$context,$request->route('batchId'),$input),
                 'media'=>app(V2LineMediaManager::class)->intent($context,$input),
                 'finalize'=>app(V2LineMediaManager::class)->finalize($context,$request->route('mediaId')),

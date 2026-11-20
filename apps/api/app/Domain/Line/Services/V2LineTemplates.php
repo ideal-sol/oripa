@@ -69,16 +69,20 @@ final class V2LineTemplates
     }
 
     /** Reply-scoped read-only selection; Owner-authorized upload path remains unchanged. */
-    public function media(Context $c, int $page = 1): array
+    public function media(Context $c, int $page = 1, ?string $kind = null): array
     {
         app(V2LineChatAdmin::class)->authorize($c,true);
-        if ($page<1 || $page>1000) throw new \InvalidArgumentException('LINE_TEMPLATE_INVALID');
+        if ($page<1 || $page>1000 || ($kind !== null && ! in_array($kind, ['image','video','imagemap','carousel'], true))) throw new \InvalidArgumentException('LINE_TEMPLATE_INVALID');
         $bot=$this->bot(null);
-        $rows=DB::table('line_media_assets')->where('line_bot_id',$bot->id)->where('authentication_revision',$bot->authentication_revision)->orderBy('id')->offset(($page-1)*30)->limit(31)->get();
+        if ($bot->connection_status !== 'succeeded') throw new \RuntimeException('LINE_TEMPLATE_BOT_UNAVAILABLE');
+        $query=DB::table('line_media_assets')->where('line_bot_id',$bot->id)->where('authentication_revision',$bot->authentication_revision);
+        if ($kind !== null) $query->where('kind', $kind);
+        $rows=$query->orderByDesc('created_at')->orderByDesc('id')->offset(($page-1)*30)->limit(31)->get();
         $data=[];
         foreach ($rows->take(30) as $r) $data[]=array_intersect_key(json_decode($r->manifest,true,32,JSON_THROW_ON_ERROR),array_flip(['id','kind','original_url','preview_url','width','height']));
         app(V2LineChatAdmin::class)->audit($c,'line.chat.media.listed',$bot->public_id);
-        return ['data'=>$data,'next_page'=>$rows->count()>30 ? $page+1 : null];
+        return ['data'=>$data,'next_page'=>$rows->count()>30 ? $page+1 : null,
+            'bot_id'=>$bot->public_id,'authentication_revision'=>$bot->authentication_revision];
     }
 
     private function view(object $r): array

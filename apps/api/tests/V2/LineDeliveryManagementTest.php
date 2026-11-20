@@ -52,6 +52,27 @@ final class LineDeliveryManagementTest extends TestCase
             'messages'=>[['type'=>'text','text'=>'Hello %username%']],'pacing'=>['push_every'=>10,'push_wait_seconds'=>5,'multicast_wait_seconds'=>0],
             'mode'=>'draft','scheduled_at'=>null,'expected_revision'=>0,'request_key'=>(string)Str::uuid()];
     }
+    public function test_quota_view_initializes_estimated_usage_and_distinguishes_failure_and_halt(): void
+    {
+        $service=app(V2LineDeliveryAdmin::class);
+        self::assertSame('initialization_pending',$service->quota()['automation_state']);
+        Http::fake(['*'=>Http::response([],503)]);
+        self::assertSame('provider_error',$service->quota(true)['automation_state']);
+        self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->exists());
+        Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+            '*/quota'=>Http::response(['type'=>'limited','value'=>5000]),'*/consumption'=>Http::response(['totalUsage'=>300])]);
+        $state=$service->quota(true); self::assertSame('initialized',$state['automation_state']);
+        self::assertSame('system_initial',$state['periods'][0]['baseline_origin']);
+        self::assertSame(300,$state['periods'][0]['opening_used']); self::assertSame(4700,$state['periods'][0]['remaining']);
+        self::assertNotNull($state['last_checked_at']);
+        $input=$this->input(); $input['mode']='scheduled'; $input['scheduled_at']=now()->addHour()->toIso8601String();
+        self::assertSame('scheduled',$service->save($this->context,null,$input)['data']['status']);
+        $service->quotaWrite($this->context,'halt',['bot_id'=>$this->bot->public_id,'authentication_revision'=>1,'evidence_id'=>(string)Str::uuid()]);
+        self::assertSame('halted',$service->quota(true)['automation_state']);
+        self::assertSame(300,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('opening_used'));
+        Http::assertNotSent(fn ($request)=>preg_match('~/message/(push|multicast)$~',$request->url())===1);
+    }
     public function test_create_edit_duplicate_cancel_and_stale_revision_and_no_send(): void
     {
         $s=app(V2LineDeliveryAdmin::class); $s->authorize($this->context,true); $input=$this->input();

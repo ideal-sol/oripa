@@ -604,6 +604,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_11_20_000118_add_v2_line_quota_initial_origin.php": "Forward-only LINE initial quota migration.",
         "2026_11_20_000117_add_v2_line_quota_system_actor.php": "Forward-only LINE quota actor migration.",
         "2026_11_17_000116_add_v2_line_friend_id_staging.php": "Forward-only migration; retain D7 aggregate progress.",
         "2026_11_17_000115_add_v2_line_chat_and_templates.php": "Forward-only migration; retain LINE chat history.",
@@ -651,7 +652,7 @@ def rollback_and_reapply_latest(
         schema_before = normalize_schema_dump(schema_dump(base, repository))
         exception_class = (
             "RuntimeException"
-            if latest in {"2026_11_20_000117_add_v2_line_quota_system_actor.php", "2026_11_17_000116_add_v2_line_friend_id_staging.php", "2026_11_17_000115_add_v2_line_chat_and_templates.php", "2026_11_16_000114_add_v2_line_delivery_management.php", "2026_11_16_000113_add_v2_line_automated_notifications.php", "2026_11_16_000112_add_v2_line_quota_ledger.php", "2026_11_16_000111_add_v2_line_deliveries.php", "2026_11_15_000110_add_v2_line_recovered_friends.php", "2026_11_11_000109_separate_v2_line_bot_auth_revision.php", "2026_11_10_000108_add_v2_line_bot_management.php", "2026_11_05_000107_add_v2_line_subject_vault.php",
+            if latest in {"2026_11_20_000118_add_v2_line_quota_initial_origin.php", "2026_11_20_000117_add_v2_line_quota_system_actor.php", "2026_11_17_000116_add_v2_line_friend_id_staging.php", "2026_11_17_000115_add_v2_line_chat_and_templates.php", "2026_11_16_000114_add_v2_line_delivery_management.php", "2026_11_16_000113_add_v2_line_automated_notifications.php", "2026_11_16_000112_add_v2_line_quota_ledger.php", "2026_11_16_000111_add_v2_line_deliveries.php", "2026_11_15_000110_add_v2_line_recovered_friends.php", "2026_11_11_000109_separate_v2_line_bot_auth_revision.php", "2026_11_10_000108_add_v2_line_bot_management.php", "2026_11_05_000107_add_v2_line_subject_vault.php",
                           "2026_10_18_000093_add_v2_member_rank_gacha_conditions.php",
                           "2026_10_20_000094_add_v2_member_rank_payment_adjustments.php"}
             else "LogicException"

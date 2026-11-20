@@ -30,7 +30,7 @@ final class V2AdminLineChatController
             $data=match($operation) {
                 'index'=>$s->listing($c,$this->number($request->query('page','1')),(string)$request->query('status',''),$request->boolean('unread'),(string)$request->query('search','')),
                 'show'=>$s->detail($c,$id,$this->number($request->query('before','0'))),
-                'media'=>$t->media($c,$this->number($request->query('page','1'))),
+                'media'=>$t->media($c,$this->number($request->query('page','1')),$request->query('kind')),
                 'templates'=>$t->listing($c,$request->query('bot_id'),$request->query('category_id'),$this->number($request->query('page','1'))),
                 'template-save'=>$t->save($c,$request->route('kind'),$request->route('recordId'),$input,$request->isMethod('delete')),
                 default=>$this->mutate($s,$c,$id,$operation,$input),
