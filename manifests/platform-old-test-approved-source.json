@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-LINE-D1-D7-20261117",
-  "source_pr": 706,
-  "source_sha": "a24f02d8dd2af264179201b52d2d780c51c9c18b",
+  "task_id": "OLDTEST-LINEUX-20261120",
+  "source_pr": 713,
+  "source_sha": "15f5071e93f0646d7f7e6475c7b09a83a5c8d414",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR706 Squash a24f02d8dd2af264179201b52d2d780c51c9c18b / Tree ab772163e4b301a2ef8c1faad464ac6d0e847a3b removes only additional LINE D1-D7 reauthentication. Normal Admin authentication, permissions, CSRF, audit, Quota, media protection and D7 Human approval remain. Reuse exact PR700 recipe b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a, complete bytes and historical PR583/698/701 authority; source API/Admin Dockerfiles equal PR701. Contract alpha.52, Node22.23.5 and Ledger116; migrations=[] with no replay. Control Merge and one normal API+Admin linux/amd64 formal Build require GO-1; exact Runtime and Technical acceptance require GO-2. Preserve existing LINE/Webhook/S3/D6 RW/SMS/rank/UnivaPay TEST/Paidy TEST/Timer settings. Security/Artifact Gates, TTL300, financial Fence/Drain and Recovery remain mandatory. Existing dependency findings remain recorded, no new risk acceptance. Human OLD-only FFmpeg CVE-2026-107678 acceptance retained. No sender/D4/BOT/Quota/send/D7 activation or Production Authority change. PR695/703 remain deferred."
+  "authority": "Human-approved exact OLD Test payload: PR713 Squash 15f5071e93f0646d7f7e6475c7b09a83a5c8d414 / Tree a729f9771eeb7c6d09c1060e97f3d6af90a70b86; reviewed HEAD 5cc36877d53c40e2130b8d5217216e540e1950bf. API and Admin LINE management UX/chat summaries; normal API+Admin linux/amd64, Ledger/Schema116, migrations=[]. Reuse exact PR700 OS Security Recipe b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a and complete historical PR706/701/700 provenance and immutable bytes. API/Admin source Dockerfiles, dependencies and all 116 migrations equal PR706. Control Merge and one formal Artifact Build/Download/Import require separate Human GO; Runtime/installation and Technical acceptance require later Exact Human GO. Preserve current formal PR706 API/Admin until that Runtime GO, existing financial Fence/Drain, TTL300, root-private Journal, Host/Basic/TLS, F2B Timer safeguards, API/SMS/rank/Workers/five Timers, Webhook/D6 RW/S3/ENV and Recovery. No Storefront, new LINE send Worker activation, BOT switch, Quota change, D4 automation ON, D7 Backfill, real LINE send or Production operation. Existing OLD-only FFmpeg CVE-2026-107678 acceptance and other recorded dependency findings are retained; no new risk acceptance. PR703 and other unmerged Tasks are not incorporated; Production Authority is unchanged."
 }

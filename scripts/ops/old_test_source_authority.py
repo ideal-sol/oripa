@@ -38,12 +38,12 @@ def prepare_recipe(authority: dict, payload: Path, control: Path, destination: P
         raise ValueError("payload mismatch")
     original = (payload / "infra/docker/backend/Dockerfile").read_bytes()
     recipe = authority.get("build_recipe")
-    if source in {"b5c28015ef94cb80f6702a61b1237cacd91d9863", WRAPPER["LINE698_SOURCE"], WRAPPER["LINE701_SOURCE"], WRAPPER["LINE706_SOURCE"]} and not recipe:
+    if source in {"b5c28015ef94cb80f6702a61b1237cacd91d9863", WRAPPER["LINE698_SOURCE"], WRAPPER["LINE701_SOURCE"], WRAPPER["LINE706_SOURCE"], WRAPPER["LINE713_SOURCE"]} and not recipe:
         raise ValueError("recipe authority required")
     content = original
-    if source in {WRAPPER["LINE701_SOURCE"], WRAPPER["LINE706_SOURCE"]}:
+    if source in {WRAPPER["LINE701_SOURCE"], WRAPPER["LINE706_SOURCE"], WRAPPER["LINE713_SOURCE"]}:
         expected = {
-            "schema_version": "1.0", "kind": "line706-os-security" if source == WRAPPER["LINE706_SOURCE"] else "line701-os-security", "source_sha": source,
+            "schema_version": "1.0", "kind": {WRAPPER["LINE701_SOURCE"]: "line701-os-security", WRAPPER["LINE706_SOURCE"]: "line706-os-security", WRAPPER["LINE713_SOURCE"]: "line713-os-security"}[source], "source_sha": source,
             "recipe_pr": 700, "recipe_sha": WRAPPER["LINE701_RECIPE_COMMIT"],
             "path": WRAPPER["LINE698_RECIPE_PATH"],
             "source_sha256": WRAPPER["LINE698_SOURCE_DOCKERFILE_SHA256"],
