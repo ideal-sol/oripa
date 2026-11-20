@@ -14097,7 +14097,7 @@ Authorize PR682 Squash `b66e9a817d53dc77c2b327c3ccdd19790e204d57` for one AMD64 
 - Reproduction before final commit returns approved Source0254792e8dc0baafbef45c6f2ca861ee91cfa191/tree39cfb3d2a290b93711738596728c25127a94ba4d/inventory17e845f9497d53a87cc2a13b5c3900def2795bb5a3ed9b40891809edfed7aca9 unchanged. Repeat identity proof on committed head; exact-head CI and fresh Strict evidence belong on PR715. Existing limited application/binary/Composer/security evidence reused; no new local application Build, operational migration or Runtime change. Any different CI failure is HOLD under latest Human instruction, not authority to expand scope.
 
 
-## PHP8428-20261120 — NEWPROD-PHP8428 limited Authority Draft
+## PHP-8428A — NEWPROD-PHP8428 limited Authority Draft
 
 - Human authorizes Draft Authority and validation only. R3 / Strict Change / Runtime Activation deferred. Base protected main4fb1d80a5fca4d8f12829a26972aa2c9402a92c3; Source PR715 merged and prior successful checks reused. Dedicated clean task worktree preserves occupied root checkout. No Issue or Source Lock needed.
 - Reuse PR707 Authority/materialization/Readiness/agency Workflow. New exact PHP helper wraps immutable design and previous PR705 composition; verifies all PR688/692/705/715 reviewed trees and Required Checks, current protected main, exact Source0254792e8dc0baafbef45c6f2ca861ee91cfa191/tree39cfb3d2a290b93711738596728c25127a94ba4d/inventory17e845f9497d53a87cc2a13b5c3900def2795bb5a3ed9b40891809edfed7aca9/design digest5ed92be79c7046ffdd9baf213efa6e3524fabc517c0de5587110146b9d8512c6. Design/helper/history unchanged; PR705 regression fixture binds its immutable historical authority.
