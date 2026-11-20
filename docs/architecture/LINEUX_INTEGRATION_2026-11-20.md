@@ -223,6 +223,34 @@ Focused regression command (API directory; disposable synthetic DB, fake HTTP):
 vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryTest.php tests/V2/LineChatReceiverTest.php tests/V2/LineAutomatedTest.php --filter 'test_name_search|test_unlinked_reply|test_suspended_and_revoked|test_read_watermark|test_quota_get_measurements|test_fresh_post_prepare|test_quota_month|test_quota_unknown|test_quota_parallel|test_quota_lowered|test_monthly_|test_commit_before_send|test_http_deadlines|test_expired_retry|test_switch_and_unfollow|test_result_commit|test_automated_handoff|test_second_notification|test_concurrent_success'
 ```
 
+That command passed26 tests /297 assertions on application/test head
+`92a435a3f347bcdb353e6d58eeec3a8a577ac67b`. The subsequent record-only commit
+does not change those application/test bytes; reuse that evidence, not old-head
+Required CI. Final exact-head checks and source review remain on PR717.
+
+| Measured path | GETs (unchanged before/after) | Result |
+|---|---:|---|
+| First campaign batch / subsequent batch | 4 / 2 | PASS |
+| 100 Push including resolve | 204 | PASS |
+| 500 Push including resolve | 1004 | PASS |
+| 1000 Push, first batch before guard stops it | 4 including resolve | HOLD,0 message POSTs |
+| 1000 Multicast,2 batches including resolve | 8 | PASS |
+| Chat / automated / manual resend | admission0 + send2 | PASS |
+| Standalone429 attempt including classification | 4 | PASS |
+| Same-key retry | 2 | PASS |
+| Missing-month admission / repeated admission | 2 / 0 | PASS |
+| Month-end campaign / next-month retry | resolve2 + send4 / retry2 | PASS |
+
+The original head's Integration Database CI failed in the historical
+LineBotMigrationUpgradeTest fixture (quota table absent when117 runs) and
+LineDeliveryManagementTest's FFmpeg media-generation fixture; its summarized
+log also lists Paidy failures. These remain unresolved, outside the explicitly
+bounded search/quota-GET follow-up. Neither diagnostic HOLD nor old CI failure
+is waived by the26 focused passes. No migration/media/payment/CI implementation
+change is inferred. The initial follow-up push also carried the old40-path PR
+body in its event; update the body to41 paths before pushing this final record
+commit, without a manual workflow rerun or weakening the inventory gate.
+
 Migration117 and its logical reservation, API/contracts/generated artifacts,
 dependencies, security controls and workflow/CI files remain unchanged by this
 follow-up. `DRAFT_PREVIEW_INELIGIBLE` / Image Mode normal remains. Human OLD Test
