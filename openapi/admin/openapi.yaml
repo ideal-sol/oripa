@@ -7030,6 +7030,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        baseline_origin:
+          type: [string, 'null']
+          enum: [human, system, null]
         month:
           type: string
         configured:
@@ -7091,6 +7094,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        last_checked_at:
+          type: [string, 'null']
         bot_id:
           type: string
           format: uuid

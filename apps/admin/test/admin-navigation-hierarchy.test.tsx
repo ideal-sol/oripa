@@ -68,6 +68,7 @@ describe("Admin sidebar hierarchy", () => {
       "カード別在庫",
       expect.stringContaining("ポイント購入"),
       expect.stringContaining("お知らせ"),
+      expect.stringContaining("LINE関連"),
       expect.stringContaining("バナー"),
       expect.stringContaining("お問い合わせ"),
       expect.stringContaining("各種設定"),
@@ -81,9 +82,10 @@ describe("Admin sidebar hierarchy", () => {
       ["配送", ["一覧"]],
       ["ポイント購入", ["一覧", "登録"]],
       ["お知らせ", ["一覧", "登録"]],
+      ["LINE関連", ["設定", "チャット", "テンプレート", "一斉配信", "アップロード"]],
       ["バナー", ["一覧", "登録"]],
       ["お問い合わせ", ["一覧"]],
-      ["各種設定", ["ページ設定", "景品ランク設定", "ランク動画", "発送下限ポイント設定", "紹介ポイント設定", "事前登録特典設定", "会員ランク設定", "ガチャ注意事項設定", "LINE設定", "LINEチャット", "LINEテンプレート", "LINE一斉配信", "メール設定"]],
+      ["各種設定", ["ページ設定", "景品ランク設定", "ランク動画", "発送下限ポイント設定", "紹介ポイント設定", "事前登録特典設定", "会員ランク設定", "ガチャ注意事項設定", "メール設定"]],
     ]);
     for (const [parent, labels] of expectedChildren) {
       const button = screen.getByRole("button", { name: parent });

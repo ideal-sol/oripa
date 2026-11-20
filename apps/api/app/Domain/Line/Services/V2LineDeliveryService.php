@@ -180,6 +180,7 @@ final class V2LineDeliveryService
     {
         $this->authorize($context);
         if ($confirmation !== 'すでに届いている可能性があります' || ! Str::isUuid($requestKey)) throw new \InvalidArgumentException('LINE resend confirmation required.');
+        if (! DB::table('line_delivery_batches')->where('source_key', $requestKey)->exists()) app(V2LineDeliveryQuota::class)->refreshForAdmission();
         return DB::transaction(function () use ($context, $id, $requestKey): int {
             app(V2LineMessagingSettingService::class)->setting(true);
             $existing = DB::table('line_delivery_batches')->where('source_key', $requestKey)->first();

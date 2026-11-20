@@ -26,6 +26,18 @@ final class V2LineAutomatedWorker
             if ($processed >= $limit) break;
             foreach ($outbox->claim($worker, $limit - $processed, 60, [$topic], [$type]) as $message) {
                 try {
+                    // Disabled, already handled and ineligible obligations need no provider read.
+                    // Handoff rechecks every decision under the singleton after this preflight.
+                    $needsQuota = DB::transaction(function () use ($message): bool {
+                        foreach ($this->events($message) as [$event, $userId, $reason]) {
+                            if ($reason !== null || DB::table('line_automated_outcomes')->where('source_key', self::sourceKey($message->public_id, $event))->exists()) continue;
+                            $version = DB::table('line_automated_template_versions')->where('event', $event)
+                                ->where('effective_at', '<', $message->created_at)->orderByDesc('revision')->first();
+                            if ($version?->enabled && app(V2LineRecipientResolver::class)->linkedMember($userId, V2LineDeliveryPurpose::from($version->category)) !== null) return true;
+                        }
+                        return false;
+                    }, 1);
+                    if ($needsQuota) app(V2LineDeliveryQuota::class)->refreshForAdmission();
                     DB::transaction(function () use ($message, $worker, $outbox): void {
                         // All obligations and D3 reservations commit before the shared event ack.
                         app(V2LineMessagingSettingService::class)->setting(true);

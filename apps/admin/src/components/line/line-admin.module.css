@@ -6,7 +6,10 @@
 .surface :where(p, small) { line-height: 1.7; }
 .surface p { margin-block: 8px; }
 .surface :where(fieldset, details) { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 16px 0; background: var(--surface); }
-.surface fieldset { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.surface fieldset { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; max-width: 860px; box-sizing: border-box; }
+.surface fieldset > button { align-self: flex-end; }
+.surface fieldset > label:not(:has(input[type="checkbox"])) { flex-basis: 100%; }
+.surface tbody tr:hover { background: var(--forest-soft); }
 .surface fieldset > :where(p, fieldset, section, div, h3) { flex-basis: 100%; }
 .surface legend { font-weight: 600; padding: 0 6px; }
 .surface label { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; font-size: 14px; font-weight: 500; margin: 8px 0; }

@@ -23,6 +23,12 @@ it("shows persisted batch progress and a qualified completion estimate", async (
   vi.mocked(AdminApiClient.prototype.listLineDeliveries).mockResolvedValue({ data: [row], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "getLineDelivery").mockResolvedValue({ data: row, batches: [], next_batch_cursor: null, estimated_dispatch_end: "2026-11-16T01:00:00Z" });
   render(<LineDeliveryWorkspace />);
+  await screen.findByText("Synthetic progress");
+  expect(screen.getByRole("columnheader", { name: "予定人数／送信対象人数" })).toBeVisible();
+  expect(screen.getByText("販促／すべての友だち")).toBeVisible();
+  expect(screen.getByText("送信処理中")).toBeVisible();
+  expect(screen.queryByRole("columnheader", { name: "状態別 組／人数" })).toBeNull();
+  expect(screen.queryByText(/作成者/)).toBeNull();
   fireEvent.click(await screen.findByRole("button", { name: "詳細・編集" }));
   const progress = await screen.findByRole("progressbar", { name: "バッチ処理進捗" });
   expect(progress).toHaveAttribute("value", "1"); expect(progress).toHaveAttribute("max", "2");

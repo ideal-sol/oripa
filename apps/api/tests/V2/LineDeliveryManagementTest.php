@@ -184,4 +184,38 @@ final class LineDeliveryManagementTest extends TestCase
         app(V2LineDeliveryAdmin::class)->authorize($this->context,true);
         self::assertSame('draft', app(V2LineDeliveryAdmin::class)->save($this->context,null,$this->input())['data']['status']);
     }
+
+    public function test_four_media_formats_finalize_real_bytes_and_reject_changed_generation(): void
+    {
+        config(['v2_assets.public_base_url'=>'https://cdn.example.test']);
+        $directory=sys_get_temp_dir().'/lineux-formats-'.bin2hex(random_bytes(8)); mkdir($directory,0700);
+        try {
+            $image=imagecreatetruecolor(320,320); ob_start(); imagepng($image); $png=ob_get_clean(); imagedestroy($image);
+            $video=$directory.'/video.mp4';
+            (new \Symfony\Component\Process\Process(['/usr/bin/ffmpeg','-v','error','-f','lavfi','-i','color=c=black:s=320x320:d=0.1','-threads','1','-c:v','libx264','-pix_fmt','yuv420p',$video]))->mustRun();
+            $storage=new class extends V2LineMediaStorage {
+                public array $bytes=[]; public array $published=[];
+                public function upload(array $f): array { return ['url'=>'https://upload.example.test/synthetic','headers'=>[]]; }
+                public function download(array $f,string $p): void { file_put_contents($p,$this->bytes[basename($f['key'])]); }
+                public function publish(string $key,string $path,string $mime): void {
+                    \PHPUnit\Framework\Assert::assertFileExists($path); $this->published[]=$key;
+                }
+            };
+            app()->instance(V2LineMediaStorage::class,$storage); $service=app(V2LineMediaManager::class);
+            $metadata=fn($bytes,$mime)=>['bytes'=>strlen($bytes),'mime'=>$mime,'sha256'=>hash('sha256',$bytes)];
+            foreach (['image'=>2,'video'=>2,'imagemap'=>5,'carousel'=>1] as $kind=>$objects) {
+                $storage->bytes=['original'=>$kind==='video' ? file_get_contents($video) : $png,'preview'=>$png]; $storage->published=[];
+                $input=['kind'=>$kind,'original'=>$metadata($storage->bytes['original'],$kind==='video' ? 'video/mp4' : 'image/png')];
+                if ($kind==='video') $input['preview']=$metadata($png,'image/png');
+                $intent=$service->intent($this->context,$input);
+                self::assertCount($kind==='video' ? 2 : 1,$intent['uploads']);
+                $asset=$service->finalize($this->context,$intent['id']);
+                self::assertSame($kind,$asset['kind']); self::assertCount($objects,$storage->published);
+                self::assertTrue(DB::table('line_media_assets')->where('id',$intent['id'])->exists());
+            }
+            $intent=$service->intent($this->context,['kind'=>'image','original'=>$metadata($png,'image/png')]);
+            DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+            $this->expectException(\InvalidArgumentException::class); $service->finalize($this->context,$intent['id']);
+        } finally { if (is_file($directory.'/video.mp4')) unlink($directory.'/video.mp4'); rmdir($directory); }
+    }
 }

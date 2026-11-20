@@ -216,6 +216,10 @@ final class LineChatReceiverTest extends TestCase
         \App\Models\V2\ExternalIdentityAccount::query()->create(['user_id'=>$user->id,'provider'=>'line','issuer'=>'https://access.line.me',
             'subject_hash'=>DB::table('line_conversations')->value('subject_hash'),'linked_at'=>now(),'last_authenticated_at'=>now()]);
         self::assertSame($user->public_id,$s->detail($this->context,$id)['conversation']['member_id']);
+        $user->forceFill(['display_name'=>null,'full_name'=>'会員氏名'])->save();
+        self::assertSame('会員氏名',$s->detail($this->context,$id)['conversation']['name']);
+        $user->forceFill(['display_name'=>'LINEプロフィール名'])->save();
+        self::assertSame('LINEプロフィール名',$s->detail($this->context,$id)['conversation']['name']);
         self::assertSame(1,DB::table('line_conversations')->count());
         $s->reply($this->context,$id,$messages,(string)Str::uuid());
         self::assertSame($user->id,DB::table('line_delivery_recipients')->orderByDesc('id')->value('user_id'));

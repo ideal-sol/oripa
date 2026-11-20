@@ -14,6 +14,7 @@ async function mockApi(page: Page) {
     else if (path.endsWith("/settings/line-login")) body = { channel_id: "1234567", secret_configured: true, source: "database", revision: 1 };
     else if (path.endsWith("/line-bots")) body = { items: [{ id, name: "検証BOT", channel_id: "1234567", secret_configured: true, basic_id: null, display_name: null, is_active: true, legacy: false, connection_status: "succeeded", connected_at: conversation.last_message_at, quota_snapshot: null, quota_fetched_at: null, followers_snapshot: null, followers_fetched_at: null, revision: 1, webhook_path: "/webhooks/v2/line/" + id, webhook_url: "https://example.test/webhooks/v2/line/" + id }] };
     else if (path.endsWith("/line-automated-settings")) body = { data: ["shipping", "payment", "first_purchase", "rank_promotion"].map((event) => ({ event, enabled: false, revision: 0, category: "transactional", messages: [{ type: "text", text: "通知" }], effective_at: null })) };
+    else if (path.endsWith("/line-chat/media")) body = { data: [], next_page: null };
     else if (path.endsWith("/line-chat")) body = { data: [conversation], next_page: null };
     else if (path.endsWith("/read") || path.endsWith("/replies")) body = { id };
     else if (path.endsWith(`/line-chat/${id}`)) body = { conversation, next_before: null, messages: [inbound, { ...inbound, id: "out", sequence: 2, direction: "outbound", body: [{ type: "text", text: "承りました" }], type: "messages", batch_status: "accepted" }] };
@@ -25,12 +26,11 @@ async function mockApi(page: Page) {
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
-test("LINE screens share the Admin shell, aligned settings and responsive controls", async ({ page }) => {
+for (const width of [1440, 820, 390]) test(`LINE screens share the Admin shell, aligned settings and responsive controls at ${width}px`, async ({ page }) => {
   test.setTimeout(300_000);
   await mockApi(page);
-  for (const width of [1440, 820, 390]) {
     await page.setViewportSize({ width, height: 1000 });
-    for (const [path, title] of [["/line-chat", "LINEチャット"], ["/line-templates", "LINEテンプレート"], ["/line-deliveries", "LINE一斉配信"], ["/settings/line", "LINE設定"]]) {
+    for (const [path, title] of [["/line-chat", "LINEチャット"], ["/line-templates", "LINEテンプレート"], ["/line-deliveries", "LINE一斉配信"], ["/settings/line", "LINE設定"], ["/line-uploads", "LINEアップロード"]]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(page.getByRole("main")).toBeVisible();
@@ -39,8 +39,9 @@ test("LINE screens share the Admin shell, aligned settings and responsive contro
         await page.getByRole("button", { name: "新規配信", exact: true }).click();
         await expect(page.getByLabel("管理用名称")).toBeVisible();
         await page.getByRole("button", { name: "Quotaを取得", exact: true }).click();
-        await expect(page.getByLabel("証跡UUID")).toBeVisible();
-        await expect(page.getByRole("button", { name: "基準値を確定" })).toHaveClass("primary-button");
+        await expect(page.getByLabel("証跡UUID")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "基準値を確定" })).toHaveCount(0);
+        await expect(page.getByText(/自動管理状態/)).toBeVisible();
         await expect(page.getByRole("button", { name: "異常時停止" })).toHaveClass("danger-button");
       }
       if (path === "/settings/line") {
@@ -53,7 +54,6 @@ test("LINE screens share the Admin shell, aligned settings and responsive contro
       expect(await page.locator(".workspace button").evaluateAll((nodes) => nodes.every((node) => /(?:primary|secondary|danger)-button/.test(node.className)))).toBe(true);
       await page.screenshot({ path: `/tmp/lineux-${path.replaceAll("/", "-")}-${width}.png`, fullPage: true });
     }
-  }
 });
 test("chat navigates to individual history with separate bubbles and back", async ({ page }) => {
   test.setTimeout(90_000); await mockApi(page);

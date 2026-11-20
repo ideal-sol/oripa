@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 666177578f39a43723a387d07a428976919d83630c7581e096d8c6ec25d682ca
+// Contract SHA-256: 37dcea1ebda37a71c38bf939992b0226db87a335b694f42ece06fd701f281a72
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -2988,8 +2988,8 @@ export type LineDeliveryResend = { "request_key": string; "confirmation": "す�
 export type LineDeliveryResult = { "id": string; };
 export type LineDeliveryDefaults = { "revision": number; "pacing": LineDeliveryPacing; };
 export type LineDeliveryDefaultsInput = { "expected_revision": number; "pacing": LineDeliveryPacing; };
-export type LineQuotaPeriod = { "month": string; "configured": boolean; "opening_used": number; "approved_limit": number; "effective_limit": number; "reserved": number; "unknown": number; "accepted": number; "remaining": number; "evidence_id": string | null; "baseline_cut_at": string | null; "verified_at": string | null; };
-export type LineQuotaState = { "bot_id": string; "authentication_revision": number; "halted": boolean; "halt_reason": string | null; "periods": Array<LineQuotaPeriod>; };
+export type LineQuotaPeriod = { "baseline_origin"?: "human" | "system" | null; "month": string; "configured": boolean; "opening_used": number; "approved_limit": number; "effective_limit": number; "reserved": number; "unknown": number; "accepted": number; "remaining": number; "evidence_id": string | null; "baseline_cut_at": string | null; "verified_at": string | null; };
+export type LineQuotaState = { "last_checked_at"?: string | null; "bot_id": string; "authentication_revision": number; "halted": boolean; "halt_reason": string | null; "periods": Array<LineQuotaPeriod>; };
 export type LineQuotaBaseline = { "bot_id": string; "authentication_revision": number; "month": string; "opening_used": number; "approved_limit": number; "evidence_id": string; "verified_at": string; "confirmation": "課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました"; };
 export type LineQuotaHalt = { "bot_id": string; "authentication_revision": number; "evidence_id": string; };
 export type LineMediaFile = { "mime": "image/jpeg" | "image/png" | "video/mp4"; "bytes": number; "sha256": string; };

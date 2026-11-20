@@ -8,7 +8,8 @@ final readonly class V2VerifiedExternalIdentity
         public string $issuer,
         public string $subject,
         public ?string $emailDisplay,
-        public ?string $emailNormalized
+        public ?string $emailNormalized,
+        public ?string $displayName = null
     ) {
     }
 

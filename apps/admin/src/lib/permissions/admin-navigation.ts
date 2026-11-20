@@ -41,6 +41,7 @@ export type AdminRouteId =
   | "pre-registration-settings"
   | "member-rank-settings"
   | "gacha-notice-settings"
+  | "line-uploads"
   | "line-chat"
   | "line-templates"
   | "line-deliveries"
@@ -54,6 +55,7 @@ export type AdminRouteId =
   | "authentication-settings";
 
 export type AdminNavigationGroupId =
+  | "line"
   | "agencies"
   | "users"
   | "gacha"
@@ -139,10 +141,11 @@ const ADMIN_ROUTE_ITEMS = validateRoutes([
   route("pre-registration-settings", "事前登録特典設定", "/settings/pre-registration", "pre_registration.settings.read", "settings"),
   route("member-rank-settings", "会員ランク設定", "/settings/member-ranks", "member_rank.settings.read", "settings"),
   route("gacha-notice-settings", "ガチャ注意事項設定", "/settings/gacha-notices", "catalog.read", "settings"),
-  route("line-chat", "LINEチャット", "/line-chat", "line.chat.read", "line-settings"),
-  route("line-templates", "LINEテンプレート", "/line-templates", "line.template.read", "line-settings"),
-  route("line-deliveries", "LINE一斉配信", "/line-deliveries", "line.bot.read", "line-settings"),
-  route("line-settings", "LINE設定", "/settings/line", "identity.line.read", "line-settings"),
+  route("line-uploads", "アップロード", "/line-uploads", "line.chat.read", "line-settings"),
+  route("line-chat", "チャット", "/line-chat", "line.chat.read", "line-settings"),
+  route("line-templates", "テンプレート", "/line-templates", "line.template.read", "line-settings"),
+  route("line-deliveries", "一斉配信", "/line-deliveries", "line.bot.read", "line-settings"),
+  route("line-settings", "設定", "/settings/line", "identity.line.read", "line-settings"),
   route("mail-settings", "メール設定", "/settings/mail", "content.read", "settings"),
 
   // Existing direct routes remain registered even when they are not in the sidebar.
@@ -180,6 +183,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "announcements",
     "announcements-create",
   ]),
+  group("line", "LINE関連", "line-settings", ["line-settings", "line-chat", "line-templates", "line-deliveries", "line-uploads"]),
   group("banners", "バナー", "banners", ["banners", "banners-create"]),
   group("contacts", "お問い合わせ", "contacts", ["contacts"]),
   group("settings", "各種設定", "settings", [
@@ -191,10 +195,6 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationNode[] = validateNavigati
     "pre-registration-settings",
     "member-rank-settings",
     "gacha-notice-settings",
-    "line-settings",
-    "line-chat",
-    "line-templates",
-    "line-deliveries",
     "mail-settings",
   ]),
 ]);

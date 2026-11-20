@@ -204,7 +204,7 @@ final class LineDeliveryTest extends TestCase
         self::assertSame('2026-12-01', app(V2LineDeliveryQuota::class)->month(\Carbon\CarbonImmutable::parse('2026-11-30T15:00:00Z')));
     }
 
-    public function test_quota_month_end_campaign_without_next_baseline_sends_zero(): void
+    public function test_quota_month_end_campaign_automatically_covers_next_month(): void
     {
         $this->clockAt('2026-11-30T23:59:50+09:00'); $this->newBot(200);
         app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.str_repeat('3', 32), now()->getTimestampMs());
@@ -212,9 +212,11 @@ final class LineDeliveryTest extends TestCase
         app(V2LineDeliveryService::class)->resolve($delivery);
         $batch = DB::table('line_delivery_batches')->where('delivery_id', $delivery)->sole();
         app(V2LineDeliverySender::class)->send($batch->id);
-        self::assertSame('blocked_quota', DB::table('line_deliveries')->where('id', $delivery)->value('status'));
-        self::assertNull(DB::table('line_delivery_batches')->where('id', $batch->id)->value('first_attempted_at'));
-        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
+        self::assertSame('completed', DB::table('line_deliveries')->where('id', $delivery)->value('status'));
+        self::assertSame('system', DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month', '2026-12-01')->value('baseline_origin'));
+        self::assertNull(DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month', '2026-12-01')->value('verified_by_admin_id'));
+        self::assertNotNull(DB::table('line_delivery_batches')->where('id', $batch->id)->value('first_attempted_at'));
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
     }
 
     public function test_quota_unknown_carries_into_preconfirmed_month_and_after_retry_expiry(): void
@@ -290,7 +292,7 @@ final class LineDeliveryTest extends TestCase
         $quota = app(V2LineDeliveryQuota::class);
         $month = $quota->month(app(V2LineDeliverySender::class)->clock());
         $remaining = $quota->available($botId, $month);
-        self::assertSame(999, $remaining);
+        self::assertSame(99, $remaining); // Fresh provider cap100 is authoritative over prior1000.
         // No period FK protects this independently halted account.
         $this->newBot(); $quota->halt($this->admin(), $this->bot->id, (string) Str::uuid());
         $haltedBotId = $this->bot->id;
@@ -344,6 +346,68 @@ final class LineDeliveryTest extends TestCase
         self::assertSame($remaining, $quota->available($botId, $month));
         self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id', $batch)->value('state'));
         self::assertTrue(DB::table('line_quota_accounts')->where('line_bot_id', $haltedBotId)->value('halted'));
+    }
+
+    public function test_monthly_auto_initialization_is_idempotent_and_retains_human_history(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(200, 7);
+        $old = DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->sole();
+        $this->clockAt('2026-12-01T00:00:01+09:00'); $this->quotaHttp(150, 0);
+        $q = app(V2LineDeliveryQuota::class);
+        $q->refreshForAdmission(); $q->refreshForAdmission();
+        self::assertEquals($old, DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month','2026-11-01')->sole());
+        $new = DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->sole();
+        self::assertSame('system',$new->baseline_origin); self::assertNull($new->verified_by_admin_id);
+        self::assertSame(0,$new->opening_used); self::assertSame(150,$new->effective_limit);
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.period.generated')->count());
+        $batch=$this->batch(); $this->fake([200]); app(V2LineDeliverySender::class)->send($batch);
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$batch)->value('status'));
+    }
+
+    public function test_monthly_auto_initialization_preserves_halt_generation_and_unknown_exposure(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(2);
+        $batch=$this->batch(); $this->fake([0]); app(V2LineDeliverySender::class)->send($batch);
+        $this->clockAt('2026-12-01T00:00:01+09:00'); $this->quotaHttp(2,0);
+        $q=app(V2LineDeliveryQuota::class);
+        self::assertSame(1,$q->unknown($this->bot->id,'2026-12-01'));
+        $q->refreshForAdmission();
+        self::assertSame(1,$q->unknown($this->bot->id,'2026-12-01'));
+        self::assertSame(1,$q->available($this->bot->id,'2026-12-01'));
+        self::assertSame('unknown',DB::table('line_quota_charges')->where('batch_id',$batch)->where('month','2026-12-01')->value('state'));
+        $q->halt($this->admin(),$this->bot->id,(string)Str::uuid());
+        $this->clockAt('2027-01-01T00:00:01+09:00'); $q->refreshForAdmission();
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2027-01-01')->exists());
+        self::assertSame(0,$q->available($this->bot->id,'2027-01-01'));
+        $this->newBot(2); DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+        $this->clockAt('2027-02-01T00:00:01+09:00'); $q->refreshForAdmission();
+        self::assertSame(0,$q->available($this->bot->id,'2027-02-01'));
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2027-02-01')->exists());
+    }
+
+    public function test_monthly_initializers_serialize_and_provider_failure_cannot_create_a_baseline(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(200);
+        $this->clockAt('2026-12-01T00:00:01+09:00');
+        $q = app(V2LineDeliveryQuota::class);
+        Http::fake(['*'=>Http::response([],503)]);
+        try { $q->refreshForAdmission(); self::fail('Unavailable quota accepted'); } catch (\RuntimeException) {}
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->exists());
+        $this->quotaHttp(150,0);
+        config(['database.connections.d3_observer'=>config('database.connections.pgsql')]);
+        $observer=DB::connection('d3_observer'); $observer->statement("SET lock_timeout = '100ms'");
+        $observer->statement('SET search_path TO '.$this->schema.', pg_catalog');
+        DB::beginTransaction();
+        app(\App\Domain\Line\Services\V2LineMessagingSettingService::class)->setting(true);
+        DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); self::fail('Initializer bypassed singleton'); }
+        catch (\Illuminate\Database\QueryException $e) { self::assertSame('55P03',$e->errorInfo[0]); }
+        finally { DB::setDefaultConnection('pgsql'); DB::commit(); }
+        $q->refreshForAdmission();
+        DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); } finally { DB::setDefaultConnection('pgsql'); }
+        self::assertSame(1,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->count());
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.period.generated')->count());
     }
 
     private function fake(array $codes, ?\Closure $check = null): void
@@ -720,7 +784,7 @@ final class LineDeliveryTest extends TestCase
                 self::assertSame(0, DB::transactionLevel());
                 return Http::response(['type' => 'limited', 'value' => 1]);
             }
-            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => 1]);
+            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => $sends === 0 ? 0 : 1]);
             $sends++;
             self::assertLessThanOrEqual(10, $options['timeout']);
             self::assertLessThanOrEqual(5, $options['connect_timeout']);
