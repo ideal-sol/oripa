@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const access = vi.hoisted(() => ({ owner: false }));
 vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ permissions: new Set(access.owner ? ["line.chat.read", "line.bot.manage"] : ["line.chat.read"]) }) }));
@@ -57,6 +57,25 @@ it("resets selection candidates on type changes and refuses a stale BOT at selec
   vi.mocked(AdminApiClient.prototype.lineChatMedia).mockResolvedValueOnce({data:[],next_page:null});
   fireEvent.click(screen.getByRole("button",{name:"メディアを読み込む"}));
   await waitFor(()=>expect(AdminApiClient.prototype.lineChatMedia).toHaveBeenLastCalledWith(1,"video"));
+});
+it("keeps loading instead of showing an empty library while a changed BOT resets paging", async () => {
+  const asset={id:"old",kind:"image" as const,width:100,height:100,original_url:"https://cdn.example.test/o",preview_url:"https://cdn.example.test/p"};
+  let finish!: (value: Awaited<ReturnType<AdminApiClient["lineChatMedia"]>>) => void;
+  vi.mocked(AdminApiClient.prototype.lineChatMedia)
+    .mockResolvedValueOnce({data:[asset],next_page:2,bot_id:"bot-one",authentication_revision:1})
+    .mockResolvedValueOnce({data:[],next_page:null,bot_id:"bot-two",authentication_revision:1})
+    .mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  render(<LineUploadWorkspace />); await screen.findByAltText("画像");
+  fireEvent.click(screen.getByRole("button",{name:"次のページ"}));
+  await waitFor(()=>expect(AdminApiClient.prototype.lineChatMedia).toHaveBeenCalledTimes(3));
+  try {
+    expect(screen.getByRole("status")).toHaveTextContent("読み込み中");
+    expect(screen.queryByText("この種類のメディアはまだ登録されていません。")).toBeNull();
+    expect(screen.getByRole("button",{name:"一覧を再読込"})).toBeDisabled();
+  } finally {
+    await act(async()=>finish({data:[],next_page:null,bot_id:"bot-two",authentication_revision:1}));
+  }
+  expect(await screen.findByText("この種類のメディアはまだ登録されていません。")).toBeVisible();
 });
 it("provides Owner uploads for all four media kinds", async () => {
   access.owner = true; render(<LineUploadWorkspace />); await screen.findByAltText("画像");

@@ -21,13 +21,14 @@ export function LineUploadWorkspace() {
   const scope = useRef("");
   useEffect(() => {
     let active = true;
+    let resettingPage = false;
     void client.lineChatMedia(page, kind).then((r) => { if (active) {
       const current = `${r.bot_id}:${r.authentication_revision}`;
-      if (scope.current && scope.current !== current && page !== 1) { scope.current = current; setPage(1); return; }
+      if (scope.current && scope.current !== current && page !== 1) { resettingPage = true; scope.current = current; setPage(1); return; }
       scope.current = current; setAssets(r.data); setNext(r.next_page);
     } })
       .catch(() => { if (active) setError("メディア一覧を取得できませんでした。"); })
-      .finally(() => { if (active) setBusy(false); });
+      .finally(() => { if (active && !resettingPage) setBusy(false); });
     return () => { active = false; };
   }, [client, page, kind, refresh]);
   function reload(p: number) { setBusy(true); setError(""); setAssets([]); setNext(null); setPage(p); setRefresh((v) => v + 1); }

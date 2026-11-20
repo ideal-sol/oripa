@@ -579,3 +579,16 @@ consecutive actual `artisan migrate:fresh --path=database/migrations-v2 --force
 head's failed CI remains historical; the correction receives normal new-head CI.
 Only this function declaration, its regression and handoff records changed after
 the successful full-send/browser evidence; those unrelated results remain valid.
+
+### Final media loading review
+
+A delayed first-page response after a BOT change on a later page reproduced an
+incorrect empty-state flash: the superseded request cleared `busy` before the
+replacement request finished. The old source fails the deferred-response test.
+The page-reset request now retains loading until its replacement settles; errors
+and actual empty results retain their separate states. No API, quota, CSP or
+migration change. Final UI selection21/21 PASS (eight upload cases plus delivery,
+CSP-header and navigation-hierarchy tests), scoped ESLint and TypeScript PASS.
+Earlier UI36-case evidence covers its original selection and is not relabeled
+as the count of this final four-file command. Existing browser/full-send/backend
+evidence remains applicable to unchanged source; final-head CI is independent.
