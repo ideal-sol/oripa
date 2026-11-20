@@ -6155,13 +6155,13 @@ def validate_manifest_example(
 
 
 PHP_RELEASE_BASES = {
-    "build": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
-    "production-build": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
-    "production": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
-    "preview": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
+    "build": "php:8.4.28-cli-bookworm@sha256:85da896b3eeb8bcd83fe612e51a529b7d5983a1fab92ef5f63c7ac6e2842fc46",
+    "production-build": "php:8.4.28-apache-bookworm@sha256:530fe79ff4c2737a4de714a7b1e6c741dbdb3dafcee0ce49a2b4993ca11ad7dd",
+    "production": "php:8.4.28-apache-bookworm@sha256:530fe79ff4c2737a4de714a7b1e6c741dbdb3dafcee0ce49a2b4993ca11ad7dd",
+    "preview": "php:8.4.28-cli-bookworm@sha256:85da896b3eeb8bcd83fe612e51a529b7d5983a1fab92ef5f63c7ac6e2842fc46",
 }
 PHP_VERSION_CHECK = (
-    'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) '
+    'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID !== 80428) '
     '{ throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 )
 
@@ -6207,7 +6207,7 @@ def validate_php_release_stages(dockerfile: str) -> None:
                 raise PolicyFailure(f"PHP {stage}: copied runtime artifact check is required")
             if stage == "production":
                 required = (
-                    'PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427',
+                    'PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID !== 80428',
                     'require __DIR__."/../vendor/autoload.php";',
                     "apache2-foreground & apache_pid=$!;",
                     'trap \'kill "$apache_pid"',

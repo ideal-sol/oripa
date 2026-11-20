@@ -2048,7 +2048,7 @@ class PolicyGateTest(unittest.TestCase):
         check = f"RUN php -r '{policy_gate.PHP_VERSION_CHECK}'"
         for stage, image in policy_gate.PHP_RELEASE_BASES.items():
             prefix = f"FROM {image} AS {stage}\n\n"
-            for replacement in ("", "# " + check, check.replace("80427", "80423")):
+            for replacement in ("", "# " + check, check.replace("80428", "80427")):
                 changed = original.replace(prefix + check, prefix + replacement)
                 with self.subTest(stage=stage, replacement=replacement), self.assertRaisesRegex(
                     policy_gate.PolicyFailure, "initial real-version check"

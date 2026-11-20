@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "task_id": "NEWPROD-PHP8428",
+  "status": "draft-design-only",
+  "activation_authorized": false,
+  "build_authorized": false,
+  "existing_source": "42cac7fd8e176b8686fedffc7673734036bf670e",
+  "existing_tree": "e215dedcc1437fe2865aaa73282608f0708914e4",
+  "previous_manifest_sha256": "3f4fbd4ef3b98a72fb7ea700ef2a1a1489997d3f340a5c7f9442d4af02da46e8",
+  "replacements": {
+    "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05": "php:8.4.28-cli-bookworm@sha256:85da896b3eeb8bcd83fe612e51a529b7d5983a1fab92ef5f63c7ac6e2842fc46",
+    "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320": "php:8.4.28-apache-bookworm@sha256:530fe79ff4c2737a4de714a7b1e6c741dbdb3dafcee0ce49a2b4993ca11ad7dd",
+    "PHP_VERSION_ID < 80427": "PHP_VERSION_ID !== 80428"
+  },
+  "files": {
+    "infra/docker/backend/Dockerfile": {
+      "before": "c26bfa2bab786c746d090bb21406f66a2381bddc",
+      "after": "02fa0598d176afb0bc9a587837098014931ce471",
+      "replacement_counts": {
+        "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05": 2,
+        "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320": 2,
+        "PHP_VERSION_ID < 80427": 11
+      }
+    },
+    "scripts/ci/policy_gate.py": {
+      "before": "b036a33ba49a26701f4772be8159eace2f1a948c",
+      "after": "f81da2bbfc8f601a68bcb5fa9eb2ce3f843edbcf",
+      "replacement_counts": {
+        "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05": 2,
+        "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320": 2,
+        "PHP_VERSION_ID < 80427": 2
+      }
+    }
+  },
+  "source_sha": "0254792e8dc0baafbef45c6f2ca861ee91cfa191",
+  "source_tree": "39cfb3d2a290b93711738596728c25127a94ba4d",
+  "inventory_sha256": "17e845f9497d53a87cc2a13b5c3900def2795bb5a3ed9b40891809edfed7aca9",
+  "commit_content": "tree 39cfb3d2a290b93711738596728c25127a94ba4d\nparent 42cac7fd8e176b8686fedffc7673734036bf670e\nauthor Oripa Limited Payload <payload@example.invalid> 1795132800 +0000\ncommitter Oripa Limited Payload <payload@example.invalid> 1795132800 +0000\n\nNEWPROD-PHP8428 derived payload; NOT a merged commit\n"
+}
