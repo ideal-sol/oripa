@@ -156,6 +156,10 @@ final class V2LineDeliveryService
                     $d->id, $i, $now->addSeconds($pacing->offsetSeconds($push ? 'push' : 'multicast', $i)));
                 $i++; $chunk = [];
             }
+            // Batch/recipient registration and whole-campaign admission share
+            // this transaction and singleton lock. A failure rolls back all rows.
+            if (! $quota->cover(DB::table('line_delivery_batches')->where('delivery_id', $d->id)->orderBy('id')->get()->all(),
+                [$quota->month($now)])) throw new \RuntimeException('LINE quota baseline unavailable or insufficient.');
             DB::table('line_deliveries')->where('id', $d->id)->update(['status' => $count === 0 ? 'completed' : 'sending',
                 'recipient_count' => $count, 'lease_owner' => null, 'lease_until' => null, 'last_dispatched_at' => $now]);
         }, 1);
@@ -210,7 +214,8 @@ final class V2LineDeliveryService
         foreach ($refs as $r) DB::table('line_delivery_recipients')->insert(['batch_id' => $id, 'source_table' => $r->source,
             'source_id' => $r->sourceId, 'user_id' => $r->userId, 'recipient_group' => $r->group->value]);
         $quota = app(V2LineDeliveryQuota::class);
-        if (! $quota->cover([DB::table('line_delivery_batches')->where('id', $id)->firstOrFail()],
+        // resolve() reserves the entire campaign before its transaction commits.
+        if ($delivery === null && ! $quota->cover([DB::table('line_delivery_batches')->where('id', $id)->firstOrFail()],
             [$quota->month(app(V2LineDeliverySender::class)->clock())])) throw new \RuntimeException('LINE quota baseline unavailable or insufficient.');
         return $id;
     }

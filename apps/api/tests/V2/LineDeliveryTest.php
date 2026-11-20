@@ -684,6 +684,68 @@ final class LineDeliveryTest extends TestCase
         return Http::recorded(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/v2/bot/message/quota'))->count();
     }
 
+    public function test_thousand_push_reservations_and_first_middle_last_send_have_bounded_queries(): void
+    {
+        $this->newBot(1000);
+        for ($i = 0; $i < 1000; $i++) app(V2LineRecoveredFriendRegistry::class)->record(
+            $this->bot->id, 1, 'U'.md5('bounded-push-'.$i), now()->getTimestampMs());
+        $this->quotaHttp(1000, 0); $delivery = $this->scheduled();
+        DB::table('line_deliveries')->where('id', $delivery)->update([
+            'messages_ciphertext' => Crypt::encryptString(json_encode([['type'=>'text', 'text'=>'Hello %username%']])),
+            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(1000, 0, 0))]);
+        $queries = 0; $countQueries = true;
+        DB::listen(function () use (&$queries, &$countQueries): void { if ($countQueries) $queries++; });
+        app(V2LineDeliveryService::class)->resolve($delivery);
+        $countQueries = false;
+        self::assertLessThan(2500, $queries, 'Campaign admission must not repeat quota queries for every recipient');
+        $batches = DB::table('line_delivery_batches')->where('delivery_id', $delivery)->orderBy('position')->get();
+        self::assertCount(1000, $batches);
+        self::assertSame(1000, DB::table('line_deliveries')->where('id', $delivery)->value('recipient_count'));
+        self::assertCount(1000, $batches->pluck('retry_key')->unique());
+        $recipients = DB::table('line_delivery_recipients')->whereIn('batch_id', $batches->pluck('id'))->get();
+        self::assertCount(1000, $recipients);
+        self::assertCount(1000, $recipients->pluck('batch_id')->unique());
+        self::assertCount(1000, $recipients->pluck('source_id')->unique());
+        self::assertSame(1000, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
+        foreach ([0, 499, 999] as $position) {
+            $queries = 0; $countQueries = true;
+            app(V2LineDeliverySender::class)->send($batches[$position]->id);
+            $countQueries = false;
+            self::assertLessThan(150, $queries, 'Phase A must group already-covered quota reservations');
+            self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $batches[$position]->id)->value('status'));
+        }
+        self::assertSame(10, $this->quotaGetCount());
+        $posts = Http::recorded(fn ($r) => str_ends_with($r->url(), '/push'));
+        self::assertCount(3, $posts);
+        self::assertCount(3, $posts->map(fn ($pair) => $pair[0]['to'])->unique());
+        foreach ([0, 499, 999] as $position) app(V2LineDeliverySender::class)->send($batches[$position]->id);
+        self::assertCount(3, Http::recorded(fn ($r) => str_ends_with($r->url(), '/push')));
+        self::assertSame(1000, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
+        self::assertSame(3, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->where('state', 'accepted')->count());
+        self::assertSame(997, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->where('state', 'reserved')->count());
+    }
+
+    public function test_campaign_registration_and_grouped_quota_insert_roll_back_together(): void
+    {
+        for ($i = 0; $i < 3; $i++) app(V2LineRecoveredFriendRegistry::class)->record(
+            $this->bot->id, 1, 'U'.md5('rollback-push-'.$i), now()->getTimestampMs());
+        $this->quotaHttp(1000, 0); $delivery = $this->scheduled();
+        DB::table('line_deliveries')->where('id', $delivery)->update([
+            'messages_ciphertext' => Crypt::encryptString(json_encode([['type'=>'text', 'text'=>'Hello %username%']]))]);
+        $fail = true;
+        DB::listen(function ($query) use (&$fail): void {
+            if ($fail && str_starts_with($query->sql, 'insert into "line_quota_charges"')) {
+                $fail = false; throw new \RuntimeException('synthetic quota insertion failure');
+            }
+        });
+        try { app(V2LineDeliveryService::class)->resolve($delivery); self::fail('Injected failure ignored'); }
+        catch (\RuntimeException $e) { self::assertSame('synthetic quota insertion failure', $e->getMessage()); }
+        self::assertSame(0, DB::table('line_delivery_batches')->where('delivery_id', $delivery)->count());
+        self::assertSame(0, DB::table('line_delivery_recipients')->count());
+        self::assertSame(0, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->count());
+        self::assertCount(0, Http::recorded(fn ($r) => str_ends_with($r->url(), '/push')));
+    }
+
     public function test_quota_get_measurements_for_push_and_multicast_campaigns(): void
     {
         // Large 100/500/1000 Push timing diagnostics are recorded separately.

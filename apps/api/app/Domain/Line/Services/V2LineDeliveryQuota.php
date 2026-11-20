@@ -174,28 +174,41 @@ final class V2LineDeliveryQuota
     /** All deltas planned under singleton before inserts: whole-campaign admission. */
     public function cover(array $batches, array $months): bool
     {
-        $this->lock(); $inserts = []; $deltas = [];
-        foreach ($batches as $b) foreach (array_unique($months) as $month) {
-            $this->ensurePeriod($b->line_bot_id, $b->authentication_revision, $month);
-            $account = DB::table('line_quota_accounts')->where('line_bot_id', $b->line_bot_id)->first();
-            if ($account === null || $account->halted || $account->usable_from > $month || $account->authentication_revision !== $b->authentication_revision
-                || ! DB::table('line_quota_periods')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->exists()) return false;
-            foreach ($this->uncarried($b->line_bot_id, $month)->get() as $charge) DB::table('line_quota_charges')->insert([
-                'line_bot_id' => $b->line_bot_id, 'month' => $month, 'batch_id' => $charge->batch_id, 'units' => $charge->units, 'state' => 'unknown']);
-            if (DB::table('line_quota_charges')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->where('batch_id', $b->id)->exists()) continue;
-            $units = DB::table('line_delivery_recipients')->where('batch_id', $b->id)->count();
-            $inserts[] = ['line_bot_id' => $b->line_bot_id, 'month' => $month, 'batch_id' => $b->id, 'units' => $units,
-                'state' => $b->first_attempted_at === null ? 'reserved' : 'unknown'];
-            $key = $b->line_bot_id.':'.$month;
-            $deltas[$key] = [$b->line_bot_id, $month, ($deltas[$key][2] ?? 0) + $units];
+        $this->lock(); $inserts = []; $groups = [];
+        foreach ($batches as $b) {
+            $groups[$b->line_bot_id][$b->id] = $b;
         }
-        foreach ($deltas as [$botId, $month, $units]) if ($this->available($botId, $month) < $units) return false;
-        // Existing reservations can exceed a newly lowered provider limit.
-        foreach ($batches as $b) foreach (array_unique($months) as $month) {
-            $p = DB::table('line_quota_periods')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->firstOrFail();
-            if ($p->opening_used + $this->reserved($b->line_bot_id, $month) > $p->effective_limit) return false;
+        // Observations live only inside this singleton-locked call. Recheck on
+        // every Phase A; never cache provider, generation or month decisions.
+        foreach ($groups as $botId => $group) foreach (array_unique($months) as $month) {
+            $revision = reset($group)->authentication_revision;
+            foreach ($group as $b) if ($b->authentication_revision !== $revision) return false;
+            $this->ensurePeriod($botId, $revision, $month);
+            $account = DB::table('line_quota_accounts')->where('line_bot_id', $botId)->first();
+            $period = DB::table('line_quota_periods')->where('line_bot_id', $botId)->where('month', $month)->first();
+            if ($account === null || $account->halted || $account->usable_from > $month
+                || $account->authentication_revision !== $revision || $period === null) return false;
+            foreach ($this->uncarried($botId, $month)->get() as $charge) DB::table('line_quota_charges')->insert([
+                'line_bot_id' => $botId, 'month' => $month, 'batch_id' => $charge->batch_id, 'units' => $charge->units, 'state' => 'unknown']);
+            $delta = 0;
+            foreach (array_chunk($group, 500, true) as $chunk) {
+                $existing = DB::table('line_quota_charges')->where('line_bot_id', $botId)->where('month', $month)
+                    ->whereIn('batch_id', array_keys($chunk))->pluck('batch_id')->all();
+                $missing = array_diff_key($chunk, array_flip($existing));
+                if ($missing === []) continue;
+                $counts = DB::table('line_delivery_recipients')->whereIn('batch_id', array_keys($missing))
+                    ->selectRaw('batch_id, count(*) AS units')->groupBy('batch_id')->pluck('units', 'batch_id');
+                foreach ($missing as $b) {
+                    $units = (int) ($counts[$b->id] ?? 0); $delta += $units;
+                    $inserts[] = ['line_bot_id' => $botId, 'month' => $month, 'batch_id' => $b->id, 'units' => $units,
+                        'state' => $b->first_attempted_at === null ? 'reserved' : 'unknown'];
+                }
+            }
+            if ($delta > 0 && $this->available($botId, $month) < $delta) return false;
+            // Also reject an already covered campaign after a provider limit cut.
+            if ($period->opening_used + $this->reserved($botId, $month) > $period->effective_limit) return false;
         }
-        foreach ($inserts as $values) DB::table('line_quota_charges')->insert($values);
+        foreach (array_chunk($inserts, 500) as $values) DB::table('line_quota_charges')->insert($values);
         return true;
     }
 

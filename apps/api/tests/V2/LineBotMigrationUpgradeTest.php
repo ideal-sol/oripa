@@ -23,7 +23,7 @@ final class LineBotMigrationUpgradeTest extends TestCase
             $paths = glob(database_path('migrations-v2/*.php'));
             sort($paths);
             foreach ($paths as $path) {
-                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15|16)_/', $path)) continue;
+                if (preg_match('/_0001(?:08|09|10|11|12|13|14|15|16|17)_/', $path)) continue;
                 (require $path)->up();
                 DB::statement('SET CONSTRAINTS ALL IMMEDIATE');
                 DB::statement('SET CONSTRAINTS ALL DEFERRED');
@@ -109,6 +109,34 @@ final class LineBotMigrationUpgradeTest extends TestCase
             self::assertSame(0, DB::table('line_automated_template_versions')->count());
             self::assertSame(0, DB::table('line_automated_outcomes')->count());
             self::assertSame(0, DB::table('line_quota_periods')->count());
+            // Upgrade a real human baseline only after its 112 ledger and 116
+            // predecessor exist. Keep all pre-107 history checks below the upgrade.
+            $admin = DB::table('admins')->insertGetId(['public_id' => (string) Str::uuid(),
+                'email_display' => 'quota-upgrade@example.test', 'email_normalized' => 'quota-upgrade@example.test',
+                'email_verified_at' => now(), 'password_hash' => '$argon2id$synthetic', 'role' => 'owner', 'state' => 'active']);
+            DB::table('line_quota_accounts')->insert(['line_bot_id' => $legacy->id,
+                'authentication_revision' => 9, 'usable_from' => '2026-11-01']);
+            $baseline = ['line_bot_id' => $legacy->id, 'month' => '2026-11-01', 'opening_used' => 7,
+                'approved_limit' => 1000, 'effective_limit' => 1000, 'evidence_id' => (string) Str::uuid(), 'verified_by_admin_id' => $admin];
+            DB::table('line_quota_periods')->insert($baseline);
+            $periodBefore = (array) DB::table('line_quota_periods')->sole();
+            $actorMigration = require database_path('migrations-v2/2026_11_20_000117_add_v2_line_quota_system_actor.php');
+            $actorMigration->up();
+            self::assertSame([...$periodBefore, 'baseline_origin' => 'human', 'authentication_revision' => null],
+                (array) DB::table('line_quota_periods')->sole());
+            self::assertNull(DB::table('line_quota_accounts')->sole()->last_checked_at);
+            self::assertSame($quotaGuard, DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition);
+            $system = [...$baseline, 'month' => '2026-12-01', 'opening_used' => 0, 'evidence_id' => (string) Str::uuid(),
+                'verified_by_admin_id' => null, 'baseline_origin' => 'system', 'authentication_revision' => 9];
+            foreach ([['baseline_origin' => 'human'], ['verified_by_admin_id' => $admin],
+                ['authentication_revision' => null], ['authentication_revision' => 0], ['opening_used' => 1]] as $invalid) {
+                try { DB::transaction(fn () => DB::table('line_quota_periods')->insert([...$system, ...$invalid])); self::fail('Invalid baseline actor accepted'); }
+                catch (\Illuminate\Database\QueryException $e) { self::assertSame('23514', $e->errorInfo[0]); }
+            }
+            DB::table('line_quota_periods')->insert($system);
+            self::assertSame(2, DB::table('line_quota_periods')->count());
+            try { $actorMigration->down(); self::fail('Quota actor rollback accepted'); }
+            catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
             self::assertSame($deliveryGuards, DB::selectOne("SELECT pg_get_functiondef('v2_line_delivery_history_guard()'::regprocedure) AS definition")->definition);
             try { $quotaMigration->down(); self::fail('Quota history rollback accepted'); }
             catch (\RuntimeException $e) { self::assertSame('Forward-only LINE quota migration.', $e->getMessage()); }

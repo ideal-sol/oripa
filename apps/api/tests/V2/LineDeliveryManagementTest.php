@@ -192,7 +192,7 @@ final class LineDeliveryManagementTest extends TestCase
         try {
             $image=imagecreatetruecolor(320,320); ob_start(); imagepng($image); $png=ob_get_clean(); imagedestroy($image);
             $video=$directory.'/video.mp4';
-            (new \Symfony\Component\Process\Process(['/usr/bin/ffmpeg','-v','error','-f','lavfi','-i','color=c=black:s=320x320:d=0.1','-threads','1','-c:v','libx264','-pix_fmt','yuv420p',$video]))->mustRun();
+            file_put_contents($video, \Tests\Support\SyntheticLineVideo::bytes(320));
             $storage=new class extends V2LineMediaStorage {
                 public array $bytes=[]; public array $published=[];
                 public function upload(array $f): array { return ['url'=>'https://upload.example.test/synthetic','headers'=>[]]; }

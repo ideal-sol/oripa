@@ -257,3 +257,130 @@ follow-up. `DRAFT_PREVIEW_INELIGIBLE` / Image Mode normal remains. Human OLD Tes
 acceptance additionally checks name search with/without LINE names and literal
 search symbols. Before Ready/Merge, Human browser acceptance remains mandatory;
 this handoff does not authorize merge-first validation or a Preview exception.
+
+## PR717 CI and Push performance repair (supersedes the earlier HOLD)
+
+This follow-up starts from `03bbe8c0190740fab7347d7a37a16a10557f5b39`
+on the same Draft PR/branch; base remains `3442dfb875630ed2009896657092032db12a6de4`.
+Risk R3, Strict Change, activation deferred. Final exact HEAD/Tree, inventory,
+test results and Required Checks are recorded on PR717. Old-head checks never
+substitute for new-head checks; no manual rerun, dispatch or local build.
+
+### Integration Database diagnosis
+
+- Migration fixture regression:117 ran in the initial pre-108 loop, before112
+  created `line_quota_accounts`. Exclude117 from that loop, then apply it after
+  108–116 with an existing human baseline. Verify unchanged baseline data,
+  human/system actor constraints, quota/terminal-history guards and forward-only
+  behavior. Migration001–117 bytes are unchanged. Focused result:1 test54 assertions.
+- Media fixture regression:Integration Database uses the Compose Preview target,
+  which deliberately ships ffprobe but no ffmpeg. Reproduction stderr is
+  `sh: 1: exec: /usr/bin/ffmpeg: not found`, exit127. This is distinct from the
+  integration-suite host, where FFmpeg is installed. Debian5.1.9's libx264 encoder
+  successfully generated both synthetic black MP4s with one thread; the same
+  version's package was extracted only into test evidence, with no package upgrade.
+  `SyntheticLineVideo` supplies real H.264/yuv420p bytes with provenance/SHA256.
+  Real ffprobe inspection, corrupt-file/preview-ratio rejection and four-format
+  finalization remain. Focused finalization1/30 and inspector7/49 PASS in the
+  encoder-free Preview image; no validation relaxation or test skip.
+- Paidy:the old CI summary mixes two actual errors with subsequent numbered
+  Risky entries. PaidyGrace alone passes16/67 both on base and the starting source.
+  Running the preceding FinancialAdmission cleanup reproduces
+  `Test code or tested code removed error handlers other than its own` and the
+  equivalent exception-handler warning; capture/grant assertions still pass.
+  Base reproduces7 tests45 assertions,6 Risky and exit1 with `--fail-on-risky`.
+  The cleanup boots a Laravel application outside the test lifecycle and leaves
+  handlers behind. Its existing disposable-schema reset now releases bootstrap
+  handler state in `finally`. Ordered regression17/76 passes with `--fail-on-risky`.
+  No Paidy deadline, admission, capture/refund, financial ledger or runtime change.
+
+### Measured performance and safety
+
+Synthetic PostgreSQL17, PHP8.4.27, existing locked vendor and Fake LINE HTTP.
+An external instrumented copy records method wall time and `DB::listen` SQL
+counts/times without bindings. Production source has no instrumentation.
+Baseline is the starting source; after is this repair's source. Measurements
+include instrumentation overhead and normal host variance, not a runtime SLA.
+Baseline sends only the first Batch per measured campaign; the after run fully
+completes1/100/500/1000. Previous100/500 full-run GET evidence remains separately
+valid for unchanged provider call paths.
+
+| Push recipients | Recipient resolution ms before / after | Batch insertion ms before / after | Initial quota cover ms before / after | First Phase A ms before / after | First Phase B ms before / after |
+|---|---:|---:|---:|---:|---:|
+| 1 | 16.282 / 27.293 | 17.713 / 4.313 | 12.221 / 13.420 | 26.021 / 35.426 | 23.378 / 24.851 |
+| 100 | 25.110 / 12.456 | 2428.325 / 157.935 | 1930.307 / 14.746 | 1251.873 / 21.926 | 25.837 / 21.699 |
+| 500 | 72.782 / 96.921 | 10452.929 / 1025.737 | 8244.912 / 39.372 | 4345.780 / 50.337 | 40.889 / 35.668 |
+| 1000 | 137.496 / 209.246 | 15713.316 / 2301.780 | 12373.002 / 141.179 | 5337.436 / 54.143 | not reached / 26.921 |
+
+Before, insertion time includes repeated per-Batch quota cover; after, the single
+campaign cover is separate. For1000, comparable registration+reservation is
+15,713.316ms before and2,442.959ms after; full resolve is16,013.068→2,844.447ms.
+
+| Push recipients | Resolve SQL before / after | First-send SQL before / after | Resolve quota SQL ms before / after | First-send quota SQL ms before / after |
+|---|---:|---:|---:|---:|
+| 1 | 64 / 62 | 97 / 96 | 20.300 / 21.310 | 21.890 / 21.210 |
+| 100 | 1846 / 260 | 788 / 94 | 1447.440 / 20.160 | 1110.110 / 20.090 |
+| 500 | 9064 / 1078 | 3588 / 94 | 5962.360 / 59.790 | 3695.230 / 31.990 |
+| 1000 | 18085 / 2102 | 7041 / 95 | 8646.610 / 133.830 | 4355.060 / 29.430 |
+
+At1000, first-send quota SQL count7012→36 and maximum identical SQL repetition
+2000→8. Row-lock statement aggregate execution/acquisition time at1000 is
+588.610→8.080ms in resolve and2.940→5.230ms in first send. These are measured
+SQL durations including acquisition, **not isolated lock-wait durations**; they
+must not be represented as zero contention or a production lock-wait SLA.
+The two-connection regression separately enforces100ms lock_timeout and55P03;
+shared broadcast/chat/automated capacity and actual writers remain serialized.
+
+| Metric,1000 Push | Before | After |
+|---|---:|---:|
+| Registration + quota reservation | 15,713.316ms | 2,442.959ms |
+| First Phase A | 5,337.436ms | 54.143ms |
+| Resolve + first-send SQL | 25,126 | 2,197 |
+| Quota GETs through first send | 4 at failure | 6 |
+| Full campaign Quota GETs | not completed | 2,004 |
+| Message POSTs | 0 | 1,000 |
+| Full campaign completion | HOLD | PASS |
+
+The first failure was the PHP `hrtime` five-second validation guard after quota
+prepare, **not** PostgreSQL statement_timeout, lock_timeout or transaction_timeout.
+All remain unchanged. No provider POST, attempted Batch or accepted Batch existed
+at the baseline stop. After:1000 recipients,1000 distinct Batch/retry identities,
+1000 accepted quota units and completed campaign; replay of the accepted first
+Batch produces no extra HTTP.100/500 remain204/1004 GETs. First/subsequent send
+remain4/2 GETs (plus resolve2);1000 Multicast remains8 GETs total.
+
+`cover()` now groups immutable Batch IDs by BOT and month under the existing
+singleton lock, validates every generation/account, carries unknown exposure,
+counts missing recipients in bounded groups and checks all deltas before bulk
+inserts. Already reserved campaigns still check lowered limits. No observation
+survives the call. `resolve()` registers all campaign Batches/recipients and
+reserves once within the same original transaction; an injected insertion
+exception verifies complete rollback. Standalone chat/automated/manual admission
+still reserves immediately. No new worker, cache, timer, dependency or migration.
+
+Sender/recipient safety boundaries are unchanged:Phase A exposure commit,
+fresh pre-Phase-B provider observation, phase B recipient/generation/limit check,
+unknown retention,429 re-observation, immutable payload/key,23-hour retry,
+month crossing, send pacing and historical audit. CI includes a bounded1000-row
+regression that sends first/middle/last and checks query counts and the full
+ledger; the longer full-send measurement stays outside routine CI.
+
+Additional commands (API directory; disposable synthetic PostgreSQL only):
+
+```text
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineBotMigrationUpgradeTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryManagementTest.php --filter test_four_media_formats_finalize_real_bytes_and_reject_changed_generation
+vendor/bin/phpunit -c phpunit.v2.xml tests/Unit/V2LineMediaInspectorTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/LineDeliveryTest.php
+vendor/bin/phpunit -c phpunit.v2.xml tests/V2/PaidyFinancialAdmissionTest.php tests/V2/PaidyGraceTest.php tests/V2/PaidyPaymentTest.php --fail-on-risky
+```
+
+Final Required5/5 and test totals are recorded against the exact new PR HEAD,
+separately from historical evidence. No new SEV-0/1/2 is accepted. The historical
+synthetic1000-Push throughput HOLD is resolved; inherited D5/D6 limitations and
+exact-image/runtime acceptance remain. No incremental API contract, migration,
+dependency, authentication/security-boundary, workflow or infrastructure change.
+`DRAFT_PREVIEW_INELIGIBLE` / normal remains; no approval-plan change. OLD Test
+must use the separately authorized normal route, apply unchanged117 before
+activation, and check real pacing/provider latency and shared monthly capacity.
+Synthetic throughput PASS does not authorize runtime or real LINE sends.
