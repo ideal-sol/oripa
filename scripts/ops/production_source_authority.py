@@ -22,6 +22,7 @@ REQUIRED_CHECKS = {
     "policy-gate", "quality-gate", "security-gate", "integration-gate", "ci-gate",
 }
 CHECK_GATE = runpy.run_path(str(ROOT / "infrastructure/github-app/check_run_gate.py"))
+PHP8428 = runpy.run_path(str(ROOT / "scripts/ops/production_php8428_payload.py"))
 PR705 = runpy.run_path(str(ROOT / "scripts/ops/production_pr705_payload.py"))
 PR692 = runpy.run_path(str(ROOT / "scripts/ops/production_pr692_payload.py"))
 LIMITED = runpy.run_path(str(ROOT / "scripts/ops/production_pr666_payload.py"))
@@ -75,6 +76,8 @@ def authorize(repository: Path, source_sha: str, workflow_sha: str,
     if image_mode == "admin-only":
         require(source_sha == LIMITED["ADMIN_SOURCE"], "production admin source mismatch")
         return authorize_limited(repository, source_sha, workflow_sha, change_id, pr_number, get, admin=True)
+    if source_sha == PHP8428["SOURCE"]:
+        return authorize_php8428(repository, source_sha, workflow_sha, change_id, pr_number, get)
     if source_sha == PR705["SOURCE"]:
         return authorize_pr705(repository, source_sha, workflow_sha, change_id, pr_number, get)
     if source_sha == PR692["SOURCE"]:
@@ -296,6 +299,61 @@ def authorize_pr705(repository, source_sha, workflow_sha, change_id, pr_number, 
     return evidence
 
 
+def authorize_php8428(repository, source_sha, workflow_sha, change_id, pr_number, get):
+    main_path = f"/repos/{REPOSITORY}/branches/main"
+    main = get(main_path)
+    require(main.get("protected") is True and main.get("commit", {}).get("sha") == workflow_sha,
+            "current protected workflow authority required")
+    baseline = PHP8428["specification"](repository)
+    spec = baseline
+    authority_path = AUTHORITY_PATH
+    authority = json.loads(git(repository, "show", f"{workflow_sha}:{authority_path}"))
+    require(authority.get("schema_version") == "1.0"
+            and authority.get("repository") == REPOSITORY
+            and authority.get("source_sha") == source_sha == PHP8428["SOURCE"]
+            and authority.get("change_id") == change_id == PHP8428["CHANGE"]
+            and authority.get("pr_number") == pr_number == 715
+            and (authority.get("payload_manifest_sha256") == PHP8428["MANIFEST_DIGEST"])
+            and authority.get("activation_authorized") is False
+            and str(authority.get("authority", "")).startswith("Human-approved exact Runtime Source:"),
+            "Human-approved limited source authority mismatch")
+    reviewed_sources = {}
+    sources = {kind: (baseline[kind + "_sha"], baseline[kind + "_pr"]) for kind in ("base", "wallet", "fix", "php")}
+    for kind, (revision, source_pr) in sources.items():
+        git(repository, "merge-base", "--is-ancestor", revision, workflow_sha)
+        pull = get(f"/repos/{REPOSITORY}/pulls/{source_pr}")
+        head = pull.get("head", {})
+        reviewed_sha = head.get("sha", "")
+        require(pull.get("merged") is True and pull.get("state") == "closed"
+                and pull.get("merge_commit_sha") == revision
+                and pull.get("base", {}).get("ref") == "main"
+                and pull.get("base", {}).get("repo", {}).get("full_name") == REPOSITORY
+                and head.get("repo", {}).get("full_name") == REPOSITORY
+                and reviewed_sha == spec[kind + "_reviewed_sha"], "limited merged PR mismatch")
+        tree = git(repository, "rev-parse", revision + "^{tree}")
+        require(tree == spec[kind + "_tree"], "php8428 pinned tree mismatch")
+        reviewed = get(f"/repos/{REPOSITORY}/git/commits/{reviewed_sha}")
+        require(reviewed.get("sha") == reviewed_sha and reviewed.get("tree", {}).get("sha") == tree,
+                "limited reviewed tree mismatch")
+        reviewed_sources[kind] = {"merge_sha": revision, "reviewed_sha": reviewed_sha,
+                                  "tree": tree, "checks": checks_for(get, reviewed_sha)}
+    evidence = {"source_sha": source_sha, "source_tree": spec["source_tree"],
+                "inventory_sha256": spec["inventory_sha256"], "composition": spec,
+                "checkout_sha": baseline["base_sha"], "workflow_sha": workflow_sha,
+                "change_id": change_id, "pr_number": pr_number,
+                "authority_path": authority_path, "reviewed_sources": reviewed_sources,
+                "current_checks": checks_for(get, workflow_sha)}
+    evidence.update(image_mode="agency", architecture="arm64", activation_scope=["api"], activation_authorized=False)
+    # Verify the objects without requiring the derived commit to exist on GitHub.
+    with tempfile.TemporaryDirectory(prefix="production-php8428-") as temporary:
+        payload = Path(temporary) / "payload"
+        git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(repository.resolve()), str(payload))
+        git(payload, "checkout", "--quiet", "--detach", baseline["base_sha"])
+        PHP8428["materialize"](repository, payload, evidence)
+    require(get(main_path) == main, "protected main moved during validation")
+    return evidence
+
+
 def scan_source(repository: Path) -> None:
     security = runpy.run_path(str(ROOT / "scripts/ci/security_gate.py"))
     paths = security["tracked_paths"](repository)
@@ -311,7 +369,7 @@ def main() -> None:
     arguments = parser.parse_args()
     if arguments.materialize:
         evidence = json.loads((Path(os.environ["RUNNER_TEMP"]) / "production-source-authority.json").read_text())
-        helper = PR705 if evidence.get("source_sha") == PR705["SOURCE"] else (PR692 if evidence.get("source_sha") == PR692["SOURCE"] else LIMITED)
+        helper = PHP8428 if evidence.get("source_sha") == PHP8428["SOURCE"] else (PR705 if evidence.get("source_sha") == PR705["SOURCE"] else (PR692 if evidence.get("source_sha") == PR692["SOURCE"] else LIMITED))
         helper["materialize_admin" if evidence.get("image_mode") == "admin-only" else "materialize"](ROOT, arguments.materialize, evidence)
         return
     if arguments.scan_source:

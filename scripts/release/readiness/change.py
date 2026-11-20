@@ -146,7 +146,8 @@ def validate_authority(repository, revision, path, base_sha):
     limited = not old and record.get("source_sha") == "cad8be03cbab8b7fba18825a4a9b2a276f402010"
     pr692 = not old and record.get("source_sha") == "516fe7a946683103ed68ee4875d5ea3d94327a0d"
     pr705 = not old and record.get("source_sha") == "42cac7fd8e176b8686fedffc7673734036bf670e"
-    if limited or pr692 or pr705:
+    php8428 = not old and record.get("source_sha") == "0254792e8dc0baafbef45c6f2ca861ee91cfa191"
+    if limited or pr692 or pr705 or php8428:
         expected.add("payload_manifest_sha256")
     require(isinstance(record, dict) and set(record) == expected, "AUTHORITY_STRUCTURE_INVALID")
     require(record["schema_version"] == "1.0" and record["repository"] == "ideal-sol/oripa"
@@ -161,6 +162,32 @@ def validate_authority(repository, revision, path, base_sha):
     if old:
         require(record["target"] == "old-test" and record["platform"] == "linux/amd64"
                 and record["image_mode"] in {"normal", "api-only", "admin-only"}, "AUTHORITY_SCOPE_INVALID")
+    if php8428:
+        import runpy
+        import tempfile
+        helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / "ops/production_php8428_payload.py"))
+        require(git(repository, "rev-parse", "HEAD").decode().strip() == revision, "AUTHORITY_CHECKOUT_MISMATCH")
+        spec = helper["specification"](repository)
+        require(record["change_id"] == helper["CHANGE"] and record["pr_number"] == 715
+                and record["payload_manifest_sha256"] == helper["MANIFEST_DIGEST"], "AUTHORITY_PHP8428_IDENTITY_INVALID")
+        sources = []
+        for kind in ("base", "wallet", "fix", "php"):
+            sha = spec[kind + "_sha"]
+            git(repository, "merge-base", "--is-ancestor", sha, base_sha)
+            tree = git(repository, "rev-parse", sha + "^{tree}").decode().strip()
+            require(tree == spec[kind + "_tree"], "AUTHORITY_PHP8428_TREE_INVALID")
+            sources.append({"source_sha": sha, "source_pr": spec[kind + "_pr"],
+                            "source_tree": tree, "reviewed_sha": spec[kind + "_reviewed_sha"]})
+        with tempfile.TemporaryDirectory(prefix="php8428-authority-classification-") as temporary:
+            payload = Path(temporary) / "payload"
+            git(repository, "clone", "--quiet", "--shared", "--no-checkout", str(Path(repository).resolve()), str(payload))
+            git(payload, "checkout", "--quiet", "--detach", spec["base_sha"])
+            helper["materialize"](repository, payload, {**record, "composition": spec, "source_tree": spec["source_tree"]})
+        return {"path": path, "source_sha": spec["source_sha"], "source_pr": 715,
+                "source_tree": spec["source_tree"], "inventory_sha256": spec["inventory_sha256"],
+                "reviewed_sources": sources, "record_digest": digest(record, None),
+                "provenance": "EXACT_PHP8428_DERIVED_PAYLOAD", "human_approval": "PR_REVIEW_REQUIRED",
+                "activation_authorized": False}
     if limited or pr692 or pr705:
         import runpy
         import tempfile

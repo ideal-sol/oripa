@@ -17,7 +17,17 @@ def verify_change_authority(change, get=None):
     evidence = []
     records = []
     for authority in change["authority_records"]:
-        if authority.get("provenance") == "EXACT_PR705_DERIVED_PAYLOAD":
+        if authority.get("provenance") == "EXACT_PHP8428_DERIVED_PAYLOAD":
+            require(authority.get("source_sha") == "0254792e8dc0baafbef45c6f2ca861ee91cfa191"
+                    and authority.get("source_tree") == "39cfb3d2a290b93711738596728c25127a94ba4d"
+                    and authority.get("inventory_sha256") == "17e845f9497d53a87cc2a13b5c3900def2795bb5a3ed9b40891809edfed7aca9"
+                    and [(r.get("source_pr"), r.get("source_sha")) for r in authority.get("reviewed_sources", [])] == [
+                        (688, "9235350523accdb2c3d41dca869d7d44f0863ba5"),
+                        (692, "4f9f9a60cdb3bbe754a1931c8db72615e66c85a9"),
+                        (705, "3ff2eda41ebf6e18a5a5d8668a6031ec66d0e33f"),
+                        (715, "4fb1d80a5fca4d8f12829a26972aa2c9402a92c3")], "AUTHORITY_PHP8428_IDENTITY_INVALID")
+            records.extend(authority["reviewed_sources"])
+        elif authority.get("provenance") == "EXACT_PR705_DERIVED_PAYLOAD":
             require(authority.get("source_sha") == "42cac7fd8e176b8686fedffc7673734036bf670e"
                     and authority.get("source_tree") == "e215dedcc1437fe2865aaa73282608f0708914e4"
                     and authority.get("inventory_sha256") == "42f389c8e97f14c9a0909c6a4862b824b9a56cf7aafd345f7675c656e66a91f3"
@@ -51,6 +61,8 @@ def verify_change_authority(change, get=None):
                 and pull.get("head", {}).get("repo", {}).get("full_name") == "ideal-sol/oripa",
                 "AUTHORITY_PR_MISMATCH")
         reviewed = pull.get("head", {}).get("sha")
+        if "reviewed_sha" in record:
+            require(reviewed == record["reviewed_sha"], "AUTHORITY_REVIEWED_SHA_MISMATCH")
         require(matches(SHA, reviewed), "AUTHORITY_REVIEWED_SHA_INVALID")
         commit = get(root + "/git/commits/" + reviewed)
         require(commit.get("sha") == reviewed and commit.get("tree", {}).get("sha") == record["source_tree"],
