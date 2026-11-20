@@ -155,7 +155,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
         curl \
-        linux-libc-dev=6.1.190-1 \
+        linux-libc-dev=6.1.192-2 \
         libpq5 \
         libzip4 \
         libjpeg62-turbo \

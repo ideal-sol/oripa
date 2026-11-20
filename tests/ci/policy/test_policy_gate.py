@@ -1511,7 +1511,7 @@ class PolicyGateTest(unittest.TestCase):
         api_dockerfile = (ROOT / "infra/docker/backend/Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertIn("linux-libc-dev=6.1.190-1", api_dockerfile)
+        self.assertIn("linux-libc-dev=6.1.192-2", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.187-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.180-1", api_dockerfile)
         self.assertNotIn("linux-libc-dev=6.1.177-1", api_dockerfile)
@@ -1985,6 +1985,7 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_release_artifact_unapproved_preview_libc_pin_fails(self):
         for package in (
+            "linux-libc-dev=6.1.190-1",
             "linux-libc-dev=6.1.187-1",
             "linux-libc-dev=6.1.180-1",
             "linux-libc-dev=6.1.177-1",
@@ -1997,7 +1998,7 @@ class PolicyGateTest(unittest.TestCase):
                 dockerfile = root / "infra/docker/backend/Dockerfile"
                 dockerfile.write_text(
                     dockerfile.read_text(encoding="utf-8").replace(
-                        "linux-libc-dev=6.1.190-1", package
+                        "linux-libc-dev=6.1.192-2", package
                     ),
                     encoding="utf-8",
                 )

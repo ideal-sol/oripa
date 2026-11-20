@@ -466,7 +466,12 @@ class Line698BuildRecipeTest(unittest.TestCase):
                         b"linux-libc-dev=6.1.190-1",
                         b"linux-libc-dev=6.1.192-2 \\\n        libbrotli1=1.0.9-2+deb12u1 \\\n        libssl3=3.0.22-1~deb12u2 \\\n        openssl=3.0.22-1~deb12u2"))
         self.assertEqual(self.updated, expected)
-        self.assertEqual((ROOT / "infra/docker/backend/Dockerfile").read_bytes(), self.original)
+        # This immutable recipe belongs to its original control/source pair;
+        # subsequent PHP security updates must not rewrite its authority bytes.
+        historical_control = subprocess.check_output([
+            "git", "show", wrapper.LINE698_CONTROL_BASE + ":infra/docker/backend/Dockerfile",
+        ], cwd=ROOT)
+        self.assertEqual(historical_control, self.original)
         for line in (b"COPY --from=build /usr/bin/ffprobe /usr/bin/ffprobe",
                      b"docker-php-ext-configure gd --with-jpeg", b"test ! -e /usr/bin/ffmpeg",
                      b"test ! -e /usr/bin/ffplay", b"libavformat59", b"libpng16-16"):

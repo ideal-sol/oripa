@@ -6281,7 +6281,7 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     validate_php_release_stages(api_dockerfile)
-    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.190-1" not in api_dockerfile:
+    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.192-2" not in api_dockerfile:
         raise PolicyFailure(
             "infra/docker/backend/Dockerfile: patched multi-stage runtime is required"
         )

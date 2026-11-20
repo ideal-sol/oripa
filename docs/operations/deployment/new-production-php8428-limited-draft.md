@@ -32,6 +32,13 @@ and member rank. No LINE delivery D1–D7, migrations108+, newer Admin or newer
 Docker extension/OS additions are imported from main. The control PR updates
 the existing regression fixture separately; it is not a payload overlay.
 
+Two bounded control-CI repairs are excluded from the limited payload: the
+Preview-only linux-libc-dev pin moves from unavailable6.1.190-1 to6.1.192-2
+(already shipped by the new official base), and the immutable OLD Test Recipe
+test compares its original fixed control Source rather than latest main.
+Existing recipe/authority bytes and every assertion about its transformations
+remain intact. The exact Human Task ID is recognized by the existing policy.
+
 ## Official images and checks
 
 Registry index digests were rechecked on 2026-11-20:
