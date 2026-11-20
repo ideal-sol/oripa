@@ -35,7 +35,7 @@ STOREFRONT_ARTIFACT_SPEC.loader.exec_module(storefront_artifact)
 
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 TASK_ID = re.compile(
-    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025|ACCOUNT-CLOSURE-20261028|MEMBERRANK-INITIAL-ON-FASTPATH|SHIP-B2POSTAL-20261101|LINE-DELIVERY-20261109-D1|LINE-DELIVERY-20261109-D2|LINE-DELIVERY-20261109-D3|LINE-DELIVERY-20261109-D4|LINE-DELIVERY-20261109-D5|LINE-DELIVERY-20261109-D6|LINE-DELIVERY-20261109-D7|OLDTEST-LINE-D1-D7-20261117|OLDTEST-LINE-OS-20261117|LINE-CSP-20261117)$"
+    r"^(?:[A-Z]+-[0-9]+[A-Z]?|STORE-SITE-[0-9]+|LOGIN-GACHA-20261001|LOGIN-GACHA-UI-20261002|S3-OLD-PLATFORM-ADMIN-PHASE1-20261009|MEMBERRANK-ACTIVATION|PHP-STANDARD-FASTPATH-B|CONTRACT46-20261024|OLDTEST-ALPHA46-20261025|ACCOUNT-CLOSURE-20261028|MEMBERRANK-INITIAL-ON-FASTPATH|SHIP-B2POSTAL-20261101|LINE-DELIVERY-20261109-D1|LINE-DELIVERY-20261109-D2|LINE-DELIVERY-20261109-D3|LINE-DELIVERY-20261109-D4|LINE-DELIVERY-20261109-D5|LINE-DELIVERY-20261109-D6|LINE-DELIVERY-20261109-D7|OLDTEST-LINE-D1-D7-20261117|OLDTEST-LINE-OS-20261117|LINE-CSP-20261117|NEWPROD-PHP8428)$"
 )
 ACTION_REF = re.compile(
     r"^\s*(?:-\s*)?uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
@@ -6155,13 +6155,13 @@ def validate_manifest_example(
 
 
 PHP_RELEASE_BASES = {
-    "build": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
-    "production-build": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
-    "production": "php:8.4-apache-bookworm@sha256:e653ff90d7f6e2e6f81eddb07c864f1eae224ccbf5143f82a44f25e2f110e320",
-    "preview": "php:8.4-cli-bookworm@sha256:496b5e02fe9fe44fcfb715023b931048111dc4e0bc719789d83c906be9f04b05",
+    "build": "php:8.4.28-cli-bookworm@sha256:85da896b3eeb8bcd83fe612e51a529b7d5983a1fab92ef5f63c7ac6e2842fc46",
+    "production-build": "php:8.4.28-apache-bookworm@sha256:530fe79ff4c2737a4de714a7b1e6c741dbdb3dafcee0ce49a2b4993ca11ad7dd",
+    "production": "php:8.4.28-apache-bookworm@sha256:530fe79ff4c2737a4de714a7b1e6c741dbdb3dafcee0ce49a2b4993ca11ad7dd",
+    "preview": "php:8.4.28-cli-bookworm@sha256:85da896b3eeb8bcd83fe612e51a529b7d5983a1fab92ef5f63c7ac6e2842fc46",
 }
 PHP_VERSION_CHECK = (
-    'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427) '
+    'if (preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID !== 80428) '
     '{ throw new RuntimeException("Unsupported PHP ".PHP_VERSION); } echo "PHP ".PHP_VERSION.PHP_EOL;'
 )
 
@@ -6207,7 +6207,7 @@ def validate_php_release_stages(dockerfile: str) -> None:
                 raise PolicyFailure(f"PHP {stage}: copied runtime artifact check is required")
             if stage == "production":
                 required = (
-                    'PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID < 80427',
+                    'PHP_SAPI !== "apache2handler" || preg_match("/^8[.]4[.][0-9]+$/D", PHP_VERSION) !== 1 || PHP_VERSION_ID !== 80428',
                     'require __DIR__."/../vendor/autoload.php";',
                     "apache2-foreground & apache_pid=$!;",
                     'trap \'kill "$apache_pid"',
@@ -6281,7 +6281,7 @@ def validate_release_artifact_foundation(
         encoding="utf-8"
     )
     validate_php_release_stages(api_dockerfile)
-    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.190-1" not in api_dockerfile:
+    if " AS build" not in api_dockerfile or "linux-libc-dev=6.1.192-2" not in api_dockerfile:
         raise PolicyFailure(
             "infra/docker/backend/Dockerfile: patched multi-stage runtime is required"
         )
