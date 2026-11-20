@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "42cac7fd8e176b8686fedffc7673734036bf670e",
-  "change_id": "NEWPROD-DRAWTZ-20261118",
-  "pr_number": 705,
-  "payload_manifest_sha256": "3f4fbd4ef3b98a72fb7ea700ef2a1a1489997d3f340a5c7f9442d4af02da46e8",
-  "authority": "Human-approved exact Runtime Source: Draft preparation only. PR688 plus preserved PR692 wallet fix plus PR705 DateTimeInterface hunk only; existing Production baseline 516fe7a946683103ed68ee4875d5ea3d94327a0d. OLD-side Handoff is not a live NEW Runtime measurement: NEW Codex must confirm current API/consumer Source, Tree, immutable image and Ledger107 before any Runtime GO; mismatch HOLD. Contract alpha.52, migrations001-107 only; LINE delivery D1-D7, migrations108+, later Admin and other main changes excluded. API-only activation; image_mode=agency uses existing formal workflow after separate Authority Merge and Build GO. Admin/Storefront/Agency stay unchanged. Preserve F2-B, six Timer commands/schedules/flags and member-rank Worker, payment and LINE settings; selected API image consumers follow the approved image only under Runtime GO. Latest Human sequence: technical preparation -> maintenance -> Drain -> final financial Gate -> API-only Cutover -> normal public recovery. No Merge/Build/Stage/Runtime authorization in this Draft.",
+  "source_sha": "0254792e8dc0baafbef45c6f2ca861ee91cfa191",
+  "change_id": "NEWPROD-PHP8428",
+  "pr_number": 715,
+  "payload_manifest_sha256": "5ed92be79c7046ffdd9baf213efa6e3524fabc517c0de5587110146b9d8512c6",
+  "authority": "Human-approved exact Runtime Source: Authority Draft preparation only. Preserve PR688/692/705 limited Source42cac7fd8e176b8686fedffc7673734036bf670e plus PR715 PHP8.4.28 base digests and required version checks only. Immutable design Source0254792e8dc0baafbef45c6f2ca861ee91cfa191, Contract alpha.52, Ledger107. Exclude Preview libc repair, LINE delivery D1-D7, migrations108+, later Admin/application/dependency changes. Existing agency linux/arm64 Artifact Workflow is the future Build route after separate Authority Merge and Build GO. Runtime activation scope API; Admin/Storefront/Agency unchanged. Selected API-image consumers F2-B, six Timers and member-rank Worker follow only under later Cutover GO, preserving references/commands/schedules. Independent mail/SMS workers are not integrated; provenance remains unverified. Production Security HOLD retained. No Authority Merge/Build/Stage/Cutover/Runtime authorization in this Draft.",
   "activation_authorized": false
 }
