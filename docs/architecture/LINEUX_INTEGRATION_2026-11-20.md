@@ -563,3 +563,19 @@ The external full-size diagnostic uses the existing LineDeliveryTest fixture
 through a temporary instrumented copy and stays outside normal CI. The committed
 bounded1000 test covers complete reservations and first/middle/last dispatch.
 New-head Required CI is observed separately; no old-head success is substituted.
+
+### New-head CI correction: repeated fresh migration
+
+The first v1.1 push8ed02f032001b155b697bceef286c7f1a084211d failed the
+Integration Database smoke before PHPUnit: SQLSTATE42723 duplicate function
+`v2_line_quota_initial_generation_guard`. The smoke runs `migrate:fresh` twice
+on one disposable database; PostgreSQL table wiping retains PL/pgSQL functions.
+118 now uses `CREATE OR REPLACE FUNCTION`, matching existing migrations. No
+001–117 edit or workflow/test relaxation. The upgrade fixture installs a retained
+function first, then verifies118 replaces it with the actual generation guard;
+all earlier actor/history assertions remain. Final upgrade1/69 PASS and two
+consecutive actual `artisan migrate:fresh --path=database/migrations-v2 --force
+--no-interaction` runs both PASS on the same disposable PostgreSQL. The initial
+head's failed CI remains historical; the correction receives normal new-head CI.
+Only this function declaration, its regression and handoff records changed after
+the successful full-send/browser evidence; those unrelated results remain valid.

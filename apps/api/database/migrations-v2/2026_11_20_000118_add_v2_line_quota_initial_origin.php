@@ -21,7 +21,7 @@ return new class extends Migration
                 ADD CONSTRAINT line_quota_period_opening_limit CHECK (
                     approved_limit >= 0 AND (baseline_origin = 'system_initial' OR approved_limit >= opening_used)
                 );
-            CREATE FUNCTION v2_line_quota_initial_generation_guard() RETURNS trigger AS $$
+            CREATE OR REPLACE FUNCTION v2_line_quota_initial_generation_guard() RETURNS trigger AS $$
             BEGIN
                 IF NEW.baseline_origin = 'system_initial' AND NOT EXISTS (
                     SELECT 1 FROM line_quota_accounts a JOIN line_bots b ON b.id = a.line_bot_id

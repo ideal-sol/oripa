@@ -139,7 +139,10 @@ final class LineBotMigrationUpgradeTest extends TestCase
             catch (\RuntimeException $e) { self::assertStringContainsString('Forward-only', $e->getMessage()); }
             $existingPeriods = DB::table('line_quota_periods')->orderBy('month')->get()->all();
             $initialMigration = require database_path('migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php');
+            // PostgreSQL migrate:fresh drops tables, retaining PL/pgSQL functions.
+            DB::unprepared('CREATE FUNCTION v2_line_quota_initial_generation_guard() RETURNS trigger AS $$ BEGIN RETURN NEW; END; $$ LANGUAGE plpgsql;');
             $initialMigration->up();
+            self::assertStringContainsString('LINE initial quota generation mismatch', DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_initial_generation_guard()'::regprocedure) AS definition")->definition);
             self::assertEquals($existingPeriods, DB::table('line_quota_periods')->orderBy('month')->get()->all());
             self::assertSame($quotaGuard, DB::selectOne("SELECT pg_get_functiondef('v2_line_quota_history_guard()'::regprocedure) AS definition")->definition);
             $initial = [...$system, 'month'=>'2027-01-01', 'baseline_origin'=>'system_initial', 'opening_used'=>300];
