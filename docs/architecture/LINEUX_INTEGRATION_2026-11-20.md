@@ -592,3 +592,19 @@ CSP-header and navigation-hierarchy tests), scoped ESLint and TypeScript PASS.
 Earlier UI36-case evidence covers its original selection and is not relabeled
 as the count of this final four-file command. Existing browser/full-send/backend
 evidence remains applicable to unchanged source; final-head CI is independent.
+
+### Bounded Admin CI fixture correction
+
+HEAD0937d79f4338dec4614e4be453a7009238724901 passed571 of572 Admin tests;
+`catalog-gacha-usage-history.test.tsx` failed at its immediate `利用情報` lookup
+while the DOM still displayed `ガチャ利用情報を読み込んでいます。`. Both this
+test and its product component are byte-identical to Remote main/base before
+the correction. The page heading exists before asynchronous detail retrieval,
+so waiting for it never guaranteed that the data-dependent section had rendered.
+Await the detail section and, for the identical list condition, its column
+headers. This two-line test-only CI blocker correction retains every content
+assertion, default timeout and failure condition. No catalog/draw/payment product
+source, dependency or workflow changes; exact PR inventory adds this existing
+test path. Focused two cases PASS; full `pnpm exec vitest run` passes all572
+tests across63 files. Final-head Required CI is recorded separately on PR717.
+The failed old run remains FAIL.

@@ -61,7 +61,7 @@ describe("Gacha usage history", () => {
     render(<CatalogGachaUsageHistory gachaId={GACHA_ID} />);
 
     expect(await screen.findByRole("heading", { name: "ガチャ利用履歴" })).toBeVisible();
-    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+    expect((await screen.findAllByRole("columnheader")).map((cell) => cell.textContent)).toEqual([
       "ガチャ利用ID", "ユーザー名", "何連ガチャ", "状態", "ガチャ利用日時", "詳細",
     ]);
     expect(screen.getByText("未設定")).toBeVisible();
@@ -79,7 +79,7 @@ describe("Gacha usage history", () => {
     render(<CatalogGachaUsageHistory drawRequestId={REQUEST_ID} gachaId={GACHA_ID} />);
 
     expect(await screen.findByRole("heading", { name: "ガチャ利用詳細" })).toBeVisible();
-    const summary = screen.getByRole("heading", { name: "利用情報" }).closest("section");
+    const summary = (await screen.findByRole("heading", { name: "利用情報" })).closest("section");
     expect(summary).not.toBeNull();
     expect(within(summary!).getByText("夏のガチャ")).toBeVisible();
     expect(within(summary!).getByText("1,000 pt")).toBeVisible();
