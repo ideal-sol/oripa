@@ -763,7 +763,7 @@ class Line713BuildRecipeTest(unittest.TestCase):
                 prepare({"source_sha": wrapper.LINE713_SOURCE}, payload, payload, payload / "missing")
 
     def test_approval_source_migrations_and_recipe_blobs(self):
-        approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        approval = json.loads(subprocess.check_output(["git", "show", "97278dabff60352df0a3ab12024a4efe35e195a8:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         self.assertEqual((approval['source_pr'],approval['source_sha'],approval['image_mode'],approval['platform']),
                          (713,wrapper.LINE713_SOURCE,'normal','linux/amd64'))
         self.assertIs(approval['activation_authorized'],False)
@@ -773,6 +773,75 @@ class Line713BuildRecipeTest(unittest.TestCase):
         self.assertEqual(subprocess.check_output(['git','diff','--name-only',wrapper.LINE706_SOURCE,wrapper.LINE713_SOURCE,'--',*unchanged],cwd=ROOT),b'')
         migrations = subprocess.check_output(['git','ls-tree','-r','--name-only',wrapper.LINE713_SOURCE,'--','apps/api/database/migrations-v2'],cwd=ROOT,text=True).splitlines()
         self.assertEqual(sum(p.endswith('.php') for p in migrations),116)
+
+
+class Line717SourceAuthorityTest(unittest.TestCase):
+    SOURCE = "85627907ed67f95459fbd1c2c4c7f6c554836499"
+    REVIEWED = "4d15712527d988ac508f73875cdc4577ceb990b4"
+    TREE = "7013ddf9ca2271dc88391995c49b0d6a4dd4d72b"
+
+    def setUp(self):
+        self.fixture = OldTestSourceAuthorityTest(); self.fixture.setUp()
+        self.fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.fixture.pull['merge_commit_sha'] = self.SOURCE
+        self.fixture.pull['head']['sha'] = self.REVIEWED
+        self.fixture.comparison.update(merge_base_commit={'sha': self.SOURCE}, base_commit={'sha': self.SOURCE})
+
+    def get(self, path):
+        if '/git/commits/' in path:
+            return {'sha': path.rsplit('/', 1)[1], 'tree': {'sha': self.TREE}}
+        return self.fixture.get(path.replace('/pulls/717', '/pulls/549'))
+
+    def test_exact_native_and_injected_source_and_source_recipe(self):
+        args = ('LINEUX-20261120', '717', self.SOURCE, CONTROL)
+        result = wrapper.authorize_old_test_source(*args, get=self.get)
+        with mock.patch.object(wrapper, '_github_get_response', side_effect=lambda path, **kw: io.BytesIO(json.dumps(self.get(path)).encode())) as transport:
+            self.assertEqual(wrapper.authorize_old_test_source(*args), result)
+        self.assertTrue(any('/compare/' in call.args[0] for call in transport.call_args_list))
+        self.assertEqual(result['source_tree'], self.TREE)
+        self.assertEqual(result['reviewed_sha'], self.REVIEWED)
+        self.assertNotIn('build_recipe', result)
+        prepare = runpy.run_path(str(ROOT / 'scripts/ops/old_test_source_authority.py'))['prepare_recipe']
+        with tempfile.TemporaryDirectory() as temp:
+            payload = Path(temp); recipe = payload / 'infra/docker/backend/Dockerfile'
+            recipe.parent.mkdir(parents=True); original = (ROOT / 'infra/docker/backend/Dockerfile').read_bytes(); recipe.write_bytes(original)
+            with mock.patch('subprocess.check_output', return_value=self.SOURCE+'\n'):
+                prepare(result, payload, ROOT, payload/'approved')
+            self.assertEqual((payload/'approved').read_bytes(), original)
+            self.assertEqual(hashlib.sha256(original).hexdigest(), '21dbdf91513cf3deea0a2cc72a3ae5eaf2d7822f9b12b505e4b218710600906e')
+            self.assertIn(b'PHP_VERSION_ID !== 80428', original)
+            with mock.patch('subprocess.check_output', return_value=CONTROL+'\n'), self.assertRaisesRegex(ValueError, 'payload mismatch'):
+                prepare(result, payload, ROOT, payload/'wrong')
+
+    def test_invalid_source_tree_merge_and_scope_fail_closed(self):
+        for field, invalid in [('source_sha', CONTROL), ('platform', 'linux/arm64'), ('activation_authorized', True), ('source_pr', 713)]:
+            self.setUp(); self.fixture.approval[field] = invalid
+            with self.subTest(field=field), self.assertRaises(wrapper.WrapperError):
+                wrapper.authorize_old_test_source('LINEUX-20261120', '717', self.SOURCE, CONTROL, get=self.get)
+        self.setUp(); self.fixture.pull['merged'] = False
+        with self.assertRaises(wrapper.WrapperError):
+            wrapper.authorize_old_test_source('LINEUX-20261120', '717', self.SOURCE, CONTROL, get=self.get)
+        self.setUp()
+        def wrong_tree(path):
+            result = self.get(path)
+            if path.endswith('/git/commits/'+self.REVIEWED): result['tree']['sha'] = TREE
+            return result
+        with self.assertRaisesRegex(wrapper.WrapperError, 'tree_mismatch'):
+            wrapper.authorize_old_test_source('LINEUX-20261120', '717', self.SOURCE, CONTROL, get=wrong_tree)
+
+    def test_inventory_preserves_history_and_requires_117_then_118(self):
+        def git(*args): return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git('rev-parse', self.SOURCE+'^{tree}'), self.TREE)
+        self.assertEqual(git('diff', '--name-only', self.REVIEWED, self.SOURCE), '')
+        before = dict(line.split('\t') for line in git('ls-tree', '-r', wrapper.LINE713_SOURCE, '--', 'apps/api/database/migrations-v2').splitlines())
+        after = dict(line.split('\t') for line in git('ls-tree', '-r', self.SOURCE, '--', 'apps/api/database/migrations-v2').splitlines())
+        before = {v:k for k,v in before.items()}; after = {v:k for k,v in after.items()}
+        self.assertEqual({p:after[p] for p in before}, before)
+        self.assertEqual(sorted(set(after)-set(before)), ['apps/api/database/migrations-v2/2026_11_20_000117_add_v2_line_quota_system_actor.php', 'apps/api/database/migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php'])
+        approval = self.fixture.approval
+        self.assertEqual((approval['source_pr'], approval['source_sha'], approval['image_mode'], approval['platform']), (717,self.SOURCE,'normal','linux/amd64'))
+        for value in [self.REVIEWED,self.TREE,'Migration117 then118','HOLD_UNAPPROVED_FINDING','no unconditional old API/Worker fallback']:
+            self.assertIn(value, approval['authority'])
 
 
 class GithubReadTransportTest(unittest.TestCase):
