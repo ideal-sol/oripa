@@ -156,6 +156,10 @@ final class V2LineDeliveryService
                     $d->id, $i, $now->addSeconds($pacing->offsetSeconds($push ? 'push' : 'multicast', $i)));
                 $i++; $chunk = [];
             }
+            // Batch/recipient registration and whole-campaign admission share
+            // this transaction and singleton lock. A failure rolls back all rows.
+            if (! $quota->cover(DB::table('line_delivery_batches')->where('delivery_id', $d->id)->orderBy('id')->get()->all(),
+                [$quota->month($now)])) throw new \RuntimeException('LINE quota baseline unavailable or insufficient.');
             DB::table('line_deliveries')->where('id', $d->id)->update(['status' => $count === 0 ? 'completed' : 'sending',
                 'recipient_count' => $count, 'lease_owner' => null, 'lease_until' => null, 'last_dispatched_at' => $now]);
         }, 1);
@@ -166,6 +170,11 @@ final class V2LineDeliveryService
     {
         if (! in_array($source, ['automated', 'chat'], true) || ! Str::isUuid($sourceKey)) throw new \InvalidArgumentException('Invalid LINE source.');
         app(V2LineDeliveryMessages::class)->validate($messages);
+        // Nested D4/D6 callers preflight before their own transaction. Direct
+        // callers share that initialization without issuing HTTP under a lock.
+        if (DB::transactionLevel() === 0 && ! DB::table('line_delivery_batches')->where('source_key', $sourceKey)->exists()) {
+            app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        }
         return DB::transaction(function () use ($ref, $purpose, $messages, $source, $sourceKey): int {
             app(V2LineMessagingSettingService::class)->setting(true);
             $existing = DB::table('line_delivery_batches')->where('source_key', $sourceKey)->first();
@@ -180,6 +189,7 @@ final class V2LineDeliveryService
     {
         $this->authorize($context);
         if ($confirmation !== 'すでに届いている可能性があります' || ! Str::isUuid($requestKey)) throw new \InvalidArgumentException('LINE resend confirmation required.');
+        if (! DB::table('line_delivery_batches')->where('source_key', $requestKey)->exists()) app(V2LineDeliveryQuota::class)->refreshForAdmission();
         return DB::transaction(function () use ($context, $id, $requestKey): int {
             app(V2LineMessagingSettingService::class)->setting(true);
             $existing = DB::table('line_delivery_batches')->where('source_key', $requestKey)->first();
@@ -209,7 +219,8 @@ final class V2LineDeliveryService
         foreach ($refs as $r) DB::table('line_delivery_recipients')->insert(['batch_id' => $id, 'source_table' => $r->source,
             'source_id' => $r->sourceId, 'user_id' => $r->userId, 'recipient_group' => $r->group->value]);
         $quota = app(V2LineDeliveryQuota::class);
-        if (! $quota->cover([DB::table('line_delivery_batches')->where('id', $id)->firstOrFail()],
+        // resolve() reserves the entire campaign before its transaction commits.
+        if ($delivery === null && ! $quota->cover([DB::table('line_delivery_batches')->where('id', $id)->firstOrFail()],
             [$quota->month(app(V2LineDeliverySender::class)->clock())])) throw new \RuntimeException('LINE quota baseline unavailable or insufficient.');
         return $id;
     }

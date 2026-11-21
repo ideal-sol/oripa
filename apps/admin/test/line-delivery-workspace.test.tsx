@@ -4,7 +4,7 @@ const access = vi.hoisted(() => ({ write: true }));
 vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ permissions: new Set(access.write ? ["line.bot.read", "line.bot.manage"] : ["line.bot.read"]) }) }));
 import { LineDeliveryWorkspace } from "@/components/line/line-delivery-workspace";
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import type { LineDeliveryDetail } from "@/lib/admin-api/generated";
+import type { LineDeliveryDetail, LineQuotaState } from "@/lib/admin-api/generated";
 
 beforeEach(() => {
   access.write = true;
@@ -12,6 +12,18 @@ beforeEach(() => {
   vi.spyOn(AdminApiClient.prototype, "getLineDeliveryDefaults").mockResolvedValue({ revision: 2, pacing: { push_every: 10, push_wait_seconds: 5, multicast_wait_seconds: 0 } });
 });
 afterEach(() => vi.restoreAllMocks());
+it("shows automatic quota states and estimated opening without manual baseline fields", async () => {
+  const states: [NonNullable<LineQuotaState["automation_state"]>, string][] = [["initialization_pending","自動初期化待ち"],["initialized","自動初期化済み"],["managed","正常に自動管理中"],["limit_reached","当月上限到達"],["provider_error","LINE API取得エラー・再取得してください"],["halted","異常停止・運用確認が必要"]];
+  const get=vi.spyOn(AdminApiClient.prototype,"getLineQuota");
+  render(<LineDeliveryWorkspace />); await screen.findByText("配信はありません。");
+  for (const [state,label] of states) {
+    get.mockResolvedValue({bot_id:"synthetic",authentication_revision:1,halted:state==="halted",halt_reason:null,automation_state:state,periods:[{month:"2026-11-01",configured:true,baseline_origin:"system_initial",opening_used:300,accepted:100,reserved:10,unknown:1,remaining:4589,approved_limit:5000,effective_limit:5000,evidence_id:null,baseline_cut_at:null,verified_at:null}]});
+    fireEvent.click(screen.getByRole("button",{name:"Quotaを取得"}));
+    expect(await screen.findByText(`自動管理状態：${label}`)).toBeVisible();
+    expect(screen.getByText("LINE API概算値から自動初期化")).toBeVisible(); expect(screen.getByText("400")).toBeVisible();
+  }
+  expect(screen.queryByLabelText("証跡UUID")).toBeNull(); expect(screen.queryByRole("button",{name:"基準値を確定"})).toBeNull();
+});
 it("shows persisted batch progress and a qualified completion estimate", async () => {
   const row: LineDeliveryDetail["data"] = {
     id: "00000000-0000-4000-8000-000000000001", revision: 1, title: "Synthetic progress", category: "promotional", recipient_group: "all_friends",
@@ -23,6 +35,12 @@ it("shows persisted batch progress and a qualified completion estimate", async (
   vi.mocked(AdminApiClient.prototype.listLineDeliveries).mockResolvedValue({ data: [row], next_cursor: null });
   vi.spyOn(AdminApiClient.prototype, "getLineDelivery").mockResolvedValue({ data: row, batches: [], next_batch_cursor: null, estimated_dispatch_end: "2026-11-16T01:00:00Z" });
   render(<LineDeliveryWorkspace />);
+  await screen.findByText("Synthetic progress");
+  expect(screen.getByRole("columnheader", { name: "予定人数／送信対象人数" })).toBeVisible();
+  expect(screen.getByText("販促／すべての友だち")).toBeVisible();
+  expect(screen.getByText("送信処理中")).toBeVisible();
+  expect(screen.queryByRole("columnheader", { name: "状態別 組／人数" })).toBeNull();
+  expect(screen.queryByText(/作成者/)).toBeNull();
   fireEvent.click(await screen.findByRole("button", { name: "詳細・編集" }));
   const progress = await screen.findByRole("progressbar", { name: "バッチ処理進捗" });
   expect(progress).toHaveAttribute("value", "1"); expect(progress).toHaveAttribute("max", "2");

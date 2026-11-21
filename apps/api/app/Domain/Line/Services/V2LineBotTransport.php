@@ -12,6 +12,21 @@ use Throwable;
 final class V2LineBotTransport
 {
     private const HOST = 'https://api.line.me';
+
+    /** One explicitly selected known identity; no follower-list entitlement required. */
+    public function profileName(#[SensitiveParameter] object $bot, #[SensitiveParameter] string $subject): ?string
+    {
+        if (\Illuminate\Support\Facades\DB::transactionLevel() !== 0 || ! preg_match('/\AU[0-9a-f]{32}\z/', $subject)) return null;
+        try {
+            $response = Http::acceptJson()->withToken($this->token($bot, false))->withoutRedirecting()
+                ->connectTimeout(3)->timeout(3)->withOptions([
+                    'on_headers'=>static function ($r): void { if ((int) $r->getHeaderLine('Content-Length') > 16384) throw new \RuntimeException('Profile limit.'); },
+                    'progress'=>static function ($total, $downloaded): void { if ($total > 16384 || $downloaded > 16384) throw new \RuntimeException('Profile limit.'); },
+                ])->get(self::HOST.'/v2/bot/profile/'.$subject);
+            if ($response->status() !== 200 || strlen($response->body()) > 16384 || $response->json('userId') !== $subject) return null;
+            return V2LineProfileName::normalize($response->json('displayName'));
+        } catch (Throwable) { return null; }
+    }
     /** D7 only: no DB transaction, redirect, provider prose or token escapes. */
     public function followerIds(#[SensitiveParameter] object $bot, #[SensitiveParameter] ?string $next): array
     {

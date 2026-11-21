@@ -671,6 +671,7 @@ final class V2ExternalIdentityService
                 $provider->code() === 'line'
             ) {
                 app(\App\Domain\Line\Services\V2LineSubjectVault::class)->backfill($identity->subject);
+                if ($identity->displayName !== null) $result['user']->forceFill(['display_name' => $identity->displayName])->save();
                 $checkFriendship = (bool) config('v2_line.friendship_check_enabled', false);
                 if ($transaction->purpose !== 'reauthentication' || $checkFriendship) {
                     $this->lineFriends->reconcileIdentity(

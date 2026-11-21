@@ -15,6 +15,57 @@ final class V2LineDeliveryQuota
     public function month(CarbonImmutable $at): string { return $at->setTimezone('Asia/Tokyo')->startOfMonth()->toDateString(); }
     public function nextMonth(CarbonImmutable $at): string { return $at->setTimezone('Asia/Tokyo')->startOfMonth()->addMonth()->toDateString(); }
 
+    /** Monthly admission preflight; never issue HTTP inside a caller transaction. */
+    public function refreshForAdmission(): void
+    {
+        $bot = DB::table('line_bots')->where('is_active', true)->where('connection_status', 'succeeded')->first();
+        if ($bot === null) return;
+        $month = $this->month(app(V2LineDeliverySender::class)->clock());
+        $account = DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->first();
+        if ($account !== null && ($account->halted || $account->authentication_revision !== $bot->authentication_revision
+            || $account->usable_from > $month)) return;
+        if (! DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $month)->exists()) $this->providerRemaining($bot);
+    }
+
+    public function prepareScheduledMonth(object $bot, CarbonImmutable $when): void
+    {
+        $this->providerRemaining($bot);
+        DB::transaction(function () use ($bot, $when): void {
+            $this->lock();
+            $this->ensurePeriod($bot->id, $bot->authentication_revision, $this->month($when));
+        }, 1);
+    }
+
+    /** Caller holds singleton. Monthly continuation never replaces the opening. */
+    private function ensurePeriod(int $botId, int $revision, string $month, ?int $providerLimit = null): void
+    {
+        if (DB::table('line_quota_periods')->where('line_bot_id', $botId)->where('month', $month)->exists()) return;
+        $now = app(V2LineDeliverySender::class)->clock();
+        if (! in_array($month, [$this->month($now), $this->nextMonth($now)], true)) return;
+        $account = DB::table('line_quota_accounts')->where('line_bot_id', $botId)->first();
+        $bot = DB::table('line_bots')->where('id', $botId)->where('is_active', true)->where('connection_status', 'succeeded')->first();
+        if ($account === null || $account->halted || $account->usable_from > $month
+            || $account->authentication_revision !== $revision || $bot?->authentication_revision !== $revision) return;
+        $previous = DB::table('line_quota_periods')->where('line_bot_id', $botId)->where('month', '<', $month)
+            ->where('month', '>=', $account->usable_from)->orderByDesc('month')->first();
+        if ($previous === null || ($previous->authentication_revision !== null && $previous->authentication_revision !== $revision)) return;
+        if (DB::table('line_delivery_batches as b')->where('b.line_bot_id', $botId)->whereNotNull('b.first_attempted_at')
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('line_quota_charges as c')->whereColumn('c.batch_id', 'b.id'))->exists()) {
+            $this->stop($botId, 'unaccounted_attempt');
+            return;
+        }
+        $limit = min($previous->effective_limit, $providerLimit ?? $previous->effective_limit);
+        $evidence = (string) Str::uuid();
+        DB::table('line_quota_periods')->insert(['line_bot_id'=>$botId, 'month'=>$month, 'opening_used'=>0,
+            'approved_limit'=>$limit, 'effective_limit'=>$limit, 'evidence_id'=>$evidence,
+            'verified_by_admin_id'=>null, 'baseline_origin'=>'system', 'authentication_revision'=>$revision]);
+        foreach ($this->uncarried($botId, $month)->get() as $charge) DB::table('line_quota_charges')->insert([
+            'line_bot_id'=>$botId, 'month'=>$month, 'batch_id'=>$charge->batch_id, 'units'=>$charge->units, 'state'=>'unknown']);
+        app(V2AuditLogService::class)->record('line.quota.period.generated', ['request_id'=>$evidence,
+            'actor_type'=>'system', 'auth_realm'=>'system', 'target_type'=>'line_bot',
+            'metadata'=>['record_id'=>$botId, 'month'=>$month], 'outcome'=>'success']);
+    }
+
     /** Trusted management entry, not HTTP. Evidence UUID identifies a private operational record. */
     public function confirmBaseline(V2AdminAuthorizationContext $context, int $botId, int $revision, string $month,
         int $used, int $limit, string $evidenceId, string $confirmation, ?CarbonImmutable $cut = null): void
@@ -75,6 +126,12 @@ final class V2LineDeliveryQuota
         return ! $a || $p === null ? 0 : max(0, $p->effective_limit - $p->opening_used - $this->reserved($botId, $month) - $carry);
     }
 
+    public function unknown(int $botId, string $month): int
+    {
+        return (int) DB::table('line_quota_charges')->where('line_bot_id', $botId)->where('month', $month)->where('state', 'unknown')->sum('units')
+            + (int) $this->uncarried($botId, $month)->get()->sum('units');
+    }
+
     /** Net local budget. Never subtract approximate consumption from local history. */
     public function remaining(#[\SensitiveParameter] object $bot): int
     {
@@ -91,45 +148,95 @@ final class V2LineDeliveryQuota
         $quota = $transport->get($bot, '/v2/bot/message/quota');
         $used = $transport->get($bot, '/v2/bot/message/quota/consumption');
         if (! in_array($quota['type'] ?? null, ['none', 'limited'], true)
-            || ($quota['type'] === 'limited' && (! is_int($quota['value'] ?? null) || $quota['value'] < 0))
-            || ! is_int($used['totalUsage'] ?? null) || $used['totalUsage'] < 0) throw new \RuntimeException('LINE quota unavailable.');
+            || ($quota['type'] === 'limited' && (! is_int($quota['value'] ?? null) || $quota['value'] < 0 || $quota['value'] > 9007199254740991))
+            || ! is_int($used['totalUsage'] ?? null) || $used['totalUsage'] < 0 || $used['totalUsage'] > 9007199254740991) throw new \RuntimeException('LINE quota unavailable.');
         DB::transaction(function () use ($bot, $month, $quota, $used): void {
             $this->lock();
             if ($month !== $this->month(app(V2LineDeliverySender::class)->clock())) throw new \RuntimeException('LINE quota observation crossed month.');
+            $current = DB::table('line_bots')->where('id', $bot->id)->where('is_active', true)->where('connection_status', 'succeeded')->first();
+            if ($current?->authentication_revision !== $bot->authentication_revision) throw new \RuntimeException('LINE BOT revision conflict.');
+            $limit = $quota['type'] === 'limited' ? $quota['value'] : null;
+            $this->initialize($bot, $month, $limit, $used['totalUsage']);
+            $this->ensurePeriod($bot->id, $bot->authentication_revision, $month, $limit);
             $p = DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $month)->first();
             if ($p === null) return;
+            DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->update(['last_checked_at'=>app(V2LineDeliverySender::class)->clock()]);
             $exposed = (int) DB::table('line_quota_charges')->where('line_bot_id', $bot->id)->where('month', $month)->where('state', '<>', 'reserved')->sum('units');
-            if ($used['totalUsage'] > $p->opening_used + $exposed) $this->stop($bot->id, 'provider_usage_exceeds_ledger');
-            if ($quota['type'] === 'limited') DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $month)
-                ->update(['effective_limit' => min($p->effective_limit, $quota['value'])]);
+            $carry = (int) $this->uncarried($bot->id, $month)->get()->sum('units');
+            if ($used['totalUsage'] > $p->opening_used + $exposed + $carry) $this->stop($bot->id,
+                $p->baseline_origin === 'system_initial' ? 'provider_usage_exceeds_estimated_ledger' : 'provider_usage_exceeds_ledger');
+            if ($limit !== null) foreach (DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', '>=', $month)->get() as $period) {
+                DB::table('line_quota_periods')->where('line_bot_id', $bot->id)->where('month', $period->month)
+                    ->update(['effective_limit' => min($period->effective_limit, $limit)]);
+            }
         }, 1);
         return $quota['type'] === 'none' ? null : max(0, $quota['value'] - $used['totalUsage']);
+    }
+
+    /** Fresh observation, singleton held and BOT/month revalidated by the caller. */
+    private function initialize(object $bot, string $month, ?int $limit, int $used): void
+    {
+        $account = DB::table('line_quota_accounts')->where('line_bot_id', $bot->id)->first();
+        if ($account !== null) return; // Never clear a halt, rebase or adopt another generation.
+        if ($limit === null) throw new \RuntimeException('LINE quota numeric limit unavailable.');
+        if (DB::table('line_delivery_batches')->where('line_bot_id', $bot->id)
+                ->where(fn ($q) => $q->whereNotNull('first_attempted_at')->orWhereIn('status', ['sending','retrying','accepted','unknown','failed']))->exists()
+            || DB::table('line_quota_charges')->where('line_bot_id', $bot->id)->exists()) {
+            $this->stop($bot->id, 'initial_history_requires_reconciliation');
+            return;
+        }
+        $now = app(V2LineDeliverySender::class)->clock();
+        $evidence = (string) Str::uuid();
+        DB::table('line_quota_accounts')->insert(['line_bot_id'=>$bot->id,
+            'authentication_revision'=>$bot->authentication_revision, 'usable_from'=>$month,
+            'halted'=>false, 'last_checked_at'=>$now, 'updated_at'=>$now]);
+        DB::table('line_quota_periods')->insert(['line_bot_id'=>$bot->id, 'month'=>$month,
+            'opening_used'=>$used, 'approved_limit'=>$limit, 'effective_limit'=>$limit,
+            'evidence_id'=>$evidence, 'verified_by_admin_id'=>null, 'baseline_origin'=>'system_initial',
+            'authentication_revision'=>$bot->authentication_revision, 'baseline_cut_at'=>$now]);
+        app(V2AuditLogService::class)->record('line.quota.initial.generated', ['request_id'=>$evidence,
+            'actor_type'=>'system', 'auth_realm'=>'system', 'target_type'=>'line_bot',
+            'metadata'=>['record_id'=>$bot->id, 'month'=>$month], 'outcome'=>'success']);
     }
 
     /** All deltas planned under singleton before inserts: whole-campaign admission. */
     public function cover(array $batches, array $months): bool
     {
-        $this->lock(); $inserts = []; $deltas = [];
-        foreach ($batches as $b) foreach (array_unique($months) as $month) {
-            $account = DB::table('line_quota_accounts')->where('line_bot_id', $b->line_bot_id)->first();
-            if ($account === null || $account->halted || $account->usable_from > $month || $account->authentication_revision !== $b->authentication_revision
-                || ! DB::table('line_quota_periods')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->exists()) return false;
-            foreach ($this->uncarried($b->line_bot_id, $month)->get() as $charge) DB::table('line_quota_charges')->insert([
-                'line_bot_id' => $b->line_bot_id, 'month' => $month, 'batch_id' => $charge->batch_id, 'units' => $charge->units, 'state' => 'unknown']);
-            if (DB::table('line_quota_charges')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->where('batch_id', $b->id)->exists()) continue;
-            $units = DB::table('line_delivery_recipients')->where('batch_id', $b->id)->count();
-            $inserts[] = ['line_bot_id' => $b->line_bot_id, 'month' => $month, 'batch_id' => $b->id, 'units' => $units,
-                'state' => $b->first_attempted_at === null ? 'reserved' : 'unknown'];
-            $key = $b->line_bot_id.':'.$month;
-            $deltas[$key] = [$b->line_bot_id, $month, ($deltas[$key][2] ?? 0) + $units];
+        $this->lock(); $inserts = []; $groups = [];
+        foreach ($batches as $b) {
+            $groups[$b->line_bot_id][$b->id] = $b;
         }
-        foreach ($deltas as [$botId, $month, $units]) if ($this->available($botId, $month) < $units) return false;
-        // Existing reservations can exceed a newly lowered provider limit.
-        foreach ($batches as $b) foreach (array_unique($months) as $month) {
-            $p = DB::table('line_quota_periods')->where('line_bot_id', $b->line_bot_id)->where('month', $month)->firstOrFail();
-            if ($p->opening_used + $this->reserved($b->line_bot_id, $month) > $p->effective_limit) return false;
+        // Observations live only inside this singleton-locked call. Recheck on
+        // every Phase A; never cache provider, generation or month decisions.
+        foreach ($groups as $botId => $group) foreach (array_unique($months) as $month) {
+            $revision = reset($group)->authentication_revision;
+            foreach ($group as $b) if ($b->authentication_revision !== $revision) return false;
+            $this->ensurePeriod($botId, $revision, $month);
+            $account = DB::table('line_quota_accounts')->where('line_bot_id', $botId)->first();
+            $period = DB::table('line_quota_periods')->where('line_bot_id', $botId)->where('month', $month)->first();
+            if ($account === null || $account->halted || $account->usable_from > $month
+                || $account->authentication_revision !== $revision || $period === null) return false;
+            foreach ($this->uncarried($botId, $month)->get() as $charge) DB::table('line_quota_charges')->insert([
+                'line_bot_id' => $botId, 'month' => $month, 'batch_id' => $charge->batch_id, 'units' => $charge->units, 'state' => 'unknown']);
+            $delta = 0;
+            foreach (array_chunk($group, 500, true) as $chunk) {
+                $existing = DB::table('line_quota_charges')->where('line_bot_id', $botId)->where('month', $month)
+                    ->whereIn('batch_id', array_keys($chunk))->pluck('batch_id')->all();
+                $missing = array_diff_key($chunk, array_flip($existing));
+                if ($missing === []) continue;
+                $counts = DB::table('line_delivery_recipients')->whereIn('batch_id', array_keys($missing))
+                    ->selectRaw('batch_id, count(*) AS units')->groupBy('batch_id')->pluck('units', 'batch_id');
+                foreach ($missing as $b) {
+                    $units = (int) ($counts[$b->id] ?? 0); $delta += $units;
+                    $inserts[] = ['line_bot_id' => $botId, 'month' => $month, 'batch_id' => $b->id, 'units' => $units,
+                        'state' => $b->first_attempted_at === null ? 'reserved' : 'unknown'];
+                }
+            }
+            if ($delta > 0 && $this->available($botId, $month) < $delta) return false;
+            // Also reject an already covered campaign after a provider limit cut.
+            if ($period->opening_used + $this->reserved($botId, $month) > $period->effective_limit) return false;
         }
-        foreach ($inserts as $values) DB::table('line_quota_charges')->insert($values);
+        foreach (array_chunk($inserts, 500) as $values) DB::table('line_quota_charges')->insert($values);
         return true;
     }
 

@@ -57,7 +57,7 @@ final class V2LineDeliveryAdmin
         app(V2LineDeliveryMessages::class)->validate($input['messages']);
         foreach ($input['messages'] as $m) if ($m['type']!=='text') app(V2LineDeliveryMedia::class)->assertVerified($m);
         if ($when!==null) {
-            $bot=$this->bot(); $q=app(V2LineDeliveryQuota::class);
+            $bot=$this->bot(); $q=app(V2LineDeliveryQuota::class); $q->prepareScheduledMonth($bot, $when);
             if ($this->quota()['halted']) throw new \RuntimeException('LINE quota unavailable.');
             if (! DB::table('line_quota_periods')->where('line_bot_id',$bot->id)->where('month',$q->month($when))->exists()) throw new \RuntimeException('LINE quota baseline unavailable.');
         }
@@ -97,17 +97,26 @@ final class V2LineDeliveryAdmin
         return ['revision'=>$r->revision,'pacing'=>['push_every'=>$r->push_every,'push_wait_seconds'=>$r->push_wait_seconds,'multicast_wait_seconds'=>$r->multicast_wait_seconds]];
     }
 
-    public function quota(): array
+    public function quota(bool $refresh = false): array
     {
-        $b=$this->bot(); $q=app(V2LineDeliveryQuota::class); $a=DB::table('line_quota_accounts')->where('line_bot_id',$b->id)->first(); $periods=[];
-        $now=CarbonImmutable::now();
+        $b=$this->bot(); $q=app(V2LineDeliveryQuota::class); $providerError=false;
+        if ($refresh) {
+            try { $q->providerRemaining($b); } catch (\Throwable) { $providerError=true; }
+        }
+        $a=DB::table('line_quota_accounts')->where('line_bot_id',$b->id)->first(); $periods=[];
+        $now=app(V2LineDeliverySender::class)->clock();
         foreach ([$q->month($now),$q->nextMonth($now)] as $month) {
             $p=DB::table('line_quota_periods')->where('line_bot_id',$b->id)->where('month',$month)->first();
             $counts=DB::table('line_quota_charges')->where('line_bot_id',$b->id)->where('month',$month)->selectRaw('state,SUM(units) as units')->groupBy('state')->pluck('units','state');
-            $periods[]=['month'=>$month,'configured'=>$p!==null,'opening_used'=>$p?->opening_used??0,'approved_limit'=>$p?->approved_limit??0,'effective_limit'=>$p?->effective_limit??0,
-                'reserved'=>(int)($counts['reserved']??0),'unknown'=>(int)($counts['unknown']??0),'accepted'=>(int)($counts['accepted']??0),'remaining'=>$q->available($b->id,$month),'evidence_id'=>$p?->evidence_id,'verified_at'=>$p?->verified_at,'baseline_cut_at'=>$p?->baseline_cut_at];
+            $periods[]=['month'=>$month,'configured'=>$p!==null,'baseline_origin'=>$p?->baseline_origin,'opening_used'=>$p?->opening_used??0,'approved_limit'=>$p?->approved_limit??0,'effective_limit'=>$p?->effective_limit??0,
+                'reserved'=>(int)($counts['reserved']??0),'unknown'=>$q->unknown($b->id,$month),'accepted'=>(int)($counts['accepted']??0),'remaining'=>$q->available($b->id,$month),'evidence_id'=>$p?->evidence_id,'verified_at'=>$p?->verified_at,'baseline_cut_at'=>$p?->baseline_cut_at];
         }
-        return ['bot_id'=>$b->public_id,'authentication_revision'=>$b->authentication_revision,'halted'=>$a===null || $a->halted || $a->authentication_revision!==$b->authentication_revision,'halt_reason'=>$a?->halt_reason,'periods'=>$periods];
+        $halted=$a!==null && ($a->halted || $a->authentication_revision!==$b->authentication_revision || $a->usable_from>$q->month($now));
+        $state=$halted ? 'halted' : ($providerError ? 'provider_error' : (! $periods[0]['configured'] ? 'initialization_pending' :
+            ($periods[0]['remaining']===0 ? 'limit_reached' : ($periods[0]['baseline_origin']==='system_initial' ? 'initialized' : 'managed'))));
+        return ['bot_id'=>$b->public_id,'authentication_revision'=>$b->authentication_revision,'halted'=>$halted,'halt_reason'=>$a?->halt_reason,
+            'automation_state'=>$state,
+            'last_checked_at'=>$a?->last_checked_at === null ? null : CarbonImmutable::parse($a->last_checked_at)->toIso8601String(),'periods'=>$periods];
     }
 
     public function quotaWrite(V2AdminAuthorizationContext $c,string $operation,array $input): array

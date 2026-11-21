@@ -126,13 +126,12 @@ final class LineDeliveryTest extends TestCase
         self::assertTrue(DB::table('line_quota_accounts')->where('line_bot_id', $this->bot->id)->value('halted'));
     }
 
-    public function test_quota_exact_opening_balance_and_unverified_bot_fail_closed(): void
+    public function test_quota_automatic_opening_balance_and_existing_human_baseline(): void
     {
         $this->newBot(); $this->quotaHttp(200, 100);
-        try { $this->batch(); self::fail('Unverified baseline allowed enqueue'); }
-        catch (\RuntimeException $e) { self::assertStringContainsString('quota', $e->getMessage()); }
-        self::assertSame(0, DB::table('line_delivery_batches')->where('line_bot_id', $this->bot->id)->count());
-        $this->baseline(100, 200);
+        app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        self::assertSame('system_initial', DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('baseline_origin'));
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/push'));
         self::assertSame(100, app(V2LineDeliveryQuota::class)->remaining($this->bot));
         $id = $this->batch(); app(V2LineDeliverySender::class)->send($id);
         self::assertSame(99, app(V2LineDeliveryQuota::class)->remaining($this->bot));
@@ -196,15 +195,18 @@ final class LineDeliveryTest extends TestCase
         $this->fake([0, 409], function ($r) use (&$requests): void { $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')]; });
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame(['2026-11-01', '2026-12-01'], DB::table('line_quota_charges')->where('batch_id', $id)->orderBy('month')->pluck('month')->all());
+        self::assertSame(2,$this->quotaGetCount());
         $this->clockAt('2026-12-01T00:01:00+09:00');
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame($requests[0], $requests[1]);
         self::assertSame(2, DB::table('line_quota_charges')->where('batch_id', $id)->where('state', 'accepted')->count());
+        self::assertSame(4,$this->quotaGetCount());
+        fwrite(STDOUT,"\nQUOTA_MEASURE month_boundary_attempt=2 next_month_retry=2\n");
         self::assertSame(1, app(V2LineDeliveryQuota::class)->available($this->bot->id, '2026-12-01'));
         self::assertSame('2026-12-01', app(V2LineDeliveryQuota::class)->month(\Carbon\CarbonImmutable::parse('2026-11-30T15:00:00Z')));
     }
 
-    public function test_quota_month_end_campaign_without_next_baseline_sends_zero(): void
+    public function test_quota_month_end_campaign_automatically_covers_next_month(): void
     {
         $this->clockAt('2026-11-30T23:59:50+09:00'); $this->newBot(200);
         app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.str_repeat('3', 32), now()->getTimestampMs());
@@ -212,9 +214,13 @@ final class LineDeliveryTest extends TestCase
         app(V2LineDeliveryService::class)->resolve($delivery);
         $batch = DB::table('line_delivery_batches')->where('delivery_id', $delivery)->sole();
         app(V2LineDeliverySender::class)->send($batch->id);
-        self::assertSame('blocked_quota', DB::table('line_deliveries')->where('id', $delivery)->value('status'));
-        self::assertNull(DB::table('line_delivery_batches')->where('id', $batch->id)->value('first_attempted_at'));
-        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
+        self::assertSame('completed', DB::table('line_deliveries')->where('id', $delivery)->value('status'));
+        self::assertSame('system', DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month', '2026-12-01')->value('baseline_origin'));
+        self::assertNull(DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month', '2026-12-01')->value('verified_by_admin_id'));
+        self::assertNotNull(DB::table('line_delivery_batches')->where('id', $batch->id)->value('first_attempted_at'));
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/push') || str_ends_with($r->url(), '/multicast'));
+        self::assertSame(6,$this->quotaGetCount());
+        fwrite(STDOUT,"\nQUOTA_MEASURE month_end_campaign_resolve=2 dispatch=4\n");
     }
 
     public function test_quota_unknown_carries_into_preconfirmed_month_and_after_retry_expiry(): void
@@ -246,6 +252,7 @@ final class LineDeliveryTest extends TestCase
         app(V2LineDeliverySender::class)->send($id); Http::assertNothingSent();
         $this->newBot();
         self::assertSame(0, $quota->available($this->bot->id, $quota->month(app(V2LineDeliverySender::class)->clock())));
+        $this->quotaHttp(0, 0); // A different BOT gets its own observation, never the previous balance.
         try { $this->batch(); self::fail('New BOT inherited quota'); }
         catch (\RuntimeException $e) { self::assertStringContainsString('quota', $e->getMessage()); }
         $quota->halt($this->admin(), $this->bot->id, (string) Str::uuid());
@@ -290,7 +297,7 @@ final class LineDeliveryTest extends TestCase
         $quota = app(V2LineDeliveryQuota::class);
         $month = $quota->month(app(V2LineDeliverySender::class)->clock());
         $remaining = $quota->available($botId, $month);
-        self::assertSame(999, $remaining);
+        self::assertSame(99, $remaining); // Fresh provider cap100 is authoritative over prior1000.
         // No period FK protects this independently halted account.
         $this->newBot(); $quota->halt($this->admin(), $this->bot->id, (string) Str::uuid());
         $haltedBotId = $this->bot->id;
@@ -344,6 +351,194 @@ final class LineDeliveryTest extends TestCase
         self::assertSame($remaining, $quota->available($botId, $month));
         self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id', $batch)->value('state'));
         self::assertTrue(DB::table('line_quota_accounts')->where('line_bot_id', $haltedBotId)->value('halted'));
+    }
+
+    public function test_monthly_auto_initialization_is_idempotent_and_retains_human_history(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(200, 7);
+        $old = DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->sole();
+        $this->clockAt('2026-12-01T00:00:01+09:00'); $this->quotaHttp(150, 0);
+        $q = app(V2LineDeliveryQuota::class);
+        $q->refreshForAdmission(); $q->refreshForAdmission();
+        self::assertEquals($old, DB::table('line_quota_periods')->where('line_bot_id', $this->bot->id)->where('month','2026-11-01')->sole());
+        $new = DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->sole();
+        self::assertSame('system',$new->baseline_origin); self::assertNull($new->verified_by_admin_id);
+        self::assertSame(0,$new->opening_used); self::assertSame(150,$new->effective_limit);
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.period.generated')->count());
+        $batch=$this->batch(); $this->fake([200]); app(V2LineDeliverySender::class)->send($batch);
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$batch)->value('status'));
+    }
+
+    public function test_monthly_auto_initialization_preserves_halt_generation_and_unknown_exposure(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(2);
+        $batch=$this->batch(); $this->fake([0]); app(V2LineDeliverySender::class)->send($batch);
+        $this->clockAt('2026-12-01T00:00:01+09:00'); $this->quotaHttp(2,0);
+        $q=app(V2LineDeliveryQuota::class);
+        self::assertSame(1,$q->unknown($this->bot->id,'2026-12-01'));
+        $q->refreshForAdmission();
+        self::assertSame(1,$q->unknown($this->bot->id,'2026-12-01'));
+        self::assertSame(1,$q->available($this->bot->id,'2026-12-01'));
+        self::assertSame('unknown',DB::table('line_quota_charges')->where('batch_id',$batch)->where('month','2026-12-01')->value('state'));
+        $q->halt($this->admin(),$this->bot->id,(string)Str::uuid());
+        $this->clockAt('2027-01-01T00:00:01+09:00'); $q->refreshForAdmission();
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2027-01-01')->exists());
+        self::assertSame(0,$q->available($this->bot->id,'2027-01-01'));
+        $this->newBot(2); DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+        $this->clockAt('2027-02-01T00:00:01+09:00'); $q->refreshForAdmission();
+        self::assertSame(0,$q->available($this->bot->id,'2027-02-01'));
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2027-02-01')->exists());
+    }
+
+    public function test_monthly_initializers_serialize_and_provider_failure_cannot_create_a_baseline(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(200);
+        $this->clockAt('2026-12-01T00:00:01+09:00');
+        $q = app(V2LineDeliveryQuota::class);
+        Http::fake(['*'=>Http::response([],503)]);
+        try { $q->refreshForAdmission(); self::fail('Unavailable quota accepted'); } catch (\RuntimeException) {}
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->exists());
+        $this->quotaHttp(150,0);
+        config(['database.connections.d3_observer'=>config('database.connections.pgsql')]);
+        $observer=DB::connection('d3_observer'); $observer->statement("SET lock_timeout = '100ms'");
+        $observer->statement('SET search_path TO '.$this->schema.', pg_catalog');
+        DB::beginTransaction();
+        app(\App\Domain\Line\Services\V2LineMessagingSettingService::class)->setting(true);
+        DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); self::fail('Initializer bypassed singleton'); }
+        catch (\Illuminate\Database\QueryException $e) { self::assertSame('55P03',$e->errorInfo[0]); }
+        finally { DB::setDefaultConnection('pgsql'); DB::commit(); }
+        $q->refreshForAdmission();
+        DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); } finally { DB::setDefaultConnection('pgsql'); }
+        self::assertSame(1,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->count());
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.period.generated')->count());
+    }
+
+
+    public function test_initial_approximate_opening_and_one_hundred_internal_sends_are_not_double_counted(): void
+    {
+        $this->newBot(); $this->quotaHttp(5000, 300);
+        $q=app(V2LineDeliveryQuota::class); $q->refreshForAdmission(); $q->refreshForAdmission();
+        $p=DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->sole();
+        self::assertSame(300,$p->opening_used); self::assertSame('system_initial',$p->baseline_origin);
+        self::assertNull($p->verified_by_admin_id); self::assertSame(1,$p->authentication_revision);
+        self::assertSame(4700,$q->remaining($this->bot));
+        for ($i=0;$i<100;$i++) app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id,1,'U'.md5('initial-'.$i),now()->getTimestampMs());
+        $delivery=$this->scheduled(); app(V2LineDeliveryService::class)->resolve($delivery);
+        $batch=DB::table('line_delivery_batches')->where('delivery_id',$delivery)->sole();
+        self::assertSame('multicast',$batch->method);
+        app(V2LineDeliverySender::class)->send($batch->id);
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$batch->id)->value('status'));
+        foreach ([300,400,350] as $used) {
+            $this->quotaHttp(5000,$used); self::assertSame(4600,$q->remaining($this->bot));
+            self::assertSame(300,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('opening_used'));
+            self::assertSame(100,$q->reserved($this->bot->id));
+        }
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.initial.generated')->count());
+        $this->quotaHttp(5000,401); self::assertSame(0,$q->remaining($this->bot));
+        self::assertSame('provider_usage_exceeds_estimated_ledger',DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->value('halt_reason'));
+        $this->quotaHttp(5000,300); self::assertSame(0,$q->remaining($this->bot)); // Ambiguous difference never clears itself.
+    }
+
+    public function test_initial_zero_push_commits_before_post_retry_and_next_month_keep_exposure(): void
+    {
+        $this->clockAt('2026-11-30T23:59:50+09:00'); $this->newBot(); $this->quotaHttp(10,0);
+        $id=$this->batch();
+        self::assertSame(0,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('opening_used'));
+        config(['database.connections.d3_observer'=>config('database.connections.pgsql')]);
+        $this->fake([0,409],function ($request) use ($id): void {
+            $observer=DB::connection('d3_observer');
+            self::assertSame('system_initial',$observer->table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-11-01')->value('baseline_origin'));
+            self::assertSame('unknown',$observer->table('line_quota_charges')->where('batch_id',$id)->where('month','2026-11-01')->value('state'));
+        });
+        app(V2LineDeliverySender::class)->send($id);
+        $key=DB::table('line_delivery_batches')->where('id',$id)->value('retry_key');
+        self::assertSame(2,DB::table('line_quota_charges')->where('batch_id',$id)->where('state','unknown')->count());
+        $this->clockAt('2026-12-01T00:00:21+09:00');
+        app(V2LineDeliverySender::class)->send($id);
+        self::assertSame($key,DB::table('line_delivery_batches')->where('id',$id)->value('retry_key'));
+        self::assertSame('accepted',DB::table('line_delivery_batches')->where('id',$id)->value('status'));
+        self::assertSame('system',DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->value('baseline_origin'));
+        $before=Http::recorded()->count(); app(V2LineDeliverySender::class)->send($id); self::assertSame($before,Http::recorded()->count());
+    }
+
+    public function test_initial_limit_zero_reached_or_exceeded_never_creates_capacity(): void
+    {
+        foreach ([[0,0],[100,100],[100,300]] as [$limit,$used]) {
+            $this->newBot(); $this->quotaHttp($limit,$used); $q=app(V2LineDeliveryQuota::class);
+            $q->refreshForAdmission(); self::assertSame(0,$q->remaining($this->bot));
+            $p=DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->sole();
+            self::assertSame($used,$p->opening_used); self::assertSame($limit,$p->effective_limit);
+            try { $this->batch(); self::fail('Over-limit initial send queued'); } catch (\RuntimeException) {}
+            self::assertSame(0,DB::table('line_delivery_batches')->where('line_bot_id',$this->bot->id)->count());
+            Http::assertNotSent(fn ($r) => str_ends_with($r->url(),'/push'));
+        }
+    }
+
+    public function test_initial_invalid_provider_values_failure_and_history_fail_closed(): void
+    {
+        foreach ([[['type'=>'none'],['totalUsage'=>0],200], [['type'=>'limited','value'=>-1],['totalUsage'=>0],200],
+            [['type'=>'limited','value'=>'100'],['totalUsage'=>0],200], [['type'=>'limited','value'=>100],['totalUsage'=>'0'],200],
+            [['type'=>'limited','value'=>100],['totalUsage'=>-1],200], [['type'=>'limited','value'=>100],[],200], [[],[],503]] as [$cap,$used,$status]) {
+            $this->newBot(); Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+            Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+                '*/quota'=>Http::response($cap,$status),'*/consumption'=>Http::response($used,$status)]);
+            try { app(V2LineDeliveryQuota::class)->refreshForAdmission(); self::fail('Invalid observation initialized'); } catch (\RuntimeException) {}
+            self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->exists());
+            Http::assertNotSent(fn ($r) => str_ends_with($r->url(),'/push'));
+        }
+        $this->quotaHttp(100,0); app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        self::assertSame(100,app(V2LineDeliveryQuota::class)->remaining($this->bot));
+        $this->newBot(); $this->quotaHttp(100,1);
+        DB::table('line_delivery_batches')->insert(['public_id'=>(string)Str::uuid(),'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,
+            'category'=>'transactional','method'=>'push','source_type'=>'automated','source_key'=>(string)Str::uuid(),'retry_key'=>(string)Str::uuid(),
+            'messages_ciphertext'=>Crypt::encryptString('synthetic'),'payload_ciphertext'=>Crypt::encryptString('legacy'),
+            'first_attempted_at'=>now(),'not_before'=>now(),'status'=>'unknown','attempts'=>1]);
+        self::assertSame(0,app(V2LineDeliveryQuota::class)->remaining($this->bot));
+        self::assertSame('initial_history_requires_reconciliation',DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->value('halt_reason'));
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->exists());
+        self::assertSame('unknown',DB::table('line_delivery_batches')->where('line_bot_id',$this->bot->id)->sole()->status);
+    }
+
+    public function test_initial_transaction_rollback_and_parallel_admission_are_idempotent(): void
+    {
+        $this->newBot(); $this->quotaHttp(100,0); $q=app(V2LineDeliveryQuota::class);
+        DB::unprepared("CREATE FUNCTION reject_initial() RETURNS trigger AS $$ BEGIN IF NEW.action_code='line.quota.initial.generated' THEN RAISE EXCEPTION 'synthetic initialization rollback'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql; CREATE TRIGGER reject_initial BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION reject_initial();");
+        try { $q->refreshForAdmission(); self::fail('Injected failure ignored'); } catch (\Illuminate\Database\QueryException $e) { self::assertSame('P0001',$e->errorInfo[0]); }
+        self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->exists());
+        self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->exists());
+        DB::statement('DROP TRIGGER reject_initial ON audit_logs');
+        config(['database.connections.d3_observer'=>config('database.connections.pgsql')]);
+        DB::connection('d3_observer')->statement("SET lock_timeout='100ms'");
+        DB::beginTransaction(); app(\App\Domain\Line\Services\V2LineMessagingSettingService::class)->setting(true);
+        DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); self::fail('Initialization bypassed singleton'); }
+        catch (\Illuminate\Database\QueryException $e) { self::assertSame('55P03',$e->errorInfo[0]); }
+        finally { DB::setDefaultConnection('pgsql'); DB::commit(); }
+        $q->refreshForAdmission(); DB::setDefaultConnection('d3_observer');
+        try { $q->refreshForAdmission(); } finally { DB::setDefaultConnection('pgsql'); }
+        self::assertSame(1,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->count());
+        self::assertSame(1,DB::table('audit_logs')->where('action_code','line.quota.initial.generated')->count());
+    }
+
+    public function test_initial_observation_rechecks_bot_generation_and_month(): void
+    {
+        foreach (['generation','switch','month'] as $change) {
+            $this->clockAt('2026-11-30T23:59:59+09:00'); $this->newBot(); $original=$this->bot;
+            Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+            Http::fake(function ($request) use ($change) {
+                self::assertSame(0,DB::transactionLevel());
+                if (str_ends_with($request->url(),'/oauth2/v3/token')) return Http::response(['access_token'=>'synthetic','expires_in'=>900]);
+                if (str_ends_with($request->url(),'/quota')) return Http::response(['type'=>'limited','value'=>100]);
+                if ($change==='generation') DB::table('line_bots')->where('id',$this->bot->id)->update(['revision'=>2,'authentication_revision'=>2]);
+                elseif ($change==='switch') $this->newBot();
+                else $this->clockAt('2026-12-01T00:00:01+09:00');
+                return Http::response(['totalUsage'=>0]);
+            });
+            try { app(V2LineDeliveryQuota::class)->providerRemaining($original); self::fail('Stale observation initialized'); } catch (\RuntimeException) {}
+            self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id',$original->id)->exists());
+        }
     }
 
     private function fake(array $codes, ?\Closure $check = null): void
@@ -610,6 +805,172 @@ final class LineDeliveryTest extends TestCase
             'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing), 'status' => 'scheduled', 'scheduled_at' => now()->subMinute()]);
     }
 
+    private function quotaGetCount(): int
+    {
+        return Http::recorded(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/v2/bot/message/quota'))->count();
+    }
+
+    public function test_thousand_push_reservations_and_first_middle_last_send_have_bounded_queries(): void
+    {
+        $this->newBot();
+        for ($i = 0; $i < 1000; $i++) app(V2LineRecoveredFriendRegistry::class)->record(
+            $this->bot->id, 1, 'U'.md5('bounded-push-'.$i), now()->getTimestampMs());
+        $this->quotaHttp(1000, 0); $delivery = $this->scheduled();
+        DB::table('line_deliveries')->where('id', $delivery)->update([
+            'messages_ciphertext' => Crypt::encryptString(json_encode([['type'=>'text', 'text'=>'Hello %username%']])),
+            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(1000, 0, 0))]);
+        $queries = 0; $countQueries = true;
+        DB::listen(function () use (&$queries, &$countQueries): void { if ($countQueries) $queries++; });
+        app(V2LineDeliveryService::class)->resolve($delivery);
+        $countQueries = false;
+        self::assertLessThan(2500, $queries, 'Campaign admission must not repeat quota queries for every recipient');
+        self::assertSame('system_initial', DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('baseline_origin'));
+        $batches = DB::table('line_delivery_batches')->where('delivery_id', $delivery)->orderBy('position')->get();
+        self::assertCount(1000, $batches);
+        self::assertSame(1000, DB::table('line_deliveries')->where('id', $delivery)->value('recipient_count'));
+        self::assertCount(1000, $batches->pluck('retry_key')->unique());
+        $recipients = DB::table('line_delivery_recipients')->whereIn('batch_id', $batches->pluck('id'))->get();
+        self::assertCount(1000, $recipients);
+        self::assertCount(1000, $recipients->pluck('batch_id')->unique());
+        self::assertCount(1000, $recipients->pluck('source_id')->unique());
+        self::assertSame(1000, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
+        foreach ([0, 499, 999] as $position) {
+            $queries = 0; $countQueries = true;
+            app(V2LineDeliverySender::class)->send($batches[$position]->id);
+            $countQueries = false;
+            self::assertLessThan(150, $queries, 'Phase A must group already-covered quota reservations');
+            self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $batches[$position]->id)->value('status'));
+        }
+        self::assertSame(10, $this->quotaGetCount());
+        $posts = Http::recorded(fn ($r) => str_ends_with($r->url(), '/push'));
+        self::assertCount(3, $posts);
+        self::assertCount(3, $posts->map(fn ($pair) => $pair[0]['to'])->unique());
+        foreach ([0, 499, 999] as $position) app(V2LineDeliverySender::class)->send($batches[$position]->id);
+        self::assertCount(3, Http::recorded(fn ($r) => str_ends_with($r->url(), '/push')));
+        self::assertSame(1000, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
+        self::assertSame(3, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->where('state', 'accepted')->count());
+        self::assertSame(997, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->where('state', 'reserved')->count());
+    }
+
+    public function test_campaign_registration_and_grouped_quota_insert_roll_back_together(): void
+    {
+        for ($i = 0; $i < 3; $i++) app(V2LineRecoveredFriendRegistry::class)->record(
+            $this->bot->id, 1, 'U'.md5('rollback-push-'.$i), now()->getTimestampMs());
+        $this->quotaHttp(1000, 0); $delivery = $this->scheduled();
+        DB::table('line_deliveries')->where('id', $delivery)->update([
+            'messages_ciphertext' => Crypt::encryptString(json_encode([['type'=>'text', 'text'=>'Hello %username%']]))]);
+        $fail = true;
+        DB::listen(function ($query) use (&$fail): void {
+            if ($fail && str_starts_with($query->sql, 'insert into "line_quota_charges"')) {
+                $fail = false; throw new \RuntimeException('synthetic quota insertion failure');
+            }
+        });
+        try { app(V2LineDeliveryService::class)->resolve($delivery); self::fail('Injected failure ignored'); }
+        catch (\RuntimeException $e) { self::assertSame('synthetic quota insertion failure', $e->getMessage()); }
+        self::assertSame(0, DB::table('line_delivery_batches')->where('delivery_id', $delivery)->count());
+        self::assertSame(0, DB::table('line_delivery_recipients')->count());
+        self::assertSame(0, DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->count());
+        self::assertCount(0, Http::recorded(fn ($r) => str_ends_with($r->url(), '/push')));
+    }
+
+    public function test_quota_get_measurements_for_push_and_multicast_campaigns(): void
+    {
+        // Large 100/500/1000 Push timing diagnostics are recorded separately.
+        // Keep normal CI bounded while retaining both actual first/subsequent send paths.
+        foreach ([[2, true], [1000, false]] as [$size, $push]) {
+            $this->newBot(2000);
+            for ($i = 0; $i < $size; $i++) app(V2LineRecoveredFriendRegistry::class)->record(
+                $this->bot->id, 1, 'U'.md5('quota-measurement-'.$i), now()->getTimestampMs());
+            $this->quotaHttp(2000, 0);
+            $delivery = $this->scheduled();
+            DB::table('line_deliveries')->where('id', $delivery)->update([
+                'messages_ciphertext' => Crypt::encryptString(json_encode([['type'=>'text', 'text'=>$push ? 'Hello %username%' : 'Hello']])),
+                'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing(1000, 0, 0))]);
+            app(V2LineDeliveryService::class)->resolve($delivery);
+            self::assertSame(2, $this->quotaGetCount());
+            $batches = DB::table('line_delivery_batches')->where('delivery_id', $delivery)->orderBy('position')->get();
+            self::assertCount($push ? $size : 2, $batches);
+            foreach ($batches as $index => $batch) {
+                $before = $this->quotaGetCount();
+                app(V2LineDeliverySender::class)->send($batch->id);
+                self::assertSame($index === 0 ? 4 : 2, $this->quotaGetCount() - $before);
+                self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $batch->id)->value('status'));
+            }
+            $gets = $this->quotaGetCount();
+            self::assertSame(2 * $batches->count() + 4, $gets);
+            self::assertSame('completed', DB::table('line_deliveries')->where('id', $delivery)->value('status'));
+            self::assertSame($size, (int) DB::table('line_quota_charges')->where('line_bot_id', $this->bot->id)->where('state','accepted')->sum('units'));
+            fwrite(STDOUT, "\nQUOTA_MEASURE ".json_encode(['route'=>($push ? 'push_' : 'multicast_').$size, 'resolve_gets'=>2, 'send_gets'=>$gets-2, 'total_gets'=>$gets])."\n");
+        }
+    }
+
+    public function test_quota_get_measurements_for_retry_resend_and_month_initialization(): void
+    {
+        $this->clockAt('2026-11-20T12:00:00+09:00'); $this->newBot(100);
+        $batch = $this->batch(); $this->fake([429, 409]);
+        app(V2LineDeliverySender::class)->send($batch);
+        self::assertSame(4, $this->quotaGetCount());
+        self::assertSame('retrying', DB::table('line_delivery_batches')->where('id',$batch)->value('status'));
+        $original = DB::table('line_delivery_batches')->where('id',$batch)->first();
+        $this->clockAt('2026-11-20T12:01:00+09:00');
+        app(V2LineDeliverySender::class)->send($batch);
+        self::assertSame(6, $this->quotaGetCount());
+        $retried = DB::table('line_delivery_batches')->where('id',$batch)->first();
+        self::assertSame('accepted', $retried->status);
+        self::assertSame($original->retry_key, $retried->retry_key);
+        self::assertSame($original->payload_ciphertext, $retried->payload_ciphertext);
+        $failed = $this->batch(); $this->fake([400]); app(V2LineDeliverySender::class)->send($failed);
+        self::assertSame('failed', DB::table('line_delivery_batches')->where('id',$failed)->value('status'));
+        $this->fake([200]);
+        $new = app(V2LineDeliveryService::class)->resend($this->admin(), $failed, 'すでに届いている可能性があります', (string) Str::uuid());
+        self::assertSame(0, $this->quotaGetCount());
+        app(V2LineDeliverySender::class)->send($new);
+        self::assertSame(2, $this->quotaGetCount());
+        self::assertSame('accepted', DB::table('line_delivery_batches')->where('id',$new)->value('status'));
+        self::assertNotSame(DB::table('line_delivery_batches')->where('id',$failed)->value('retry_key'), DB::table('line_delivery_batches')->where('id',$new)->value('retry_key'));
+        $this->clockAt('2026-12-01T00:00:01+09:00');
+        app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        self::assertSame(4, $this->quotaGetCount());
+        app(V2LineDeliveryQuota::class)->refreshForAdmission();
+        self::assertSame(4, $this->quotaGetCount());
+        self::assertSame('system', DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('month','2026-12-01')->value('baseline_origin'));
+        fwrite(STDOUT, "\nQUOTA_MEASURE standalone_429=4 retry=2 resend_admission=0 resend_send=2 month_initialization=2 repeated_admission=0\n");
+    }
+
+    public function test_fresh_post_prepare_quota_cannot_be_replaced_by_first_campaign_observation(): void
+    {
+        foreach (['lower_limit', 'provider_failure', 'generation_change'] as $scenario) {
+            $this->newBot(2);
+            app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.md5($scenario), now()->getTimestampMs());
+            $this->quotaHttp(2, 0); $delivery = $this->scheduled();
+            app(V2LineDeliveryService::class)->resolve($delivery);
+            $batch = DB::table('line_delivery_batches')->where('delivery_id',$delivery)->sole();
+            Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests(); $reads = 0;
+            Http::fake(function ($r) use (&$reads, $scenario, $batch) {
+                if (str_ends_with($r->url(), '/oauth2/v3/token')) return Http::response(['access_token'=>'synthetic','expires_in'=>900]);
+                self::assertSame(0, DB::transactionLevel());
+                if (str_ends_with($r->url(), '/quota')) {
+                    $reads++;
+                    if ($reads === 2) {
+                        self::assertNotNull(DB::table('line_delivery_batches')->where('id',$batch->id)->value('payload_ciphertext'));
+                        self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id',$batch->id)->value('state'));
+                        if ($scenario === 'provider_failure') return Http::response([],503);
+                        if ($scenario === 'generation_change') DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+                    }
+                    return Http::response(['type'=>'limited','value'=>$reads === 2 && $scenario === 'lower_limit' ? 0 : 2]);
+                }
+                self::assertStringEndsWith('/consumption', $r->url());
+                return Http::response(['totalUsage'=>0]);
+            });
+            try { app(V2LineDeliverySender::class)->send($batch->id); self::assertSame('lower_limit',$scenario); }
+            catch (\RuntimeException) { self::assertNotSame('lower_limit',$scenario); }
+            self::assertSame(2,$reads);
+            Http::assertNotSent(fn($r)=>str_ends_with($r->url(),'/push') || str_ends_with($r->url(),'/multicast'));
+            self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id',$batch->id)->value('state'));
+            self::assertSame($batch->retry_key, DB::table('line_delivery_batches')->where('id',$batch->id)->value('retry_key'));
+        }
+    }
+
     public function test_insufficient_quota_creates_no_batch_and_sends_nothing(): void
     {
         app(V2LineRecoveredFriendRegistry::class)->record($this->bot->id, 1, 'U'.str_repeat('2', 32), now()->getTimestampMs());
@@ -657,6 +1018,7 @@ final class LineDeliveryTest extends TestCase
 
     public function test_management_snapshot_without_fresh_mfa_and_explicit_manual_resend(): void
     {
+        $this->newBot(); $this->quotaHttp(1000, 0);
         $context = $this->admin(); $service = app(V2LineDeliveryService::class);
         DB::table('admin_sessions')->where('session_id_hash', $context->sessionIdHash)->update(['mfa_verified_at' => null]);
         $id = $service->save($context, null, 0, Purpose::Promotional, Group::AllFriends, [['type' => 'text', 'text' => 'Synthetic']], null);
@@ -669,6 +1031,7 @@ final class LineDeliveryTest extends TestCase
         try { $service->resend($context, $batch, '', $requestKey); self::fail('Missing confirmation accepted.'); }
         catch (\InvalidArgumentException) { self::assertTrue(true); }
         $new = $service->resend($context, $batch, 'すでに届いている可能性があります', $requestKey);
+        self::assertSame(1, DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->where('baseline_origin','system_initial')->count());
         self::assertSame($new, $service->resend($context, $batch, 'すでに届いている可能性があります', $requestKey));
         self::assertSame($batch, DB::table('line_delivery_batches')->where('id', $new)->value('replaces_batch_id'));
         self::assertNotSame(DB::table('line_delivery_batches')->where('id', $batch)->value('retry_key'), DB::table('line_delivery_batches')->where('id', $new)->value('retry_key'));
@@ -720,7 +1083,7 @@ final class LineDeliveryTest extends TestCase
                 self::assertSame(0, DB::transactionLevel());
                 return Http::response(['type' => 'limited', 'value' => 1]);
             }
-            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => 1]);
+            if (str_ends_with($request->url(), '/consumption')) return Http::response(['totalUsage' => $sends === 0 ? 0 : 1]);
             $sends++;
             self::assertLessThanOrEqual(10, $options['timeout']);
             self::assertLessThanOrEqual(5, $options['connect_timeout']);

@@ -113,9 +113,10 @@ final class V2LineExternalIdentityProvider implements V2ExternalIdentityProvider
             throw new V2OidcProtocolException('invalid_identity_claims');
         }
 
+        $name = \App\Domain\Line\Services\V2LineProfileName::normalize($claims['name'] ?? null);
         $email = $claims['email'] ?? null;
         if ($email === null) {
-            return new V2VerifiedExternalIdentity(self::ISSUER, $subject, null, null);
+            return new V2VerifiedExternalIdentity(self::ISSUER, $subject, null, null, $name);
         }
         if (
             ! (bool) config('v2_identity.external_identity.line.email_scope_enabled', false)
@@ -130,7 +131,7 @@ final class V2LineExternalIdentityProvider implements V2ExternalIdentityProvider
             throw new V2OidcProtocolException('invalid_identity_claims');
         }
 
-        return new V2VerifiedExternalIdentity(self::ISSUER, $subject, $email, $normalized);
+        return new V2VerifiedExternalIdentity(self::ISSUER, $subject, $email, $normalized, $name);
     }
 
     private function configuration(string $key): string

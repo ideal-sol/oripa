@@ -50,7 +50,7 @@ class V2LineMediaStorage
             $this->client()->putObject(['Bucket' => config('filesystems.disks.s3.bucket'), 'Key' => $key, 'Body' => $body,
                 'ContentType' => $mime, 'ContentLength' => filesize($path), 'ChecksumSHA256' => base64_encode(hash_file('sha256', $path, true)),
                 'IfNoneMatch' => '*', 'CacheControl' => 'public, max-age=31536000, immutable']);
-        } finally { fclose($body); }
+        } finally { if (is_resource($body)) fclose($body); }
     }
 
     private function client(): \Aws\S3\S3Client

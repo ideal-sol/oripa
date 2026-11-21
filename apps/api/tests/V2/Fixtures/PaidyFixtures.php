@@ -17,11 +17,17 @@ trait PaidyFixtures
         // HTTP boundary tests commit real transactions. Restore the disposable
         // test schema after the class instead of deleting immutable money rows.
         $application = require dirname(__DIR__, 3).'/bootstrap/app.php';
-        $application->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-        if (! $application->environment('testing') || config('database.default') !== 'pgsql') {
-            throw new \LogicException('Paidy fixture cleanup requires isolated PostgreSQL testing.');
+        try {
+            $application->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            if (! $application->environment('testing') || config('database.default') !== 'pgsql') {
+                throw new \LogicException('Paidy fixture cleanup requires isolated PostgreSQL testing.');
+            }
+            \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
+        } finally {
+            // This application is booted outside a test's normal lifecycle.
+            // Release its handlers here, before PHPUnit snapshots the next test.
+            \Illuminate\Foundation\Bootstrap\HandleExceptions::flushState();
         }
-        \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--path' => 'database/migrations-v2', '--force' => true]);
     }
 
     protected function quiescePaidyFixtureJobs(): void

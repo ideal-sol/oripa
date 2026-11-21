@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 // Uses a separately started local development server; no application image build.
 export default defineConfig({
   testDir: "./e2e", testMatch: "admin-line-ux.spec.ts", workers: 1,
+  // Actual CSP cases run in playwright.line-csp.config.ts against next start.
+  grepInvert: /CSP enforced/,
   webServer: { command: "pnpm exec next dev --webpack --hostname 127.0.0.1 --port 3398 || pnpm exec next dev --webpack --hostname 127.0.0.1 --port 3398", url: "http://127.0.0.1:3398/api/health", reuseExistingServer: true, timeout: 120_000 },
   outputDir: "/tmp/oripa-lineux-playwright", reporter: [["line"]],
   expect: { timeout: 30_000 },

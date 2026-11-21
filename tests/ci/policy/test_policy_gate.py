@@ -70,6 +70,7 @@ class PolicyGateTest(unittest.TestCase):
         expected = {
             "apps/admin/e2e/admin-line-ux.spec.ts",
             "apps/admin/playwright.line-ux.config.ts",
+            "apps/admin/playwright.line-csp.config.ts",
             "apps/admin/src/app/line-chat/[conversationId]/page.tsx",
             "apps/admin/src/components/line/line-admin-page.tsx",
             "apps/admin/src/components/line/line-admin.module.css",

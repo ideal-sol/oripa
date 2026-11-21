@@ -35,7 +35,9 @@ final class V2LineChatAdmin
                 ->whereColumn('e.subject_hash','line_conversations.subject_hash')->where('e.provider','line')->where('e.issuer','https://access.line.me')
                 ->whereNull('e.revoked_at')->whereNull('e.superseded_at')->whereIn('u.state',['active','restricted'])
                 ->whereNotExists(fn($x)=>$x->selectRaw('1')->from('account_closures as ac')->whereColumn('ac.user_id','u.id'))
-                ->where('u.display_name','ilike','%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%');
+                // Search the visible name: a nonempty LINE name takes precedence over full_name.
+                ->whereRaw("COALESCE(NULLIF(BTRIM(u.display_name), ''), u.full_name) ILIKE ?",
+                    ['%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%']);
         });
         if ($status !== '') $q->where('status', $status);
         if ($unread) $q->whereExists(fn ($q) => $q->selectRaw('1')->from('line_chat_messages as m')->whereColumn('m.conversation_id','line_conversations.id')->where('m.direction','inbound')->whereNull('m.read_at')->where('m.unsent',false));
@@ -97,6 +99,7 @@ final class V2LineChatAdmin
         if (! Str::isUuid($key)) throw new \InvalidArgumentException('LINE_CHAT_INVALID');
         app(V2LineDeliveryMessages::class)->validate($messages);
         $hash=hash('sha256',json_encode([$id,$context->adminId,$messages],JSON_THROW_ON_ERROR));
+        if (! DB::table('line_chat_messages')->where('request_key',$key)->exists()) app(V2LineDeliveryQuota::class)->refreshForAdmission();
         return DB::transaction(function () use ($context,$id,$messages,$key,$hash): string {
             app(V2LineMessagingSettingService::class)->setting(true);
             $existing=DB::table('line_chat_messages')->where('request_key',$key)->first();
@@ -147,7 +150,7 @@ final class V2LineChatAdmin
             ->where('e.subject_hash',$c->subject_hash)->where('e.provider','line')->where('e.issuer','https://access.line.me')
             ->whereNull('e.revoked_at')->whereNull('e.superseded_at')->whereIn('u.state',['active','restricted'])
             ->whereNotExists(fn($q)=>$q->selectRaw('1')->from('account_closures as x')->whereColumn('x.user_id','u.id'))
-            ->select('u.id','u.public_id','u.display_name')->limit(2)->get();
+            ->select('u.id','u.public_id','u.display_name','u.full_name')->limit(2)->get();
         $u=$members->count()===1 ? $members->first() : null;
         DB::table('line_conversations')->where('id',$c->id)->update(['user_id'=>$u?->id]);
         $last=DB::table('line_chat_messages')->where('conversation_id',$c->id)->orderByDesc('received_at')->orderByDesc('id')->first();
@@ -168,7 +171,7 @@ final class V2LineChatAdmin
             }
         }
         return ['id'=>$c->public_id,'bot_id'=>DB::table('line_bots')->where('id',$c->line_bot_id)->value('public_id'),
-            'member_id'=>$u?->public_id,'name'=>$u?->display_name ?? '未登録の友だち','rank_level'=>$rank!==null && $rank['enabled'] ? $rank['level'] : null,
+            'member_id'=>$u?->public_id,'name'=>$u === null ? '未登録の友だち' : V2LineProfileName::forUser($u),'rank_level'=>$rank!==null && $rank['enabled'] ? $rank['level'] : null,
             'points'=>$u===null ? null : (int)($wallet?->paid_balance ?? 0)+(int)($wallet?->free_balance ?? 0),
             'status'=>$c->status,'revision'=>$c->revision,'unread_count'=>$unread,'last_message_at'=>$c->last_message_at,
             'summary'=>$summary];

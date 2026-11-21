@@ -368,8 +368,23 @@ final class LineLoginVerticalSliceTest extends TestCase
 
         self::assertSame($user->getKey(), $result['user']->getKey());
         self::assertSame('existing-line@example.test', $result['user']->email_normalized);
+        self::assertSame('Changed profile', $user->fresh()->display_name);
         self::assertEquals($qualifiedAt, $user->fresh()->first_registration_qualified_at);
         self::assertSame(1, ExternalIdentityAccount::query()->count());
+    }
+
+    public function test_invalid_or_missing_profile_name_preserves_valid_member_name_and_full_name(): void
+    {
+        $user = $this->user('profile-preservation@example.test');
+        $user->forceFill(['display_name'=>'保存済みLINE名','full_name'=>'会員氏名'])->save();
+        $this->account($user,'profile-preservation');
+        foreach ([null,'',str_repeat('あ',256),"\xff"] as $name) {
+            $started=$this->start('login');
+            $this->provider->claims($started['query']['nonce'],'profile-preservation',null,['name'=>$name]);
+            $this->completeLine($started,'profile-code');
+            self::assertSame('保存済みLINE名',$user->fresh()->display_name);
+            self::assertSame('会員氏名',$user->fresh()->full_name);
+        }
     }
 
     public function test_email_collision_requires_explicit_link_and_link_ignores_email_claim(): void
@@ -391,10 +406,11 @@ final class LineLoginVerticalSliceTest extends TestCase
         [$request, $oldToken] = $this->authenticatedRequest($existing);
         config(['v2_identity.external_identity.line.email_scope_enabled' => false]);
         $link = $this->start('link', $existing, $request);
-        $this->provider->claims($link['query']['nonce'], 'collision-subject');
+        $this->provider->claims($link['query']['nonce'], 'collision-subject', null, ['name'=>'連携時の名前']);
         $linked = $this->completeLine($link, 'link-code', $oldToken);
         self::assertNotSame($oldToken, $linked['session']['token']);
         self::assertSame($existing->getKey(), ExternalIdentityAccount::query()->sole()->user_id);
+        self::assertSame('連携時の名前', $existing->fresh()->display_name);
     }
 
     public function test_line_reauthentication_and_unlink_rotate_session_and_keep_other_credential(): void
@@ -412,9 +428,10 @@ final class LineLoginVerticalSliceTest extends TestCase
         ]);
         [$request, $oldToken] = $this->authenticatedRequest($user);
         $reauth = $this->start('reauthentication', $user, $request);
-        $this->provider->claims($reauth['query']['nonce'], 'line-reauth-subject');
+        $this->provider->claims($reauth['query']['nonce'], 'line-reauth-subject', null, ['name'=>'再認証時の名前']);
         $fresh = $this->completeLine($reauth, 'reauth-code', $oldToken);
         self::assertNotSame($oldToken, $fresh['session']['token']);
+        self::assertSame('再認証時の名前', $user->fresh()->display_name);
 
         $rotated = app(V2ExternalIdentityService::class)->unlink(
             'line',

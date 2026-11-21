@@ -4,7 +4,6 @@ namespace Tests\Unit;
 
 use App\Domain\Line\Services\V2LineMediaInspector;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Process\Process;
 
 final class V2LineMediaInspectorTest extends TestCase
 {
@@ -65,7 +64,7 @@ final class V2LineMediaInspectorTest extends TestCase
     {
         self::assertTrue(is_executable('/usr/bin/ffprobe'),'ffprobe is required; never skip media verification');
         $path=$this->directory.'/video.mp4';
-        $p=new Process(['/usr/bin/ffmpeg','-v','error','-f','lavfi','-i','color=c=black:s=320x180:d=0.1','-threads','1','-c:v','libx264','-pix_fmt','yuv420p',$path],null,null,null,15); $p->mustRun();
+        file_put_contents($path, \Tests\Support\SyntheticLineVideo::bytes(180));
         $i=new V2LineMediaInspector; $result=$i->video($path,$this->png());
         self::assertSame(320,$result['width']); self::assertSame(180,$result['height']);
         try { $i->video($path,$this->png(100,100,'square')); self::fail('Wrong preview ratio accepted'); } catch(\InvalidArgumentException) { self::assertTrue(true); }

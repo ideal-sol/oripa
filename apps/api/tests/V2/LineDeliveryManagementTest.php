@@ -52,6 +52,27 @@ final class LineDeliveryManagementTest extends TestCase
             'messages'=>[['type'=>'text','text'=>'Hello %username%']],'pacing'=>['push_every'=>10,'push_wait_seconds'=>5,'multicast_wait_seconds'=>0],
             'mode'=>'draft','scheduled_at'=>null,'expected_revision'=>0,'request_key'=>(string)Str::uuid()];
     }
+    public function test_quota_view_initializes_estimated_usage_and_distinguishes_failure_and_halt(): void
+    {
+        $service=app(V2LineDeliveryAdmin::class);
+        self::assertSame('initialization_pending',$service->quota()['automation_state']);
+        Http::fake(['*'=>Http::response([],503)]);
+        self::assertSame('provider_error',$service->quota(true)['automation_state']);
+        self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->exists());
+        Http::swap(new \Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+        Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic','expires_in'=>900]),
+            '*/quota'=>Http::response(['type'=>'limited','value'=>5000]),'*/consumption'=>Http::response(['totalUsage'=>300])]);
+        $state=$service->quota(true); self::assertSame('initialized',$state['automation_state']);
+        self::assertSame('system_initial',$state['periods'][0]['baseline_origin']);
+        self::assertSame(300,$state['periods'][0]['opening_used']); self::assertSame(4700,$state['periods'][0]['remaining']);
+        self::assertNotNull($state['last_checked_at']);
+        $input=$this->input(); $input['mode']='scheduled'; $input['scheduled_at']=now()->addHour()->toIso8601String();
+        self::assertSame('scheduled',$service->save($this->context,null,$input)['data']['status']);
+        $service->quotaWrite($this->context,'halt',['bot_id'=>$this->bot->public_id,'authentication_revision'=>1,'evidence_id'=>(string)Str::uuid()]);
+        self::assertSame('halted',$service->quota(true)['automation_state']);
+        self::assertSame(300,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('opening_used'));
+        Http::assertNotSent(fn ($request)=>preg_match('~/message/(push|multicast)$~',$request->url())===1);
+    }
     public function test_create_edit_duplicate_cancel_and_stale_revision_and_no_send(): void
     {
         $s=app(V2LineDeliveryAdmin::class); $s->authorize($this->context,true); $input=$this->input();
@@ -183,5 +204,39 @@ final class LineDeliveryManagementTest extends TestCase
         DB::table('admin_sessions')->where('admin_id',$this->context->adminId)->update(['mfa_verified_at'=>now()->subHour()]);
         app(V2LineDeliveryAdmin::class)->authorize($this->context,true);
         self::assertSame('draft', app(V2LineDeliveryAdmin::class)->save($this->context,null,$this->input())['data']['status']);
+    }
+
+    public function test_four_media_formats_finalize_real_bytes_and_reject_changed_generation(): void
+    {
+        config(['v2_assets.public_base_url'=>'https://cdn.example.test']);
+        $directory=sys_get_temp_dir().'/lineux-formats-'.bin2hex(random_bytes(8)); mkdir($directory,0700);
+        try {
+            $image=imagecreatetruecolor(320,320); ob_start(); imagepng($image); $png=ob_get_clean(); imagedestroy($image);
+            $video=$directory.'/video.mp4';
+            file_put_contents($video, \Tests\Support\SyntheticLineVideo::bytes(320));
+            $storage=new class extends V2LineMediaStorage {
+                public array $bytes=[]; public array $published=[];
+                public function upload(array $f): array { return ['url'=>'https://upload.example.test/synthetic','headers'=>[]]; }
+                public function download(array $f,string $p): void { file_put_contents($p,$this->bytes[basename($f['key'])]); }
+                public function publish(string $key,string $path,string $mime): void {
+                    \PHPUnit\Framework\Assert::assertFileExists($path); $this->published[]=$key;
+                }
+            };
+            app()->instance(V2LineMediaStorage::class,$storage); $service=app(V2LineMediaManager::class);
+            $metadata=fn($bytes,$mime)=>['bytes'=>strlen($bytes),'mime'=>$mime,'sha256'=>hash('sha256',$bytes)];
+            foreach (['image'=>2,'video'=>2,'imagemap'=>5,'carousel'=>1] as $kind=>$objects) {
+                $storage->bytes=['original'=>$kind==='video' ? file_get_contents($video) : $png,'preview'=>$png]; $storage->published=[];
+                $input=['kind'=>$kind,'original'=>$metadata($storage->bytes['original'],$kind==='video' ? 'video/mp4' : 'image/png')];
+                if ($kind==='video') $input['preview']=$metadata($png,'image/png');
+                $intent=$service->intent($this->context,$input);
+                self::assertCount($kind==='video' ? 2 : 1,$intent['uploads']);
+                $asset=$service->finalize($this->context,$intent['id']);
+                self::assertSame($kind,$asset['kind']); self::assertCount($objects,$storage->published);
+                self::assertTrue(DB::table('line_media_assets')->where('id',$intent['id'])->exists());
+            }
+            $intent=$service->intent($this->context,['kind'=>'image','original'=>$metadata($png,'image/png')]);
+            DB::table('line_bots')->where('id',$this->bot->id)->update(['authentication_revision'=>2,'revision'=>2]);
+            $this->expectException(\InvalidArgumentException::class); $service->finalize($this->context,$intent['id']);
+        } finally { if (is_file($directory.'/video.mp4')) unlink($directory.'/video.mp4'); rmdir($directory); }
     }
 }

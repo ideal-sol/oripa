@@ -27,7 +27,10 @@ final class V2LineDeliverySender
         $owner = $this->prepare($batchId);
         if ($owner === null) return;
         $bot = $this->bot($candidate);
-        if ($bot !== null) $transport->warmDeliveryToken($bot);
+        if ($bot !== null) {
+            app(V2LineDeliveryQuota::class)->remaining($bot);
+            $transport->warmDeliveryToken($bot);
+        }
         // Phase A has committed. Any subsequent failure must retain its identity.
         $outcome = DB::transaction(function () use ($batchId, $owner, $transport): ?array {
             $started = hrtime(true);
@@ -132,7 +135,7 @@ final class V2LineDeliverySender
                     if ($b->method === 'push' && $ref->userId !== null) {
                         $wallet = DB::table('wallets')->where('user_id', $ref->userId)->first();
                         $rank = app(V2MemberRankResolver::class)->project($ref->userId);
-                        $profile = ['username' => DB::table('users')->where('id', $ref->userId)->value('display_name') ?? '',
+                        $profile = ['username' => V2LineProfileName::forUser(DB::table('users')->where('id', $ref->userId)->first()),
                             'rank' => $rank['enabled'] ? V2MemberRankGachaCondition::rank($rank['level'])['name'] : '',
                             'points' => (int) ($wallet?->paid_balance ?? 0) + (int) ($wallet?->free_balance ?? 0)];
                     }

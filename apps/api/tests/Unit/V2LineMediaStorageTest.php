@@ -12,6 +12,50 @@ use Tests\TestCase;
 
 final class V2LineMediaStorageTest extends TestCase
 {
+    public function test_publish_survives_sdk_stream_ownership_for_original_and_preview(): void
+    {
+        config(['filesystems.default'=>'s3','filesystems.disks.s3.bucket'=>'synthetic-only']);
+        $calls = 0;
+        $client = new S3Client(['version'=>'latest', 'region'=>'us-east-1',
+            'credentials'=>['key'=>'synthetic','secret'=>'synthetic-only'],
+            'http_handler'=>function ($request) use (&$calls) {
+                self::assertSame('abc', (string) $request->getBody());
+                $request->getBody()->close();
+                $calls++;
+                return \GuzzleHttp\Promise\Create::promiseFor(new \GuzzleHttp\Psr7\Response(200));
+            }]);
+        Storage::shouldReceive('disk')->with('s3')->twice()->andReturn(new class($client) {
+            public function __construct(private S3Client $client) {} public function getClient(): S3Client { return $this->client; }
+        });
+        $path = tempnam(sys_get_temp_dir(), 'lineux-');
+        file_put_contents($path, 'abc');
+        try {
+            foreach (['original','preview'] as $slot) (new V2LineMediaStorage)->publish('synthetic/'.$slot, $path, 'image/png');
+            self::assertSame(2, $calls);
+        } finally { unlink($path); }
+    }
+
+    public function test_publish_does_not_hide_a_failed_put_after_the_sdk_closes_the_stream(): void
+    {
+        config(['filesystems.default'=>'s3','filesystems.disks.s3.bucket'=>'synthetic-only']);
+        $client = new S3Client(['version'=>'latest', 'region'=>'us-east-1', 'retries'=>0,
+            'credentials'=>['key'=>'synthetic','secret'=>'synthetic-only'],
+            'http_handler'=>function ($request) {
+                $request->getBody()->close();
+                return \GuzzleHttp\Promise\Create::rejectionFor(new \GuzzleHttp\Exception\RequestException('Synthetic rejection', $request,
+                    new \GuzzleHttp\Psr7\Response(403, [], '<Error><Code>AccessDenied</Code></Error>')));
+            }]);
+        Storage::shouldReceive('disk')->with('s3')->once()->andReturn(new class($client) {
+            public function __construct(private S3Client $client) {} public function getClient(): S3Client { return $this->client; }
+        });
+        $path = tempnam(sys_get_temp_dir(), 'lineux-'); file_put_contents($path, 'abc');
+        try {
+            $this->expectException(\GuzzleHttp\Exception\RequestException::class);
+            $this->expectExceptionMessage('Synthetic rejection');
+            (new V2LineMediaStorage)->publish('synthetic/original', $path, 'image/png');
+        } finally { unlink($path); }
+    }
+
     public function test_signed_upload_binds_checksum_mime_length_and_conditional_key(): void
     {
         config(['filesystems.default'=>'s3','filesystems.disks.s3.bucket'=>'synthetic-only']);
