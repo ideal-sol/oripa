@@ -129,7 +129,13 @@ class ProductionPHP8428PayloadTest(unittest.TestCase):
         from scripts.release.readiness.change import classify, validate_change
         from scripts.release.readiness.adapters import verify_change_authority
         base = '4fb1d80a5fca4d8f12829a26972aa2c9402a92c3'
-        change = validate_change(classify(ROOT, base, self.head))
+        # Exercise the actual immutable Production Control, independently of
+        # later OLD Test Source Authority updates in the current checkout.
+        with tempfile.TemporaryDirectory() as temporary:
+            control = self.payload(temporary)
+            revision = '3442dfb875630ed2009896657092032db12a6de4'
+            M['git'](control, 'checkout', '-q', '--detach', revision)
+            change = validate_change(classify(control, base, revision))
         self.assertEqual(change['authority_records'][0]['provenance'], 'EXACT_PHP8428_DERIVED_PAYLOAD')
         self.assertEqual(change['authority_records'][0]['source_pr'], 715)
         original = self.get

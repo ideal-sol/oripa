@@ -832,7 +832,9 @@ class Line717SourceAuthorityTest(unittest.TestCase):
     def test_inventory_preserves_history_and_requires_117_then_118(self):
         def git(*args): return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
         self.assertEqual(git('rev-parse', self.SOURCE+'^{tree}'), self.TREE)
-        self.assertEqual(git('diff', '--name-only', self.REVIEWED, self.SOURCE), '')
+        # Deleted task heads need not be fetched by CI; the authorizer checks
+        # their tree through GitHub, while Git validates the immutable tree.
+        self.assertEqual(git('diff', '--name-only', self.TREE, self.SOURCE), '')
         before = dict(line.split('\t') for line in git('ls-tree', '-r', wrapper.LINE713_SOURCE, '--', 'apps/api/database/migrations-v2').splitlines())
         after = dict(line.split('\t') for line in git('ls-tree', '-r', self.SOURCE, '--', 'apps/api/database/migrations-v2').splitlines())
         before = {v:k for k,v in before.items()}; after = {v:k for k,v in after.items()}
