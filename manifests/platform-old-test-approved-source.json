@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OLDTEST-LINEUX-20261120",
-  "source_pr": 713,
-  "source_sha": "15f5071e93f0646d7f7e6475c7b09a83a5c8d414",
+  "task_id": "LINEUX-20261120",
+  "source_pr": 717,
+  "source_sha": "85627907ed67f95459fbd1c2c4c7f6c554836499",
   "target": "old-test",
   "platform": "linux/amd64",
   "image_mode": "normal",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR713 Squash 15f5071e93f0646d7f7e6475c7b09a83a5c8d414 / Tree a729f9771eeb7c6d09c1060e97f3d6af90a70b86; reviewed HEAD 5cc36877d53c40e2130b8d5217216e540e1950bf. API and Admin LINE management UX/chat summaries; normal API+Admin linux/amd64, Ledger/Schema116, migrations=[]. Reuse exact PR700 OS Security Recipe b37ee7380f4e266dd3c3ac361f6dbf5ce269b50a and complete historical PR706/701/700 provenance and immutable bytes. API/Admin source Dockerfiles, dependencies and all 116 migrations equal PR706. Control Merge and one formal Artifact Build/Download/Import require separate Human GO; Runtime/installation and Technical acceptance require later Exact Human GO. Preserve current formal PR706 API/Admin until that Runtime GO, existing financial Fence/Drain, TTL300, root-private Journal, Host/Basic/TLS, F2B Timer safeguards, API/SMS/rank/Workers/five Timers, Webhook/D6 RW/S3/ENV and Recovery. No Storefront, new LINE send Worker activation, BOT switch, Quota change, D4 automation ON, D7 Backfill, real LINE send or Production operation. Existing OLD-only FFmpeg CVE-2026-107678 acceptance and other recorded dependency findings are retained; no new risk acceptance. PR703 and other unmerged Tasks are not incorporated; Production Authority is unchanged."
+  "authority": "Human-approved exact OLD Test payload: PR717 Squash 85627907ed67f95459fbd1c2c4c7f6c554836499; Reviewed HEAD 4d15712527d988ac508f73875cdc4577ceb990b4; Reviewed/Merged Tree 7013ddf9ca2271dc88391995c49b0d6a4dd4d72b, content diff0. normal API+Admin linux/amd64 and matching existing LINE delivery Worker. Ledger116 -> Migration117 then118 before new API/Worker activation; preserve001-116. Use exact Source infra/docker/backend/Dockerfile (PHP8.4.28, SHA256 21dbdf91513cf3deea0a2cc72a3ae5eaf2d7822f9b12b505e4b218710600906e) and Source Admin Dockerfile; no PR700 Recipe substitution for this Source. Historical PR700/713 Recipe authority remains intact. HOLD_UNAPPROVED_FINDING retained; FFmpeg CVE-2026-107678 OLD Test-only Human disposition is not a scan PASS or acceptance of other advisories. New real AMD64 image SBOM, Critical/High scan, reachability, provenance and native Health remain mandatory. Separate Human Exact Control Merge and Artifact preparation GO, then separate Runtime/Migration/Executor/Worker GO required. Preserve financial Fence/Drain, DB/private files Backup, TTL300, Host-correct split Health, root-private Journal, Webhook/D6 RW/S3/ENV, SMS/rank/UnivaPay TEST/Paidy TEST/five Timers. Existing LINE sender must drain and rebind to new API Image without duplicate processes; D4 OFF, no BOT/Quota configuration change, D7/profile backfill or actual LINE send test. Schema118/history retained on failure; no unconditional old API/Worker fallback, schema down or automatic DB restore. Production Authority, Storefront and other Tasks excluded."
 }
