@@ -782,7 +782,7 @@ class Line717SourceAuthorityTest(unittest.TestCase):
 
     def setUp(self):
         self.fixture = OldTestSourceAuthorityTest(); self.fixture.setUp()
-        self.fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.fixture.approval = json.loads(subprocess.check_output(["git", "show", "91b0f4041c50879dfff95b9cbacf8f24628163bc:" + wrapper.OLD_AUTHORITY_PATH], cwd=ROOT, text=True))
         self.fixture.pull['merge_commit_sha'] = self.SOURCE
         self.fixture.pull['head']['sha'] = self.REVIEWED
         self.fixture.comparison.update(merge_base_commit={'sha': self.SOURCE}, base_commit={'sha': self.SOURCE})
@@ -1505,3 +1505,60 @@ class IntegratedLineApprovalTest(unittest.TestCase):
         self.assertIs(approval["activation_authorized"], False)
         self.assertEqual(subprocess.check_output(["git", "diff", "--name-only", wrapper.LINE698_SOURCE, wrapper.LINE701_SOURCE, "--", "apps/api", "openapi", "packages"], cwd=ROOT), b"")
         self.assertEqual(subprocess.check_output(["git", "rev-parse", wrapper.LINE701_SOURCE + "^{tree}"], cwd=ROOT, text=True).strip(), wrapper.LINE701_TREE)
+
+
+class Security719SourceAuthorityTest(unittest.TestCase):
+    SOURCE = "ffa2ee9cf3359c261653f17da7f41032af1b5e6a"
+    REVIEWED = "ec55cb3307191572a3fef2b1516871012873c3ed"
+    TREE = "c40f1e2e1e71743c3e48734c5490a5a539b08a90"
+
+    def setUp(self):
+        self.fixture = OldTestSourceAuthorityTest(); self.fixture.setUp()
+        self.fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.fixture.pull["merge_commit_sha"] = self.SOURCE
+        self.fixture.pull["head"]["sha"] = self.REVIEWED
+        self.fixture.comparison.update(merge_base_commit={"sha": self.SOURCE}, base_commit={"sha": self.SOURCE})
+
+    def get(self, path):
+        if "/git/commits/" in path:
+            return {"sha": path.rsplit("/", 1)[1], "tree": {"sha": self.TREE}}
+        return self.fixture.get(path.replace("/pulls/719", "/pulls/549"))
+
+    def authorize(self):
+        return wrapper.authorize_old_test_source("OT-20261123", "719", self.SOURCE, CONTROL, get=self.get)
+
+    def test_exact_source_native_transport_and_unmodified_recipe(self):
+        expected = self.authorize()
+        with mock.patch.object(wrapper, "_github_get_response", side_effect=lambda path, **kw: io.BytesIO(json.dumps(self.get(path)).encode())):
+            self.assertEqual(wrapper.authorize_old_test_source("OT-20261123", "719", self.SOURCE, CONTROL), expected)
+        self.assertEqual(expected["source_tree"], self.TREE)
+        self.assertEqual(expected["reviewed_sha"], self.REVIEWED)
+        self.assertNotIn("build_recipe", expected)
+        prepare = runpy.run_path(str(ROOT / "scripts/ops/old_test_source_authority.py"))["prepare_recipe"]
+        with tempfile.TemporaryDirectory() as temp:
+            payload = Path(temp); original = ROOT / "infra/docker/backend/Dockerfile"
+            destination = payload / "infra/docker/backend/Dockerfile"; destination.parent.mkdir(parents=True)
+            destination.write_bytes(original.read_bytes())
+            with mock.patch("subprocess.check_output", return_value=self.SOURCE+"\n"):
+                prepare(expected, payload, ROOT, payload/"approved")
+            self.assertEqual((payload/"approved").read_bytes(), original.read_bytes())
+
+    def test_wrong_identity_activation_and_failed_checks_rejected(self):
+        for field, invalid in [("source_sha", CONTROL), ("source_pr", 717), ("platform", "linux/arm64"), ("activation_authorized", True)]:
+            self.setUp(); self.fixture.approval[field] = invalid
+            with self.subTest(field=field), self.assertRaises(wrapper.WrapperError): self.authorize()
+        self.setUp(); self.fixture.pull["merged"] = False
+        with self.assertRaises(wrapper.WrapperError): self.authorize()
+        self.setUp(); self.fixture.check_conclusion = "failure"
+        with self.assertRaises(wrapper.WrapperError): self.authorize()
+
+    def test_no_migration_business_or_contract_delta_from_running717(self):
+        def git(*args): return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", self.SOURCE+"^{tree}"), self.TREE)
+        self.assertEqual(git("diff", "--name-only", Line717SourceAuthorityTest.SOURCE, self.SOURCE, "--", "apps/api/database", "apps/api/app", "apps/api/routes", "openapi", "packages"), "")
+        inventory = git("ls-tree", "-r", "--name-only", self.SOURCE, "--", "apps/api/database/migrations-v2").splitlines()
+        self.assertEqual(sum(name.endswith(".php") for name in inventory), 118)
+        approval = self.fixture.approval
+        self.assertEqual((approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"], approval["activation_authorized"]), (719, self.SOURCE, "normal", "linux/amd64", False))
+        for value in (self.REVIEWED, self.TREE, "migrations=[]", "SIGINT", "no137", "NEW Production policy unchanged"):
+            self.assertIn(value, approval["authority"])
