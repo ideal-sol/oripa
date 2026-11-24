@@ -645,6 +645,13 @@ final class V2ExternalIdentityService
 
             $subjectHash = $account?->subject_hash ?? $subjectHash;
 
+            // Capture before completeLink/completeLogin can change External Identity.
+            $conversion = $provider->code() === 'line'
+                ? app(\App\Domain\Line\Services\V2LineFriendConversionRecorder::class) : null;
+            $conversionUserId = $transaction->purpose === 'login' ? $account?->user_id : $transaction->user_id;
+            $conversionBefore = $conversion !== null && $conversionUserId !== null
+                ? $conversion->before((int) $conversionUserId) : null;
+
             $result = match ($transaction->purpose) {
                 'login' => $this->completeLogin(
                     $transaction,
@@ -683,6 +690,11 @@ final class V2ExternalIdentityService
                     );
                 }
                 app(\App\Domain\Line\Services\V2LineSubjectVault::class)->backfill($identity->subject);
+                $userId = (int) $result['user']->id;
+                // A new member has no friendship history, including account replacement.
+                $before = $conversionUserId !== null && (int) $conversionUserId === $userId
+                    ? $conversionBefore : ['is_line_user' => false, 'has_history' => false];
+                $conversion->recordTransition($userId, $before, \Carbon\CarbonImmutable::now());
             }
             $transaction->forceFill([
                 'status' => 'completed',

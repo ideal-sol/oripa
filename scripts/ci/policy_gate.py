@@ -3289,6 +3289,7 @@ def validate_v2_identity_boundary(repository: Path, paths: Iterable[str]) -> Non
         "2026_11_17_000116_add_v2_line_friend_id_staging.php",
         "2026_11_20_000117_add_v2_line_quota_system_actor.php",
         "2026_11_20_000118_add_v2_line_quota_initial_origin.php",
+        "2026_11_24_000119_create_v2_user_conversion_events.php",
     ]
     if migration_files != expected_migrations:
         raise PolicyFailure("V2 Identity migration set is not exact")

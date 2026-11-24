@@ -572,6 +572,33 @@ test("認証Facadeは6操作とEmail Verification PathをPublic Contractどお�
   ]);
 });
 
+test("LINE conversion uses credentialed read and CSRF-protected single-attempt mutations", async () => {
+  const id = "0198a001-0000-7000-8000-000000000502";
+  const token = "b".repeat(64);
+  const seen = [];
+  const transport = createBrowserStorefrontClient({
+    ...browserConfig(async (url, init) => {
+      assert.equal(init.credentials, "include");
+      seen.push([url, init.method, new Headers(init.headers).get("X-XSRF-TOKEN"), init.body]);
+      if (url.endsWith("/claim")) return jsonResponse({ data: { claim_token: token, expires_in_seconds: 120 } });
+      if (url.endsWith("/delivered")) return new Response(null, { status: 204 });
+      return jsonResponse({ data: [] });
+    }),
+    csrf_initializer: async () => "c".repeat(64),
+  });
+  const identity = createStorefrontIdentityClient(transport);
+  await identity.getPendingConversionEvents();
+  await identity.claimConversionEvent(id);
+  await identity.deliverConversionEvent(id, { claim_token: token });
+  assert.deepEqual(seen.map(([url, method, csrf]) => [url, method, csrf]), [
+    ["/api/v2/me/conversion-events/pending", "GET", null],
+    [`/api/v2/me/conversion-events/${id}/claim`, "POST", "c".repeat(64)],
+    [`/api/v2/me/conversion-events/${id}/delivered`, "POST", "c".repeat(64)],
+  ]);
+  assert.deepEqual(JSON.parse(seen[2][3]), { claim_token: token });
+  assert.throws(() => identity.claimConversionEvent("invalid-id"), TypeError);
+});
+
 test("認証Problem Codeを型付きGuardで判定する", () => {
   const error = new ApiProblemError({
     type: "https://oripa.example/problems/email-verification-required",

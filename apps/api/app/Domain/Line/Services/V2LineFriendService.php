@@ -158,6 +158,8 @@ final class V2LineFriendService
                     ->where('issuer', 'https://access.line.me')->where('user_id', $user->id)
                     ->whereIn('subject_hash', app(V2LineSubjectVault::class)->hashes($subject))
                     ->whereNull('revoked_at')->whereNull('superseded_at')->lockForUpdate()->firstOrFail();
+                $conversion = app(V2LineFriendConversionRecorder::class);
+                $before = $conversion->before((int) $user->id);
                 if (! $this->observe($account, $observedAt->getTimestampMs(), $friend)) return;
                 if ($friend) {
                     $this->friendship($account->subject_hash, $user, $observedAt->startOfSecond());
@@ -166,6 +168,7 @@ final class V2LineFriendService
                         ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')
                         ->update(['status' => 'unfollowed', 'unfollowed_at' => $observedAt->startOfSecond()]);
                 }
+                $conversion->recordTransition((int) $user->id, $before, $observedAt);
                 app(V2LineSubjectVault::class)->backfill($subject);
             }, 3);
         } catch (Throwable) {
@@ -349,7 +352,10 @@ final class V2LineFriendService
                 ->first();
             if ($account instanceof ExternalIdentityAccount) {
                 $user = User::query()->whereKey($account->user_id)->lockForUpdate()->firstOrFail();
+                $conversion = app(V2LineFriendConversionRecorder::class);
+                $before = $conversion->before((int) $user->id);
                 $friendship = $this->friendship($subjectHash, $user, $occurredAt);
+                $conversion->recordTransition((int) $user->id, $before, CarbonImmutable::createFromTimestampMsUTC($timestamp));
                 $this->grantReward(
                     $friendship,
                     $setting,

@@ -83,6 +83,28 @@ final class LineFriendObservationTest extends TestCase
         self::assertSame('unfollowed', DB::table('line_friendships')->value('status'));
     }
 
+    public function test_observation_uses_event_time_and_recovers_missing_evidence_without_delivery(): void
+    {
+        [$user, $subject] = $this->linked();
+        $at = CarbonImmutable::now('UTC')->subSecond()->startOfSecond();
+        config(['v2_line.conversion_started_at' => $at->format('Y-m-d\TH:i:s\Z')]);
+        $friends = app(V2LineFriendService::class);
+        $requestId = (string) Str::uuid7();
+        self::assertNull($friends->applyObservation($subject, $user, true, $at, $requestId));
+        $query = DB::table('user_conversion_events')->where('user_id', $user->id);
+        $row = $query->sole();
+        self::assertFalse($row->suppressed);
+        self::assertTrue($at->eq(CarbonImmutable::parse($row->occurred_at)));
+
+        $query->delete();
+        self::assertNull($friends->applyObservation($subject, $user, true, $at->addSecond(), $requestId));
+        self::assertFalse($query->exists());
+        $pending = app(\App\Domain\Line\Services\V2ConversionEventService::class)->pending($user->id);
+        self::assertSame(['data' => []], $pending);
+        self::assertSame('recovered', $query->sole()->source);
+        self::assertSame('undeterminable', $query->sole()->suppressed_reason);
+    }
+
     public function test_later_reward_enablement_grants_once_and_unfollow_retains_reward(): void
     {
         [$user, $subject] = $this->linked();

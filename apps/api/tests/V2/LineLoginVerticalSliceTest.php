@@ -305,7 +305,10 @@ final class LineLoginVerticalSliceTest extends TestCase
 
     public function test_line_login_claims_pending_follow_and_grants_reward_once(): void
     {
-        config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
+        config([
+            'v2_identity.external_identity.line.email_scope_enabled' => true,
+            'v2_line.conversion_started_at' => now('UTC')->subSeconds(30)->format('Y-m-d\TH:i:s\Z'),
+        ]);
         LineMessagingSetting::query()->whereKey(1)->update([
             'reward_enabled' => true,
             'reward_point_amount' => 75,
@@ -335,6 +338,10 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertSame(75, Wallet::query()
             ->where('user_id', $result['user']->getKey())->sole()->free_balance);
         self::assertNotNull(LineFriendship::query()->sole()->point_operation_id);
+        $conversion = DB::table('user_conversion_events')->where('user_id', $result['user']->id)->sole();
+        self::assertFalse($conversion->suppressed);
+        self::assertSame('transition', $conversion->source);
+        self::assertTrue(\Carbon\CarbonImmutable::parse($conversion->occurred_at)->gt($pending->followed_at));
     }
 
     public function test_line_login_without_email_requires_completion_and_creates_no_user(): void
@@ -404,13 +411,27 @@ final class LineLoginVerticalSliceTest extends TestCase
         self::assertSame(0, ExternalIdentityAccount::query()->count());
 
         [$request, $oldToken] = $this->authenticatedRequest($existing);
-        config(['v2_identity.external_identity.line.email_scope_enabled' => false]);
+        config([
+            'v2_identity.external_identity.line.email_scope_enabled' => false,
+            'v2_line.conversion_started_at' => now('UTC')->subSeconds(30)->format('Y-m-d\TH:i:s\Z'),
+        ]);
+        $followedAt = now()->subMinutes(2);
+        $pending = new LinePendingFollow();
+        $pending->forceFill([
+            'public_id' => (string) Str::uuid7(),
+            'subject_hash' => app(V2IdentityCorrelation::class)->hash('line|https://access.line.me|collision-subject'),
+            'status' => 'pending',
+            'followed_at' => $followedAt,
+        ])->save();
         $link = $this->start('link', $existing, $request);
         $this->provider->claims($link['query']['nonce'], 'collision-subject', null, ['name'=>'連携時の名前']);
         $linked = $this->completeLine($link, 'link-code', $oldToken);
         self::assertNotSame($oldToken, $linked['session']['token']);
         self::assertSame($existing->getKey(), ExternalIdentityAccount::query()->sole()->user_id);
         self::assertSame('連携時の名前', $existing->fresh()->display_name);
+        $conversion = DB::table('user_conversion_events')->where('user_id', $existing->id)->sole();
+        self::assertFalse($conversion->suppressed);
+        self::assertTrue(\Carbon\CarbonImmutable::parse($conversion->occurred_at)->gt($followedAt));
     }
 
     public function test_line_reauthentication_and_unlink_rotate_session_and_keep_other_credential(): void

@@ -131,6 +131,7 @@ final class ZLineMessagingConcurrencyTest extends TestCase
         $this->app->instance(V2LineMessagingTransport::class, new ConcurrentLineReplyTransport($evidence));
         $service = app(V2LineFriendService::class);
         $at = \Carbon\CarbonImmutable::now()->startOfSecond();
+        config(['v2_line.conversion_started_at' => $at->utc()->format('Y-m-d\TH:i:s\Z')]);
         $event = ['type' => 'follow', 'timestamp' => $at->getTimestampMs(), 'source' => ['type' => 'user', 'userId' => $subject],
             'replyToken' => 'synthetic-reply', 'webhookEventId' => 'synthetic-concurrent-'.$run];
         $results = $this->concurrent(static function (int $worker) use ($service, $subject, $user, $at, $event): string {
@@ -145,7 +146,37 @@ final class ZLineMessagingConcurrencyTest extends TestCase
         self::assertSame($hash, LineFriendship::query()->where('user_id', $user->id)->value('subject_hash'));
         self::assertSame(1, PointLedgerEntry::query()->where('user_id', $user->id)->count());
         self::assertNotNull(LineFriendship::query()->where('user_id', $user->id)->value('point_operation_id'));
+        self::assertFalse(DB::table('user_conversion_events')->where('user_id', $user->id)->sole()->suppressed);
         unlink($evidence);
+    }
+
+    public function test_concurrent_claim_and_expired_delivery_order_on_the_same_row(): void
+    {
+        $run = bin2hex(random_bytes(6));
+        $user = User::query()->create(['email_display' => $run.'@example.test', 'email_normalized' => $run.'@example.test',
+            'email_verified_at' => now(), 'password_hash' => app(V2PasswordPolicy::class)->hash('valid fixture password'), 'state' => V2UserState::Active]);
+        $id = (string) Str::uuid7();
+        DB::table('user_conversion_events')->insert(['public_id' => $id, 'user_id' => $user->id,
+            'occurred_at' => now(), 'event_name' => 'line_friend_added', 'source' => 'transition', 'suppressed' => false]);
+        $service = app(\App\Domain\Line\Services\V2ConversionEventService::class);
+        $claim = static function () use ($service, $user, $id): string {
+            try { $service->claim($user->id, $id); return 'claimed'; }
+            catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $e) { return $e->errorCode; }
+        };
+        self::assertSame(['CONVERSION_CLAIM_HELD', 'claimed'], $this->concurrent($claim, 'conversion-claim-'.$run));
+        $expired = str_repeat('c', 64);
+        DB::table('user_conversion_events')->where('public_id', $id)->update([
+            'claim_token_hash' => hash('sha256', $expired), 'claim_expires_at' => now()->subSecond(),
+        ]);
+        $result = $this->concurrent(static function (int $worker) use ($claim, $service, $user, $id, $expired): string {
+            if ($worker === 0) return $claim();
+            try { $service->delivered($user->id, $id, $expired); return 'delivered'; }
+            catch (\App\Domain\Identity\Exceptions\V2AuthenticationException $e) { return $e->errorCode; }
+        }, 'conversion-delivered-'.$run);
+        self::assertContains($result, [['CONVERSION_ALREADY_DELIVERED', 'delivered'], ['CONVERSION_TOKEN_MISMATCH', 'claimed']]);
+        $row = DB::table('user_conversion_events')->where('public_id', $id)->sole();
+        self::assertSame(in_array('delivered', $result, true), $row->delivered_at !== null);
+        DB::table('user_conversion_events')->where('public_id', $id)->delete();
     }
 
     /**

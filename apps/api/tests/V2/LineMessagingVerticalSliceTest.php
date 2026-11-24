@@ -725,6 +725,37 @@ final class LineMessagingVerticalSliceTest extends TestCase
         ];
     }
 
+    public function test_delayed_pre_start_follow_keeps_reward_on_record_failure_and_refollow_stays_suppressed(): void
+    {
+        $user = $this->user('line-conversion-delayed@example.test');
+        $subject = 'line-conversion-delayed';
+        $this->lineAccount($user, $subject);
+        $start = \Carbon\CarbonImmutable::now('UTC')->subMinutes(2)->startOfSecond();
+        config(['v2_line.conversion_started_at' => $start->format('Y-m-d\TH:i:s\Z')]);
+        LineMessagingSetting::query()->whereKey(1)->update(['reward_enabled' => true, 'reward_point_amount' => 100]);
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION pg_temp.reject_conversion_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'synthetic conversion insert failure'; END;
+            $$;
+            CREATE TRIGGER reject_conversion_fixture BEFORE INSERT ON user_conversion_events
+            FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_conversion_fixture();
+            SQL);
+        $this->postWebhook(array_replace($this->followEvent('cv-delayed', $subject, 'cv-first'),
+            ['timestamp' => $start->subSecond()->getTimestampMs()]))->assertOk();
+        DB::statement('DROP TRIGGER reject_conversion_fixture ON user_conversion_events');
+        $query = DB::table('user_conversion_events')->where('user_id', $user->id);
+        self::assertFalse($query->exists());
+        self::assertSame(100, Wallet::query()->where('user_id', $user->id)->sole()->free_balance);
+        self::assertTrue($start->lt(\Carbon\CarbonImmutable::parse(LineFriendship::query()->sole()->created_at)));
+        $event = $this->followEvent('cv-unfollow', $subject, 'cv-unused');
+        $this->postWebhook(array_replace($event, ['type' => 'unfollow', 'timestamp' => $start->addSecond()->getTimestampMs()]))->assertOk();
+        $this->postWebhook($this->followEvent('cv-refollow', $subject, 'cv-second'))->assertOk();
+        self::assertSame('undeterminable', $query->sole()->suppressed_reason);
+        self::assertTrue($query->sole()->suppressed);
+        self::assertSame(100, Wallet::query()->where('user_id', $user->id)->sole()->free_balance);
+        self::assertSame(['data' => []], app(\App\Domain\Line\Services\V2ConversionEventService::class)->pending($user->id));
+    }
+
     private function postWebhook(array $event)
     {
         $body = json_encode(['events' => [$event]], JSON_THROW_ON_ERROR);
