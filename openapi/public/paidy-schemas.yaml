@@ -1,3 +1,9 @@
+PaymentPaidyCheckoutAbandonmentRequest:
+  type: object
+  additionalProperties: false
+  required: [result]
+  properties:
+    result: {type: string, enum: [closed, rejected]}
 PaymentPaidyAuthorizationRequest:
   type: object
   additionalProperties: false

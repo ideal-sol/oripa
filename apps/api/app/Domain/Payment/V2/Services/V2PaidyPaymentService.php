@@ -15,6 +15,8 @@ use Illuminate\Support\Str;
 
 final class V2PaidyPaymentService
 {
+    private const AUTHORIZATION_SCOPE = 'payment.paidy.authorize';
+
     public function start(User $user, string $productId, string $key): array
     {
         app(V2PaidyConfiguration::class)->validate();
@@ -75,8 +77,9 @@ final class V2PaidyPaymentService
         }
         try {
             app(V2PointTransactionRunner::class)->run(function () use ($user, $payment, $input, $key): void {
+                $this->lockPayment($payment);
                 $idempotency = app(V2PointIdempotencyService::class);
-                $claim = $idempotency->claim('payment.paidy.authorize', 'user', $user->public_id, $key, ['payment_id' => $payment->public_id, ...$input]);
+                $claim = $idempotency->claim(self::AUTHORIZATION_SCOPE, 'user', $user->public_id, $key, ['payment_id' => $payment->public_id, ...$input]);
                 if (! $claim->replay) {
                     // The durable lookup is completed before acknowledging the browser.
                     app(V2PaidyReconciliationService::class)->enqueueLookup($input['paidy_payment_id'], $payment->public_id);
@@ -87,6 +90,47 @@ final class V2PaidyPaymentService
         // Uses exactly the same durable lease as the worker; HTTP is outside transactions.
         app(V2PaidyReconciliationService::class)->runLookup($input['paidy_payment_id'], $payment->public_id);
         return app(V2FincodePaymentService::class)->show($user, $payment->public_id);
+    }
+
+    public function abandon(User $user, string $paymentId, array $input, string $key): array
+    {
+        $payment = $this->owned($user, $paymentId);
+        app(V2SmsVerificationService::class)->assertVerified($user);
+        if (array_keys($input) !== ['result'] || ! in_array($input['result'], ['closed', 'rejected'], true)) {
+            throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The Paidy checkout abandonment request is invalid.');
+        }
+        try {
+            app(V2PointTransactionRunner::class)->run(function () use ($user, $payment, $input, $key): void {
+                $fresh = $this->lockPayment($payment);
+                $idempotency = app(V2PointIdempotencyService::class);
+                $claim = $idempotency->claim('payment.paidy.abandon', 'user', $user->public_id, $key, ['payment_id' => $fresh->public_id, ...$input]);
+                if ($claim->replay) {
+                    return;
+                }
+                if ($fresh->status === 'requires_action' && $fresh->provider_payment_id === null && ! $this->hasAuthorization($fresh)) {
+                    app(V2PaymentService::class)->applyPaidyCheckoutAbandonment($fresh, $input['result']);
+                }
+                $idempotency->complete($claim->record, 'payment', $fresh->public_id);
+            });
+        } catch (V2PointException $exception) {
+            throw self::translate($exception);
+        }
+
+        return app(V2FincodePaymentService::class)->show($user, $payment->public_id);
+    }
+
+    private function hasAuthorization(object $payment): bool
+    {
+        return DB::table('idempotency_records')->where('scope', self::AUTHORIZATION_SCOPE)
+            ->where('resource_type', 'payment')->where('resource_public_id', $payment->public_id)->exists()
+            || DB::table('outbox_messages')->where('topic', 'payment.paidy')->where('event_type', 'paidy.lookup')
+                ->where('aggregate_type', 'payment')->where('aggregate_public_id', $payment->public_id)
+                ->whereNotNull('payload->paidy_payment_id')->exists();
+    }
+
+    private function lockPayment(object $payment): object
+    {
+        return DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
     }
 
     private function owned(User $user, string $id): object

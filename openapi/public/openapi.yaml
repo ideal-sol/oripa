@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Public API
-  version: 2.0.0-alpha.48
+  version: 2.0.0-alpha.49
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -2081,6 +2081,40 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Payment'}
         default: {$ref: '#/components/responses/PaymentProblem'}
+  /payments/{payment_id}/paidy-checkout-abandonments:
+    post:
+      operationId: abandonPaidyCheckout
+      summary: 本人のPaidy Checkoutの終了を報告する
+      description: >-
+        ローカルで承認受付や決済IDのひも付けがないrequires_actionに限り、closedはcanceled、rejectedはfailedに遷移する。
+        200は現在の決済を返す。状態が変わらない場合があり、同じ冪等キーを再送した場合も最新の決済を返す。
+        本人以外または存在しない決済は404、非Paidyは409、不正本文は422。
+      x-sms-verification: required
+      x-idempotency: required
+      x-retry-semantics: same-idempotency-key
+      x-rate-limit: user-mutation
+      x-cache-policy: private-no-store
+      x-stability: alpha
+      security: [{userSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - in: path
+          name: payment_id
+          required: true
+          schema: {$ref: '#/components/schemas/OpaqueId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentPaidyCheckoutAbandonmentRequest'}
+      responses:
+        '200':
+          description: 所有会員の現在の決済。private, no-store。
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payment'}
+        default: {$ref: '#/components/responses/PaymentProblem'}
   /payments:
     post:
       x-sms-verification: required
@@ -2978,6 +3012,8 @@ components:
             properties:
               name: {type: string, minLength: 1, maxLength: 128}
               value: {type: string, maxLength: 4096}
+    PaymentPaidyCheckoutAbandonmentRequest:
+      $ref: './paidy-schemas.yaml#/PaymentPaidyCheckoutAbandonmentRequest'
     PaymentPaidyAuthorizationRequest:
       $ref: './paidy-schemas.yaml#/PaymentPaidyAuthorizationRequest'
     PaymentPaidyCheckoutAction:

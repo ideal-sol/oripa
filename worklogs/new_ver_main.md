@@ -1,3 +1,11 @@
+## PAIDY-ABANDON-RELEASE-20261124 — Paidy Checkout 取消 Draft
+
+- R3 / Strict Change / Application Runtime Activation deferred。Issue none。Base `40df44435628e972b4ff724916a12121a7a7abec`。既存の作業ツリーを保護するため専用 worktree を使用。CI・配信上の Task ID は `PAIDY-20261124`、branch は `fix/PAIDY-20261124`。GitHub App に Draft 配信専用の一時ポリシーを使用。
+- 承認受付と取消を同一決済行の FOR UPDATE で直列化。Capture／close の操作予約も決済行 → 照会のリース行に揃えた。承認の証拠は `payment.paidy.authorize` の記録または対象決済と Paidy ID を持つ `paidy.lookup`。開始時の `paidy.payment` は Paidy ID を保持しない。
+- `closed → canceled`、`rejected → failed`。履歴の `transition_source` は `user`。同じ冪等キーは最新の決済を返す。取消で終了した決済の ID 未紐付けの定期照会は次回に完了。遅れて受け付けた承認・Webhook は既存の照合を継続し、close の安全条件を満たす未 Capture 承認だけ取り消す。Capture 済みや照合不一致は付与せず要確認。既存の初回限定・期限判定を使用する。
+- Public OpenAPI `2.0.0-alpha.49` に1操作追加。Client／Testkit `2.0.0-alpha.53` を公開前の候補として登録。Platform／Admin／Webhook／Site Schema の版は既存の値を参照。
+- テストで取消直後の購入資格、冪等性、所有者と入力の境界、実 PostgreSQL 上の承認と取消の同時実行、定期照会完了後に届く承認を確認。実行結果と正確な変更パスは Draft PR に記録。新規マイグレーション0件、既存マイグレーションは分離したテストDBのみに適用。OLD Test と Production の Activation、正式 Artifact 公開は別工程。ロールバックはソースの revert。
+
 ## DPPLAN-20261119 — Admin-only first-use approval Plan Draft
 
 - Human authorizes preparation and automatic Plan-only CI measurement only. Issue none; R4 / Strict Change / Activation deferred; base d1235cc55125a6f5ccdcb56a477d82f65c6f1361; dedicated chore/DPPLAN-20261119 worktree. Exactly Plan JSON plus Worklog.

@@ -76,6 +76,10 @@ final class V2PaidyReconciliationService
                 $payment = DB::table('payments')->where('public_id', $expected)->where('provider_code', 'paidy')->first();
                 $id = $payment?->provider_payment_id;
                 if ($id === null && $payment !== null) {
+                    if ($message->event_type === 'paidy.payment' && in_array($payment->status, ['canceled', 'failed', 'expired'], true)) {
+                        $outbox->markDelivered($message->public_id, $worker);
+                        return;
+                    }
                     if ($payment->status === 'requires_action' && V2PaidyDeadline::elapsed($payment)) {
                         $expired = app(V2PointTransactionRunner::class)->run(function () use ($payment): bool {
                             DB::table('users')->where('id', $payment->user_id)->lockForUpdate()->firstOrFail();
@@ -242,9 +246,10 @@ final class V2PaidyReconciliationService
     private function claimCapture(object $payment, OutboxMessage $message, string $worker, string $operation = 'capture'): bool
     {
         return app(V2PointTransactionRunner::class)->run(function () use ($payment, $message, $worker, $operation): bool {
+            // Match the checkout authorization order before locking a lookup lease.
+            $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
             $lease = OutboxMessage::query()->whereKey($message->id)->lockForUpdate()->firstOrFail();
             if ($lease->status !== 'processing' || $lease->locked_by !== $worker || ! $lease->lease_expires_at?->isFuture()) return false;
-            $fresh = DB::table('payments')->where('id', $payment->id)->lockForUpdate()->firstOrFail();
             if ($this->captureAttempted($fresh) || $fresh->status === 'succeeded') return false;
             if ($operation === 'capture' && (in_array($fresh->status, ['expired', 'failed', 'canceled'], true) || V2PaidyDeadline::elapsed($fresh))) return false;
             // Unique Outbox key is a permanent write-ahead operation claim. Even

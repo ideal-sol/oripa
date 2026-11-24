@@ -23,6 +23,7 @@ import {
 } from "../dist/server.js";
 import {
   createStorefrontCatalogClient,
+  createCsrfManagedStorefrontPaymentClient,
   createStorefrontContentContactClient,
   createStorefrontDrawClient,
   createStorefrontIdentityClient,
@@ -85,6 +86,23 @@ test("Paidy authorization uses CSRF, exact idempotency and no transport replay",
   assert.equal(calls[0].csrf, "required");
   assert.equal(calls[0].headers["X-XSRF-TOKEN"], "a".repeat(64));
   assert.equal(calls[0].retry, false);
+});
+
+test("Paidy checkout abandonment uses the same mutation boundary and returns the current payment", async () => {
+  const calls = [];
+  const transport = {request: async request => { calls.push(request); return { data: { status: "requires_action" } }; }};
+  const input = {result: "closed"};
+  const signal = new AbortController().signal;
+  const options = {idempotency_key: "synthetic-key", signal, timeout_ms: 5000};
+  const result = await createStorefrontPaymentClient(transport)
+    .abandonPaidyCheckout("opaque id", input, {...options, csrf_token: "a".repeat(64)});
+  await createCsrfManagedStorefrontPaymentClient(transport).abandonPaidyCheckout("opaque id", input, options);
+  assert.equal(result.data.status, "requires_action");
+  const request = {
+    path: "/payments/opaque%20id/paidy-checkout-abandonments", method: "POST",
+    body: input, ...options, csrf: "required", retry: false,
+  };
+  assert.deepEqual(calls, [{...request, headers: {"X-XSRF-TOKEN": "a".repeat(64)}}, request]);
 });
 
 test("payment method lookup and reference events preserve the transport boundary", async () => {

@@ -49,6 +49,7 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 ] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
 
 export interface StorefrontPaymentClient {
+  abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
@@ -98,6 +99,7 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   listPaymentMethods(pointProductId?: string): Promise<StorefrontResponse<{data: Schemas["PaymentMethodOption"][]}>>;
@@ -184,6 +186,11 @@ export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    abandonPaidyCheckout: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/paidy-checkout-abandonments`, method: "POST", body: input,
+      headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     confirmPaidyAuthorization: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/paidy-authorizations`, method: "POST", body: input,
       headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key,
@@ -299,6 +306,11 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    abandonPaidyCheckout: (id, input, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/paidy-checkout-abandonments`, method: "POST", body: input,
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
     confirmPaidyAuthorization: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/paidy-authorizations`, method: "POST", body: input,
       idempotency_key: options.idempotency_key,
