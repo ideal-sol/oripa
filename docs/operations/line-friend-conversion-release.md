@@ -32,10 +32,12 @@ budget of 20 per minute, scoped to conversion events. The 409 codes are
 `CONVERSION_CLAIM_HELD`, `CONVERSION_ALREADY_DELIVERED`,
 `CONVERSION_NOT_DELIVERABLE` and `CONVERSION_TOKEN_MISMATCH`.
 
-The Paidy alpha.53 candidate is pending in the predecessor ledger. Only after
-the separately approved predecessor release is recorded can the LINE successor
-be registered with the final OpenAPI digest and generated package versions.
-The draft Client/Testkit successor version is provisional until this step.
+Paidy alpha.53 is the released immutable predecessor. The LINE candidate is
+additive bundle/Client/Testkit alpha.54 with Public alpha.50 and 97 operations,
+retaining all 94 predecessor operations. Site Schema alpha.23 and Admin/Webhook
+alpha.47 retain their existing versions. The candidate requires separate
+Human Source Merge and canonical Contract publication approval. Its eventual
+Artifact identity is recorded by the subsequent Release Metadata task.
 Storefront adoption requires the approved immutable Artifact, manifest and
 package checksums.
 
