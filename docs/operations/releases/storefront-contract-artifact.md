@@ -699,3 +699,37 @@ Runtime/ENV/Secret/Worker/Timer/real DB/Docker image changes0. Local Build0;
 publication dispatch1/attempt1. OLD Test adoption uses the exact Artifact ID,
 outer and inner digests and separate API/Admin release authority and acceptance.
 Source107 operational migration and Admin663 deployment/screens remain separate.
+
+## REL-053 Paidy alpha.53 reconciliation
+
+Existing canonical contract-only [run 45326759914](https://github.com/ideal-sol/oripa/actions/runs/45326759914), attempt 1, succeeded for Source PR #721 at `35a3d916659056e4a989b79e8cf9381ac784603c`. Reviewed head `04ff910d3cf38b43951721c7fdcd1f9c5a040019` and merged source share tree `e0117f65f8f399af58f4124a39901422b97d0550`. Exact-ID readback reuses Artifact `14890066930` (`oripa-storefront-contract-2.0.0-alpha.53`); no rebuild or republication.
+
+- outer_sha256: `b158ddd2e285ebe79cd31042f35bf4fe98a104113e452132b2b63a01685e53b9`
+- manifest_sha256: `0dc74f7217b8ae72eb64fc405efc5b3aca051bde82c7282222fef4defd38a2c4`
+- sha256sums_sha256: `0458d887410b0f55a441f80737702507b572bbda57f1162933b8151878487071`
+- public_openapi_sha256: `73892b2b3a99564d7a84a73c52a30590706afc1167ba0ad79823d51d38aeebf7`
+- client_sha256: `ea25f983550d9c91d4782d571f8a854712de9939a809f9b853702a07184de131`
+- testkit_sha256: `ae71263d21fd0e30943649f85147dd3ee72e021bfdce401dff13b303c9f15f00`
+
+Referenced Site Schema alpha.23 remains `b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2`. Public alpha.49 has 94 operations; Admin/Webhook alpha.47, Client/Testkit alpha.53, contract-additive, breaking_change=false. All 32 predecessor records remain unchanged; latest_immutable is alpha.53 and candidate is null.
+
+This metadata reconciliation does not alter the pinned Paidy OLD Test Source, Artifact, Authority, Candidate/Envelope or runtime procedure. LINE CV PRs #723/#255 and alpha.54 remain outside scope. Runtime Activation and migrations are zero. Incorrect metadata requires a reviewed correction; immutable Artifact bytes and history must never be overwritten.
+
+## REL-054 LINE friend conversion alpha.54 reconciliation
+
+Canonical contract-only [publication and readback](https://github.com/ideal-sol/oripa/actions/runs/45406520533) succeeded for PR #723. Reviewed HEAD `c8f033218b6b48e8fd77cf5e694a81692c8dc4b2` and squash Source `457ca5edd918441368717e4974f588dcf0079bba` share Tree `9009a802a905cfc50a970ff05e3136dff8ab2241` with content diff zero. Human explicitly maps historical implementation Task `LINECV-20261120` to formal processing Task `LINE-FRIEND-CV-20261120`; the latter identifies the published Manifest and canonical workflow input.
+
+- artifact_id: `14926246450`
+- workflow_run_id: `45406520533`
+- workflow_run_attempt: `1`
+- source_commit: `457ca5edd918441368717e4974f588dcf0079bba`
+- outer_sha256: `5c198214e0ebf989a68280897c832a06f27ecaaaf09ee18c4d07300314f6fb7a`
+- manifest_sha256: `a7cf5e66d5e9ca883a35a90fc7c99716cc63a8d9d0198449dab67a1f9d36f3ab`
+- client_sha256: `5e67bb1dfad593a735d132eb646673c87406209ce8bd19aa049a71a432bf1a91`
+- testkit_sha256: `f98f313c3d1441f46bc66f97f4d89555a1b6f7bb74a4b89bd2f7add8eba65eb2`
+- public_openapi_sha256: `e78444e7671b3bc5a21d0702a298965ec43c3bfc9690941081f599c048b739ac`
+- sha256sums_sha256: `b214c82d2aef8516e4e12dee6fe7f0e921694da2e7d84d0e63e8abcde80dc7ef`
+
+The exact five-file Artifact is `oripa-storefront-contract-2.0.0-alpha.54`. Client/Testkit alpha.54, Public alpha.50 with97 operations, Admin/Webhook alpha.47, referenced Site Schema alpha.23. All94 Paidy predecessor operations are retained and only pending/claim/delivered for LINE friend conversion are added. Release mode contract-additive; breaking_change=false. Packed Client runtime version, version header, package inventory and checksums passed canonical publication/readback.
+
+All33 predecessor immutable records are preserved; latest_immutable is alpha.54 and candidate is null. Artifact Release Lock is held through metadata merge/readback. Storefront adoption is a separate PR #255; its merge and Runtime Activation require subsequent Human approval. Runtime, operational Migration119, ENV/T/GTM/worker changes are zero. Errors require reviewed metadata correction, never immutable Artifact replacement.

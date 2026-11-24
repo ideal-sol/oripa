@@ -12,6 +12,9 @@ ARTIFACT = runpy.run_path(str(ROOT / 'scripts/release/storefront_contract_artifa
 class LineAlpha52ReleaseTest(unittest.TestCase):
     def test_measured_release_preserves_all_predecessors_and_rejects_reissue(self):
         value = ARTIFACT['governance'](ROOT)
+        value['immutable_history'] = [row for row in value['immutable_history']
+                                      if int(row['bundle_version'].rsplit('.', 1)[1]) <= 52]
+        value['latest_immutable'] = value['immutable_history'][-1]
         source = json.loads(subprocess.check_output(['git','show',
             '8d56c5e1d450e4bc9ee07c1c97886aad054c02ee:manifests/storefront-contract-releases.json'], cwd=ROOT))
         self.assertEqual(value['immutable_history'][:-1], source['immutable_history'])
