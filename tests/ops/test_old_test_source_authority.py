@@ -1514,7 +1514,10 @@ class Security719SourceAuthorityTest(unittest.TestCase):
 
     def setUp(self):
         self.fixture = OldTestSourceAuthorityTest(); self.fixture.setUp()
-        self.fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        self.fixture.approval = json.loads(subprocess.check_output(
+            ["git", "show", "40df44435628e972b4ff724916a12121a7a7abec:" + wrapper.OLD_AUTHORITY_PATH],
+            cwd=ROOT, text=True,
+        ))
         self.fixture.pull["merge_commit_sha"] = self.SOURCE
         self.fixture.pull["head"]["sha"] = self.REVIEWED
         self.fixture.comparison.update(merge_base_commit={"sha": self.SOURCE}, base_commit={"sha": self.SOURCE})
@@ -1562,3 +1565,34 @@ class Security719SourceAuthorityTest(unittest.TestCase):
         self.assertEqual((approval["source_pr"], approval["source_sha"], approval["image_mode"], approval["platform"], approval["activation_authorized"]), (719, self.SOURCE, "normal", "linux/amd64", False))
         for value in (self.REVIEWED, self.TREE, "migrations=[]", "SIGINT", "no137", "NEW Production policy unchanged"):
             self.assertIn(value, approval["authority"])
+
+
+class Paidy721SourceAuthorityTest(unittest.TestCase):
+    SOURCE = "35a3d916659056e4a989b79e8cf9381ac784603c"
+    REVIEWED = "04ff910d3cf38b43951721c7fdcd1f9c5a040019"
+    TREE = "e0117f65f8f399af58f4124a39901422b97d0550"
+
+    def test_exact_api_only_authority_keeps_running_schema_118(self):
+        fixture = OldTestSourceAuthorityTest()
+        fixture.setUp()
+        fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        fixture.pull["merge_commit_sha"] = self.SOURCE
+        fixture.pull["head"]["sha"] = self.REVIEWED
+        fixture.comparison.update(merge_base_commit={"sha": self.SOURCE}, base_commit={"sha": self.SOURCE})
+
+        def get(path):
+            if "/git/commits/" in path:
+                return {"sha": path.rsplit("/", 1)[1], "tree": {"sha": self.TREE}}
+            return fixture.get(path.replace("/pulls/721", "/pulls/549"))
+
+        approval = wrapper.authorize_old_test_source("OT-20261124", "721", self.SOURCE, CONTROL, get=get)
+        self.assertEqual((approval["image_mode"], approval["source_tree"]), ("api-only", self.TREE))
+        self.assertFalse(fixture.approval["activation_authorized"])
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", self.SOURCE+"^{tree}"), self.TREE)
+        self.assertEqual(git("diff", "--name-only", Security719SourceAuthorityTest.SOURCE, self.SOURCE, "--",
+                             "apps/api/database", "apps/admin", "apps/agency", "infra"), "")
+        self.assertEqual(sum(p.endswith(".php") for p in git(
+            "ls-tree", "-r", "--name-only", self.SOURCE, "--", "apps/api/database/migrations-v2"
+        ).splitlines()), 118)
