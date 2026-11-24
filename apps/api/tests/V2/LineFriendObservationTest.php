@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class LineFriendObservationTest extends TestCase
@@ -103,6 +104,36 @@ final class LineFriendObservationTest extends TestCase
         self::assertSame(['data' => []], $pending);
         self::assertSame('recovered', $query->sole()->source);
         self::assertSame('undeterminable', $query->sole()->suppressed_reason);
+    }
+
+    #[DataProvider('conversionStartCases')]
+    public function test_observation_start_configuration_fails_closed(?string $start, ?string $reason): void
+    {
+        [$user, $subject] = $this->linked();
+        config(['v2_line.conversion_started_at' => $start]);
+        $this->travelTo(CarbonImmutable::parse('2026-11-24T01:00:00Z'));
+        $service = app(V2LineFriendService::class);
+        self::assertNull($service->applyObservation(
+            $subject, $user, true, CarbonImmutable::now()->subMinute(), (string) Str::uuid7()
+        ));
+        self::assertTrue(app(\App\Domain\Line\Services\V2LineFriendStateService::class)->isLineUser($user->id));
+        $rows = DB::table('user_conversion_events')->where('user_id', $user->id);
+        if ($reason === null) {
+            self::assertFalse($rows->exists());
+        } else {
+            self::assertTrue($rows->sole()->suppressed);
+            self::assertSame($reason, $rows->sole()->suppressed_reason);
+        }
+    }
+
+    public static function conversionStartCases(): array
+    {
+        return [
+            'unset' => [null, null],
+            'invalid UTC calendar date' => ['2026-02-30T00:00:00Z', null],
+            'start not reached' => ['2026-11-24T01:00:01Z', 'before_start'],
+            'late pre-start event' => ['2026-11-24T00:59:30Z', 'before_start'],
+        ];
     }
 
     public function test_later_reward_enablement_grants_once_and_unfollow_retains_reward(): void
