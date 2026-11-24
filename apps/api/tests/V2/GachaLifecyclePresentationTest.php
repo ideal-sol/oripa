@@ -5,15 +5,20 @@ namespace Tests\V2;
 use App\Domain\Catalog\Services\V2CatalogFixtureImporter;
 use App\Domain\Catalog\Services\V2CatalogMasterMutationService;
 use App\Domain\Catalog\Services\V2ScheduledGachaPublishWorker;
+use App\Domain\Draw\Exceptions\V2DrawException;
+use App\Domain\Draw\Services\V2DrawService;
 use App\Domain\Identity\Enums\V2AdminRole;
+use App\Domain\Identity\Enums\V2UserState;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionPolicy;
+use App\Domain\Point\Services\V2PointService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+use Tests\V2\Fixtures\SmsVerifiedUser;
 
 final class GachaLifecyclePresentationTest extends TestCase
 {
@@ -53,7 +58,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             $prepared = $this->prepareGacha(
                 $token,
                 $slug,
-                $this->databaseNow()->subMinute()
+                $changesPresentation ? $this->databaseNow() : $this->databaseNow()->subMinute()
             );
             $gachaBefore = DB::table('catalog_gachas')
                 ->where('public_id', $prepared['gacha_id'])->firstOrFail();
@@ -127,6 +132,94 @@ final class GachaLifecyclePresentationTest extends TestCase
                 ->where('public_id', $prepared['gacha_id'])
                 ->value('revision')
         );
+    }
+
+    public function test_core_update_schedules_both_publish_choices_using_the_saved_jst_start(): void
+    {
+        $token = $this->createAdminSession();
+        $start = $this->databaseNow()->setTimezone('Asia/Tokyo')->addDay()->startOfDay();
+        foreach (['published', 'scheduled'] as $status) {
+            $key = 'lifecycle-core-'.$status;
+            $prepared = $this->prepareGacha($token, $key, $this->databaseNow()->subMinute());
+            $gacha = DB::table('catalog_gachas')->where('public_id', $prepared['gacha_id'])->firstOrFail();
+            $input = [
+                ...$prepared['input'],
+                'title' => 'Schedule with edits',
+                'publish_start_at' => $start->toIso8601String(),
+                'management_status' => $status,
+                'expected_revision' => (int) $gacha->revision,
+                'expected_version_revision' => $prepared['version_revision'],
+            ];
+            $uri = '/admin/api/v2/catalog/gachas/'.$prepared['public_code'];
+            $response = $this->mutate($token, 'PUT', $uri, $input, $key.'-update')
+                ->assertOk()
+                ->assertJsonPath('data.publication_status', 'scheduled')
+                ->assertJsonPath('data.current_version.title', 'Schedule with edits')
+                ->assertJsonPath('data.first_published_at', null)
+                ->assertJsonPath('data.published_version', null)
+                ->json('data');
+            $this->mutate($token, 'PUT', $uri, $input, $key.'-update')
+                ->assertOk()->assertJsonPath('idempotent_replay', true)
+                ->assertJsonPath('data.revision', $response['revision']);
+            $this->getJson($uri)->assertOk()->assertJsonPath('data.publication_status', 'scheduled');
+            $schedules = DB::table('catalog_gacha_publish_schedules')->where('gacha_id', $gacha->id)->get();
+            self::assertCount(1, $schedules);
+            $schedule = $schedules->sole();
+            self::assertSame('scheduled', $schedule->status);
+            self::assertSame($start->utc()->toIso8601ZuluString(), CarbonImmutable::parse($schedule->scheduled_for)->utc()->toIso8601ZuluString());
+            self::assertSame($schedule->scheduled_for, $schedule->next_attempt_at);
+            self::assertSame($response['revision'], (int) $schedule->expected_gacha_revision);
+            self::assertSame($response['current_version']['revision'], (int) $schedule->expected_version_revision);
+            $this->assertDatabaseHas('catalog_probability_versions', ['id' => $schedule->probability_version_id, 'status' => 'draft']);
+            $this->assertDatabaseMissing('gacha_draw_states', ['gacha_id' => $gacha->id]);
+            $this->getJson('/api/v2/gachas/'.$prepared['public_code'])->assertNotFound();
+            $this->getJson('/api/v2/gachas')->assertOk()->assertJsonMissing(['id' => $prepared['gacha_id']]);
+        }
+    }
+
+    public function test_core_schedule_rejects_invalid_start_preflight_and_stale_authority(): void
+    {
+        $token = $this->createAdminSession();
+        $prepared = $this->prepareGacha($token, 'lifecycle-core-validation', $this->databaseNow()->addHour());
+        $gacha = DB::table('catalog_gachas')->where('public_id', $prepared['gacha_id'])->firstOrFail();
+        $uri = '/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'];
+        $input = [
+            ...$prepared['input'],
+            'management_status' => 'scheduled',
+            'expected_revision' => (int) $gacha->revision,
+            'expected_version_revision' => $prepared['version_revision'],
+        ];
+        $this->mutate($this->createAdminSession(V2AdminRole::Operator), 'PUT', $uri, $input, 'schedule-operator')
+            ->assertForbidden()->assertJsonPath('code', 'AUTHORIZATION_DENIED');
+        $this->mutate($token, 'PUT', $uri, $input, 'schedule-csrf', validCsrf: false)
+            ->assertForbidden()->assertJsonPath('code', 'CSRF_TOKEN_MISMATCH');
+        $this->mutate($token, 'PUT', $uri, [...$input, 'expected_version_revision' => 1], 'schedule-occ')
+            ->assertConflict()->assertJsonPath('code', 'CATALOG_REVISION_CONFLICT');
+        foreach ([$this->databaseNow()->subMinute(), $this->databaseNow()] as $index => $start) {
+            $this->mutate($token, 'PUT', $uri, [...$input, 'publish_start_at' => $start->toIso8601String()], 'schedule-not-future-'.$index)
+                ->assertUnprocessable()->assertJsonPath('code', 'CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID');
+        }
+        $this->assertDatabaseMissing('catalog_gacha_publish_schedules', ['gacha_id' => $gacha->id]);
+        $this->mutate($token, 'PUT', $uri, [...$input, 'management_status' => 'draft'], 'schedule-keep-draft')
+            ->assertOk()->assertJsonPath('data.publication_status', 'draft');
+        $this->assertDatabaseMissing('catalog_gacha_publish_schedules', ['gacha_id' => $gacha->id]);
+
+        $empty = $this->mutate($token, 'POST', '/admin/api/v2/catalog/gachas/core', $prepared['input'], 'schedule-no-prizes')
+            ->assertCreated()->json('data');
+        $this->mutate($token, 'PUT', '/admin/api/v2/catalog/gachas/'.$empty['id'], [
+            ...$input,
+            'title' => 'This change must roll back',
+            'expected_revision' => $empty['revision'],
+            'expected_version_revision' => $empty['current_version']['revision'],
+        ], 'schedule-preflight-failure')
+            ->assertUnprocessable()->assertJsonPath('code', 'CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT');
+        $this->getJson('/admin/api/v2/catalog/gachas/'.$empty['id'])->assertOk()
+            ->assertJsonPath('data.publication_status', 'draft')
+            ->assertJsonPath('data.revision', $empty['revision'])
+            ->assertJsonPath('data.current_version.title', $empty['current_version']['title'])
+            ->assertJsonPath('data.current_version.revision', $empty['current_version']['revision']);
+        $this->assertDatabaseMissing('catalog_gacha_publish_schedules', ['gacha_id' => DB::table('catalog_gachas')
+            ->where('public_id', $empty['id'])->value('id')]);
     }
 
     public function test_draft_can_unpublish_restore_and_publish(): void
@@ -939,8 +1032,10 @@ final class GachaLifecyclePresentationTest extends TestCase
         $prepared = $this->prepareGacha(
             $token,
             'lifecycle-cancel',
-            $this->databaseNow()->addHour()
+            $this->databaseNow()->subMinute()
         );
+        $originalStart = $this->databaseNow()->addSeconds(20);
+        $prepared['input']['publish_start_at'] = $originalStart->toIso8601String();
         $scheduled = $this->schedule($token, $prepared, 'lifecycle-schedule');
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
@@ -974,7 +1069,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             );
         }
 
-        $changedStart = $this->databaseNow()->addHours(2);
+        $changedStart = $originalStart->addSeconds(20);
         $input = $prepared['input'];
         $input['publish_start_at'] = $changedStart->toIso8601String();
         $input['title'] = '予約中の全面編集';
@@ -1008,6 +1103,15 @@ final class GachaLifecyclePresentationTest extends TestCase
             CarbonImmutable::parse((string) $revisedSchedule->scheduled_for)
                 ->utc()->toIso8601ZuluString()
         );
+        self::assertSame($revisedSchedule->scheduled_for, $revisedSchedule->next_attempt_at);
+        self::assertSame($changed['revision'], (int) $revisedSchedule->expected_gacha_revision);
+        self::assertSame($changed['current_version']['revision'], (int) $revisedSchedule->expected_version_revision);
+        self::assertSame((int) $scheduled['revision'] + 1, (int) $revisedSchedule->revision);
+        self::assertSame(1, DB::table('catalog_gacha_publish_schedules')->where('gacha_id', $reserved->id)->count());
+        $worker = app(V2ScheduledGachaPublishWorker::class);
+        sleep(max(0, $originalStart->timestamp + 1 - $this->databaseNow()->timestamp));
+        self::assertSame(0, $worker->run('lifecycle-old-schedule'));
+        $this->getJson('/api/v2/gachas/'.$prepared['public_code'])->assertNotFound();
 
         $cancelled = $this->updateGacha(
             $token,
@@ -1027,6 +1131,8 @@ final class GachaLifecyclePresentationTest extends TestCase
             'status' => 'cancelled',
         ]);
         self::assertSame('scheduled', $scheduled['status']);
+        sleep(max(0, $changedStart->timestamp + 1 - $this->databaseNow()->timestamp));
+        self::assertSame(0, $worker->run('lifecycle-cancelled-schedule'));
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
     }
@@ -1037,22 +1143,39 @@ final class GachaLifecyclePresentationTest extends TestCase
         $prepared = $this->prepareGacha(
             $token,
             'lifecycle-clock',
-            $this->databaseNow()->addSeconds(2)
+            $this->databaseNow()->subMinute()
         );
-        $scheduled = $this->schedule(
+        $user = SmsVerifiedUser::create([
+            'email_display' => 'lifecycle-draw@example.test',
+            'email_normalized' => 'lifecycle-draw@example.test',
+            'email_verified_at' => now(),
+            'password_hash' => app(V2PasswordPolicy::class)->hash('valid lifecycle test password'),
+            'state' => V2UserState::Active,
+        ]);
+        app(V2PointService::class)->grantFree($user->id, 100, 'lifecycle-draw-points');
+        $prepared['input']['publish_start_at'] = $this->databaseNow()->addSeconds(10)->toIso8601String();
+        $this->updateGacha(
             $token,
-            $prepared,
+            $prepared['gacha_id'],
+            $prepared['input'],
+            'published',
             'lifecycle-clock-schedule'
-        );
-        $probabilityId = (int) DB::table('catalog_probability_versions')
-            ->where('public_id', $scheduled['selected_probability']['id'])
-            ->value('id');
+        )->assertOk()->assertJsonPath('data.publication_status', 'scheduled');
+        $gacha = DB::table('catalog_gachas')->where('public_id', $prepared['gacha_id'])->firstOrFail();
+        $probabilityId = (int) DB::table('catalog_gacha_publish_schedules')
+            ->where('gacha_id', $gacha->id)->value('probability_version_id');
         self::assertDatabaseHas('catalog_probability_versions', [
             'id' => $probabilityId,
             'status' => 'draft',
         ]);
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
+        try {
+            app(V2DrawService::class)->create($user, $prepared['gacha_id'], 1, 'lifecycle-early-draw', (string) Str::uuid7());
+            self::fail('A Gacha awaiting its first publication cannot be drawn.');
+        } catch (V2DrawException $exception) {
+            self::assertSame('GACHA_NOT_DRAWABLE', $exception->errorCode);
+        }
         self::assertSame(
             0,
             app(V2ScheduledGachaPublishWorker::class)
@@ -1061,7 +1184,7 @@ final class GachaLifecyclePresentationTest extends TestCase
         self::assertSame('scheduled', DB::table('catalog_gachas')
             ->where('public_id', $prepared['gacha_id'])
             ->value('management_status'));
-        sleep(3);
+        sleep(11);
         self::assertSame(
             1,
             app(V2ScheduledGachaPublishWorker::class)
@@ -1078,6 +1201,10 @@ final class GachaLifecyclePresentationTest extends TestCase
             'gacha_id' => $scheduledGacha->id,
             'status' => 'completed',
         ]);
+        self::assertSame(0, app(V2ScheduledGachaPublishWorker::class)->run('lifecycle-worker-repeat'));
+        self::assertSame(1, DB::table('gacha_draw_states')->where('gacha_id', $gacha->id)->count());
+        app(V2DrawService::class)->create($user, $prepared['gacha_id'], 1, 'lifecycle-published-draw', (string) Str::uuid7());
+        $this->assertDatabaseHas('gacha_draw_states', ['gacha_id' => $gacha->id, 'sold_count' => 1]);
         $publishedVersion = DB::table('catalog_gacha_versions')
             ->where('public_id', $prepared['version_id'])->firstOrFail();
         self::assertSame(
@@ -1152,8 +1279,10 @@ final class GachaLifecyclePresentationTest extends TestCase
         $prepared = $this->prepareGacha(
             $token,
             'lifecycle-worker-retry',
-            $this->databaseNow()->addSeconds(2)
+            $this->databaseNow()->subMinute()
         );
+        $start = $this->databaseNow()->addSeconds(10);
+        $prepared['input']['publish_start_at'] = $start->toIso8601String();
         $scheduled = $this->schedule(
             $token,
             $prepared,
@@ -1180,7 +1309,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             'BEFORE UPDATE ON catalog_probability_versions FOR EACH ROW '.
             'EXECUTE FUNCTION v2_test_reject_canonical_probability_publish()'
         );
-        sleep(3);
+        sleep(max(0, $start->timestamp + 1 - $this->databaseNow()->timestamp));
         try {
             self::assertSame(
                 1,
@@ -1231,6 +1360,32 @@ final class GachaLifecyclePresentationTest extends TestCase
                 ->where('gacha_version_id', $versionId)
                 ->count()
         );
+    }
+
+    public function test_worker_claim_blocks_rescheduling_and_cancellation_without_losing_revisions(): void
+    {
+        $token = $this->createAdminSession();
+        $prepared = $this->prepareGacha($token, 'lifecycle-claim-race', $this->databaseNow()->subMinute());
+        $input = [...$prepared['input'], 'publish_start_at' => $this->databaseNow()->addSeconds(5)->toIso8601String()];
+        $scheduled = $this->updateGacha($token, $prepared['gacha_id'], $input, 'scheduled', 'claim-race-schedule')
+            ->assertOk()->json('data');
+        sleep(6);
+
+        $worker = app(V2ScheduledGachaPublishWorker::class);
+        $workerHash = hash('sha256', 'test-race-worker');
+        // Pause the real Worker between its claim transaction and activation.
+        $claimed = (new \ReflectionMethod($worker, 'claim'))->invoke($worker, $workerHash, 1)->sole();
+        $newStart = [...$input, 'publish_start_at' => $this->databaseNow()->addHour()->toIso8601String()];
+        foreach (['scheduled', 'draft'] as $status) {
+            $this->updateGacha($token, $prepared['gacha_id'], $newStart, $status, 'claim-race-'.$status)
+                ->assertConflict()->assertJsonPath('code', 'CATALOG_GACHA_SCHEDULE_CONFLICT');
+        }
+        $this->getJson('/admin/api/v2/catalog/gachas/'.$prepared['gacha_id'])->assertOk()
+            ->assertJsonPath('data.revision', $scheduled['revision'])
+            ->assertJsonPath('data.current_version.revision', $scheduled['current_version']['revision']);
+        $result = app(V2CatalogMasterMutationService::class)->activateClaimedGachaPublishSchedule($claimed->public_id, $workerHash);
+        self::assertSame('completed', $result['schedule_status']);
+        self::assertSame(0, $worker->run('test-race-worker'));
     }
 
     /** @return array<string, mixed> */
@@ -1489,7 +1644,8 @@ final class GachaLifecyclePresentationTest extends TestCase
         string $method,
         string $uri,
         array $payload,
-        string $key
+        string $key,
+        bool $validCsrf = true
     ) {
         $csrf = str_repeat('a', 64);
         $request = $this->withCredentials()
@@ -1499,7 +1655,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             ->withHeaders([
                 'Origin' => 'https://admin.example.test',
                 'Sec-Fetch-Site' => 'same-origin',
-                'X-XSRF-TOKEN' => $csrf,
+                'X-XSRF-TOKEN' => $validCsrf ? $csrf : str_repeat('b', 64),
                 'Idempotency-Key' => $key,
             ]);
 
@@ -1510,7 +1666,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             : $request->postJson($uri, $payload);
     }
 
-    private function createAdminSession(): string
+    private function createAdminSession(V2AdminRole $role = V2AdminRole::Owner): string
     {
         $email = 'lifecycle-'.Str::uuid7().'@example.test';
         $adminId = (int) DB::table('admins')->insertGetId([
@@ -1520,7 +1676,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             'email_verified_at' => now(),
             'password_hash' => app(V2PasswordPolicy::class)
                 ->hash('valid lifecycle test password'),
-            'role' => V2AdminRole::Owner->value,
+            'role' => $role->value,
             'state' => 'active',
         ]);
         $token = app(V2SessionPolicy::class)->issueOpaqueSessionId();

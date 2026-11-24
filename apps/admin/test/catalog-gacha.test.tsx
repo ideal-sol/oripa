@@ -7,7 +7,8 @@ import {
   CatalogGachaVersionForm,
 } from "@/components/catalog/catalog-gacha-forms";
 import { CatalogGachaWorkspace, isEditableGachaVersion } from "@/components/catalog/catalog-gacha-workspace";
-import { AdminApiClient } from "@/lib/admin-api/client";
+import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
+import type { AdminCatalogGacha, AdminCatalogGachaVersion } from "@/lib/admin-api/generated";
 import { CATALOG_SECTIONS } from "@/lib/catalog/catalog-registry";
 
 const CATEGORY_ID = "01910191-0191-7191-8191-019101910191";
@@ -15,18 +16,55 @@ const TAG_ID = "01910191-0191-7191-8191-019101910192";
 const PRIZE_ID = "01910191-0191-7191-8191-019101910193";
 const ASSET_ID = "01910191-0191-7191-8191-019101910194";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const { push, expireSession } = vi.hoisted(() => ({ push: vi.fn(), expireSession: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/components/shell/admin-shell", () => ({ AdminShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/permissions/protected-admin-route", () => ({ ProtectedAdminRoute: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/permissions/permission-provider", () => ({ usePermissions: () => ({ hasPermission: () => true, permissions: new Set(["catalog.read", "catalog.manage"]) }) }));
-vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({ expireSession: vi.fn() }) }));
+vi.mock("@/components/auth/admin-auth-provider", () => ({ useAdminAuth: () => ({ expireSession }) }));
+vi.mock("@/components/catalog/catalog-gacha-rank-prize-manager", () => ({ CatalogGachaRankPrizeManager: () => null }));
+vi.mock("@/components/catalog/catalog-gacha-qa-guarantee-manager", () => ({ CatalogGachaQaGuaranteeManager: () => null }));
 
 afterEach(() => {
+  push.mockClear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("Admin Gacha Draft management", () => {
+  it.each(["published", "scheduled"])("shows the saved reservation after selecting %s and on reload", async (status) => {
+    const { update, gacha, persist } = mockGachaEdit();
+    update.mockImplementation(async () => ({ data: persist(), request_id: "request", idempotent_replay: false }));
+    const { unmount } = render(<CatalogGachaWorkspace editMode gachaId={gacha.public_code} />);
+    fireEvent.change(await screen.findByLabelText("状態"), { target: { value: status } });
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/catalog/gachas/${gacha.public_code}`));
+    expect(update).toHaveBeenCalledWith(gacha.public_code, expect.objectContaining({
+      management_status: status,
+      publish_start_at: "2099-08-01T15:00:00.000Z",
+      expected_revision: 1,
+      expected_version_revision: 1,
+    }), expect.any(String));
+    unmount();
+
+    const detail = render(<CatalogGachaWorkspace gachaId={gacha.public_code} />);
+    expect(await screen.findByText("予約公開", { selector: "dd" })).toBeVisible();
+    detail.unmount();
+    render(<CatalogGachaWorkspace editMode gachaId={gacha.public_code} />);
+    expect(await screen.findByLabelText("状態")).toHaveValue("scheduled");
+  });
+
+  it("keeps the edit open when the scheduling request fails preflight", async () => {
+    const { update, gacha } = mockGachaEdit();
+    update.mockRejectedValue(new AdminApiError(422, "CATALOG_GACHA_PUBLISH_PRIZE_INSUFFICIENT", null, null, false));
+    render(<CatalogGachaWorkspace editMode gachaId={gacha.public_code} />);
+    fireEvent.change(await screen.findByLabelText("状態"), { target: { value: "scheduled" } });
+    await screen.findByRole("option", { name: "Category A" });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+    await waitFor(() => expect(screen.getAllByText(/公開に必要な景品が不足/u).length).toBeGreaterThan(0));
+    expect(push).not.toHaveBeenCalled();
+  });
   it("starts with Published and Draft, allows another status, and accepts an explicit override", async () => {
     const list = vi.spyOn(AdminApiClient.prototype, "listCatalogGachas")
       .mockResolvedValue({ items: [], next_cursor: null });
@@ -424,5 +462,34 @@ function gachaFixture() {
     tags: [{ code: "featured", id: TAG_ID, name: "Featured" }],
     updated_at: "2026-08-01T00:00:00Z",
     version_count: 1,
+  };
+}
+
+function mockGachaEdit() {
+  mockMasterSelections();
+  const fixture = gachaFixture();
+  const gacha = {
+    ...fixture,
+    gacha_type: "standard" as const,
+    first_published_at: null,
+    current_version: { ...fixture.current_version, publish_start_at: "2099-08-01T15:00:00Z" },
+  };
+  let saved: AdminCatalogGacha = gacha;
+  vi.spyOn(AdminApiClient.prototype, "getCatalogGacha")
+    .mockImplementation(async () => ({ data: saved, request_id: "request" }));
+  vi.spyOn(AdminApiClient.prototype, "listCatalogGachaVersions")
+    .mockResolvedValue({ items: [], next_cursor: null });
+  vi.spyOn(AdminApiClient.prototype, "getCatalogGachaVersion").mockImplementation(async () => ({
+    data: saved.current_version as AdminCatalogGachaVersion,
+    request_id: "request",
+  }));
+  const update = vi.spyOn(AdminApiClient.prototype, "updateCatalogGacha");
+  return {
+    gacha,
+    update,
+    persist() {
+      saved = { ...gacha, revision: 2, publication_status: "scheduled" };
+      return saved;
+    },
   };
 }

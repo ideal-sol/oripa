@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CatalogGachaCoreForm } from "@/components/catalog/catalog-gacha-forms";
@@ -106,6 +106,63 @@ describe("Gacha lifecycle editing", () => {
     expect(screen.getByRole("option", { name: "公開中（予約開始済み）" }))
       .toBeVisible();
     expect(screen.getByRole("option", { name: "販売停止" })).toBeVisible();
+  });
+
+  it("continues to display Scheduled until the worker publishes the first version", async () => {
+    renderForm(gacha("scheduled", "2020-08-01T00:00:00Z"));
+
+    await screen.findByRole("option", { name: "Category A" });
+    expect(screen.getByLabelText("状態")).toHaveDisplayValue("予約公開");
+  });
+
+  it.each(["published", "scheduled"])("submits %s with the JST start as UTC and blocks duplicate submissions", async (status) => {
+    let finishSave!: () => void;
+    const submit = vi.fn(() => new Promise<void>((resolve) => { finishSave = resolve; }));
+    const start = "2099-08-01T15:00:00Z";
+    await act(async () => {
+      render(<CatalogGachaCoreForm
+        current={gacha("draft", start)}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />);
+    });
+    expect(screen.getByRole("option", { name: "Category A" })).toBeVisible();
+    const startField = screen.getByLabelText("開始日時（Asia/Tokyo）");
+    expect(startField).toHaveValue("2099-08-02T00:00");
+    fireEvent.change(startField, { target: { value: "2099-08-03T00:00" } });
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: status } });
+    const button = screen.getByRole("button", { name: "編集内容を保存" });
+    const form = button.closest("form")!;
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      managementStatus: status,
+      publishStartAt: "2099-08-02T15:00:00.000Z",
+    }));
+    expect(button).toBeDisabled();
+    await act(async () => finishSave());
+  });
+
+  it("shows a start field error when the backend rejects a past scheduled start", async () => {
+    const submit = vi.fn().mockRejectedValue(new AdminApiError(
+      422, "CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID", null, null, false,
+    ));
+    await act(async () => {
+      render(<CatalogGachaCoreForm
+        current={gacha("draft", "2020-08-01T00:00:00Z")}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />);
+    });
+    expect(screen.getByRole("option", { name: "Category A" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("状態"), { target: { value: "scheduled" } });
+    fireEvent.click(screen.getByRole("button", { name: "編集内容を保存" }));
+    expect(await screen.findByText("予約公開の開始日時は現在より後に設定してください。")).toBeVisible();
   });
 
   it("allows an unpublished Gacha to return only to Draft", async () => {
