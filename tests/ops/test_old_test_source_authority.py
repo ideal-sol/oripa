@@ -1620,6 +1620,14 @@ class LineCvScheduled724SourceAuthorityTest(unittest.TestCase):
         authority = wrapper.authorize_old_test_source("OLDTEST-20261125", "724", self.SOURCE, CONTROL, get=get)
         self.assertEqual((authority["image_mode"], authority["source_tree"]), ("normal", self.TREE))
         self.assertFalse(fixture.approval["activation_authorized"])
+        self.assertIn(self.REVIEWED, fixture.approval["authority"])
+        def mismatched_review(path):
+            result = get(path)
+            if path.endswith("/git/commits/" + self.REVIEWED):
+                return {"sha": self.REVIEWED, "tree": {"sha": "f" * 40}}
+            return result
+        with self.assertRaises(wrapper.WrapperError):
+            wrapper.authorize_old_test_source("OLDTEST-20261125", "724", self.SOURCE, CONTROL, get=mismatched_review)
         for boundary in ("Separate Control Merge", "Ledger118 to119", "forward-only", "Basic authentication",
                          "GTM OFF", "Paidy TEST/periodic Worker OFF", "fresh receipts", "No NEW Production"):
             self.assertIn(boundary, fixture.approval["authority"])
@@ -1628,7 +1636,8 @@ class LineCvScheduled724SourceAuthorityTest(unittest.TestCase):
         def git(*args):
             return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
         self.assertEqual(git("rev-parse", self.SOURCE + "^{tree}"), self.TREE)
-        self.assertEqual(git("rev-parse", self.REVIEWED + "^{tree}"), self.TREE)
+        # Squashed PR heads need not exist in a fresh main checkout. The live
+        # Authority gate verifies their GitHub trees; exercise mismatch above.
         def inventory(ref):
             return {line.split("\t")[1]: line.split()[2] for line in git(
                 "ls-tree", "-r", ref, "--", "apps/api/database/migrations-v2").splitlines()
