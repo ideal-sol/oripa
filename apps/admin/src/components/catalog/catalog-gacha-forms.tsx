@@ -4,7 +4,7 @@ import { LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminApiClient, AdminApiError } from "@/lib/admin-api/client";
-import { standardCoreVersion } from "@/lib/catalog/login-gacha";
+import { jstInput, jstTimestamp, standardCoreVersion } from "@/lib/catalog/login-gacha";
 import { MemberRankCondition } from "@/components/catalog/member-rank-condition";
 import { PurchaseCondition, type PurchaseFields } from "@/components/catalog/purchase-condition";
 import { catalogProblemMessage } from "@/components/catalog/catalog-api-error-boundary";
@@ -109,6 +109,7 @@ export function CatalogGachaCoreForm({
   const [tags, setTags] = useState<AdminCatalogTag[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
   const postPublished = mode === "edit" && current?.first_published_at != null;
   const scheduled = current?.publication_status === "scheduled";
@@ -163,6 +164,7 @@ export function CatalogGachaCoreForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submissionInFlight.current) return;
     if (blankNew && defaultNotices === undefined) return;
     const nextErrors: Record<string, string> = {};
     if (!draft.title.trim()) nextErrors.title = "ガチャタイトルは必須です。";
@@ -192,6 +194,7 @@ export function CatalogGachaCoreForm({
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
+    submissionInFlight.current = true;
     setSubmitting(true);
     try {
       await onSubmit({
@@ -206,12 +209,20 @@ export function CatalogGachaCoreForm({
         title: draft.title.normalize("NFC").trim(),
       });
     } catch (cause) {
-      setErrors({
-        form: cause instanceof AdminApiError
-          ? catalogProblemMessage(cause)
-          : `${mode === "create" ? "登録" : "保存"}できませんでした。入力内容を確認してください。`,
-      });
+      if (cause instanceof AdminApiError
+        && cause.code === "CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID"
+        && current?.publication_status === "draft"
+        && draft.managementStatus === "scheduled") {
+        setErrors({ start: "予約公開の開始日時は現在より後に設定してください。" });
+      } else {
+        setErrors({
+          form: cause instanceof AdminApiError
+            ? catalogProblemMessage(cause)
+            : `${mode === "create" ? "登録" : "保存"}できませんでした。入力内容を確認してください。`,
+        });
+      }
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -271,8 +282,8 @@ export function CatalogGachaCoreForm({
         <PurchaseCondition value={draft} disabled={postPublished} audience={draft.audienceCode} rank={{ member_rank_mode: draft.memberRankMode, member_rank_level: draft.memberRankLevel }} onChange={(purchase) => setDraft({ ...draft, ...purchase })} />
         {draft.audienceCode === "first_time_users" ? <><NumberField disabled={postPublished} label="新規登録後の日数（1日＝24時間）" min={1} onChange={(firstTimeEligibleDays) => setDraft({ ...draft, firstTimeEligibleDays })} value={draft.firstTimeEligibleDays} /><FieldError message={errors.firstTimeDays} /></> : null}
         <div className="catalog-form-grid">
-          <DateTimeField disabled={postPublished && (!scheduled || scheduledStartReached)} label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} value={draft.publishStartAt} />
-          <DateTimeField label="終了日時（Asia/Tokyo）" onChange={(publishEndAt) => setDraft({ ...draft, publishEndAt: publishEndAt || null })} required={false} value={draft.publishEndAt ?? ""} />
+          <DateTimeField disabled={postPublished && (!scheduled || scheduledStartReached)} label="開始日時（Asia/Tokyo）" onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })} timeZone="Asia/Tokyo" value={draft.publishStartAt} />
+          <DateTimeField label="終了日時（Asia/Tokyo）" onChange={(publishEndAt) => setDraft({ ...draft, publishEndAt: publishEndAt || null })} required={false} timeZone="Asia/Tokyo" value={draft.publishEndAt ?? ""} />
         </div>
         <FieldError message={errors.start ?? errors.end} />
         <TextArea label="説明" onChange={(description) => setDraft({ ...draft, description })} value={draft.description ?? ""} />
@@ -928,12 +939,14 @@ function DateTimeField({
   label,
   onChange,
   required = true,
+  timeZone,
   value,
 }: {
   disabled?: boolean;
   label: string;
   onChange: (value: string) => void;
   required?: boolean;
+  timeZone?: "Asia/Tokyo";
   value: string;
 }) {
   return (
@@ -941,10 +954,10 @@ function DateTimeField({
       {label}
       <input
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange(timeZone ? jstTimestamp(event.target.value) ?? "" : event.target.value)}
         required={required}
         type="datetime-local"
-        value={toLocalInput(value)}
+        value={timeZone ? jstInput(value) : toLocalInput(value)}
       />
     </label>
   );
@@ -959,7 +972,7 @@ function managementStatusOptions(
     case "scheduled":
       return scheduledStartReached
         ? [
-            { label: "公開中（予約開始済み）", value: "scheduled" },
+            { label: hasPublishedHistory ? "公開中（予約開始済み）" : "予約公開", value: "scheduled" },
             { label: "販売停止", value: "sales_paused" },
             { label: "非公開", value: "unpublished" },
           ]

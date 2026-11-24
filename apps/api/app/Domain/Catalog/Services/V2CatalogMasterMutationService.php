@@ -851,6 +851,22 @@ final class V2CatalogMasterMutationService
                     (int) $version->id,
                     $payload['total_count']
                 );
+                $startsAt = CarbonImmutable::parse($payload['publish_start_at']);
+                $schedulesDraft = false;
+                if (
+                    $row->management_status === 'draft'
+                    && $row->first_published_at === null
+                    && in_array($payload['management_status'], ['published', 'scheduled'], true)
+                ) {
+                    $schedulesDraft = $startsAt->greaterThan($this->databaseNow());
+                    if (! $schedulesDraft && $payload['management_status'] === 'scheduled') {
+                        throw new V2CatalogException(
+                            'CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID',
+                            422,
+                            'Scheduled publication requires a future start.'
+                        );
+                    }
+                }
                 $publishesDraft =
                     $payload['management_status'] === 'published'
                     && (string) $row->management_status === 'draft'
@@ -860,8 +876,7 @@ final class V2CatalogMasterMutationService
                     );
                 if (
                     (string) $row->management_status === 'scheduled'
-                    && CarbonImmutable::parse((string) $payload['publish_start_at'])
-                        ->lessThanOrEqualTo($this->databaseNow())
+                    && $startsAt->lessThanOrEqualTo($this->databaseNow())
                 ) {
                     throw new V2CatalogException(
                         'CATALOG_GACHA_MANAGEMENT_TRANSITION_INVALID',
@@ -869,7 +884,7 @@ final class V2CatalogMasterMutationService
                         'A scheduled first publication must remain in the future.'
                     );
                 }
-                if (! $publishesDraft) {
+                if (! $publishesDraft && ! $schedulesDraft) {
                     DB::table('catalog_gachas')->where('id', $row->id)->update([
                         ...((string) $row->management_status === 'scheduled' ? [
                             'scheduled_start_at' => $payload['publish_start_at'],
@@ -908,7 +923,27 @@ final class V2CatalogMasterMutationService
                     $payload['publish_start_at']
                 );
 
-                if ($payload['management_status'] !== null) {
+                if ($schedulesDraft) {
+                    $schedule = $this->createInitialGachaPublishSchedule(
+                        $context,
+                        $admin,
+                        $row,
+                        $this->find('catalog_gacha_versions', (string) $version->public_id, true),
+                        $startsAt,
+                        (int) $category->id
+                    );
+                    $this->recordAudit(
+                        'catalog.master.publish_scheduled',
+                        $context,
+                        $admin,
+                        'gacha_version',
+                        'gacha_schedule_create',
+                        'success',
+                        'gacha_schedule_create_completed',
+                        $schedule['id'],
+                        ['revision' => $schedule['gacha_version_revision']]
+                    );
+                } elseif ($payload['management_status'] !== null) {
                     $this->applyManagementStatus(
                         $context,
                         $admin,
@@ -2926,98 +2961,117 @@ final class V2CatalogMasterMutationService
                     true
                 );
                 $this->assertScheduleRevisions($gacha, $version, $payload);
-                $preflight = $this->schedulePreflightResult(
-                    $context->requestId,
+                return $this->createInitialGachaPublishSchedule(
+                    $context,
+                    $admin,
                     $gacha,
                     $version,
                     $payload['scheduled_for']
                 );
-                if (! $preflight['publishable']) {
-                    throw $this->gachaPublishProblemException($preflight, true);
-                }
-                try {
-                    $probability = $this->prepareCanonicalProbabilityMetadata(
-                        $version
-                    );
-                } catch (V2CatalogException $exception) {
-                    throw $exception;
-                } catch (\Throwable) {
-                    throw $this->canonicalProbabilityInternalException();
-                }
-                if (
-                    DB::table('catalog_gacha_publish_schedules')
-                        ->where('gacha_id', $gacha->id)
-                        ->whereIn('status', ['scheduled', 'processing'])
-                        ->lockForUpdate()
-                        ->first(['id']) !== null
-                ) {
-                    throw new V2CatalogException(
-                        'CATALOG_GACHA_SCHEDULE_CONFLICT',
-                        409,
-                        'The Gacha already has an active Publish Schedule.'
-                    );
-                }
-
-                DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
-                    'publish_start_at' => $payload['scheduled_for']->toIso8601String(),
-                    'revision' => (int) $version->revision + 1,
-                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-                ]);
-                $gachaRevision = (int) $gacha->revision + 1;
-                $versionRevision = (int) $version->revision + 1;
-                DB::table('catalog_gachas')->where('id', $gacha->id)->update([
-                    'management_status' => 'scheduled',
-                    'first_published_at' => null,
-                    'scheduled_start_at' => $payload['scheduled_for']->toIso8601String(),
-                    'published_version_id' => null,
-                    'active_draw_state_id' => null,
-                    'revision' => $gachaRevision,
-                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-                ]);
-                $publicId = (string) Str::uuid7();
-                DB::table('catalog_gacha_publish_schedules')->insert([
-                    'public_id' => $publicId,
-                    'gacha_id' => $gacha->id,
-                    'gacha_version_id' => $version->id,
-                    'probability_version_id' => $probability->id,
-                    'status' => 'scheduled',
-                    'scheduled_for' =>
-                        $payload['scheduled_for']->toIso8601String(),
-                    'next_attempt_at' =>
-                        $payload['scheduled_for']->toIso8601String(),
-                    'expected_gacha_revision' => $gachaRevision,
-                    'expected_version_revision' => $versionRevision,
-                    'revision' => 1,
-                    'requested_by_admin_id' => $admin->id,
-                    'cancelled_by_admin_id' => null,
-                    'request_id' => $context->requestId,
-                    'attempts' => 0,
-                    'locked_at' => null,
-                    'locked_by_hash' => null,
-                    'lease_expires_at' => null,
-                    'started_at' => null,
-                    'completed_at' => null,
-                    'cancelled_at' => null,
-                    'failed_at' => null,
-                    'failure_code' => null,
-                    'created_at' => DB::raw('CURRENT_TIMESTAMP'),
-                    'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
-                ]);
-
-                return $this->mapPublishSchedule(
-                    DB::table('catalog_gacha_publish_schedules')
-                        ->where('public_id', $publicId)
-                        ->firstOrFail(),
-                    $gachaVersionPublicId,
-                    $probability->public_id,
-                    $probability->snapshot_sha256,
-                    $gachaRevision,
-                    $versionRevision,
-                    $context->requestId
-                );
             },
             true,
             static fn (array $result): array => $result
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function createInitialGachaPublishSchedule(
+        V2AdminAuthorizationContext $context,
+        Admin $admin,
+        object $gacha,
+        object $version,
+        CarbonImmutable $scheduledFor,
+        ?int $editedCategoryId = null
+    ): array {
+        $preflight = $this->schedulePreflightResult(
+            $context->requestId,
+            $gacha,
+            $version,
+            $scheduledFor
+        );
+        if (! $preflight['publishable']) {
+            throw $this->gachaPublishProblemException($preflight, true);
+        }
+        try {
+            $probability = $this->prepareCanonicalProbabilityMetadata(
+                $version
+            );
+        } catch (V2CatalogException $exception) {
+            throw $exception;
+        } catch (\Throwable) {
+            throw $this->canonicalProbabilityInternalException();
+        }
+        if (
+            DB::table('catalog_gacha_publish_schedules')
+                ->where('gacha_id', $gacha->id)
+                ->whereIn('status', ['scheduled', 'processing'])
+                ->lockForUpdate()
+                ->first(['id']) !== null
+        ) {
+            throw new V2CatalogException(
+                'CATALOG_GACHA_SCHEDULE_CONFLICT',
+                409,
+                'The Gacha already has an active Publish Schedule.'
+            );
+        }
+
+        DB::table('catalog_gacha_versions')->where('id', $version->id)->update([
+            'publish_start_at' => $scheduledFor->toIso8601String(),
+            'revision' => (int) $version->revision + 1,
+            'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+        ]);
+        $gachaRevision = (int) $gacha->revision + 1;
+        $versionRevision = (int) $version->revision + 1;
+        DB::table('catalog_gachas')->where('id', $gacha->id)->update([
+            ...($editedCategoryId === null ? [] : ['category_id' => $editedCategoryId]),
+            'management_status' => 'scheduled',
+            'first_published_at' => null,
+            'scheduled_start_at' => $scheduledFor->toIso8601String(),
+            'published_version_id' => null,
+            'active_draw_state_id' => null,
+            'revision' => $gachaRevision,
+            'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+        ]);
+        $publicId = (string) Str::uuid7();
+        DB::table('catalog_gacha_publish_schedules')->insert([
+            'public_id' => $publicId,
+            'gacha_id' => $gacha->id,
+            'gacha_version_id' => $version->id,
+            'probability_version_id' => $probability->id,
+            'status' => 'scheduled',
+            'scheduled_for' =>
+                $scheduledFor->toIso8601String(),
+            'next_attempt_at' =>
+                $scheduledFor->toIso8601String(),
+            'expected_gacha_revision' => $gachaRevision,
+            'expected_version_revision' => $versionRevision,
+            'revision' => 1,
+            'requested_by_admin_id' => $admin->id,
+            'cancelled_by_admin_id' => null,
+            'request_id' => $context->requestId,
+            'attempts' => 0,
+            'locked_at' => null,
+            'locked_by_hash' => null,
+            'lease_expires_at' => null,
+            'started_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => null,
+            'failed_at' => null,
+            'failure_code' => null,
+            'created_at' => DB::raw('CURRENT_TIMESTAMP'),
+            'updated_at' => DB::raw('CURRENT_TIMESTAMP'),
+        ]);
+
+        return $this->mapPublishSchedule(
+            DB::table('catalog_gacha_publish_schedules')
+                ->where('public_id', $publicId)
+                ->firstOrFail(),
+            (string) $version->public_id,
+            $probability->public_id,
+            $probability->snapshot_sha256,
+            $gachaRevision,
+            $versionRevision,
+            $context->requestId
         );
     }
 
@@ -6787,7 +6841,7 @@ final class V2CatalogMasterMutationService
     ): void {
         $schedule = DB::table('catalog_gacha_publish_schedules')
             ->where('gacha_id', $gachaId)
-            ->where('status', 'scheduled')
+            ->whereIn('status', ['scheduled', 'processing'])
             ->lockForUpdate()
             ->first();
         if ($schedule === null) {
@@ -6802,7 +6856,8 @@ final class V2CatalogMasterMutationService
             $scheduledFor ?? (string) $schedule->scheduled_for
         );
         if (
-            $gacha->first_published_at !== null
+            $schedule->status !== 'scheduled'
+            || $gacha->first_published_at !== null
             || (string) $gacha->management_status !== 'scheduled'
             || (int) $version->gacha_id !== $gachaId
             || $version->status !== 'draft'
