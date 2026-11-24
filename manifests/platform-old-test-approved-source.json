@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OT-20261123",
-  "source_pr": 719,
-  "source_sha": "ffa2ee9cf3359c261653f17da7f41032af1b5e6a",
+  "task_id": "OT-20261124",
+  "source_pr": 721,
+  "source_sha": "35a3d916659056e4a989b79e8cf9381ac784603c",
   "target": "old-test",
   "platform": "linux/amd64",
-  "image_mode": "normal",
+  "image_mode": "api-only",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR719 Squash ffa2ee9cf3359c261653f17da7f41032af1b5e6a; Reviewed HEAD ec55cb3307191572a3fef2b1516871012873c3ed; Reviewed/Merged Tree c40f1e2e1e71743c3e48734c5490a5a539b08a90, content diff0; Source Required Checks5/5 and existing security/local evidence reused. normal API+Admin linux/amd64 only; bind existing LINE sender to matching API Image in a separate reviewed Exact Runtime plan. Ledger/Schema118 retained; migrations=[]; historical migration files byte-identical to PR717. Exact Source Dockerfiles; no historical recipe substitution, OS package update or extra Agency/Legacy/Storefront runtime change. OLD Test Security scope is delivery/Gate blockers and explicit Human requests only; retain historical findings and existing mandatory Gates without new exceptions; NEW Production policy unchanged. Control Draft is preparation only; no Control Merge, formal Build, Candidate activation, Worker/Timer operation or migration authorized. After separate Human Control Merge/Artifact GO, use OLD Test Protected Main Artifact once, verify Control/Source/checks/provenance and expiry; no advance Build. Before Exact Runtime GO, qualify bounded running-Schema118/no-migration Executor binding, financial fence/drain/history/backup, fresh TTL300, API/Admin Health, private-first LINE singleton network binding and retained SMS/rank/five Timers/F2B/UnivaPay configuration. Existing SIGTERM/75 path caused137 and must not be repeated blindly: selected SIGINT stop requires independently verified quiescent queue/leases, exact worker identity, bounded clean exit/no OOM/no137 and zero residual processes; unsafe_stop guard unchanged. Isolated shell fixtures are not live drain or activation acceptance. Preserve D4 OFF/BOT/Quota/history, TEST payments, Webhook/Basic/D6/S3 and Storefront. No real send test, provider mutation, automatic old-code fallback, schema down/restore or Production operation."
+  "authority": "Human-approved exact OLD Test payload: PR721 Squash 35a3d916659056e4a989b79e8cf9381ac784603c; reviewed HEAD 04ff910d3cf38b43951721c7fdcd1f9c5a040019; identical Tree e0117f65f8f399af58f4124a39901422b97d0550; Required5 PASS. Draft Control preparation only. API-only AMD64 with running PR719 Ledger/Schema118, migrations=[] and exact Source recipe. Require separate Control Merge and just-in-time Artifact Build GO. Bind new exact candidate/envelope to the installed Executor before any effect. Preserve other images, TEST settings, financial history, LINE sender singleton and the prior Worker/Timer states. Canonical financial fence, drain, backup, Worker identity and clean stop, old image recovery and same-origin Health remain required. After API route technical acceptance, deploy only separately approved Storefront and run Human Paidy TEST acceptance. No Runtime, migration, Provider, or NEW Production authority."
 }
