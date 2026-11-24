@@ -27,7 +27,7 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             ALTER TABLE user_conversion_events
                 ADD CONSTRAINT user_conversion_event_name CHECK (event_name = 'line_friend_added'),
-                ADD CONSTRAINT user_conversion_event_source CHECK (source IN ('transition','recovered')),
+                ADD CONSTRAINT user_conversion_event_source CHECK (source::text IN ('transition'::text,'recovered'::text)),
                 ADD CONSTRAINT user_conversion_event_suppression CHECK (
                     suppressed = (suppressed_reason IS NOT NULL)
                     AND (source <> 'recovered' OR suppressed)
