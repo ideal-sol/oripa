@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "task_id": "OT-20261124",
-  "source_pr": 721,
-  "source_sha": "35a3d916659056e4a989b79e8cf9381ac784603c",
+  "task_id": "OLDTEST-20261125",
+  "source_pr": 724,
+  "source_sha": "3de56a1f145aab4b29641960cc1886c212750cee",
   "target": "old-test",
   "platform": "linux/amd64",
-  "image_mode": "api-only",
+  "image_mode": "normal",
   "activation_authorized": false,
-  "authority": "Human-approved exact OLD Test payload: PR721 Squash 35a3d916659056e4a989b79e8cf9381ac784603c; reviewed HEAD 04ff910d3cf38b43951721c7fdcd1f9c5a040019; identical Tree e0117f65f8f399af58f4124a39901422b97d0550; Required5 PASS. Draft Control preparation only. API-only AMD64 with running PR719 Ledger/Schema118, migrations=[] and exact Source recipe. Require separate Control Merge and just-in-time Artifact Build GO. Bind new exact candidate/envelope to the installed Executor before any effect. Preserve other images, TEST settings, financial history, LINE sender singleton and the prior Worker/Timer states. Canonical financial fence, drain, backup, Worker identity and clean stop, old image recovery and same-origin Health remain required. After API route technical acceptance, deploy only separately approved Storefront and run Human Paidy TEST acceptance. No Runtime, migration, Provider, or NEW Production authority."
+  "authority": "Human-approved exact OLD Test payload: PR724 Squash 3de56a1f145aab4b29641960cc1886c212750cee; reviewed HEAD 8895fb49e6f8cbbc734dbd4003e6c781c53f734f; identical Tree 21f07d708f5421f7baa573c73a38426c12a07725; Required5 PASS run45422455231. Includes Paidy721, LINE CV723, approved five Composer security updates, REL-054 PR726 and scheduled publication724. normal API+Admin linux/amd64 only; preserve Agency. Separate Control Merge and just-in-time formal Build GO required. Contract Artifact14926246450 run45406520533, Source457ca5edd918441368717e4974f588dcf0079bba, digest sha256:5c198214e0ebf989a68280897c832a06f27ecaaaf09ee18c4d07300314f6fb7a; Client/Testkit alpha.54, Public alpha.50/97 operations, Admin/Webhook alpha.47, Site Schema alpha.23. No Contract reissue. Coordinate Storefront PR255 ad7413116c11f85578e749f100f27ed54b7fc345 after API acceptance. Planned Ledger118 to119: only 2026_11_24_000119_create_v2_user_conversion_events.php before new API startup, after full inventory validation and canonical Backup/Migration Gates; forward-only, no automatic restore or down migration. Runtime, Migration, ENV and Provider operations remain unauthorized until separate integrated Exact GO. Preserve Basic authentication, GTM OFF, Paidy TEST/periodic Worker OFF, held UnivaPay processing fence and excluded stopped Workers/Timers. LINE CV start setting and GTM ON need separate Human approval. Prepare existing-style scheduled-publication Worker/Timer and disclose overdue scope before Runtime GO. Reuse successful OLD Test execution order and diagnostics; OLD Test Receipt TTL3000 exception requires explicit approval, fresh receipts and unchanged Security Gate. Bind actual Artifact, Control, selected images, Candidate/Envelope and dependencies once ready. No NEW Production changes."
 }
