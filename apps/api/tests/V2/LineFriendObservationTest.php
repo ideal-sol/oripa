@@ -97,13 +97,14 @@ final class LineFriendObservationTest extends TestCase
         self::assertFalse($row->suppressed);
         self::assertTrue($at->eq(CarbonImmutable::parse($row->occurred_at)));
 
-        $query->delete();
+        (clone $query)->delete();
         self::assertNull($friends->applyObservation($subject, $user, true, $at->addSecond(), $requestId));
         self::assertFalse($query->exists());
         $pending = app(\App\Domain\Line\Services\V2ConversionEventService::class)->pending($user->id);
         self::assertSame(['data' => []], $pending);
-        self::assertSame('recovered', $query->sole()->source);
-        self::assertSame('undeterminable', $query->sole()->suppressed_reason);
+        $recovered = $query->sole();
+        self::assertSame('recovered', $recovered->source);
+        self::assertSame('undeterminable', $recovered->suppressed_reason);
     }
 
     #[DataProvider('conversionStartCases')]
