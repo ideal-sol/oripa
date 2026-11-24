@@ -1042,12 +1042,13 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつ退会を含むOperation 93件である", () => {
+test("Public OpenAPIは3.1.1かつPaidy Checkout取消と退会を含むOperation 94件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 93);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 94);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
+    "abandonPaidyCheckout",
     "cancelPaymentCardRegistration",
     "changeUserPassword",
     "closeAccount",

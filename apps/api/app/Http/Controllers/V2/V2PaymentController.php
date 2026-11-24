@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\V2;
 
+use App\Domain\Identity\Services\V2RateLimiter;
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
 use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodePublicConfiguration;
+use App\Domain\Payment\V2\Services\V2PaidyPaymentService;
 use App\Domain\Payment\V2\Services\V2PaymentMethodPolicy;
 use App\Domain\Payment\V2\Services\V2PaymentProgressService;
 use App\Domain\Reporting\Exceptions\V2ReportingException;
@@ -84,8 +86,19 @@ final class V2PaymentController
 
     public function paidyAuthorization(Request $request, string $paymentId): JsonResponse
     {
-        return $this->handle($request, fn (): array => app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)
+        return $this->handle($request, fn (): array => app(V2PaidyPaymentService::class)
             ->authorize($this->user(), $paymentId, $request->json()->all(), $this->idempotencyKey($request)));
+    }
+
+    public function paidyCheckoutAbandonment(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, function () use ($request, $paymentId): array {
+            $user = $this->user();
+            app(V2RateLimiter::class)->assertSubject('user_mutation', $user->public_id);
+
+            return app(V2PaidyPaymentService::class)
+                ->abandon($user, $paymentId, $request->json()->all(), $this->idempotencyKey($request));
+        });
     }
 
     public function show(Request $request, string $paymentId): JsonResponse

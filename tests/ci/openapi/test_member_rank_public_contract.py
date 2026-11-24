@@ -67,15 +67,18 @@ class MemberRankPublicContractTest(unittest.TestCase):
     def test_released_operation_inventory_and_public_disclosure(self):
         operations = [operation['operationId'] for path in self.contract['paths'].values()
                       for operation in path.values() if isinstance(operation, dict) and 'operationId' in operation]
-        self.assertEqual(len(operations), 93)
         ledger = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        self.assertIsNone(ledger['candidate'])
+        candidate = ledger['candidate']
+        expected_count = (candidate['public_api_operation_count'] if candidate
+                          else ledger['latest_immutable']['public_openapi']['operation_count'])
+        self.assertEqual(len(operations), expected_count)
+        self.assertEqual(len(set(operations)), expected_count)
         self.assertFalse(ledger['latest_immutable']['breaking_change'])
         self.assertTrue(ledger['immutable_history'][-2]['breaking_change'])
         self.assertEqual(ledger['latest_immutable']['release_mode'], 'contract-additive')
         self.assertEqual(ledger['latest_immutable'], ledger['immutable_history'][-1])
         self.assertEqual(ledger['latest_immutable']['handoff_status'], 'released')
-        self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], len(operations))
+        self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], 93)
         self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.52')
         self.assertEqual(len(ledger['immutable_history']), 32)
         self.assertEqual(set(self.schemas['MemberRankPublicSetting']['properties']), {

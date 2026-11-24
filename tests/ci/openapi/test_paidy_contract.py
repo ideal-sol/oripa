@@ -53,6 +53,26 @@ class PaidyContractTest(unittest.TestCase):
         self.assertIn({'$ref': '#/components/schemas/PaymentUnivapayInlineAction'}, variants)
         self.assertIn({'$ref': '#/components/schemas/PaymentCardComponentAction'}, variants)
 
+    def test_abandonment_is_owned_idempotent_and_returns_current_payment(self):
+        public = json.loads((ROOT / 'openapi/bundled/public.openapi.json').read_text())
+        operation = public['paths']['/payments/{payment_id}/paidy-checkout-abandonments']['post']
+        self.assertEqual(operation['operationId'], 'abandonPaidyCheckout')
+        self.assertEqual(operation['security'], [{'userSession': []}])
+        self.assertEqual(operation['x-idempotency'], 'required')
+        self.assertEqual(operation['x-sms-verification'], 'required')
+        self.assertEqual(operation['x-rate-limit'], 'user-mutation')
+        self.assertEqual(operation['x-cache-policy'], 'private-no-store')
+        self.assertEqual(operation['parameters'][:2], [
+            {'$ref': '#/components/parameters/XsrfToken'},
+            {'$ref': '#/components/parameters/IdempotencyKey'},
+        ])
+        self.assertEqual(operation['responses']['200']['content']['application/json']['schema'],
+                         {'$ref': '#/components/schemas/Payment'})
+        request = public['components']['schemas']['PaymentPaidyCheckoutAbandonmentRequest']
+        self.assertFalse(request['additionalProperties'])
+        self.assertEqual(request['required'], ['result'])
+        self.assertEqual(request['properties']['result']['enum'], ['closed', 'rejected'])
+
     def test_webhook_is_durable_trigger_and_separate_from_public(self):
         webhook = json.loads((ROOT / 'openapi/bundled/webhook.openapi.json').read_text())
         operation = webhook['paths']['/paidy/{token}']['post']

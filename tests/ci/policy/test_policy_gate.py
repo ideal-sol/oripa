@@ -1771,7 +1771,7 @@ class PolicyGateTest(unittest.TestCase):
 
     def test_storefront_release_governance_accepts_alpha_40_preserving_alpha_34_history(self):
         value = copy.deepcopy(policy_gate.storefront_release_governance(ROOT))
-        self.assertIsNone(value['candidate'])
+        value['candidate'] = None  # Exercise historical snapshots independently of a pending release.
         self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.52')
         self.assertFalse(value['latest_immutable']['breaking_change'])
         value['immutable_history'].pop()
@@ -4076,10 +4076,8 @@ python3 scripts/db/v2_database.py smoke \\
                 policy_gate.validate_v2_content_contact_boundary(root, paths)
 
     def make_workspace(self, root):
-        # Boundary unit fixtures use real published alpha.50 authority, not the
-        # live LINE preparation that must wait for Paidy51. No invented ledger.
+        # Keep the copied generated files and workspace metadata on the same release.
         fixture_governance = json.loads((ROOT / 'manifests/storefront-contract-releases.json').read_text())
-        fixture_governance['candidate'] = None
         policy_gate.storefront_artifact.validate_governance(fixture_governance)
         fixture_release = policy_gate.storefront_artifact.release_source(fixture_governance)
         paths = set(policy_gate.WORKSPACE_REQUIRED_FILES)
@@ -4751,11 +4749,12 @@ services:
                 root
                 / "packages/storefront-testkit/src/generated/public-contract.ts"
             )
-            self.assertIn("operation_count: 93", generated.read_text(encoding="utf-8"))
+            count = policy_gate.storefront_release_source(root)["public_api_operation_count"]
+            self.assertIn(f"operation_count: {count}", generated.read_text(encoding="utf-8"))
             generated.write_text(
                 generated.read_text(encoding="utf-8").replace(
-                    "operation_count: 93",
-                    "operation_count: 87",
+                    f"operation_count: {count}",
+                    f"operation_count: {count - 1}",
                 ),
                 encoding="utf-8",
             )

@@ -388,6 +388,17 @@ final class V2PaymentService
             ->where('id', $operationId)->firstOrFail();
     }
 
+    // The Paidy checkout service holds the payment row lock and has checked for authorization.
+    public function applyPaidyCheckoutAbandonment(object $payment, string $result): void
+    {
+        $status = match ($result) {
+            'closed' => 'canceled',
+            'rejected' => 'failed',
+        };
+        $this->transitionPayment($payment, $status, 'user', null);
+        app(V2PaymentProgressService::class)->append((int) $payment->id, 'paidy_checkout_result', ['result' => $result, 'reason' => 'user']);
+    }
+
     public function applyVerifiedStatus(
         int $providerEventId,
         string $status,

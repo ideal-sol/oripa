@@ -1214,6 +1214,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/{payment_id}/paidy-checkout-abandonments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 本人のPaidy Checkoutの終了を報告する
+         * @description ローカルで承認受付や決済IDのひも付けがないrequires_actionに限り、closedはcanceled、rejectedはfailedに遷移する。 200は現在の決済を返す。状態が変わらない場合があり、同じ冪等キーを再送した場合も最新の決済を返す。 本人以外または存在しない決済は404、非Paidyは409、不正本文は422。
+         */
+        post: operations["abandonPaidyCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments": {
         parameters: {
             query?: never;
@@ -1864,6 +1884,10 @@ export interface components {
                 name: string;
                 value: string;
             }[];
+        };
+        PaymentPaidyCheckoutAbandonmentRequest: {
+            /** @enum {string} */
+            result: "closed" | "rejected";
         };
         PaymentPaidyAuthorizationRequest: {
             paidy_payment_id: string;
@@ -5440,6 +5464,36 @@ export interface operations {
         };
         responses: {
             /** @description 所有会員のみ。private, no-store。processingは成功確定を意味しない。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    abandonPaidyCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentPaidyCheckoutAbandonmentRequest"];
+            };
+        };
+        responses: {
+            /** @description 所有会員の現在の決済。private, no-store。 */
             200: {
                 headers: {
                     [name: string]: unknown;
