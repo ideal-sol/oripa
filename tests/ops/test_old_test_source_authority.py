@@ -1575,7 +1575,9 @@ class Paidy721SourceAuthorityTest(unittest.TestCase):
     def test_exact_api_only_authority_keeps_running_schema_118(self):
         fixture = OldTestSourceAuthorityTest()
         fixture.setUp()
-        fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        fixture.approval = json.loads(subprocess.check_output([
+            "git", "show", "20d54dfdbc76fe41331c392236c286cbb5c2d5c2:" + wrapper.OLD_AUTHORITY_PATH,
+        ], cwd=ROOT, text=True))
         fixture.pull["merge_commit_sha"] = self.SOURCE
         fixture.pull["head"]["sha"] = self.REVIEWED
         fixture.comparison.update(merge_base_commit={"sha": self.SOURCE}, base_commit={"sha": self.SOURCE})
@@ -1596,3 +1598,46 @@ class Paidy721SourceAuthorityTest(unittest.TestCase):
         self.assertEqual(sum(p.endswith(".php") for p in git(
             "ls-tree", "-r", "--name-only", self.SOURCE, "--", "apps/api/database/migrations-v2"
         ).splitlines()), 118)
+
+
+class LineCvScheduled724SourceAuthorityTest(unittest.TestCase):
+    SOURCE = "3de56a1f145aab4b29641960cc1886c212750cee"
+    REVIEWED = "8895fb49e6f8cbbc734dbd4003e6c781c53f734f"
+    TREE = "21f07d708f5421f7baa573c73a38426c12a07725"
+    MIGRATION = "apps/api/database/migrations-v2/2026_11_24_000119_create_v2_user_conversion_events.php"
+
+    def test_exact_normal_authority_preserves_separate_runtime_approval(self):
+        fixture = OldTestSourceAuthorityTest()
+        fixture.setUp()
+        fixture.approval = json.loads((ROOT / wrapper.OLD_AUTHORITY_PATH).read_text())
+        fixture.pull["merge_commit_sha"] = self.SOURCE
+        fixture.pull["head"]["sha"] = self.REVIEWED
+        fixture.comparison.update(merge_base_commit={"sha": self.SOURCE}, base_commit={"sha": self.SOURCE})
+        def get(path):
+            if "/git/commits/" in path:
+                return {"sha": path.rsplit("/", 1)[1], "tree": {"sha": self.TREE}}
+            return fixture.get(path.replace("/pulls/724", "/pulls/549"))
+        authority = wrapper.authorize_old_test_source("OLDTEST-20261125", "724", self.SOURCE, CONTROL, get=get)
+        self.assertEqual((authority["image_mode"], authority["source_tree"]), ("normal", self.TREE))
+        self.assertFalse(fixture.approval["activation_authorized"])
+        for boundary in ("Separate Control Merge", "Ledger118 to119", "forward-only", "Basic authentication",
+                         "GTM OFF", "Paidy TEST/periodic Worker OFF", "fresh receipts", "No NEW Production"):
+            self.assertIn(boundary, fixture.approval["authority"])
+
+    def test_only119_added_and_source_contract_identity_is_distinct(self):
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+        self.assertEqual(git("rev-parse", self.SOURCE + "^{tree}"), self.TREE)
+        self.assertEqual(git("rev-parse", self.REVIEWED + "^{tree}"), self.TREE)
+        def inventory(ref):
+            return {line.split("\t")[1]: line.split()[2] for line in git(
+                "ls-tree", "-r", ref, "--", "apps/api/database/migrations-v2").splitlines()
+                if line.endswith(".php")}
+        before, after = inventory(Paidy721SourceAuthorityTest.SOURCE), inventory(self.SOURCE)
+        self.assertEqual((len(before), len(after)), (118, 119))
+        self.assertEqual(set(after) - set(before), {self.MIGRATION})
+        self.assertEqual({p: after[p] for p in before}, before)
+        contract = "457ca5edd918441368717e4974f588dcf0079bba"
+        self.assertNotEqual(contract, self.SOURCE)
+        git("merge-base", "--is-ancestor", contract, self.SOURCE)
+        self.assertEqual(git("diff", contract, self.SOURCE, "--", "openapi", "packages"), "")
