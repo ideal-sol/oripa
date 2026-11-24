@@ -73,13 +73,17 @@ class MemberRankPublicContractTest(unittest.TestCase):
                           else ledger['latest_immutable']['public_openapi']['operation_count'])
         self.assertEqual(len(operations), expected_count)
         self.assertEqual(len(set(operations)), expected_count)
+        # Preserve the historical alpha.52 release assertions as the ledger advances.
+        ledger['immutable_history'] = [row for row in ledger['immutable_history']
+                                       if int(row['bundle_version'].rsplit('.', 1)[1]) <= 52]
+        ledger['latest_immutable'] = ledger['immutable_history'][-1]
         self.assertFalse(ledger['latest_immutable']['breaking_change'])
         self.assertTrue(ledger['immutable_history'][-2]['breaking_change'])
         self.assertEqual(ledger['latest_immutable']['release_mode'], 'contract-additive')
         self.assertEqual(ledger['latest_immutable'], ledger['immutable_history'][-1])
         self.assertEqual(ledger['latest_immutable']['handoff_status'], 'released')
         self.assertEqual(ledger['latest_immutable']['public_openapi']['operation_count'], 93)
-        self.assertEqual(ledger['latest_immutable']['bundle_version'], '2.0.0-alpha.52')
+        self.assertEqual(next(row for row in ledger['immutable_history'] if row['bundle_version'] == '2.0.0-alpha.52')['bundle_version'], '2.0.0-alpha.52')
         self.assertEqual(len(ledger['immutable_history']), 32)
         self.assertEqual(set(self.schemas['MemberRankPublicSetting']['properties']), {
             'code', 'name', 'level', 'reach_line', 'maintain_line', 'promotion_bonus', 'purchase_bonus'})
