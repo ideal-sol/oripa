@@ -12,6 +12,8 @@ use App\Domain\Identity\Services\V2IdentityCorrelation;
 use App\Domain\Identity\Services\V2LineOidcHttpTransport;
 use App\Domain\Identity\Services\V2PasswordPolicy;
 use App\Domain\Identity\Services\V2SessionManager;
+use App\Domain\Line\Services\V2LineFriendService;
+use App\Domain\Line\Services\V2LineFriendStateService;
 use App\Models\V2\AuditLog;
 use App\Models\V2\ExternalIdentityAccount;
 use App\Models\V2\ExternalIdentityTransaction;
@@ -20,12 +22,13 @@ use App\Models\V2\LineMessagingSetting;
 use App\Models\V2\LinePendingFollow;
 use App\Models\V2\User;
 use App\Models\V2\Wallet;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use SensitiveParameter;
+use Tests\Support\FakeLineOidcTransport;
 use Tests\TestCase;
 
 final class LineLoginVerticalSliceTest extends TestCase
@@ -438,6 +441,14 @@ final class LineLoginVerticalSliceTest extends TestCase
     {
         $user = $this->user('line-reauth@example.test', false);
         $this->account($user, 'line-reauth-subject');
+        config(['v2_line.conversion_started_at' => null, 'v2_line.friendship_check_enabled' => false]);
+        self::assertNull(app(V2LineFriendService::class)->applyObservation(
+            'line-reauth-subject', $user, true, CarbonImmutable::now()->subMinute(), (string) Str::uuid7()
+        ));
+        $friends = LineFriendship::query()->where('user_id', $user->id);
+        $friendId = $friends->sole()->id;
+        $state = app(V2LineFriendStateService::class);
+        self::assertTrue($state->forUser($user->id)['is_line_user']);
         $google = ExternalIdentityAccount::query()->create([
             'user_id' => $user->getKey(),
             'provider' => 'google',
@@ -465,6 +476,19 @@ final class LineLoginVerticalSliceTest extends TestCase
             ->sole()
             ->revoked_at);
         self::assertNull($google->refresh()->revoked_at);
+        self::assertFalse($state->forUser($user->id)['is_line_user']);
+        self::assertSame($friendId, $friends->sole()->id);
+
+        config(['v2_line.conversion_started_at' => CarbonImmutable::now('UTC')->subSecond()->format('Y-m-d\TH:i:s\Z')]);
+        $relink = $this->start('link', $user, $this->requestWithSession($rotated['token']));
+        $this->provider->claims($relink['query']['nonce'], 'line-reauth-subject');
+        $this->expectCode('EXTERNAL_IDENTITY_CONFLICT',
+            fn () => $this->completeLine($relink, 'synthetic-relink-code', $rotated['token']));
+        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $user->id)
+            ->where('provider', 'line')->sole()->revoked_at);
+        self::assertFalse($state->forUser($user->id)['is_line_user']);
+        self::assertSame($friendId, $friends->sole()->id);
+        $this->assertDatabaseMissing('user_conversion_events', ['user_id' => $user->id]);
     }
 
     public function test_line_protocol_claim_and_provider_failures_are_generic_and_one_time(): void
@@ -1094,121 +1118,5 @@ final class LineLoginVerticalSliceTest extends TestCase
         } catch (V2AuthenticationException $exception) {
             self::assertSame($code, $exception->errorCode);
         }
-    }
-}
-
-final class FakeLineOidcTransport implements V2LineOidcTransport
-{
-    public ?\Closure $duringVerification = null;
-    public bool $friendFlag = false;
-    public bool $friendshipFails = false;
-    public int $friendshipCalls = 0;
-    public int $exchangeCalls = 0;
-    public int $verifyCalls = 0;
-
-    public function friendshipStatus(): bool
-    {
-        $this->friendshipCalls++;
-        if ($this->friendshipFails) throw new V2OidcProtocolException('friendship_transport_failed');
-        return $this->friendFlag;
-    }
-
-    public function discardAccessToken(): void {}
-
-    /** @var array<string, mixed> */
-    private array $claims = [];
-    private ?string $expectedChallenge = null;
-    private ?string $failure = null;
-
-    /**
-     * @param array<string, mixed> $overrides
-     */
-    public function claims(
-        string $nonce,
-        string $subject,
-        ?string $email = null,
-        array $overrides = []
-    ): void {
-        $now = now()->getTimestamp();
-        $claims = [
-            'iss' => 'https://access.line.me',
-            'sub' => $subject,
-            'aud' => 'line-channel.test',
-            'exp' => $now + 300,
-            'iat' => $now,
-            'nonce' => $nonce,
-        ];
-        if ($email !== null) {
-            $claims['email'] = $email;
-        }
-        $this->claims = [...$claims, ...$overrides];
-    }
-
-    public function expectChallenge(string $challenge): void
-    {
-        $this->expectedChallenge = $challenge;
-    }
-
-    public function fail(string $failure): void
-    {
-        $this->failure = $failure;
-    }
-
-    public function reset(): void
-    {
-        $this->failure = null;
-    }
-
-    public function exchangeAuthorizationCode(
-        #[SensitiveParameter] string $authorizationCode,
-        #[SensitiveParameter] string $codeVerifier,
-        string $redirectUri
-    ): string {
-        $this->exchangeCalls++;
-        if (
-            $this->failure === 'timeout'
-            || $this->failure === 'rate-limit'
-            || $this->failure === 'server-error'
-        ) {
-            throw new V2OidcProtocolException(match ($this->failure) {
-                'rate-limit' => 'provider_rate_limited',
-                'server-error' => 'provider_unavailable',
-                default => 'provider_transport_failed',
-            });
-        }
-        if (
-            $authorizationCode === ''
-            || $redirectUri !==
-                'https://storefront.example.test/api/v2/auth/external/line/callback'
-            || $this->expectedChallenge === null
-            || ! hash_equals(
-                $this->expectedChallenge,
-                $this->base64Url(hash('sha256', $codeVerifier, true))
-            )
-        ) {
-            throw new V2OidcProtocolException('authorization_code_rejected');
-        }
-
-        return 'synthetic-line-id-token';
-    }
-
-    public function verifyIdToken(#[SensitiveParameter] string $idToken): array
-    {
-        $this->verifyCalls++;
-        if (
-            $this->failure === 'verify-rejected'
-            || $idToken !== 'synthetic-line-id-token'
-            || $this->claims === []
-        ) {
-            throw new V2OidcProtocolException('line_verify_rejected');
-        }
-
-        if ($this->duringVerification !== null) ($this->duringVerification)();
-        return $this->claims;
-    }
-
-    private function base64Url(string $value): string
-    {
-        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 }
