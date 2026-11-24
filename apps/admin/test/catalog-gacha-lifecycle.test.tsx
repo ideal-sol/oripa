@@ -119,13 +119,15 @@ describe("Gacha lifecycle editing", () => {
     let finishSave!: () => void;
     const submit = vi.fn(() => new Promise<void>((resolve) => { finishSave = resolve; }));
     const start = "2099-08-01T15:00:00Z";
-    render(<CatalogGachaCoreForm
-      current={gacha("draft", start)}
-      mode="edit"
-      onCancel={vi.fn()}
-      onSubmit={submit}
-    />);
-    await screen.findByRole("option", { name: "Category A" });
+    await act(async () => {
+      render(<CatalogGachaCoreForm
+        current={gacha("draft", start)}
+        mode="edit"
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />);
+    });
+    expect(screen.getByRole("option", { name: "Category A" })).toBeVisible();
     const startField = screen.getByLabelText("開始日時（Asia/Tokyo）");
     expect(startField).toHaveValue("2099-08-02T00:00");
     fireEvent.change(startField, { target: { value: "2099-08-03T00:00" } });

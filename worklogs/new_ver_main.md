@@ -1,6 +1,6 @@
 ## GACHA-SCHEDULE-PUBLISH-FIX-20261124 — 通常ガチャ編集の予約公開
 
-- Issue none、R3、Strict Change、Application Runtime Activation deferred。Base `20d54dfdbc76fe41331c392236c286cbb5c2d5c2`。専用 Worktree と `fix/GACHA-SCHEDULE-PUBLISH-FIX-20261124` を使用。GitHub App の文字数制限に合わせ、配信と機械可読レビューには Task ID `GACHA-SCHEDULE-PUBLISH-FIX` を使用。
+- Issue none、R3、Strict Change、Application Runtime Activation deferred。Base `20d54dfdbc76fe41331c392236c286cbb5c2d5c2`。専用 Worktree と `fix/GACHA-SCHEDULE-PUBLISH-FIX-20261124` を使用。GitHub App と CI の Task ID 制約に合わせ、配信と機械可読レビューには `FIX-20261124` を使用。
 - 初回公開前の通常ガチャの編集は、未来の開始日時と公開／予約公開の組み合わせを DB 時刻で判定する。既存の専用 API と同じ Preflight、確率 Version 固定、予約作成を、編集更新と単一トランザクションで実行する。予約取得済みの Worker と競合した更新は Revision を変えずに拒否する。
 - Admin は保存後の詳細と再読み込みで API の状態を表示する。開始・終了日時には既存の JST 変換を適用する。予約公開の開始日時エラーを入力欄に表示し、二重送信を防ぐ。新規 Migration、API 契約、Worker 運用設定の差分は0件。検証結果と最終 HEAD のレビューは Draft PR に記録する。
 - OLD Test の確認範囲では予約公開の実行設定を検出できず、NEW Production の稼働確認と実環境の Browser Acceptance は反映担当の確認事項。正式 Build、Ready、Merge、Runtime、ENV、実環境 DB、並行する LINE CV に対する変更は0件。

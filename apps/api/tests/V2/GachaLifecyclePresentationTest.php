@@ -1032,8 +1032,10 @@ final class GachaLifecyclePresentationTest extends TestCase
         $prepared = $this->prepareGacha(
             $token,
             'lifecycle-cancel',
-            $this->databaseNow()->addHour()
+            $this->databaseNow()->subMinute()
         );
+        $originalStart = $this->databaseNow()->addSeconds(20);
+        $prepared['input']['publish_start_at'] = $originalStart->toIso8601String();
         $scheduled = $this->schedule($token, $prepared, 'lifecycle-schedule');
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
@@ -1067,7 +1069,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             );
         }
 
-        $changedStart = $this->databaseNow()->addHours(2);
+        $changedStart = $originalStart->addSeconds(20);
         $input = $prepared['input'];
         $input['publish_start_at'] = $changedStart->toIso8601String();
         $input['title'] = '予約中の全面編集';
@@ -1101,6 +1103,15 @@ final class GachaLifecyclePresentationTest extends TestCase
             CarbonImmutable::parse((string) $revisedSchedule->scheduled_for)
                 ->utc()->toIso8601ZuluString()
         );
+        self::assertSame($revisedSchedule->scheduled_for, $revisedSchedule->next_attempt_at);
+        self::assertSame($changed['revision'], (int) $revisedSchedule->expected_gacha_revision);
+        self::assertSame($changed['current_version']['revision'], (int) $revisedSchedule->expected_version_revision);
+        self::assertSame((int) $scheduled['revision'] + 1, (int) $revisedSchedule->revision);
+        self::assertSame(1, DB::table('catalog_gacha_publish_schedules')->where('gacha_id', $reserved->id)->count());
+        $worker = app(V2ScheduledGachaPublishWorker::class);
+        sleep(max(0, $originalStart->timestamp + 1 - $this->databaseNow()->timestamp));
+        self::assertSame(0, $worker->run('lifecycle-old-schedule'));
+        $this->getJson('/api/v2/gachas/'.$prepared['public_code'])->assertNotFound();
 
         $cancelled = $this->updateGacha(
             $token,
@@ -1120,6 +1131,8 @@ final class GachaLifecyclePresentationTest extends TestCase
             'status' => 'cancelled',
         ]);
         self::assertSame('scheduled', $scheduled['status']);
+        sleep(max(0, $changedStart->timestamp + 1 - $this->databaseNow()->timestamp));
+        self::assertSame(0, $worker->run('lifecycle-cancelled-schedule'));
         $this->getJson('/api/v2/gachas/'.$prepared['public_code'])
             ->assertNotFound();
     }
@@ -1266,8 +1279,10 @@ final class GachaLifecyclePresentationTest extends TestCase
         $prepared = $this->prepareGacha(
             $token,
             'lifecycle-worker-retry',
-            $this->databaseNow()->addSeconds(2)
+            $this->databaseNow()->subMinute()
         );
+        $start = $this->databaseNow()->addSeconds(10);
+        $prepared['input']['publish_start_at'] = $start->toIso8601String();
         $scheduled = $this->schedule(
             $token,
             $prepared,
@@ -1294,7 +1309,7 @@ final class GachaLifecyclePresentationTest extends TestCase
             'BEFORE UPDATE ON catalog_probability_versions FOR EACH ROW '.
             'EXECUTE FUNCTION v2_test_reject_canonical_probability_publish()'
         );
-        sleep(3);
+        sleep(max(0, $start->timestamp + 1 - $this->databaseNow()->timestamp));
         try {
             self::assertSame(
                 1,
