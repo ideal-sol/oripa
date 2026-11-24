@@ -340,11 +340,17 @@ final class LineBotManagementTest extends TestCase
 
     public function test_bot_switch_never_grants_member_reward_twice_or_copies_friend_state(): void
     {
+        config(['v2_line.conversion_started_at' => null]);
         LineMessagingSetting::query()->whereKey(1)->update(['reward_enabled' => true, 'reward_point_amount' => 100]);
         $user = $this->user('synthetic-bot-reward@example.test');
         $this->lineAccount($user, 'synthetic-member');
-        $this->postWebhook($this->followEvent('legacy-follow', 'synthetic-member', 'legacy-reply'))->assertOk();
+        $legacyFollow = $this->followEvent('legacy-follow', 'synthetic-member', 'legacy-reply');
+        $legacyFollow['timestamp'] = now()->subMinute()->getTimestampMs();
+        $this->postWebhook($legacyFollow)->assertOk();
         $legacyId = app(V2LineConfiguration::class)->botId();
+        $legacyFriend = LineFriendship::query()->where('line_bot_id', $legacyId)->where('user_id', $user->id)->sole();
+        $legacyFriend->forceFill(['superseded_at' => now()])->save();
+        config(['v2_line.conversion_started_at' => now('UTC')->subSeconds(30)->format('Y-m-d\TH:i:s\Z')]);
         $bot = $this->storedBot();
         DB::table('line_bots')->where('id', $bot->id)->update(['is_active' => true]);
         self::assertFalse(LineFriendship::query()->where('line_bot_id', $bot->id)->exists());
@@ -354,6 +360,11 @@ final class LineBotManagementTest extends TestCase
         self::assertSame(2, LineFriendship::query()->where('user_id', $user->id)->count());
         self::assertSame(1, PointOperation::query()->where('source_type', 'line_friend')->count());
         self::assertSame(100, Wallet::query()->where('user_id', $user->id)->sole()->free_balance);
+        self::assertNotNull($legacyFriend->fresh()->superseded_at);
+        $conversion = DB::table('user_conversion_events')->where('user_id', $user->id)->sole();
+        self::assertTrue($conversion->suppressed);
+        self::assertSame('undeterminable', $conversion->suppressed_reason);
+        self::assertSame(['data' => []], app(\App\Domain\Line\Services\V2ConversionEventService::class)->pending($user->id));
     }
 
     public function test_switch_rejected_while_sending_and_database_enforces_one_active(): void

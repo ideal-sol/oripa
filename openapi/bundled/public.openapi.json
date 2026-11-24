@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.49",
+    "version": "2.0.0-alpha.50",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -1302,6 +1302,333 @@
           },
           "default": {
             "$ref": "#/components/responses/DrawHistoryReadProblem"
+          }
+        }
+      }
+    },
+    "/me/conversion-events/pending": {
+      "get": {
+        "operationId": "getPendingConversionEvents",
+        "summary": "getPendingConversionEvents",
+        "x-sms-verification": "required",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-read",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user conversion result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingConversionEvents"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/conversion-events/{id}/claim": {
+      "post": {
+        "operationId": "claimConversionEvent",
+        "summary": "claimConversionEvent",
+        "x-sms-verification": "required",
+        "x-idempotency": "not-required",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user conversion result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionEventClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "x-csrf": "required"
+      }
+    },
+    "/me/conversion-events/{id}/delivered": {
+      "post": {
+        "operationId": "deliverConversionEvent",
+        "summary": "deliverConversionEvent",
+        "x-sms-verification": "required",
+        "x-idempotency": "not-required",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Current user conversion result"
+          },
+          "401": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Authenticated conversion event problem. 404 hides ownership; 409 codes: CONVERSION_CLAIM_HELD, CONVERSION_ALREADY_DELIVERED, CONVERSION_NOT_DELIVERABLE, CONVERSION_TOKEN_MISMATCH.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          }
+        ],
+        "x-csrf": "required",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversionEventDeliveredRequest"
+              }
+            }
           }
         }
       }
@@ -4350,6 +4677,87 @@
       }
     },
     "schemas": {
+      "ConversionEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "event",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event": {
+            "type": "string",
+            "const": "line_friend_added"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PendingConversionEvents": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/ConversionEvent"
+            }
+          }
+        }
+      },
+      "ConversionEventClaim": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_token",
+              "expires_in_seconds"
+            ],
+            "properties": {
+              "claim_token": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "expires_in_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120
+              }
+            }
+          }
+        }
+      },
+      "ConversionEventDeliveredRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_token"
+        ],
+        "properties": {
+          "claim_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
       "AccountClosurePreviewResponse": {
         "type": "object",
         "additionalProperties": false,

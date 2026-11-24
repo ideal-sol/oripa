@@ -11,6 +11,9 @@ export interface IdentityMutationOptions {
 }
 
 export interface StorefrontIdentityClient {
+  getPendingConversionEvents(): Promise<StorefrontResponse<Schemas["PendingConversionEvents"]>>;
+  claimConversionEvent(id: string, options?: IdentityMutationOptions): Promise<StorefrontResponse<Schemas["ConversionEventClaim"]>>;
+  deliverConversionEvent(id: string, input: Schemas["ConversionEventDeliveredRequest"], options?: IdentityMutationOptions): Promise<StorefrontResponse<undefined>>;
   getAccountClosurePreview(): Promise<StorefrontResponse<Schemas["AccountClosurePreviewResponse"]>>;
   closeAccount(input: Schemas["AccountClosureRequest"], options: IdentityMutationOptions & { idempotency_key: string }): Promise<StorefrontResponse<Schemas["AccountClosureResponse"]>>;
   sendAccountClosureEmailCode(options?: IdentityMutationOptions): Promise<StorefrontResponse<Schemas["AccountClosureEmailCodeResponse"]>>;
@@ -151,6 +154,9 @@ export function createStorefrontIdentityClient(
     });
 
   return {
+    getPendingConversionEvents: () => transport.request({ path: "/me/conversion-events/pending", retry: false }),
+    claimConversionEvent: (id, options = {}) => transport.request({ path: `/me/conversion-events/${conversionId(id)}/claim`, method: "POST", headers: csrf(options.csrf_token), csrf: "required", retry: false }),
+    deliverConversionEvent: (id, input, options = {}) => transport.request({ path: `/me/conversion-events/${conversionId(id)}/delivered`, method: "POST", body: input, headers: csrf(options.csrf_token), csrf: "required", retry: false }),
     getAccountClosurePreview: () => transport.request({ path: "/me/account-closure", retry: false }),
     closeAccount: (input, options) => transport.request({ path: "/me/account-closure", method: "POST", body: input, headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key, csrf: "required", retry: false }),
     sendAccountClosureEmailCode: (options = {}) => transport.request({ path: "/me/account-closure/email-code", method: "POST", headers: csrf(options.csrf_token), csrf: "required", retry: false }),
@@ -349,4 +355,9 @@ export function createStorefrontIdentityClient(
         options,
       ),
   };
+}
+
+function conversionId(id: string): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new TypeError("conversion id is invalid");
+  return encodeURIComponent(id);
 }

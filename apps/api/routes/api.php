@@ -158,6 +158,12 @@ Route::prefix('v2')
             ->name('v2.public.payment-card-registrations.store');
         Route::get('/me/line-friend-state', [V2CurrentUserLineController::class, 'show'])
             ->name('v2.public.line-friend-state.show');
+        Route::get('/me/conversion-events/pending', [\App\Http\Controllers\V2\V2ConversionEventController::class, 'pending'])
+            ->name('v2.public.conversion-events.pending');
+        Route::post('/me/conversion-events/{id}/claim', [\App\Http\Controllers\V2\V2ConversionEventController::class, 'claim'])
+            ->whereUuid('id')->name('v2.public.conversion-events.claim');
+        Route::post('/me/conversion-events/{id}/delivered', [\App\Http\Controllers\V2\V2ConversionEventController::class, 'delivered'])
+            ->whereUuid('id')->name('v2.public.conversion-events.delivered');
         Route::get('/me/prizes', [V2PrizeShippingController::class, 'prizes'])
             ->name('v2.public.prizes.index');
         Route::get('/me/prizes/{prizeId}', [V2PrizeShippingController::class, 'prize'])

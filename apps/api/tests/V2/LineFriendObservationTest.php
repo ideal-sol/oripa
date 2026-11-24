@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class LineFriendObservationTest extends TestCase
@@ -81,6 +82,59 @@ final class LineFriendObservationTest extends TestCase
         self::assertSame('friend', DB::table('line_friendships')->value('status'));
         self::assertNull($service->applyObservation($subject, $user, false, $at->addSecond(), $request));
         self::assertSame('unfollowed', DB::table('line_friendships')->value('status'));
+    }
+
+    public function test_observation_uses_event_time_and_recovers_missing_evidence_without_delivery(): void
+    {
+        [$user, $subject] = $this->linked();
+        $at = CarbonImmutable::now('UTC')->subSecond()->startOfSecond();
+        config(['v2_line.conversion_started_at' => $at->format('Y-m-d\TH:i:s\Z')]);
+        $friends = app(V2LineFriendService::class);
+        $requestId = (string) Str::uuid7();
+        self::assertNull($friends->applyObservation($subject, $user, true, $at, $requestId));
+        $query = DB::table('user_conversion_events')->where('user_id', $user->id);
+        $row = $query->sole();
+        self::assertFalse($row->suppressed);
+        self::assertTrue($at->eq(CarbonImmutable::parse($row->occurred_at)));
+
+        (clone $query)->delete();
+        self::assertNull($friends->applyObservation($subject, $user, true, $at->addSecond(), $requestId));
+        self::assertFalse($query->exists());
+        $pending = app(\App\Domain\Line\Services\V2ConversionEventService::class)->pending($user->id);
+        self::assertSame(['data' => []], $pending);
+        $recovered = $query->sole();
+        self::assertSame('recovered', $recovered->source);
+        self::assertSame('undeterminable', $recovered->suppressed_reason);
+    }
+
+    #[DataProvider('conversionStartCases')]
+    public function test_observation_start_configuration_fails_closed(?string $start, ?string $reason): void
+    {
+        [$user, $subject] = $this->linked();
+        config(['v2_line.conversion_started_at' => $start]);
+        $this->travelTo(CarbonImmutable::parse('2026-11-24T01:00:00Z'));
+        $service = app(V2LineFriendService::class);
+        self::assertNull($service->applyObservation(
+            $subject, $user, true, CarbonImmutable::now()->subMinute(), (string) Str::uuid7()
+        ));
+        self::assertTrue(app(\App\Domain\Line\Services\V2LineFriendStateService::class)->isLineUser($user->id));
+        $rows = DB::table('user_conversion_events')->where('user_id', $user->id);
+        if ($reason === null) {
+            self::assertFalse($rows->exists());
+        } else {
+            self::assertTrue($rows->sole()->suppressed);
+            self::assertSame($reason, $rows->sole()->suppressed_reason);
+        }
+    }
+
+    public static function conversionStartCases(): array
+    {
+        return [
+            'unset' => [null, null],
+            'invalid UTC calendar date' => ['2026-02-30T00:00:00Z', null],
+            'start not reached' => ['2026-11-24T01:00:01Z', 'before_start'],
+            'late pre-start event' => ['2026-11-24T00:59:30Z', 'before_start'],
+        ];
     }
 
     public function test_later_reward_enablement_grants_once_and_unfollow_retains_reward(): void
