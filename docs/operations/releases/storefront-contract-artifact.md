@@ -699,3 +699,18 @@ Runtime/ENV/Secret/Worker/Timer/real DB/Docker image changes0. Local Build0;
 publication dispatch1/attempt1. OLD Test adoption uses the exact Artifact ID,
 outer and inner digests and separate API/Admin release authority and acceptance.
 Source107 operational migration and Admin663 deployment/screens remain separate.
+
+## REL-053 Paidy alpha.53 reconciliation
+
+Existing canonical contract-only [run 45326759914](https://github.com/ideal-sol/oripa/actions/runs/45326759914), attempt 1, succeeded for Source PR #721 at `35a3d916659056e4a989b79e8cf9381ac784603c`. Reviewed head `04ff910d3cf38b43951721c7fdcd1f9c5a040019` and merged source share tree `e0117f65f8f399af58f4124a39901422b97d0550`. Exact-ID readback reuses Artifact `14890066930` (`oripa-storefront-contract-2.0.0-alpha.53`); no rebuild or republication.
+
+- outer_sha256: `b158ddd2e285ebe79cd31042f35bf4fe98a104113e452132b2b63a01685e53b9`
+- manifest_sha256: `0dc74f7217b8ae72eb64fc405efc5b3aca051bde82c7282222fef4defd38a2c4`
+- sha256sums_sha256: `0458d887410b0f55a441f80737702507b572bbda57f1162933b8151878487071`
+- public_openapi_sha256: `73892b2b3a99564d7a84a73c52a30590706afc1167ba0ad79823d51d38aeebf7`
+- client_sha256: `ea25f983550d9c91d4782d571f8a854712de9939a809f9b853702a07184de131`
+- testkit_sha256: `ae71263d21fd0e30943649f85147dd3ee72e021bfdce401dff13b303c9f15f00`
+
+Referenced Site Schema alpha.23 remains `b4ca0ddb0ec8a6f4bda6dfec40fb5f3f5098a837160310be64de97cab36740c2`. Public alpha.49 has 94 operations; Admin/Webhook alpha.47, Client/Testkit alpha.53, contract-additive, breaking_change=false. All 32 predecessor records remain unchanged; latest_immutable is alpha.53 and candidate is null.
+
+This metadata reconciliation does not alter the pinned Paidy OLD Test Source, Artifact, Authority, Candidate/Envelope or runtime procedure. LINE CV PRs #723/#255 and alpha.54 remain outside scope. Runtime Activation and migrations are zero. Incorrect metadata requires a reviewed correction; immutable Artifact bytes and history must never be overwritten.
