@@ -215,6 +215,7 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.shipping_requests",
     "public.sms_verification_challenges",
     "public.user_advertising_attributions",
+    "public.user_conversion_events",
     "public.user_email_change_requests",
     "public.user_email_verifications",
     "public.user_phone_numbers",
@@ -604,6 +605,7 @@ def rollback_and_reapply_latest(
     prefix = ["run", "--rm", "--no-deps"] if one_shot else ["exec", "-T"]
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
+        "2026_11_24_000119_create_v2_user_conversion_events.php": "Retain conversion evidence and use a forward correction.",
         "2026_11_20_000118_add_v2_line_quota_initial_origin.php": "Forward-only LINE initial quota migration.",
         "2026_11_20_000117_add_v2_line_quota_system_actor.php": "Forward-only LINE quota actor migration.",
         "2026_11_17_000116_add_v2_line_friend_id_staging.php": "Forward-only migration; retain D7 aggregate progress.",
