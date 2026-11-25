@@ -224,6 +224,45 @@ class SimpleDeploymentTest(unittest.TestCase):
         self.assertEqual(builds, [{"api", "admin"}, {"storefront"}])
         self.assertLess(f.calls.index(("health", "admin")), f.calls.index(("switch", "api")))
 
+    def test_acquisition_outside_runtime_lock_and_recheck_before_switch(self):
+        for drift in (False, True):
+            with self.subTest(drift=drift):
+                fixture = Fixture(["admin"])
+                fixture.items.clear()
+                locked = False
+                operations = []
+                original = fixture.call
+
+                def acquire():
+                    nonlocal locked
+                    locked = True
+                    if drift:
+                        fixture.live["admin"] = "sha256:" + "c" * 64
+                    return lambda: None
+
+                def observe(operation, target="", data=None):
+                    operations.append((operation, locked))
+                    return original(operation, target, data)
+
+                fixture.call = observe
+                def run():
+                    deploy.deploy(fixture.plan, fixture.targets, fixture.approval, fixture.journal,
+                                  lambda data: None, fixture, lambda: None, lambda: fixture.clock,
+                                  fixture.sleeps.append, enter_runtime=acquire)
+
+                if drift:
+                    with self.assertRaisesRegex(deploy.Hold, "runtime_identity_changed"):
+                        run()
+                    self.assertNotIn(("switch", True), operations)
+                else:
+                    run()
+                    self.assertIn(("verify-retained", True), operations)
+                    self.assertIn(("switch", True), operations)
+                self.assertIn(("preflight", False), operations)
+                self.assertIn(("preflight", True), operations)
+                self.assertIn(("prepare-build", False), operations)
+                self.assertNotIn(("github-read", True), operations)
+
     def test_ledger_and_ambiguous_failure(self):
         f = Fixture(["api"], migrations=[FILE])
         f.timeout = True
@@ -496,7 +535,7 @@ class SimpleDeploymentTest(unittest.TestCase):
             deploy.main(args + ["--prepare", "--platform-source", "1@" + SHA, "--contract", OLD])
             folder = Path(d) / "TEST-SESSION"
             self.assertEqual(json.loads((folder / "plan.json").read_bytes()), f.plan)
-            with self.assertRaises(FileNotFoundError):
+            with self.assertRaisesRegex(deploy.Hold, "human_go_missing"):
                 deploy.main(args)
             now = int(deploy.time.time())
             approval = {**f.approval, "issued": now - 1, "expires": now + 100}
