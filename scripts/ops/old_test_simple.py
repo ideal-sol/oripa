@@ -382,7 +382,7 @@ class Site:
             # run first. Never repeat a dispatch with an ambiguous response.
             return self.call("ensure-formal-build", target, {"ref": "main", "workflow": WORKFLOW, "inputs": inputs})
         supported = {
-            "propose", "preflight", "observe", "find-asset", "verify-retained", "cache-admission", "ensure-formal-build",
+            "propose", "prepare-inputs", "prepare-evidence", "preflight", "observe", "find-asset", "verify-retained", "cache-admission", "ensure-formal-build",
             "prepare-build", "database-binding", "migration-inventory", "switch-binding",
             "switch", "health", "security", "drain", "resume", "exec-binding", "worker-lock-released", "worker-states",
         }
@@ -402,6 +402,8 @@ class Site:
         if operation == "health" and target in SERVICES:
             # The site proves the effective Nginx mapping/listener belongs to
             # this deployment. Independently measure the HTTP responses here.
+            if value.get("starting") is True:
+                return {"starting":True}
             return http_health(target, value)
         return value
 
@@ -456,6 +458,8 @@ class Site:
             job.backup()
             return
         require(spec["next_file"] == target, "migration_order_changed")
+        selected=canonical.decoded(["docker","image","inspect",image])[0]
+        require(selected["Id"]==image and not selected["Config"].get("Volumes"),"migration_anonymous_volume_forbidden")
         command, env = canonical.compose(api)
         require("sha256:" + canonical.digest(canonical.run(command + ["config", "--format", "json"],
                                                           environment=env)) == spec["compose_digest"], "compose_changed")
@@ -501,6 +505,8 @@ class Site:
             src = self.plan["sources"][PLATFORM]
             require(provenance["source_sha"] == src["sha"] and provenance["source_pr"] == src["pr"],
                     "artifact_source_mismatch")
+            if provenance.get("authority_mode") == "simple" and provenance["task_id"] == self.session:
+                require(provenance.get("plan") == self.binding, "dispatched_artifact_plan_mismatch")
             verified = helper["verify_artifact"](payload, task_id=provenance["task_id"], pr_number=src["pr"],
                                                 source_sha=src["sha"], artifact_kind="old-test", architecture="amd64")
             # Only the approved bytes actually used by this run are acceptable.
@@ -528,13 +534,23 @@ class Site:
             manifest = json.loads((payload / "manifest.json").read_bytes())
             image = next(entry for entry in manifest["images"] if entry["name"] == role)
             tar = payload / "selected.tar"
-            helper["decompress_archive"](payload / image["archive"], tar, image["archive_uncompressed_bytes"])
+            def present():
+                ids=subprocess.run(["/usr/bin/docker","image","ls","-aq","--no-trunc"],check=True,
+                                   capture_output=True,timeout=30).stdout.decode().splitlines()
+                return item["identity"] in ids
+            if not present():
+                helper["decompress_archive"](payload / image["archive"], tar, image["archive_uncompressed_bytes"])
             with runtime_lock():
                 canonical_idle()
                 self.guard()
-                subprocess.run(["/usr/bin/docker", "image", "load", "--input", str(tar)],
-                               check=True, capture_output=True, timeout=300)
+                if not present():
+                    require(tar.is_file(),"image_disappeared_retry_archive_import")
+                    subprocess.run(["/usr/bin/docker", "image", "load", "--input", str(tar)],
+                                   check=True, capture_output=True, timeout=300)
                 require(self.local_image(role, item) == item["identity"], "loaded_image_mismatch")
+            receipt = folder / (role + "-admitted.json")
+            persist(receipt, {"item":item, "authority":provenance, "manifest":manifest,
+                              "recipe_sha256":hashlib.sha256(raw).hexdigest()})
             return item
 
 
@@ -575,7 +591,18 @@ def switch_service(target, identity, session, binding, spec, guard):
         storefront_layout(staged["WorkingDirectory"], identity, spec["build_id"])
         for action, unit in (("stop", old), ("start", new)):
             guard()
-            canonical.run(["systemctl", action, unit])
+            try:
+                canonical.run(["systemctl", action, unit])
+            except Exception:
+                if action == "start" and canonical.unit(new)["ActiveState"] in ("failed","inactive"):
+                    guard()
+                    previous = canonical.unit(old)
+                    require(previous["Id"] == old and previous["ActiveState"] == "inactive"
+                            and previous["WorkingDirectory"] == spec.get("fallback_directory"),
+                            "storefront_fallback_identity_changed")
+                    canonical.run(["systemctl", "start", old])
+                    raise Hold("storefront_start_failed_previous_unit_restored") from None
+                raise
         return
     require(target in ("api", "admin"), "unknown_target")
     name = canonical.API if target == "api" else canonical.ADMIN
@@ -749,7 +776,9 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             completed[key] = "PASS"
             save(journal)
             return
-        require(key not in completed and observed == "ready", "effect_requires_reconciliation")
+        resumable=(op=="prepare-build" and target in ("storefront","api","admin","api+admin") and observed=="resumable"
+                   and completed.get(key)=="STARTED")
+        require(resumable or (key not in completed and observed == "ready"), "effect_requires_reconciliation")
         completed[key] = "STARTED"
         save(journal)
         call(op, target, data)
@@ -808,6 +837,10 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         save(journal)
 
         if enter_runtime is not None:
+            if isinstance(site, Site) and "prepare-evidence" in json.loads(BINDINGS.read_bytes()).get("operations", {}):
+                for role, item in acquired.items():
+                    step, target = "prepare-evidence", role
+                    call(step, role, item)
             step, target = "runtime-lock", ""
             runtime_check = enter_runtime()
             guard()
@@ -894,10 +927,25 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             results[target] = "FAIL"
         frames = traceback.extract_tb(exc.__traceback__)
         frame = next((f for f in reversed(frames) if f.name != "require"), frames[-1])
+        reason="operation_failed"
+        if isinstance(exc,(ValueError,RuntimeError)) and re.fullmatch(r"[a-z][a-zA-Z0-9_-]{1,140}",str(exc)):
+            reason=str(exc)
+        elif isinstance(exc,subprocess.TimeoutExpired):
+            reason="command_timed_out"
+        elif isinstance(exc,subprocess.CalledProcessError):
+            reason=getattr(exc,"diagnostic","command_returned_nonzero")
+        elif isinstance(exc,OSError):
+            reason="os_error_"+str(exc.errno)
+        recovery={"prepare-build":"Reconcile the recorded workflow run or local Build before resuming this session.",
+                  "find-asset":"Verify the recorded artifact ID, expiry and local space, then resume acquisition.",
+                  "security":"Check the selected image, scanner result and current receipt within this GO.",
+                  "migrate":"Read the selected database ledger and reconcile the named migration before retrying.",
+                  "switch":"Read the selected service identity and state before attempting a further transition.",
+                  "health":"Check the selected internal listener and protected proxy, then resume the health step."}
         journal["error"] = {"step": step, "target": target, "class": type(exc).__name__,
                             "file": Path(frame.filename).name, "line": frame.lineno,
                             "exit": getattr(exc, "returncode", 1),
-                            "reason": str(exc) if isinstance(exc, Hold) else "operation_failed"}
+                            "reason":reason,"recovery":recovery.get(step,"Correct the named precondition and resume the same plan.")}
         save(journal)
         raise
 
@@ -924,6 +972,17 @@ def main(argv=None):
         def enter_runtime():
             locked = runtime.enter_context(runtime_lock())
             canonical_idle()
+            if not args.prepare and "api" in targets and any(plan["workers"].get(w)=="active"
+                    for w in ("f2b-worker","f2b-purge")):
+                if __package__:
+                    from . import old_test_deploy as canonical
+                else:
+                    import old_test_deploy as canonical
+                f2b=runtime.enter_context(runtime_lock(canonical.F2B_LOCK))
+                def check_both():
+                    locked()
+                    f2b()
+                return check_both
             return locked
         if args.prepare:
             sources = {}
@@ -942,9 +1001,12 @@ def main(argv=None):
             proofs = {repo: merged_source(repo, src["pr"], src["sha"],
                                           lambda path: site.call("github-read", data=path))
                       for repo, src in sources.items()}
+            proposal = {**request, "migrations": args.migration}
+            if "prepare-inputs" in json.loads(BINDINGS.read_bytes()).get("operations", {}):
+                proposal["inputs"] = site.call("prepare-inputs", data=proposal)
             site.guard = None
             enter_runtime()
-            plan = site.call("propose", data={**request, "migrations": args.migration})
+            plan = site.call("propose", data=proposal)
             require(all(plan[k] == v for k, v in request.items())
                     and plan["migration"]["files"] == args.migration, "proposed_scope_changed")
             shape(plan, targets)
