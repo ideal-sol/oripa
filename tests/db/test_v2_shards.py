@@ -28,6 +28,13 @@ class PartitionTest(unittest.TestCase):
         self.assertEqual(buckets[0], ["A"])
         self.assertTrue(any(set("CDE") <= set(group) for group in buckets))
 
+    def test_reporting_keeps_the_db_cleanup_that_precedes_it_in_the_serial_suite(self):
+        cleanup = r"Tests\V2\PrizeShippingConcurrencyTest"
+        reporting = r"Tests\V2\ReportingExportVerticalSliceTest"
+        names = ["A", "B", cleanup, "Q", reporting, "Z"]
+        buckets, _ = partition(listing(names), {}, {"default": 1, "classes": {}})
+        self.assertTrue(any(reporting in group and cleanup in group for group in buckets))
+
     def test_empty_shard_and_duplicate_discovery_rejected(self):
         for names in ("ABC", "ABCDA"):
             with self.assertRaises(ValueError):

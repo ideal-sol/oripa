@@ -45,6 +45,13 @@ def partition(xml, dependencies, weights):
         for target in targets:
             parent[root(name)] = root(target)
 
+    # Reporting checks the whole payments table and ledger. In the serial suite,
+    # the preceding prize concurrency fixture restores a clean schema in finally.
+    reporting = r"Tests\V2\ReportingExportVerticalSliceTest"
+    if reporting in classes:
+        cleanup = r"Tests\V2\PrizeShippingConcurrencyTest"
+        parent[root(reporting)] = root(cleanup)
+
     groups = defaultdict(list)
     for name in classes:
         groups[root(name)].append(name)
