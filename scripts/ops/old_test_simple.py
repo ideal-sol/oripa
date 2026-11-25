@@ -162,19 +162,26 @@ def trusted(path, *, private=False, directory=False):
 
 
 @contextlib.contextmanager
-def runtime_lock(path=LOCK):
-    trusted(path)
-    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb") as stream:
-        try:
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise Hold("deployment_lock_busy") from None
+def runtime_lock(path=LOCK, *, session_directory=False):
+    trusted(path, directory=session_directory, private=session_directory)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | (os.O_DIRECTORY if session_directory else 0))
+    try:
+        for attempt in range(3):
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if session_directory or attempt == 2:
+                    raise Hold("session_lock_busy" if session_directory else "deployment_lock_busy") from None
+                time.sleep(0.25)
 
         def check():
-            trusted(path)
-            require(os.path.samestat(os.fstat(stream.fileno()), path.lstat()), "deployment_lock_replaced")
+            trusted(path, directory=session_directory, private=session_directory)
+            require(os.path.samestat(os.fstat(fd), path.lstat()), "deployment_lock_replaced")
         check()
         yield check
+    finally:
+        os.close(fd)
 
 
 def installed_entry():
@@ -288,6 +295,7 @@ class Site:
         self.plan = plan
         self.guard = None
         self.procedures = {}
+        self.contract_verified = False
 
     def private_operation(self, operation, target, data):
         # There is no separate privileged CLI for these operations. Enrollment
@@ -382,8 +390,9 @@ class Site:
         value = self.private_operation(operation, target, data)
         if self.guard:
             self.guard()
-        if operation == "preflight":
+        if operation == "preflight" and not self.contract_verified:
             self.verify_contract()
+            self.contract_verified = True
         if operation == "find-asset" and target in ("api", "admin") and value is not None:
             if "download_id" in value:
                 value = self.admit_download(target, value["download_id"])
@@ -520,10 +529,12 @@ class Site:
             image = next(entry for entry in manifest["images"] if entry["name"] == role)
             tar = payload / "selected.tar"
             helper["decompress_archive"](payload / image["archive"], tar, image["archive_uncompressed_bytes"])
-            self.guard()
-            subprocess.run(["/usr/bin/docker", "image", "load", "--input", str(tar)],
-                           check=True, capture_output=True, timeout=300)
-            require(self.local_image(role, item) == item["identity"], "loaded_image_mismatch")
+            with runtime_lock():
+                canonical_idle()
+                self.guard()
+                subprocess.run(["/usr/bin/docker", "image", "load", "--input", str(tar)],
+                               check=True, capture_output=True, timeout=300)
+                require(self.local_image(role, item) == item["identity"], "loaded_image_mismatch")
             return item
 
 
@@ -660,7 +671,8 @@ def http_health(target, route, run=subprocess.run):
     return result
 
 
-def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.time, sleep=time.sleep):
+def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.time, sleep=time.sleep,
+           *, enter_runtime=None):
     affected, roles = shape(plan, targets)
     binding = digest(plan)
     require(approval["plan"] == binding and approval["session"] == plan["session"]
@@ -675,9 +687,12 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
     step, target = "preflight", ""
     security_role, security_details, valid_until = "", {}, 0
     measuring = False
+    runtime_check = None
 
     def guard():
         lock_check()
+        if runtime_check:
+            runtime_check()
         require(approval["issued"] <= now() < approval["expires"], "session_expired")
         if security_role and not measuring and now() >= valid_until:
             measure()
@@ -742,14 +757,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         completed[key] = "PASS"
         save(journal)
 
-    try:
-        guard()
-        for repo, src in plan["sources"].items():
-            proofs = journal.setdefault("sources", {})
-            if repo not in proofs:
-                proofs[repo] = merged_source(repo, src["pr"], src["sha"], lambda path: call("github-read", data=path))
-        # Bind the actual host, config/provider fences, schema compatibility,
-        # approved privilege boundary and capacity BEFORE any build or effect.
+    def inspect_host():
         preflight = call("preflight")
         expected_workers = dict(plan["workers"])
         for writer in plan["migration"]["writers"]:
@@ -765,6 +773,15 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             if "switch/" + target in completed and asset_role(target) in acquired:
                 expected.append(acquired[asset_role(target)]["identity"])
             require(live in expected, "runtime_identity_changed")
+        return preflight
+
+    try:
+        guard()
+        for repo, src in plan["sources"].items():
+            proofs = journal.setdefault("sources", {})
+            if repo not in proofs:
+                proofs[repo] = merged_source(repo, src["pr"], src["sha"], lambda path: call("github-read", data=path))
+        preflight = inspect_host()
         missing = []
         for role in roles:
             step, target = "find-asset", role
@@ -789,6 +806,16 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
                         asset(plan, role, item)
                         acquired[role] = item
         save(journal)
+
+        if enter_runtime is not None:
+            step, target = "runtime-lock", ""
+            runtime_check = enter_runtime()
+            guard()
+            step = "preflight"
+            preflight = inspect_host()
+            for role in roles:
+                require(call("verify-retained", role, acquired[role]) == acquired[role],
+                        "verified_asset_changed_before_switch")
 
         def secure(role, operation, subject):
             nonlocal security_role, security_details, valid_until
@@ -891,8 +918,13 @@ def main(argv=None):
     folder = SESSIONS / args.session
     for directory in reversed(folder.parents):
         trusted(directory, private=directory == SESSIONS, directory=True)
-    with runtime_lock() as check:
-        canonical_idle()
+    if args.prepare:
+        folder.mkdir(mode=0o700, exist_ok=True)
+    with runtime_lock(folder, session_directory=True) as check, contextlib.ExitStack() as runtime:
+        def enter_runtime():
+            locked = runtime.enter_context(runtime_lock())
+            canonical_idle()
+            return locked
         if args.prepare:
             sources = {}
             for repo, value in ((PLATFORM, args.platform_source), (SITE, args.storefront_source)):
@@ -911,11 +943,11 @@ def main(argv=None):
                                           lambda path: site.call("github-read", data=path))
                       for repo, src in sources.items()}
             site.guard = None
+            enter_runtime()
             plan = site.call("propose", data={**request, "migrations": args.migration})
             require(all(plan[k] == v for k, v in request.items())
                     and plan["migration"]["files"] == args.migration, "proposed_scope_changed")
             shape(plan, targets)
-            folder.mkdir(mode=0o700, exist_ok=True)
             trusted(folder, private=True, directory=True)
             path = folder / "plan.json"
             if path.exists():
@@ -939,8 +971,10 @@ def main(argv=None):
         require(plan["session"] == args.session, "session_mismatch")
         path = folder / "journal.json"
         journal = read(path.name) if path.exists() else {}
+        require((folder / "go.json").exists(), "human_go_missing_for_prepared_plan")
+        canonical_idle()
         deploy(plan, targets, read("go.json"), journal, lambda data: persist(path, data),
-               Site(plan), check)
+               Site(plan), check, enter_runtime=enter_runtime)
         print(json.dumps(journal["results"], sort_keys=True))
 
 

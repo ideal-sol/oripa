@@ -93,9 +93,13 @@ Phase 4 enrollment requires the following checks before enabling the entry.
 Normal releases use zero release PRs, zero release-specific CI runs, one scoped
 GO and zero manually prepared candidates or envelopes. A cache miss needs one
 Platform workflow for the selected images and at most one Storefront build.
-The current entry holds the common deployment lock through acquisition and
-readiness. Cold builds can delay another deployment or a timer using that lock.
-Measure lock occupancy and timer behavior before enabling cold builds on-host.
+The entry serializes each session independently while it checks GitHub, obtains
+artifacts or waits for a build. It takes the common lock for the local plan
+snapshot, a required Docker import, and the runtime transition. After acquiring
+the transition lock it rechecks host state and each retained identity before
+any switch. Brief contention gets a bounded retry. Resume the same session
+to reuse its verified artifacts. Enable cold acquisition only after verifying
+the scoped dispatch and adoption of an existing build.
 Resume only observed safe steps. To return to Canonical, close or reconcile
 outstanding intents and release the shared lock. Use the retained source/image
 only after checking schema compatibility. An applied migration needs its own
