@@ -178,6 +178,11 @@ judgments remain human decisions.
 
 ## OLD Test Speed Priority
 
+- Canonical remains the installed OLD Test release path until explicit Human
+  adoption. The [simple deployment rules](docs/operations/deployment/old-test-deploy.md#simple-deployment)
+  govern the separately installed OLD Test entry after adoption. Its one scoped
+  Runtime GO follows the ordinary reviewed merge. Source implementation or
+  merge alone grants no host, GitHub dispatch or Runtime authority.
 - Minimize total elapsed time from investigation through Runtime activation and
   Technical PASS, including preparation, dependency/artifact checks, Canonical
   Prepare/dry-run, switch, health/acceptance, HOLD, fixes, re-preparation, Human

@@ -77,6 +77,11 @@ jobs:
           change = json.loads((Path(os.environ["RUNNER_TEMP"]) / "canonical-change.json").read_text())
           if {"scripts/ops/old_test_deploy.py", "tests/ops/test_old_test_deploy.py"} & set(change["changed_paths"]):
               subprocess.run([sys.executable, "-m", "unittest", "tests.ops.test_old_test_deploy"], check=True)
+          simple = {"scripts/ops/oldtest-deploy", "scripts/ops/old_test_simple.py", "scripts/ops/old_test_simple_source.py",
+                    "tests/ops/test_old_test_simple.py", ".github/workflows/old-test-main-artifact.yml",
+                    "scripts/ops/old_test_source_authority.py"}
+          if simple.intersection(change["changed_paths"]):
+              subprocess.run([sys.executable, "-m", "unittest", "tests.ops.test_old_test_simple"], check=True)
           PY
 
       - name: Test GitHub delivery infrastructure

@@ -106,10 +106,20 @@ def main() -> None:
     ).strip()
     if checked_out != control_sha:
         raise ValueError("control checkout mismatch")
-    authority = WRAPPER["authorize_old_test_source"](
-        os.environ["INPUT_TASK_ID"], os.environ["INPUT_PR_NUMBER"],
-        os.environ["INPUT_SOURCE_SHA"], control_sha, get=api_get,
-    )
+    mode = os.environ.get("SIMPLE_MODE") or "canonical"
+    prefix = "oripa-old-test-images"
+    if mode == "canonical":
+        authority = WRAPPER["authorize_old_test_source"](
+            os.environ["INPUT_TASK_ID"], os.environ["INPUT_PR_NUMBER"],
+            os.environ["INPUT_SOURCE_SHA"], control_sha, get=api_get,
+        )
+    else:
+        from old_test_simple_source import build_authority, dispatch_plan
+        plan_binding = dispatch_plan(os.environ)
+        authority = build_authority(os.environ["INPUT_TASK_ID"], os.environ["INPUT_PR_NUMBER"],
+                                    os.environ["INPUT_SOURCE_SHA"], control_sha, mode, api_get)
+        authority["plan"] = plan_binding
+        prefix = "oripa-old-test-simple-images"
     subprocess.run(
         ["git", "-C", str(ROOT), "merge-base", "--is-ancestor",
          authority.get("composition", {}).get("fix_sha", authority["source_sha"]), control_sha], check=True,
@@ -117,6 +127,7 @@ def main() -> None:
     checkout_sha = authority.get("composition", {}).get("base_sha", authority["source_sha"])
     with open(os.environ["GITHUB_OUTPUT"], "a") as output:
         output.write("checkout_sha=" + checkout_sha + "\n")
+        output.write("artifact_prefix=" + prefix + "\n")
     authority.update(run_id=int(os.environ["GITHUB_RUN_ID"]),
                      run_attempt=int(os.environ["GITHUB_RUN_ATTEMPT"]))
     destination = Path(os.environ["RUNNER_TEMP"]) / "source-authority.json"
