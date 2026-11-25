@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts.ci import platform_ci_plan as planner
+from scripts.ci import database_focus as focus
 from scripts.ci import lane_policy
 from scripts.release.readiness import change, records
 from tests.ci.policy import test_change_evidence as fixtures
@@ -75,6 +76,128 @@ class PlatformCIPlanTests(unittest.TestCase):
         plan = self.plan(('apps/admin/src/app/page.tsx',))
         self.assert_required(plan, 'admin', 'database', 'arm64_artifact')
         self.assert_na(plan, 'backend', 'legacy_frontend', 'testkit')
+
+    def test_normal_pr_focus_requires_actual_receipt_and_preserves_other_scopes(self):
+        samples = [
+            (sorted(focus.ADMIN_STYLES)[0], '.panel { gap: 1rem; }', '1rem', '2rem', 'admin'),
+            (focus.SIMPLE, 'def main():\n    parser.add_argument("--go", required=True, help="old")',
+             'help="old"', 'help="new"', 'wrapper'),
+            (focus.QUALITY_TEST, 'class QualityGateTest:\n    def report(self):\n        return [{"line": 1}]',
+             '"line": 1', '"line": 2', 'quality'),
+        ]
+        for path, source, old, new, receipt in samples:
+            with self.subTest(path=path):
+                self.setUp()
+                self.write(path, source)
+                self.base = self.commit()
+                self.write(path, source.replace(old, new))
+                plan = self.plan(('worklogs/new_ver_main.md',))
+                self.assertEqual(plan['database_focus'], receipt)
+                self.assert_na(plan, 'database', 'migration')
+                self.assertFalse(plan['jobs']['integration-database']['required'])
+                self.assert_required(plan, 'arm64_artifact', 'release_artifact')
+                gate = 'policy-gate' if receipt == 'wrapper' else 'quality-gate'
+                needs = self.results(plan)
+                for result in (None, 'skipped', 'failure', 'cancelled', 'success'):
+                    needs[gate]['outputs'] = {receipt: result}
+                    if result == 'success':
+                        planner.verify_results(plan, needs, plan['record_digest'])
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'FOCUSED_CHECK_MISSING'):
+                            planner.verify_results(plan, needs, plan['record_digest'])
+                for event in ('push', 'workflow_dispatch'):
+                    self.assertTrue(self.plan(event_name=event)['jobs']['integration-database']['required'])
+                self.assert_required(self.plan(activation='immediate'), 'database')
+                self.assert_required(self.plan(('docs/fixture.sql',)), 'database')
+
+    def test_unproven_content_or_file_transitions_keep_database(self):
+        for path, before, after in (
+            (sorted(focus.ADMIN_STYLES)[0], '.x { gap: 1rem; }', '@import "x"; .x { gap: 1rem; }'),
+            (focus.SIMPLE, 'def main():\n    parser.add_argument("--go", required=True, help="old")',
+             'def main():\n    parser.add_argument("--go", required=False, help="new")'),
+            (focus.QUALITY_TEST, 'class QualityGateTest:\n    def report(self):\n        return [1]',
+             'class QualityGateTest:\n    def report(self):\n        return [database()]'),
+        ):
+            with self.subTest(path=path):
+                self.setUp()
+                self.write(path, before)
+                self.base = self.commit()
+                self.write(path, after)
+                self.assert_required(self.plan(), 'database')
+                self.git('mv', path, 'moved.md')
+                self.assert_required(self.plan(), 'database')
+                self.git('rm', 'moved.md')
+                self.assert_required(self.plan(), 'database')
+
+    def test_extended_authority_keeps_normal_checks_and_rejects_uncovered_test_changes(self):
+        self.authority()
+        baseline = self.base
+        node_test = 'self.assertEqual(line["source_sha"], "' + baseline + '")\n'
+        self.write(focus.NODE_TEST, node_test)
+        case = 'class ProductionSourceAuthorityTest:\n    def test_source(self):\n        self.assertEqual(1, 1)\n'
+        self.write(focus.AUTHORITY_TEST, case)
+        self.base = self.commit()
+        self.authority()
+        self.write(focus.AUTHORITY_TEST, case + '    def test_contract(self):\n        self.assertEqual(2, 2)\n')
+        self.write('docs/operations/deployment/fixture.md', 'scope')
+        plan = self.plan(activation='deferred', validation_path='NORMAL_STRICT_CI')
+        self.assertEqual(plan['database_focus'], 'authority')
+        self.assert_required(plan, 'backend', 'arm64_artifact', 'release_artifact')
+        self.write(focus.NODE_TEST, node_test.replace(baseline, self.base))
+        self.assertEqual(self.plan(activation='deferred')['database_focus'], 'authority_node')
+        self.write(focus.AUTHORITY_TEST, case.replace('1, 1', 'query_database(), 1'))
+        self.assert_required(self.plan(), 'database')
+        self.write(focus.AUTHORITY_TEST, case)
+        self.write(focus.NODE_TEST, node_test.replace(baseline, 'b' * 40))
+        self.assert_required(self.plan(), 'database')
+        self.assert_required(self.plan(('scripts/ci/database_focus.py',)), 'database')
+
+    def test_focus_binds_exact_tree_inventory_and_workflow_results(self):
+        path = sorted(focus.ADMIN_STYLES)[0]
+        self.write(path, '.x { gap: 1rem; }')
+        self.base = self.commit()
+        self.write(path, '.x { gap: 2rem; }')
+        record = change.classify(self.repository, self.base, self.commit())
+        for key, value in (('base_tree_sha', 'a' * 40), ('changed_paths', [focus.SIMPLE])):
+            forged = records.seal({**record, key: value}, 'record_digest')
+            self.assertIsNone(focus.exact_edits(self.repository, forged))
+        wf = self.workflow()
+        for receipt in ('steps.admin-ui.outcome', 'steps.quality-tests.outputs.quality',
+                        'steps.deploy-tests.outputs.simple', 'steps.quality-tests.outputs.authority_node'):
+            self.assertIn(receipt, wf)
+        self.assertIn('python3 -m scripts.ci.database_focus "$DB_FOCUS"', wf)
+        shards = wf.split('  database-shard:\n')[1].split('  # Required checks')[0]
+        self.assertIn('shard: [1, 2, 3, 4]', shards)
+        self.assertEqual(shards.count('fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database'), 2)
+
+    def test_absent_skipped_or_failed_authority_cases_cannot_produce_a_receipt(self):
+        def failing():
+            self.fail("synthetic failure")
+
+        def skipped():
+            self.skipTest("synthetic skip")
+
+        for cases in ([], [failing], [skipped], [lambda: None]):
+            with self.subTest(cases=len(cases)), patch.object(
+                    unittest.defaultTestLoader, 'loadTestsFromName',
+                    side_effect=lambda name: unittest.TestSuite(unittest.FunctionTestCase(fn) for fn in cases)
+            ) as loader, patch('sys.stderr'):
+                self.assertEqual(focus.run_focused_tests('authority_node'), bool(cases and cases[0] not in (failing, skipped)))
+                if cases and cases[0] not in (failing, skipped):
+                    self.assertEqual([c.args[0] for c in loader.call_args_list],
+                        ['tests.ops.test_production_source_authority', 'tests.ops.test_production_admin_node'])
+
+    def test_node_cases_imported_by_authority_execute_once(self):
+        ran = []
+        def imported():
+            ran.append('imported')
+        def extra():
+            ran.append('extra')
+        suites = [unittest.TestSuite([unittest.FunctionTestCase(imported)]),
+                  unittest.TestSuite(map(unittest.FunctionTestCase, (imported, extra)))]
+        with patch.object(unittest.defaultTestLoader, 'loadTestsFromName', side_effect=suites):
+            self.assertTrue(focus.run_focused_tests('authority_node'))
+        self.assertEqual(ran, ['imported', 'extra'])
 
     def test_contract_fans_out_to_all_consumers(self):
         plan = self.plan(('openapi/public.yaml',))

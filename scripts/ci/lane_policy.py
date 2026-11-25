@@ -360,9 +360,11 @@ def main() -> int:
                 arguments.change_output.with_suffix(".authority.json").write_bytes(canonical(proof))
             arguments.change_output.write_bytes(canonical(change))
             from scripts.ci.platform_ci_plan import source_only_authority, draft_plan_only
+            from scripts.ci.database_focus import exact_edits
             result["validation_path"] = ("AUTHORITY_FOCUSED"
                 if arguments.event_name == "pull_request" and result["activation"] in {"none", "deferred"}
-                and (source_only_authority(change) or draft_plan_only(repository, change)) else "NORMAL_STRICT_CI")
+                and (source_only_authority(change) or draft_plan_only(repository, change))
+                and exact_edits(repository, change) is not None else "NORMAL_STRICT_CI")
             result["change_digest"] = change["record_digest"]
             if arguments.plan_output:
                 from scripts.ci.platform_ci_plan import build_plan
@@ -371,6 +373,7 @@ def main() -> int:
                                   repository=repository)
                 arguments.plan_output.write_bytes(canonical(plan))
                 result["plan_digest"] = plan["record_digest"]
+                result["database_focus"] = plan["database_focus"]
                 result["plan_scopes"] = {name: scope["status"] for name, scope in plan["scopes"].items()}
                 result["plan_jobs"] = {name: job["required"] for name, job in plan["jobs"].items()}
         if arguments.secret_scan and arguments.event_name == "pull_request":
@@ -390,6 +393,7 @@ def main() -> int:
                         print(f"{key}={result[key]}", file=output)
                     if arguments.plan_output:
                         print(f"plan_digest={result['plan_digest']}", file=output)
+                        print(f"database_focus={result['database_focus']}", file=output)
                         for key in ("plan_scopes", "plan_jobs"):
                             print(f"{key}={json.dumps(result[key], separators=(',', ':'))}", file=output)
     except (OSError, ValueError, LanePolicyFailure) as error:
