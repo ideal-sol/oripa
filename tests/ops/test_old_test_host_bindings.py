@@ -71,7 +71,15 @@ class HostBindingsTest(unittest.TestCase):
             broker.assert_not_called()
             self.assertEqual(build.status({}, "admin", lambda: None), "in-progress")
 
-    def test_report_identity_and_findings(self):
+    def test_only_confirmed_dispatch_rejection_can_resume_once(self):
+        rejected = {"rejected": "github_http_403", "attempts": 1}
+        with patch.object(build, "context", return_value=({}, {}, {}, None, rejected, None)):
+            self.assertEqual(build.status({}, "admin", lambda: None), "resumable")
+            rejected["attempts"] = 2
+            with self.assertRaisesRegex(simple.Hold, "still_rejected"):
+                build.status({}, "admin", lambda: None)
+
+    def test_scan_and_sbom(self):
         identity = "sha256:" + "a" * 64
         sha = "b" * 40
         scan = {

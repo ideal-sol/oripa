@@ -21,9 +21,7 @@ def prop(unit, field):
 
 def scope(plan, worker, guard):
     host.approved(plan, guard)
-    require(
-        worker in simple.WORKERS and plan["workers"].get(worker) == "active", "worker_outside_active_plan"
-    )
+    require(worker in simple.WORKERS and plan["workers"].get(worker) == "active", "worker_outside_active_plan")
     settings = host.config(plan)
     spec = settings["worker_specs"][worker]
     return settings, spec
@@ -104,6 +102,19 @@ def observe(plan, op, worker, desired, guard):
     if kind == "exec":
         return "done" if exec_binding(plan, worker, None, guard)["active_api_image"] == desired else "ready"
     require(kind == "container", "unknown_worker_binding")
+    if worker in plan["migration"]["writers"]:
+        c = host.container(settings, worker)
+        if not c["State"]["Running"]:
+            folder = simple.SESSIONS / plan["session"]
+            journal = json.loads(host.checked_file(folder / "journal.json", True))
+            require(
+                journal["plan"] == simple.digest(plan)
+                and journal["completed"].get("drain/" + worker) == "PASS"
+                and "resume/" + worker not in journal["completed"]
+                and c["Image"] == plan["previous"][worker],
+                "stopped_worker_outside_approved_drain",
+            )
+            return "done" if c["Image"] == desired else "ready"
     return host.observed_service(plan, worker, desired)
 
 
@@ -196,8 +207,7 @@ def health(plan, worker, data, guard):
 def switch(plan, worker, desired, guard):
     settings, spec = scope(plan, worker, guard)
     require(
-        simple.asset(plan, simple.asset_role(worker), host.cached(plan, simple.asset_role(worker)))
-        == desired,
+        simple.asset(plan, simple.asset_role(worker), host.cached(plan, simple.asset_role(worker))) == desired,
         "worker_image_not_admitted",
     )
     if spec["kind"] in ("unit", "runner", "identity"):
@@ -217,9 +227,7 @@ def switch(plan, worker, desired, guard):
 
 def writer(plan, worker, operation, guard):
     settings, spec = scope(plan, worker, guard)
-    require(
-        worker in plan["migration"]["writers"] and operation in ("drain", "resume"), "writer_outside_plan"
-    )
+    require(worker in plan["migration"]["writers"] and operation in ("drain", "resume"), "writer_outside_plan")
     if "timer" in spec:
         guard()
         if operation == "drain":

@@ -139,15 +139,16 @@ def context(plan, group, guard):
 def status(plan, group, guard):
     api, _, payload, marker, record, run = context(plan, group, guard)
     if not run:
+        if record.get("rejected"):
+            require(record["attempts"] < 2, "formal_dispatch_still_rejected_" + record["rejected"])
+            return "resumable"
         return "in-progress" if record else "ready"
     if run["status"] != "completed":
         return "in-progress"
     require(run["conclusion"] == "success", "formal_build_failed_inspect_run_" + str(run["id"]))
     rows = read(api, REPO + "/actions/runs/" + str(run["id"]) + "/artifacts", guard)["artifacts"]
     name = artifact_name(payload)
-    items = [
-        r for r in rows if r["name"] == name and not r["expired"] and simple.DIGEST.fullmatch(r["digest"])
-    ]
+    items = [r for r in rows if r["name"] == name and not r["expired"] and simple.DIGEST.fullmatch(r["digest"])]
     require(len(items) == 1, "formal_artifact_missing_or_expired")
     simple.persist(marker, {"payload": payload, "run": run["id"], "artifact": items[0]["id"]})
     return "done"
@@ -156,8 +157,10 @@ def status(plan, group, guard):
 def ensure(plan, group, data, guard):
     api, settings, payload, marker, record, run = context(plan, group, guard)
     require(data == {**payload, "workflow": simple.WORKFLOW}, "dispatch_inputs_outside_plan")
-    if run or record:
+    if run or (record and not record.get("rejected")):
         return
+    attempts = record.get("attempts", 0) + 1
+    require(attempts <= 2, "formal_dispatch_retry_limit")
     require(
         all(host.cached(plan, role) is None for role in group.split("+")),
         "formal_image_became_available_resume_acquisition",
@@ -172,13 +175,15 @@ def ensure(plan, group, data, guard):
     )
     post = host.pinned(settings["dispatcher"])["request"]
     host.approved(plan, guard)
-    simple.persist(marker, {"payload": payload, "attempted": True})
+    simple.persist(marker, {"payload": payload, "attempted": True, "attempts": attempts})
     try:
         code, reply = post("POST", FLOW + "/dispatches", payload)
     except (Exception, SystemExit) as error:
         code = str(error)
         if code in ("github_http_401", "github_http_403", "github_http_404", "github_http_422"):
-            # A definitive rejection created no run. A later attempt requires reconciliation.
+            # GitHub definitively rejected this POST. An operator can correct the
+            # cause and resume this plan after checking for an existing run.
+            simple.persist(marker, {"payload": payload, "rejected": code, "attempts": attempts})
             raise Hold("formal_dispatch_rejected_" + code) from None
         # A lost acknowledgement may have started a run. Observe, never POST a second time.
         return
@@ -280,9 +285,7 @@ def remote_recipes(plan, roles, guard):
                         os.fchmod(stream.fileno(), 0o600)
                         stream.write(raw)
                 selected[role] = recipe_identity(role, raw, blobs)
-                simple.persist(
-                    folder / (role + "-existing.json"), {"id": identifier, "recipe": selected[role]}
-                )
+                simple.persist(folder / (role + "-existing.json"), {"id": identifier, "recipe": selected[role]})
         if set(selected) == set(roles) or len(rows) < 100:
             break
     return selected

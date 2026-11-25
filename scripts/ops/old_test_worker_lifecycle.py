@@ -209,21 +209,42 @@ def switch_selected(plan, target, image, guard):
         guard()
         host.run(["/usr/bin/docker", "rename", old["Id"], retained])
         guard()
-        host.canonical.run(
-            cmd
-            + [
-                "run",
-                "--detach",
-                "--no-deps",
-                "--pull",
-                "never",
-                "--name",
-                name,
-                "test-api",
-                *settings["rank_command"],
-            ],
-            environment=env,
-        )
+        try:
+            host.canonical.run(
+                cmd
+                + [
+                    "run",
+                    "--detach",
+                    "--no-deps",
+                    "--pull",
+                    "never",
+                    "--name",
+                    name,
+                    "test-api",
+                    *settings["rank_command"],
+                ],
+                environment=env,
+            )
+        except Exception:
+            # A lost reply might already have created the new worker. Only
+            # restore the old one when the original name is demonstrably free.
+            guard()
+            ids = host.run(["/usr/bin/docker", "ps", "-aq", "--filter", "name=^/" + name + "$"]).strip()
+            if not ids:
+                prior = host.canonical.inspect(old["Id"])
+                require(
+                    prior["Name"] == "/" + retained
+                    and not prior["State"]["Running"]
+                    and prior["Image"] == plan["previous"][target]
+                    and host.stable_container(prior) == settings["containers"][target]["configuration"],
+                    "rank_recovery_identity_changed",
+                )
+                host.run(["/usr/bin/docker", "rename", old["Id"], name])
+                if old["State"]["Running"]:
+                    guard()
+                    host.run(["/usr/bin/docker", "start", old["Id"]])
+                raise simple.Hold("rank_creation_failed_previous_worker_restored") from None
+            raise
         new = host.container(settings, target)
         require(new["State"]["Running"] and new["Image"] == image, "rank_worker_not_restored")
         return

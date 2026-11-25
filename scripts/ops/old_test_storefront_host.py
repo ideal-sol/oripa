@@ -8,6 +8,7 @@ import pwd
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
 
@@ -49,6 +50,49 @@ def built_files(release):
         result.update(str(path.relative_to(release)).encode() + b"\0")
         result.update(hashlib.sha256(path.read_bytes()).digest())
     return result.hexdigest()
+
+
+def seal_release(data_dir, staging, user, scratch):
+    # The build user owns its working tree. Read it with that account's access,
+    # then unpack one immutable stream into a root-private directory.
+    with tempfile.TemporaryFile(dir=scratch) as stream:
+        process = subprocess.run(
+            [
+                "/usr/sbin/runuser",
+                "-u",
+                user,
+                "--",
+                "/usr/bin/prlimit",
+                "--fsize=3221225472",
+                "--",
+                "/usr/bin/tar",
+                "--one-file-system",
+                "--hard-dereference",
+                "-C",
+                str(data_dir),
+                "-cf",
+                "-",
+                ".",
+            ],
+            stdout=stream,
+            stderr=subprocess.DEVNULL,
+            timeout=240,
+        )
+        process.check_returncode()
+        stream.seek(0)
+        with tarfile.open(fileobj=stream, mode="r|") as archive:
+            for member in archive:
+                require(member.isdir() or member.isfile() or member.issym(), "storefront_special_file")
+                # Keep staging inaccessible until its final ownership and modes
+                # are checked. The archive's root-directory mode is untrusted.
+                if member.name == ".":
+                    continue
+                archive.extract(member, staging, filter="data")
+    for child in staging.rglob("*"):
+        if child.is_symlink():
+            require(child.resolve(strict=True).is_relative_to(staging), "storefront_external_dependency_link")
+        else:
+            os.chmod(child, 0o755 if child.is_dir() else (child.stat().st_mode & 0o111) | 0o644)
 
 
 def unit_fields(name):
@@ -225,9 +269,7 @@ def stage(plan, target, data, guard):
         stages["source"] = source
         simple.persist(progress, stages)
     require(stages["source"] == source, "storefront_stage_source_mismatch")
-    require(
-        not any(p.name != ".env.example" for p in data_dir.glob(".env*")), "unexpected_storefront_env_file"
-    )
+    require(not any(p.name != ".env.example" for p in data_dir.glob(".env*")), "unexpected_storefront_env_file")
 
     def sandbox(cmd, seconds=600):
         guard()
@@ -300,30 +342,18 @@ def stage(plan, target, data, guard):
         stages["built"] = True
         simple.persist(progress, stages)
     sandbox([str(node), "scripts/verify-gtm-build.mjs", "observe", ".", "disabled"])
-    build_id = (data_dir / ".next/BUILD_ID").read_text().strip()
-    observation = json.loads((data_dir / ".next/gtm-build-observation.json").read_bytes())
-    require(
-        build_id
-        and observation["build_id"] == build_id
-        and observation["gtm_enabled"] is False
-        and observation["gtm_id"] is None,
-        "storefront_build_observation_invalid",
-    )
-    # Publish a root-owned copy. Never follow a symlink outside the release.
     staging = Path(tempfile.mkdtemp(prefix=".oldtest-release-", dir=release.parent))
     try:
-        for child in data_dir.rglob("*"):
-            if child.is_symlink():
-                require(
-                    child.resolve(strict=True).is_relative_to(data_dir), "storefront_external_dependency_link"
-                )
-            else:
-                require(child.is_file() or child.is_dir(), "storefront_special_file")
-        shutil.copytree(data_dir, staging, symlinks=True, dirs_exist_ok=True)
-        for child in staging.rglob("*"):
-            if not child.is_symlink():
-                os.chmod(child, child.stat().st_mode & 0o755)
-        os.chmod(staging, 0o755)
+        seal_release(data_dir, staging, user.pw_name, folder)
+        build_id = (staging / ".next/BUILD_ID").read_text().strip()
+        observation = json.loads((staging / ".next/gtm-build-observation.json").read_bytes())
+        require(
+            build_id
+            and observation["build_id"] == build_id
+            and observation["gtm_enabled"] is False
+            and observation["gtm_id"] is None,
+            "storefront_build_observation_invalid",
+        )
         manifest = dict(
             source_sha=source,
             git_tree=tree,
@@ -343,6 +373,7 @@ def stage(plan, target, data, guard):
         simple.storefront_layout(str(staging), identity, build_id)
         guard()
         require(not release.exists(), "storefront_release_already_exists")
+        os.chmod(staging, 0o755)
         os.rename(staging, release)
     finally:
         if staging.exists():

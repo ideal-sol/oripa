@@ -81,12 +81,23 @@ def stable_container(current):
     # Docker/Compose changes generated labels, addresses and IDs on recreate.
     # Bind the actual authority-bearing settings independently of image selection.
     cfg, host = current["Config"], current["HostConfig"]
+    networks = {}
+    for name, endpoint in current["NetworkSettings"]["Networks"].items():
+        identifier = endpoint["NetworkID"]
+        if not identifier and not current["State"]["Running"]:
+            network = canonical.decoded(["/usr/bin/docker", "network", "inspect", name])[0]
+            require(
+                network["Name"] == name and re.fullmatch("[0-9a-f]{64}", network["Id"]),
+                "stopped_container_network_unknown",
+            )
+            identifier = network["Id"]
+        networks[name] = identifier
     return simple.digest(
         {
             "process": {k: cfg.get(k) for k in ("Entrypoint", "Cmd", "User", "WorkingDir")},
             "environment": sorted(cfg.get("Env") or []),
             "mounts": sorted((m["Type"], m["Source"], m["Destination"], m["RW"]) for m in current["Mounts"]),
-            "networks": {k: v["NetworkID"] for k, v in current["NetworkSettings"]["Networks"].items()},
+            "networks": networks,
             "host": {
                 k: host.get(k)
                 for k in (
@@ -149,9 +160,7 @@ def compose_identity(current):
     model = json.loads(raw)
     service = current["Config"]["Labels"]["com.docker.compose.service"]
     selected = model["services"][service]
-    require(
-        not selected.get("privileged") and not selected.get("network_mode"), "unsafe_service_configuration"
-    )
+    require(not selected.get("privileged") and not selected.get("network_mode"), "unsafe_service_configuration")
     selected["image"] = "approved-runtime-image"
     return "sha256:" + hashlib.sha256(raw).hexdigest(), simple.digest(model)
 

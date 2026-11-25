@@ -776,7 +776,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             completed[key] = "PASS"
             save(journal)
             return
-        resumable=(op=="prepare-build" and target=="storefront" and observed=="resumable"
+        resumable=(op=="prepare-build" and target in ("storefront","api","admin","api+admin") and observed=="resumable"
                    and completed.get(key)=="STARTED")
         require(resumable or (key not in completed and observed == "ready"), "effect_requires_reconciliation")
         completed[key] = "STARTED"
