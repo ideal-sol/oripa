@@ -14362,3 +14362,10 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   identities under the common lock immediately before switching. Cover a
   successful cold acquisition and a changed runtime during acquisition in
   isolated tests. Runtime and migration were not exercised.
+
+## CIDBSKIP-20261125 — Database applicability for normal pull requests
+
+- R3, Strict Change, activation none, dedicated worktree, issue none. Base `b2ebaf4da02b58e132df9b4783465f2fe2e69880`.
+- Bind database-only exclusions to both Git trees, the complete edit inventory and focused step outcomes in the same run. Scope is limited to two Admin CSS modules, simple deploy CLI help, literal lint test data and verified Production source authority with covered expectations. Preserve P1/P1B and the four-runner database path.
+- Replayed exact base/head pairs for #665, #677, #679, #682, #684, #688 and #689. Only #684 and #689 qualify for the new DB exclusion. The #684 dispatch still requires DB. The #677 ledger also changes executable release tests and does not qualify.
+- Planner, lane and source tests cover unsafe/mixed edits, missing or unsuccessful focused results, dispatch and the four-shard gate. The Draft PR records final-head CI and Strict review. New migrations and Runtime operations: zero.

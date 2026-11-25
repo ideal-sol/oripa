@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.ci.database_focus import database_focus, exact_edits
 from scripts.release.readiness.change import AUTHORITY_PATHS, classify, git, path_components, validate_change
 from scripts.release.readiness.records import canonical, digest, require, seal
 
@@ -125,7 +126,8 @@ def old_test_deploy_db_unrelated(repository, change):
 def source_only_authority(change):
     return (change["validation_path"] == "AUTHORITY_FOCUSED"
             and all(path in AUTHORITY_PATHS | AUTHORITY_TEST_PATHS
-                    or path_components(path) == {"docs"} for path in change["changed_paths"]))
+                    or (path_components(path) == {"docs"} and not path.lower().endswith(".sql"))
+                    for path in change["changed_paths"]))
 
 
 def draft_plan_only(repository, change):
@@ -180,14 +182,26 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path, rep
     require(activation in {"none", "deferred", "immediate"}, "PLAN_ACTIVATION_INVALID")
     require(validation_path in {"AUTHORITY_FOCUSED", "NORMAL_STRICT_CI"}, "PLAN_PATH_INVALID")
     valid = True
+    edits = None
     try:
         validate_change(change)
-    except ValueError:
+        if repository is not None and event_name == "pull_request":
+            edits = exact_edits(repository, change)
+            valid = edits is not None
+    except (ValueError, OSError):
         valid = False
     authority = (valid and (source_only_authority(change) or draft_plan_only(repository, change))
                  and validation_path == "AUTHORITY_FOCUSED" and activation in {"none", "deferred"}
                  and event_name == "pull_request")
     paths = change["changed_paths"]
+    focus = ""
+    if (valid and edits and not authority and not source_only_authority(change)
+            and event_name == "pull_request" and validation_path == "NORMAL_STRICT_CI"
+            and activation in {"none", "deferred"} and lane_key in {"standard", "strict"}):
+        try:
+            focus = database_focus(repository, change, edits)
+        except (ValueError, SyntaxError, TypeError, KeyError, OSError, RecursionError):
+            pass  # Unproven content keeps its original DB requirements.
     hits = {scope: [] for scope in SCOPES}
     database_exclusions = []
     unknown = not valid
@@ -197,7 +211,12 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path, rep
             if affected is None:
                 unknown = True
             else:
-                if valid and (path == OLD_TEST_DEPLOY_TEST or (
+                if path.lower().endswith(".sql"):
+                    affected.add("database")
+                if focus and affected.intersection({"database", "migration"}):
+                    affected -= {"database", "migration"}
+                    database_exclusions.append(path)
+                elif valid and (path == OLD_TEST_DEPLOY_TEST or (
                         path == OLD_TEST_DEPLOY and old_test_deploy_db_unrelated(repository, change))):
                     affected -= {"database", "migration"}
                     database_exclusions.append(path)
@@ -217,6 +236,8 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path, rep
             status, reason = "NOT_APPLICABLE", "Canonical component deltas and complete path coverage exclude this scope"
             if scope in {"database", "migration"}:
                 reason = "Exact source coverage and bounded deploy AST comparison exclude DB inputs; activation unchanged"
+                if focus:
+                    reason = "Exact database-independent inputs with required focused verification: " + focus
         if scope == "arm64_artifact" and event_name != "pull_request":
             status, reason = "NOT_APPLICABLE", "PR_ONLY_ARM64_BOUNDARY"
         scopes[scope] = {
@@ -240,6 +261,7 @@ def build_plan(change, *, lane_key, activation, event_name, validation_path, rep
         "changed_paths_digest": digest(paths, None), "component_deltas": change["deltas"],
         "lane_key": lane_key, "activation": activation, "event_name": event_name,
         "validation_path": validation_path, "scopes": scopes, "jobs": jobs,
+        "database_focus": focus,
         "quality_authority": "quality-gate in the same workflow run and exact checkout",
         "fallback": "NORMAL_STRICT_CI" if unknown or full else "NONE",
     }, "record_digest")
@@ -249,6 +271,10 @@ def verify_results(plan, needs, expected_digest):
     require(plan["record_digest"] == expected_digest, "PLAN_BINDING_MISMATCH")
     for gate in ("policy-gate", "quality-gate"):
         require(needs.get(gate, {}).get("result") == "success", "PLAN_PREREQUISITE_FAILED:" + gate)
+    if plan["database_focus"]:
+        gate = "policy-gate" if plan["database_focus"] == "wrapper" else "quality-gate"
+        require(needs[gate].get("outputs", {}).get(plan["database_focus"]) == "success",
+                "DATABASE_FOCUSED_CHECK_MISSING:" + plan["database_focus"])
     for job, expectation in plan["jobs"].items():
         expected = "success" if expectation["required"] else "skipped"
         require(needs.get(job, {}).get("result") == expected, "PLAN_JOB_RESULT_INVALID:" + job)
