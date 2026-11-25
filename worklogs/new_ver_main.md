@@ -14312,3 +14312,42 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
 | `apps/api/database/migrations-v2/2026_11_20_000117_add_v2_line_quota_system_actor.php` | `86b0c5eda7289263aa0fd3684800040aa993a28fe9621c4e85ecbc29d5637516` |
 | `apps/api/database/migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php` | `b1f03a5314e5103b7054de12e49f66619058f4b5c9cbf3ae8290f4185d106655` |
 | `apps/api/database/migrations-v2/2026_11_24_000119_create_v2_user_conversion_events.php` | `8b2775243a88f5781ac283a1584d4aad8768db6499a01a1afdc57b912ffb308d` |
+
+### 2026-11-25 OLDTEST-SIMPLE-DEPLOY Phase 2
+
+- Issue none. Risk R3, Strict Change, Runtime Activation deferred. Dedicated local branch
+  `feat/OLDTEST-SIMPLE-DEPLOY` from Platform `531ac9f3ba642cc59fc761fe6479dcd5293dbeda`.
+  Storefront main observed at `86663aafa8a82b4ad2141cba08d2ceb56a506de7`.
+- Added a fixed OLD Test entry, merged-source and formal image validation, one scoped GO,
+  selective Build/switch, ledger reconciliation, target security and Basic-protected
+  health, durable effect intents and resume. Added an opt-in to the OLD AMD64 workflow
+  and included focused tests in the existing policy job. Canonical remains active.
+- Focused local suite passed 162 tests across the simple entry, Canonical helper and
+  OLD artifact/source authority. Python and workflow YAML parsed successfully. Site
+  effects and GitHub dispatch were simulated. Live private Gate, Build transport,
+  worker rebinding and Storefront staging still require offline host integration.
+- Keep this source in the dedicated worktree for Phase 3 fixed-head review, Draft PR
+  and the five Required Checks. Push, PR, formal CI, Build, installation, Runtime and
+  migration applications all zero. Browser acceptance and deployment timing pending.
+
+### 2026-11-25 OLDTEST-SIMPLE-DEPLOY Phase 3 (DEPLOY-20261125)
+
+- R3, Strict Change, deferred. Continue the dedicated Phase 2 worktree. The
+  numeric task identifier is used for the governed Draft branch. Issue none.
+- Verified merged-source proofs for Platform #724 and Storefront #255 against
+  GitHub. Both supplied five fixed-head checks and the authenticated review.
+  The retained Storefront manifest, Next build ID and pnpm CLI link matched.
+- Added native PHP verification with an independently authorized exact request,
+  per-effect receipt bindings, separate worker pin observations and staged
+  Storefront checks. Exercised the installed PHP verifier with synthetic
+  evidence and intercepted Docker I/O. Denied-image and missing-grant cases
+  stopped before probing. The installed-path launcher reached a simulated
+  worker through prepare, one GO and the journal in a filesystem-isolated root.
+- Reused the Phase 2 baseline of 162 local tests. The changed simple suite
+  passes 22 tests. An anonymous API rate limit observed during CI monitoring led
+  to a repository-scoped App read binding for source and artifact metadata.
+  The operations guide lists the separate enrollment requirements
+  for the App transport, target-specific security, timer pins and fallback.
+  Formal Build, host installation, migration, Runtime activation and browser
+  verification were not exercised. Fixed-head CI and Strict review are tracked
+  on the Draft. Human approval is required for Phase 4.

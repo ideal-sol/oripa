@@ -1,0 +1,31 @@
+#!/usr/bin/env -S /usr/bin/python3 -I -S -B
+"""Fixed OLD Test entry. Install with the reviewed source subset at adoption."""
+import os
+from itertools import chain
+from pathlib import Path
+import runpy
+import stat
+import sys
+
+
+def main():
+    os.umask(0o077)
+    os.chdir("/")
+    os.environ.clear()
+    os.environ.update(PATH="/usr/sbin:/usr/bin:/sbin:/bin", LANG="C",
+                      HOME="/var/empty", DOCKER_HOST="unix:///var/run/docker.sock")
+    sys.dont_write_bytecode = True
+    root = Path("/usr/local/lib/oripa-old-test-simple")
+    scripts = root / "scripts/ops"
+    # Validate the installed code boundary before importing any module from it.
+    # The bundle contains only the reviewed helpers, policy and public manifest.
+    for path in chain(reversed(root.parents), (root,), root.rglob("*")):
+        info = path.lstat()
+        if info.st_uid != 0 or info.st_mode & 0o022 or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+            raise SystemExit("untrusted_installation")
+    sys.path.insert(0, str(scripts))
+    runpy.run_path(str(scripts / "old_test_simple.py"), run_name="__main__")
+
+
+if __name__ == "__main__":
+    main()
