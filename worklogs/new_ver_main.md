@@ -14389,3 +14389,6 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   This source change grants no deployment GO.
 - Continued the reviewed change from Draft #733 on the current protected base.
   Preserve the database-focus CI condition and run the host binding tests independently.
+- The Required Admin test for shipping variables reached the subject before
+  the deferred rich-text field mounted. Wait for the labelled field while
+  preserving every variable, token and insertion assertion.

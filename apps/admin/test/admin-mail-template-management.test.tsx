@@ -186,7 +186,7 @@ describe("Mail Template management", () => {
   it("exposes shipping variables from the API in both pickers and inserts their exact tokens", async () => {
     render(<MailTemplateWorkspace templateKey="shipping_completed" />);
     const subject = await screen.findByLabelText("件名");
-    const editor = screen.getByLabelText("メール本文");
+    const editor = await screen.findByLabelText("メール本文");
     for (const [key, label] of [["carrier_name", "配送会社"], ["tracking_number", "追跡番号"]]) {
       for (const pickerLabel of ["件名へ変数を挿入", "本文へ変数を挿入"]) {
         expect(within(screen.getByLabelText(pickerLabel)).getByRole("option", { name: label })).toHaveValue(`{{${key}}}`);
