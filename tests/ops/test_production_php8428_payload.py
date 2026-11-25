@@ -17,7 +17,7 @@ class ProductionPHP8428PayloadTest(unittest.TestCase):
     def setUp(self):
         self.spec = H['specification'](ROOT)
         self.head = M['git'](ROOT, 'rev-parse', 'HEAD')
-        self.authority = json.loads(M['git'](ROOT, 'show', 'HEAD:' + M['AUTHORITY_PATH']))
+        self.authority = json.loads(M['git'](ROOT, 'show', '3442dfb875630ed2009896657092032db12a6de4:' + M['AUTHORITY_PATH']))
         self.bad = None
 
     def get(self, path):
