@@ -584,7 +584,7 @@ jobs:
   # A same-repository PR can request a serial comparison for one explicit commit.
   # Required checks have no dependency on this benchmark.
   database-serial-comparison:
-    needs: policy-gate
+    needs: [policy-gate, integration-database]
     if: >-
       github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
       contains(github.event.pull_request.body, format('[compare-db-serial {0}]', github.event.pull_request.head.sha)) &&

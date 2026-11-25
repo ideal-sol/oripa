@@ -23,17 +23,18 @@ class PartitionTest(unittest.TestCase):
         weights = {"classes": {"A": 20, "B": 10}, "default": 1}
         deps = {"C": ["D"], "D": ["E"]}
         buckets, _ = partition(listing(names), deps, weights)
-        self.assertEqual(buckets, partition(listing(names[::-1]), deps, weights)[0])
-        self.assertEqual(sorted(cls for group in buckets for cls in group), names)
+        self.assertEqual(buckets, partition(listing(names), deps, weights)[0])
+        self.assertEqual([cls for group in buckets for cls in group], names)
         self.assertEqual(buckets[0], ["A"])
         self.assertTrue(any(set("CDE") <= set(group) for group in buckets))
 
     def test_reporting_keeps_the_db_cleanup_that_precedes_it_in_the_serial_suite(self):
         cleanup = r"Tests\V2\PrizeShippingConcurrencyTest"
         reporting = r"Tests\V2\ReportingExportVerticalSliceTest"
-        names = ["A", "B", cleanup, "Q", reporting, "Z"]
+        shipping = r"Tests\V2\ShippingMinimumPointSettingsTest"
+        names = ["A", "B", cleanup, "Q", reporting, "S", shipping, "Z"]
         buckets, _ = partition(listing(names), {}, {"default": 1, "classes": {}})
-        self.assertTrue(any(reporting in group and cleanup in group for group in buckets))
+        self.assertIn([cleanup, "Q", reporting, "S", shipping], buckets)
 
     def test_empty_shard_and_duplicate_discovery_rejected(self):
         for names in ("ABC", "ABCDA"):

@@ -2,6 +2,7 @@
 import argparse
 from collections import defaultdict
 import hashlib
+from itertools import accumulate
 import json
 import os
 from pathlib import Path
@@ -45,30 +46,40 @@ def partition(xml, dependencies, weights):
         for target in targets:
             parent[root(name)] = root(target)
 
-    # Reporting checks the whole payments table and ledger. In the serial suite,
-    # the preceding prize concurrency fixture restores a clean schema in finally.
-    reporting = r"Tests\V2\ReportingExportVerticalSliceTest"
-    if reporting in classes:
-        cleanup = r"Tests\V2\PrizeShippingConcurrencyTest"
-        parent[root(reporting)] = root(cleanup)
+    # These whole-table assertions use the clean DB restored by the prize
+    # concurrency fixture in the serial suite. Keep its entire interval intact.
+    cleanup = r"Tests\V2\PrizeShippingConcurrencyTest"
+    for consumer in (r"Tests\V2\ReportingExportVerticalSliceTest", r"Tests\V2\ShippingMinimumPointSettingsTest"):
+        if consumer in classes:
+            parent[root(consumer)] = root(cleanup)
 
-    groups = defaultdict(list)
-    for name in classes:
-        groups[root(name)].append(name)
-    # Historical JUnit seconds per case. Unknown classes use the suite residual mean.
-    def cost(group):
-        return sum(len(classes[name]) * weights["classes"].get(name, weights["default"])
-                   for name in group)
+    # A scattered assignment can run a committing fixture and omit the cleanup
+    # between it and a later test. Split only at boundaries in discovery order
+    # that leave every file and dependency group on one side.
+    names = list(classes)
+    group_last = {root(name): i for i, name in enumerate(names)}
+    boundaries = []
+    end = -1
+    for i, name in enumerate(names):
+        end = max(end, group_last[root(name)])
+        if i == end and i + 1 < len(names):
+            boundaries.append(i + 1)
+    if len(boundaries) < 3:
+        raise ValueError("Cannot form four nonempty dependency-preserving shards")
 
-    buckets = [[] for _ in range(4)]
-    loads = [0.0] * 4
-    for group in sorted(groups.values(), key=lambda g: (-cost(g), min(g))):
-        index = min(range(4), key=lambda i: (loads[i], i))
-        buckets[index].extend(sorted(group))
-        loads[index] += cost(group)
-    if not all(buckets):
-        raise ValueError("Empty DB shard")
-    return buckets, classes
+    seconds = list(accumulate(
+        len(classes[name]) * weights["classes"].get(name, weights["default"]) for name in names
+    ))
+    cuts = [0]
+    for quarter in range(1, 4):
+        # Reserve one legal cut for each remaining quarter.
+        choices = boundaries[:len(boundaries) - (3 - quarter)]
+        target = quarter * seconds[-1] / 4
+        cut = min(choices, key=lambda i: abs(seconds[i - 1] - target))
+        cuts.append(cut)
+        boundaries = boundaries[boundaries.index(cut) + 1:]
+    cuts.append(len(names))
+    return [names[left:right] for left, right in zip(cuts, cuts[1:])], classes
 
 
 def results(xml):
