@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/ops"))
 import old_test_admin_measure as admin
@@ -78,6 +78,32 @@ class HostBindingsTest(unittest.TestCase):
             rejected["attempts"] = 2
             with self.assertRaisesRegex(simple.Hold, "still_rejected"):
                 build.status({}, "admin", lambda: None)
+
+    def test_rejected_dispatch_resumes_with_canonical_wire_inputs(self):
+        plan = {
+            "session": "TEST-COLD",
+            "targets": ["admin"],
+            "sources": {build.PLATFORM: {"pr": 21, "sha": "a" * 40}},
+            "recipes": {"admin": "approved-recipe"},
+        }
+        with patch.object(simple, "shape", return_value=(["admin"], ["admin"])):
+            payload = build.build_inputs(plan, "admin")
+        record = {"payload": payload, "rejected": "github_http_422", "attempts": 1}
+        post = Mock(return_value=(204, None))
+        with (
+            patch.object(build, "context", return_value=({}, {"dispatcher": {}}, payload, "marker", record, None)),
+            patch.object(build.host, "cached", return_value=None),
+            patch.object(build, "merged_source"),
+            patch.object(build, "current_recipes", return_value=plan["recipes"]),
+            patch.object(build.host, "pinned", return_value={"request": post}),
+            patch.object(build.host, "approved"),
+            patch.object(simple, "persist") as persist,
+        ):
+            build.ensure(plan, "admin", dict(payload, workflow=simple.WORKFLOW), lambda: None)
+        persist.assert_called_once_with("marker", {"payload": payload, "attempted": True, "attempts": 2})
+        self.assertIs(type(payload["inputs"]["pr_number"]), int)
+        wire = dict(payload, inputs=dict(payload["inputs"], pr_number="21"))
+        post.assert_called_once_with("POST", build.FLOW + "/dispatches", wire)
 
     def test_scan_and_sbom(self):
         identity = "sha256:" + "a" * 64
