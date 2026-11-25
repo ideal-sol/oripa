@@ -180,6 +180,14 @@ def database_focus(repository, change, edits):
     return ""
 
 
+def test_cases(suite):
+    for test in suite:
+        if isinstance(test, unittest.TestSuite):
+            yield from test_cases(test)
+        else:
+            yield test
+
+
 def run_focused_tests(focus):
     loader = unittest.defaultTestLoader
     modules = {
@@ -191,22 +199,24 @@ def run_focused_tests(focus):
         # Run the original complete discovery; require the changed module to
         # contribute tests even if another quality module also succeeds.
         suite = loader.discover("tests/ci/quality", pattern="test_*.py")
-        def cases(group):
-            for test in group:
-                if isinstance(test, unittest.TestSuite):
-                    yield from cases(test)
-                else:
-                    yield test
-        if not any(test.id().startswith("test_quality_gate.") for test in cases(suite)):
+        if not any(test.id().startswith("test_quality_gate.") for test in test_cases(suite)):
             return False
         suites = [suite]
     else:
         suites = [loader.loadTestsFromName(name) for name in modules[focus]]
+    passed = set()
     for suite in suites:
-        count = suite.countTestCases()
-        result = unittest.TextTestRunner().run(suite)
-        if not count or result.testsRun != count or not result.wasSuccessful() or result.skipped:
+        if not suite.countTestCases():
             return False
+        # The canonical authority entry point can already import the Node
+        # cases. Execute only tests the previous module has not verified.
+        remaining = [test for test in test_cases(suite) if test.id() not in passed]
+        if not remaining:
+            continue
+        result = unittest.TextTestRunner().run(unittest.TestSuite(remaining))
+        if result.testsRun != len(remaining) or not result.wasSuccessful() or result.skipped:
+            return False
+        passed.update(test.id() for test in remaining)
     return True
 
 

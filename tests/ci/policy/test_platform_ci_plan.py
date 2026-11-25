@@ -187,6 +187,18 @@ class PlatformCIPlanTests(unittest.TestCase):
                     self.assertEqual([c.args[0] for c in loader.call_args_list],
                         ['tests.ops.test_production_source_authority', 'tests.ops.test_production_admin_node'])
 
+    def test_node_cases_imported_by_authority_execute_once(self):
+        ran = []
+        def imported():
+            ran.append('imported')
+        def extra():
+            ran.append('extra')
+        suites = [unittest.TestSuite([unittest.FunctionTestCase(imported)]),
+                  unittest.TestSuite(map(unittest.FunctionTestCase, (imported, extra)))]
+        with patch.object(unittest.defaultTestLoader, 'loadTestsFromName', side_effect=suites):
+            self.assertTrue(focus.run_focused_tests('authority_node'))
+        self.assertEqual(ran, ['imported', 'extra'])
+
     def test_contract_fans_out_to_all_consumers(self):
         plan = self.plan(('openapi/public.yaml',))
         self.assert_required(plan, 'contract', 'backend', 'admin', 'agency', 'storefront_client', 'testkit', 'site_schema')
