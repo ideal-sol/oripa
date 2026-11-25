@@ -1,4 +1,5 @@
 name: OLD Test Protected Main Artifact
+run-name: ${{ inputs.simple_mode != 'canonical' && inputs.simple_plan && format('OLD Test {0} {1} {2}', inputs.simple_plan, inputs.simple_mode, inputs.source_sha) || 'OLD Test Protected Main Artifact' }}
 
 on:
   workflow_dispatch:

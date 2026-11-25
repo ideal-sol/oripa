@@ -14369,3 +14369,23 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
 - Bind database-only exclusions to both Git trees, the complete edit inventory and focused step outcomes in the same run. Scope is limited to two Admin CSS modules, simple deploy CLI help, literal lint test data and verified Production source authority with covered expectations. Preserve P1/P1B and the four-runner database path.
 - Replayed exact base/head pairs for #665, #677, #679, #682, #684, #688 and #689. Only #684 and #689 qualify for the new DB exclusion. The #684 dispatch still requires DB. The #677 ledger also changes executable release tests and does not qualify.
 - Planner, lane and source tests cover unsafe/mixed edits, missing or unsuccessful focused results, dispatch and the four-shard gate. The Draft PR records final-head CI and Strict review. New migrations and Runtime operations: zero.
+
+### DEPLOY-20261125C — Connect scoped OLD Test deployment procedures
+
+- R3, Strict Change, application activation deferred. The OLD Test App can
+  read merged source and formal artifacts. Its existing Canonical dispatch
+  takes three inputs. The simple workflow also requires its mode and the
+  approved plan digest.
+- Bind the dispatcher, target-specific measurements, private Compose and
+  systemd procedures, migration classification and ledger to the installed
+  site policy. Keep source and build preparation outside the shared runtime
+  lock. Recover a workflow by its recorded ID or exact matching artifact.
+- The isolated Admin rehearsal verified its admitted image, actual scanner and
+  SBOM evidence, native dependencies, internal health, and protected proxy
+  through one session. An isolated PostgreSQL instance applied an additive
+  migration once. A private network listener exercised two Storefront
+  releases and recovery of the previous transient definition.
+- Host enrollment, live effects and first-use results have independent records.
+  This source change grants no deployment GO.
+- Continued the reviewed change from Draft #733 on the current protected base.
+  Preserve the database-focus CI condition and run the host binding tests independently.
