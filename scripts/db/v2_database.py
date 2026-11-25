@@ -1152,6 +1152,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         nonlocal boundary
         end = time.time()
         stages[stage] = {"start": boundary, "end": end, "seconds": round(end - boundary, 3)}
+        if args.shard is not None:
+            print(json.dumps({"shard": args.shard, "stage": stage, **stages[stage]}), flush=True)
         boundary = end
 
     require_database_markers(args)

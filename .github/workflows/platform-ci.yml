@@ -581,13 +581,13 @@ jobs:
           DB_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 scripts/db/v2_shards.py "$RUNNER_TEMP/db-results"
 
-  # A comparison requested when opening a same-repository PR runs once on its exact source.
+  # A same-repository PR can request a serial comparison for one explicit commit.
   # Required checks have no dependency on this benchmark.
   database-serial-comparison:
     needs: policy-gate
     if: >-
-      github.event.action == 'opened' && github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.body, '[compare-db-serial]') &&
+      github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.body, format('[compare-db-serial {0}]', github.event.pull_request.head.sha)) &&
       fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database
     env:
       DB_SHARD: '0'

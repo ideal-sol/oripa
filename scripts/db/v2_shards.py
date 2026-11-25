@@ -101,6 +101,28 @@ def identity(repository):
     return [sha, os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"]]
 
 
+def failure_summary(xml, classes, repository):
+    summaries = []
+    for case in ET.fromstring(xml).iter("testcase"):
+        issue = case.find("error")
+        if issue is None:
+            issue = case.find("failure")
+        if issue is None:
+            continue
+        cls = case.attrib.get("class", "")
+        method = case.attrib.get("name", "").partition(" with data set ")[0]
+        prefix = cls + "::" + method
+        if not any(test.partition("#")[0] == prefix for test in classes.get(cls, [])):
+            continue
+        # Report only source identifiers, test locations and known failure categories.
+        detail = issue.text or ""
+        frames = re.findall(r"/(tests/V2/\w+\.php):(\d+)", detail)
+        locations = [f"{path}:{line}" for path, line in frames if (repository / "apps/api" / path).is_file()]
+        categories = [key for key in ("SQLSTATE", "timeout", "Failed asserting", "memory") if key in detail]
+        summaries.append(" ".join([prefix, issue.tag, *categories, *locations[:2]]))
+    return summaries[:12]
+
+
 def execute(run, base, repository, shard):
     api = base + ["exec", "-T", "api"]
     phpunit = api + ["php", "-d", "memory_limit=512M", "vendor/bin/phpunit", "--configuration", "phpunit.v2.xml"]
@@ -117,7 +139,15 @@ def execute(run, base, repository, shard):
         options = ["--filter", "/^(?:" + pattern + ")::/"]
         expected = set(plan[shard - 1])
     # Keep raw JUnit, including any failure text and dataset labels, inside the isolated container.
-    run(phpunit + options + ["--log-junit", "/tmp/v2-junit.xml"], cwd=repository)
+    try:
+        run(phpunit + options + ["--log-junit", "/tmp/v2-junit.xml"], cwd=repository)
+    except RuntimeError as error:
+        cause = error.__cause__
+        status = cause.returncode if isinstance(cause, subprocess.CalledProcessError) else None
+        print(f"Full V2 process failed on shard {shard} (exit={status})", flush=True)
+        xml = run(api + ["cat", "/tmp/v2-junit.xml"], cwd=repository)
+        print(json.dumps(failure_summary(xml, classes, repository)), flush=True)
+        raise
     cases, seconds = results(run(api + ["cat", "/tmp/v2-junit.xml"], cwd=repository))
     if expected != cases.keys():
         raise ValueError("Executed cases disagree with the PHPUnit listing")

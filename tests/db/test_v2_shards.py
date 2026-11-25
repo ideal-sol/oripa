@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from xml.etree import ElementTree as ET
 
-from scripts.db.v2_shards import aggregate, fingerprint, partition, results
+from scripts.db.v2_shards import aggregate, failure_summary, fingerprint, partition, results
 
 
 def listing(names):
@@ -45,6 +45,13 @@ class PartitionTest(unittest.TestCase):
                                   fingerprint("Parent::test#0"): [1, False]})
         with self.assertRaises(ValueError):
             results(xml.replace(b'assertions="3"', b'assertions="2"'))
+
+    def test_failure_summary_contains_only_discovered_symbols_and_source_locations(self):
+        xml = b'''<testsuites><testcase class="T" name='test with data set "private label"'>
+          <failure>Failed asserting fixture payload /code/tests/V2/BannerImportTest.php:45</failure>
+          </testcase></testsuites>'''
+        summary = failure_summary(xml, {"T": ["T::test#private label"]}, Path(__file__).resolve().parents[2])
+        self.assertEqual(summary, ["T::test failure Failed asserting tests/V2/BannerImportTest.php:45"])
 
     def test_workflow_propagates_matrix_outcomes_and_planner_skip(self):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/platform-ci.yml").read_text()
