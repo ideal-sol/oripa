@@ -15,6 +15,7 @@ import secrets
 import stat
 import subprocess
 import tempfile
+import time
 from typing import Any, Iterable
 
 
@@ -1143,6 +1144,16 @@ def run_persistent(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    boundary = started
+    stages = {}
+
+    def finish(stage):
+        nonlocal boundary
+        end = time.time()
+        stages[stage] = {"start": boundary, "end": end, "seconds": round(end - boundary, 3)}
+        boundary = end
+
     require_database_markers(args)
     repository = Path(args.repository).resolve()
     compose_file = (repository / args.compose_file).resolve()
@@ -1180,6 +1191,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         source_started = False
         restore_started = False
+        finish("guard")
         try:
             source_started = True
             run(
@@ -1197,6 +1209,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 cwd=repository,
                 capture=False,
             )
+            finish("build_startup")
             if args.task_id and args.purpose:
                 assert_database_target(
                     source_base,
@@ -1221,13 +1234,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 source_base, repository, one_shot=False
             )
             migration_status(source_base, repository, one_shot=False)
-            run_identity_tests(source_base, repository, one_shot=False)
+            finish("migration")
+            if args.shard is None:
+                run_identity_tests(source_base, repository, one_shot=False)
+            else:
+                from v2_shards import execute
+                try:
+                    report = execute(run, source_base, repository, args.shard)
+                except (GuardFailure, ValueError, KeyError) as error:
+                    # Raw PHPUnit output can contain dataset labels or assertion payloads.
+                    raise GuardFailure(f"PHPUnit shard validation failed ({type(error).__name__})") from None
+            finish("full_v2")
             run_draw_load_tests(source_base, repository)
             run_qa_draw_load_tests(source_base, repository)
             run_reporting_performance_tests(source_base, repository)
             content_contact_performance = run_content_contact_performance_tests(
                 source_base, repository
             )
+            finish("load_performance")
             run(
                 source_base
                 + [
@@ -1254,6 +1278,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 ],
                 cwd=repository,
             )
+            finish("health")
             source_inventory = schema_inventory(source_base, repository)
             validate_schema_inventory(source_inventory)
             source_schema_raw = schema_dump(source_base, repository)
@@ -1328,11 +1353,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "host_ports_published": False,
             }
             write_json(evidence_dir / "ephemeral-result.json", evidence)
+            finish("backup_restore")
         finally:
             if restore_started:
                 cleanup_project(restore_base, restore_project, repository)
             if source_started:
                 cleanup_project(source_base, source_project, repository)
+        finish("cleanup")
+        if args.shard is not None:
+            report.update(smoke_complete=True, stages=stages,
+                          migration_set=evidence["migration_set_sha256"],
+                          migration_count=evidence["migration_file_count"],
+                          rollback=evidence["latest_migration_rollback_reapply"],
+                          runner={"os": os.getenv("ImageOS"), "image": os.getenv("ImageVersion"),
+                                  "cpu": os.cpu_count(), "memory_bytes": os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")},
+                          total={"start": started, "end": boundary, "seconds": round(boundary - started, 3)})
+            write_json(evidence_dir / f"shard-{args.shard}.json", report)
         evidence["resource_cleanup"] = "PASS"
         write_json(evidence_dir / "ephemeral-result.json", evidence)
         return evidence
@@ -1368,6 +1404,8 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--migration-path", required=True)
     smoke.add_argument("--evidence-dir", required=True)
     smoke.add_argument("--task-id")
+    smoke.add_argument("--shard", type=int, choices=range(5),
+                       help="CI partition 1-4, or 0 for the full serial comparison with JUnit")
     smoke.add_argument(
         "--purpose",
         choices=["v2-persistent", "v2-task-ephemeral"],

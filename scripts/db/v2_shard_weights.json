@@ -1,0 +1,16 @@
+{
+  "source_run": "38881675704",
+  "default": 0.33018,
+  "classes": {
+    "Tests\\V2\\NotionSyncTest": 4.38599,
+    "Tests\\V2\\BannerAssetLifecycleTest": 3.64946,
+    "Tests\\V2\\BannerImportWorkerTest": 2.9022,
+    "Tests\\V2\\BannerImportCsvTest": 2.73672,
+    "Tests\\V2\\ZAdminGachaProbabilitySelectionConcurrencyTest": 5.25257,
+    "Tests\\V2\\FincodePaymentBackendTest": 0.19849,
+    "Tests\\V2\\LoginGachaTest": 0.59315,
+    "Tests\\V2\\PrizeImportTest": 0.46539,
+    "Tests\\V2\\BannerImportTest": 3.11341,
+    "Tests\\V2\\CardInventoryTest": 0.44476
+  }
+}

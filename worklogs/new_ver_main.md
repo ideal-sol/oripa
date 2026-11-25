@@ -14299,3 +14299,10 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
 | `apps/api/database/migrations-v2/2026_11_20_000117_add_v2_line_quota_system_actor.php` | `86b0c5eda7289263aa0fd3684800040aa993a28fe9621c4e85ecbc29d5637516` |
 | `apps/api/database/migrations-v2/2026_11_20_000118_add_v2_line_quota_initial_origin.php` | `b1f03a5314e5103b7054de12e49f66619058f4b5c9cbf3ae8290f4185d106655` |
 | `apps/api/database/migrations-v2/2026_11_24_000119_create_v2_user_conversion_events.php` | `8b2775243a88f5781ac283a1584d4aad8768db6499a01a1afdc57b912ffb308d` |
+
+## CIDB4SHARD-20261125 — Four independent Full V2 database runners
+
+- Policy Task ID CIDBSHARD-20261125 (existing validator requires an alphabetic prefix). Risk R3, Strict Change, activation none, dedicated worktree, issue none.
+- Split only the Full V2 invocation using PHPUnit discovery and historical JUnit weights. Preserve DB isolation, migration, load tests, restore, cleanup and planner applicability on each runner. Reconcile exact-case fingerprints before integration-gate.
+- Local DB and helper tests 101 PASS, planner tests 55 PASS. A networkless PHPUnit 12.5.29 fixture reconciled all 7 cases, 6 assertions and 1 skip across serial and four partitions.
+- Hosted comparison and fixed-head review recorded on the Draft PR. Public measurements are provisional. No runtime activation, new migration or merge authority.

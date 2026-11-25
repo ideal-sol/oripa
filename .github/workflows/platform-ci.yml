@@ -501,13 +501,20 @@ jobs:
           git diff --check
           git diff --exit-code
 
-  integration-database:
-    name: integration-database
+  database-shard:
+    name: DB shard ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      DB_SHARD: ${{ matrix.shard }}
+      DB_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     needs: policy-gate
     if: fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database
     runs-on: ubuntu-latest
     timeout-minutes: 50
-    steps:
+    steps: &database-smoke
       - name: Check out the reviewed commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -526,7 +533,8 @@ jobs:
         run: |
           python3 scripts/db/v2_database.py smoke \
             --repository . \
-            --project-prefix "mig054-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --shard "$DB_SHARD" \
+            --project-prefix "mig054-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$DB_SHARD" \
             --migration-path apps/api/database/migrations-v2 \
             --evidence-dir "$RUNNER_TEMP/mig054-v2-reporting-evidence"
 
@@ -534,6 +542,82 @@ jobs:
         run: |
           git diff --check
           git diff --exit-code
+
+      - name: Publish sanitized DB evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: db-${{ github.run_id }}-${{ github.run_attempt }}-${{ env.DB_SHARD }}
+          path: ${{ runner.temp }}/mig054-v2-reporting-evidence/shard-${{ env.DB_SHARD }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  integration-database:
+    name: integration-database
+    needs: [policy-gate, database-shard]
+    if: always() && needs.policy-gate.result == 'success' && fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all four shard jobs to succeed
+        env:
+          SHARD_RESULT: ${{ needs.database-shard.result }}
+        run: test "$SHARD_RESULT" = success
+
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Download shard evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: db-${{ github.run_id }}-${{ github.run_attempt }}-[1-4]
+          path: ${{ runner.temp }}/db-results
+          merge-multiple: true
+
+      - name: Verify Full V2 coverage
+        env:
+          DB_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/db/v2_shards.py "$RUNNER_TEMP/db-results"
+
+  # A comparison requested when opening a same-repository PR runs once on its exact source.
+  # Required checks have no dependency on this benchmark.
+  database-serial-comparison:
+    needs: policy-gate
+    if: >-
+      github.event.action == 'opened' && github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.body, '[compare-db-serial]') &&
+      fromJSON(needs.policy-gate.outputs.plan_jobs).integration-database
+    env:
+      DB_SHARD: '0'
+      DB_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps: *database-smoke
+
+  database-compare-results:
+    needs: [integration-database, database-serial-comparison]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the reviewed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Download comparison evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: db-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/db-results
+          merge-multiple: true
+
+      - name: Compare each case with its serial outcome
+        env:
+          DB_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/db/v2_shards.py "$RUNNER_TEMP/db-results" --serial "$RUNNER_TEMP/db-results/shard-0.json"
 
   production-arm64-artifact:
     name: production-arm64-artifact
