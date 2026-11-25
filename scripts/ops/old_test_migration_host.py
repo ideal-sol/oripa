@@ -188,5 +188,5 @@ def database_binding(plan, target, data, guard):
         side_effects_known=True,
         non_destructive=True,
         next_file=next_file,
-        compose_digest=host.compose_binding(api),
+        compose_digest=host.compose_binding(api, settings["containers"]["api"]),
     )

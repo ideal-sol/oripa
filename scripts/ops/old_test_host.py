@@ -116,7 +116,7 @@ def container(settings, role):
     return current
 
 
-def compose_binding(current):
+def compose_identity(current):
     unsafe = {
         "DOCKER_HOST",
         "DOCKER_CONTEXT",
@@ -146,7 +146,20 @@ def compose_binding(current):
             path = Path(command[index + 1])
             checked_file(path)
     raw = canonical.run(command + ["config", "--format", "json"], environment=env)
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    model = json.loads(raw)
+    service = current["Config"]["Labels"]["com.docker.compose.service"]
+    selected = model["services"][service]
+    require(
+        not selected.get("privileged") and not selected.get("network_mode"), "unsafe_service_configuration"
+    )
+    selected["image"] = "approved-runtime-image"
+    return "sha256:" + hashlib.sha256(raw).hexdigest(), simple.digest(model)
+
+
+def compose_binding(current, policy):
+    exact, normalized = compose_identity(current)
+    require(normalized == policy["compose"], "enrolled_compose_configuration_changed")
+    return exact
 
 
 def service_switch(plan, role, image, guard):
@@ -165,7 +178,7 @@ def service_switch(plan, role, image, guard):
         identity=image,
         container=current["Id"],
         previous=current["Image"],
-        compose_digest=compose_binding(current),
+        compose_digest=compose_binding(current, config(plan)["containers"][role]),
     )
 
 

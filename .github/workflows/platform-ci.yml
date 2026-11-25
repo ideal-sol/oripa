@@ -80,9 +80,14 @@ jobs:
           simple = {"scripts/ops/oldtest-deploy", "scripts/ops/old_test_simple.py", "scripts/ops/old_test_simple_source.py",
                     "tests/ops/test_old_test_simple.py", ".github/workflows/old-test-main-artifact.yml",
                     "scripts/ops/old_test_source_authority.py"}
-          if simple.intersection(change["changed_paths"]) or any(
-              p.startswith(("scripts/ops/old_test_", "tests/ops/test_old_test_host_")) for p in change["changed_paths"]
-          ):
+          simple.update({
+              "scripts/ops/old_test_admin_measure.py", "scripts/ops/old_test_bindings.py",
+              "scripts/ops/old_test_host.py", "scripts/ops/old_test_migration_host.py",
+              "scripts/ops/old_test_php_authority.py", "scripts/ops/old_test_simple_build.py",
+              "scripts/ops/old_test_storefront_host.py", "scripts/ops/old_test_worker_host.py",
+              "scripts/ops/old_test_worker_lifecycle.py", "tests/ops/test_old_test_host_bindings.py",
+          })
+          if simple.intersection(change["changed_paths"]):
               subprocess.run([sys.executable, "-m", "unittest", "tests.ops.test_old_test_simple",
                               "tests.ops.test_old_test_host_bindings"], check=True)
           PY

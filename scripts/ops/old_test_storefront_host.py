@@ -361,6 +361,17 @@ def stage(plan, target, data, guard):
         vendored_contract_verified=True,
     )
     simple.persist(simple.SESSIONS / "assets/storefront" / (source + ".json"), item)
+    require(
+        work.parent == root
+        and work.name == plan["session"]
+        and work.resolve(strict=True) == work
+        and local_asset(plan) == item,
+        "storefront_build_cleanup_binding_changed",
+    )
+    for scratch in (private_store, home, data_dir):
+        if scratch.is_dir() and not scratch.is_symlink():
+            shutil.rmtree(scratch)
+    archive.unlink(missing_ok=True)
 
 
 def observe(plan, op, expected, guard):

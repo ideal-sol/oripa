@@ -109,10 +109,36 @@ def preflight(plan, target, data, guard):
     states, identities, config = snapshot(plan)
     require(set(plan["targets"]) <= set(settings["enabled_targets"]), "target_not_enrolled")
     require(not plan["migration"]["files"] or settings["migration_enabled"], "migration_not_enrolled")
+    affected, roles = simple.shape(plan, plan["targets"])
+    required = {"observe", "find-asset", "verify-retained", "health", "prepare-evidence"}
+    if "api" in roles:
+        required.update(("php-gate-inputs", "authorize-php-request"))
+    if set(roles) - {"api"}:
+        required.add("security")
+    if set(affected) & set(simple.SERVICES):
+        required.add("switch-binding")
+    if any(t in simple.WORKERS and simple.WORKERS[t] != "exec" for t in affected):
+        required.add("switch")
+    if any(simple.WORKERS.get(t) == "exec" for t in affected):
+        required.add("exec-binding")
+    if plan["workers"]:
+        required.add("worker-states")
+    if plan["migration"]["files"]:
+        required.update(("database-binding", "migration-inventory"))
+    if plan["migration"]["writers"]:
+        required.update(("drain", "resume"))
+    if "line-sender" in plan["migration"]["writers"]:
+        required.add("worker-lock-released")
+    if any(host.cached(plan, r) is None for r in roles if r in build.FILES):
+        required.update(("ensure-formal-build", "cache-admission"))
+    if "storefront" in roles and host.cached(plan, "storefront") is None:
+        required.add("prepare-build")
+    missing = required - json.loads(host.checked_file(simple.BINDINGS, True))["operations"].keys()
+    require(not missing, "missing_binding_" + "_".join(sorted(missing)))
     for role in plan["targets"]:
         if role in ("api", "admin"):
             current = host.container(settings, role)
-            host.compose_binding(current)
+            host.compose_binding(current, settings["containers"][role])
         if role == "api":
             flags = dict(x.split("=", 1) for x in current["Config"]["Env"])
             require(
@@ -161,10 +187,11 @@ def cache_admission(plan, target, data, guard):
     directory = simple.SESSIONS / "assets" / target
     simple.trusted(directory, private=True, directory=True)
     path = directory / (item["source"] + ".json")
-    if path.exists():
-        require(json.loads(host.checked_file(path, True)) == item, "different_asset_already_admitted")
-    else:
-        simple.persist(path, item)
+    with simple.runtime_lock(directory, session_directory=True):
+        if path.exists():
+            require(json.loads(host.checked_file(path, True)) == item, "different_asset_already_admitted")
+        else:
+            simple.persist(path, item)
 
 
 def ensure_formal_build(plan, target, data, guard):
