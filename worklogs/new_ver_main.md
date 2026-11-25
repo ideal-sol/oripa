@@ -14392,3 +14392,10 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
 - The Required Admin test for shipping variables reached the subject before
   the deferred rich-text field mounted. Wait for the labelled field while
   preserving every variable, token and insertion assertion.
+
+### DEPLOY-20261125D — OLD Test dispatch input encoding
+
+- Keep the reviewed plan, PR number, approval digest and dispatch journal intact.
+  Encode the PR number as text at the GitHub boundary, as in the Canonical OLD Test dispatcher.
+- Exercise resumption after a definitive rejection with the same session and attempt budget.
+  Runtime activation remains deferred.

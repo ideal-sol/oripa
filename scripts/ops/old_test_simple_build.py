@@ -174,10 +174,12 @@ def ensure(plan, group, data, guard):
         "approved_build_recipe_changed",
     )
     post = host.pinned(settings["dispatcher"])["request"]
+    # Match the Canonical dispatch wire format while retaining the typed plan and journal.
+    wire_inputs = dict(payload["inputs"], pr_number=str(src["pr"]))
     host.approved(plan, guard)
     simple.persist(marker, {"payload": payload, "attempted": True, "attempts": attempts})
     try:
-        code, reply = post("POST", FLOW + "/dispatches", payload)
+        code, reply = post("POST", FLOW + "/dispatches", dict(payload, inputs=wire_inputs))
     except (Exception, SystemExit) as error:
         code = str(error)
         if code in ("github_http_401", "github_http_403", "github_http_404", "github_http_422"):
