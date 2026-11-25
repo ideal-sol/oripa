@@ -116,6 +116,23 @@ The root-private `/etc/oripa-old-test-simple/bindings.json` contains
 `environment` (`old-test`) and an `operations` map. Each entry selects
 a local module basename, its `sha256` digest and a named `function`.
 The caller cannot supply any of these. Bindings are pinned in the plan.
+
+The reviewed functions in `scripts/ops/old_test_bindings.py` implement the
+site operation ABI. At adoption, copy those functions into the protected
+private module directory with their reviewed digest. Install the imported
+helpers in the trusted source bundle. Enroll the measured site profile under
+`site` in the same registry. It binds the machine, available targets, private
+network, existing service definitions, approved configuration and contract,
+App transports and independent security policies. Keep actual enrollment
+values on the host. The deployment user can neither edit the profile nor
+write the Human GO. Enable only the targets exercised with that profile.
+
+Prepare the build recipe before taking the common lock. The App reconciles an
+exact workflow run before dispatch and records the attempt before sending it.
+A previous protected-main workflow can be identified from its exact formal
+artifact name and embedded authority. A lost dispatch reply never authorizes
+another build. Storefront prepares its dependencies in isolation. Its former
+transient definition and release must remain available for recovery.
 Each enrolled function takes a copy of the scoped plan, the logical target,
 operation data and a session-check callback. Only read-only proposal receives
 an empty callback. Check the session immediately before every private effect,

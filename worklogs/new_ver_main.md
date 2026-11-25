@@ -14362,3 +14362,21 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   identities under the common lock immediately before switching. Cover a
   successful cold acquisition and a changed runtime during acquisition in
   isolated tests. Runtime and migration were not exercised.
+
+### DEPLOY-20261125B — Connect scoped OLD Test deployment procedures
+
+- R3, Strict Change, application activation deferred. The OLD Test App can
+  read merged source and formal artifacts. Its existing Canonical dispatch
+  takes three inputs. The simple workflow also requires its mode and the
+  approved plan digest.
+- Bind the dispatcher, target-specific measurements, private Compose and
+  systemd procedures, migration classification and ledger to the installed
+  site policy. Keep source and build preparation outside the shared runtime
+  lock. Recover a workflow by its recorded ID or exact matching artifact.
+- The isolated Admin rehearsal verified its admitted image, actual scanner and
+  SBOM evidence, native dependencies, internal health, and protected proxy
+  through one session. An isolated PostgreSQL instance applied an additive
+  migration once. A private network listener exercised two Storefront
+  releases and recovery of the previous transient definition.
+- Host enrollment, live effects and first-use results have independent records.
+  This source change grants no deployment GO.
