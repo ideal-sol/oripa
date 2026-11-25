@@ -14331,7 +14331,9 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   stopped before probing. The installed-path launcher reached a simulated
   worker through prepare, one GO and the journal in a filesystem-isolated root.
 - Reused the Phase 2 baseline of 162 local tests. The changed simple suite
-  passes 21 tests. The operations guide lists the separate enrollment requirements
+  passes 22 tests. An anonymous API rate limit observed during CI monitoring led
+  to a repository-scoped App read binding for source and artifact metadata.
+  The operations guide lists the separate enrollment requirements
   for the App transport, target-specific security, timer pins and fallback.
   Formal Build, host installation, migration, Runtime activation and browser
   verification were not exercised. Fixed-head CI and Strict review are tracked

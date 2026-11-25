@@ -17,7 +17,6 @@ import sys
 import tempfile
 import time
 import traceback
-import urllib.request
 
 if __package__:
     from .old_test_simple_source import Hold, PLATFORM, SHA, SITE, ROOT, merged_source, require, validate_download
@@ -325,12 +324,20 @@ class Site:
         if self.guard:
             self.guard()
         if operation == "github-read":
-            require(data.startswith(("/repos/" + PLATFORM + "/", "/repos/" + SITE + "/")),
-                    "invalid_repository")
-            request = urllib.request.Request("https://api.github.com" + data,
-                                             headers={"Accept": "application/vnd.github+json"})
-            with urllib.request.urlopen(request, timeout=20) as response:
-                return json.load(response)
+            match = re.fullmatch(r"/repos/(ideal-sol/(?:oripa|luxe-pack-storefront))/(.+)", data)
+            require(match and match[1] in self.plan["sources"], "invalid_repository")
+            sha = r"[0-9a-f]{40}"
+            page = r"(?:[1-9]|10)"
+            content = (r"(?:package\.json|vendor/oripa/[A-Za-z0-9_-]+/artifact-manifest\.json)" if match[1] == SITE
+                       else r"(?:\.github/workflows/old-test-main-artifact\.yml|infra/docker/backend/Dockerfile|"
+                            r"apps/admin/Dockerfile|scripts/ops/(?:preview_image_artifact|old_test_simple_source|old_test_source_authority)\.py)")
+            allowed = (r"branches/main", rf"compare/{sha}\.\.\.{sha}", rf"git/commits/{sha}",
+                       r"pulls/[1-9][0-9]*", rf"commits/{sha}/check-runs\?filter=all&per_page=100&page={page}",
+                       rf"issues/[1-9][0-9]*/comments\?per_page=100&page={page}",
+                       r"actions/(?:artifacts|runs)/[1-9][0-9]*",
+                       rf"contents/{content}\?ref={sha}")
+            require(any(re.fullmatch(pattern, match[2]) for pattern in allowed), "github_read_scope")
+            return self.private_operation("github-read", match[1], data)
         if operation == "switch" and target in SERVICES:
             # Private Gate remeasures compose/ENV, egress and unit ownership
             # against this GO immediately before the fixed, selected operation.
@@ -899,9 +906,11 @@ def main(argv=None):
             request = {"environment": "old-test", "session": args.session, "targets": targets, "sources": sources,
                        "contract": args.contract, "site_policy": "sha256:" + hashlib.sha256(BINDINGS.read_bytes()).hexdigest()}
             site = Site(request)
+            site.guard = check
             proofs = {repo: merged_source(repo, src["pr"], src["sha"],
                                           lambda path: site.call("github-read", data=path))
                       for repo, src in sources.items()}
+            site.guard = None
             plan = site.call("propose", data={**request, "migrations": args.migration})
             require(all(plan[k] == v for k, v in request.items())
                     and plan["migration"]["files"] == args.migration, "proposed_scope_changed")

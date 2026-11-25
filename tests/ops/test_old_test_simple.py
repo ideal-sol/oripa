@@ -329,6 +329,23 @@ class SimpleDeploymentTest(unittest.TestCase):
         with self.assertRaisesRegex(deploy.Hold, "worker_unhealthy"):
             deploy.health("univapay-monitor", {"state":"active", "process_ok":False, "warning":"known"})
 
+    def test_registered_app_read_scope_and_source_proof(self):
+        site = deploy.Site(Fixture(["api"]).plan)
+        site.guard = lambda: None
+        prefix = "/repos/" + source.PLATFORM + "/"
+        def read(op, repo, path):
+            self.assertEqual((op, repo), ("github-read", source.PLATFORM))
+            return Github().get(path)
+        with mock.patch.object(site, "private_operation", side_effect=read) as transport:
+            proof = source.merged_source(source.PLATFORM, 1, SHA, lambda path: site.call("github-read", data=path))
+            self.assertEqual(proof["source_sha"], SHA)
+            transport.reset_mock()
+            for path in (prefix + "actions/workflows", prefix + "contents/.env?ref=" + SHA,
+                         prefix + "contents/../other?ref=" + SHA, "/repos/" + source.SITE + "/branches/main"):
+                with self.assertRaises(deploy.Hold):
+                    site.call("github-read", data=path)
+            transport.assert_not_called()
+
     def test_approval_bound_dispatch_and_artifact_admission(self):
         f = Fixture(["api", "admin"])
         site = deploy.Site(f.plan)
