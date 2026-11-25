@@ -14369,3 +14369,15 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
 - Bind database-only exclusions to both Git trees, the complete edit inventory and focused step outcomes in the same run. Scope is limited to two Admin CSS modules, simple deploy CLI help, literal lint test data and verified Production source authority with covered expectations. Preserve P1/P1B and the four-runner database path.
 - Replayed exact base/head pairs for #665, #677, #679, #682, #684, #688 and #689. Only #684 and #689 qualify for the new DB exclusion. The #684 dispatch still requires DB. The #677 ledger also changes executable release tests and does not qualify.
 - Planner, lane and source tests cover unsafe/mixed edits, missing or unsuccessful focused results, dispatch and the four-shard gate. The Draft PR records final-head CI and Strict review. New migrations and Runtime operations: zero.
+
+## PRODSTD-20261125 — NEW Production release standardization draft
+
+R3 / Strict Change / Application Runtime Activation: none / Issue: none.
+Human decision 2026-11-25. Base 1794704396d357a0b4c66189f7cdccdb4046ad3a;
+dedicated docs/PRODSTD-20261125. Root instructions and canonical runbook v1.1
+define operator-independent stages, scoped migration delegation, OLD Test
+qualification and handoff. Governance Rev3 and Release Gates Rev2 retain their
+Human checkpoints. GitHub access profile conveys no host privileges. Exact-path
+Task Policy; no source or migration lock required. Draft and fixed-head
+validation only. No executor, grants, runtime, formal build or migration.
+CI and self-review receipts belong on the Draft PR. Merge awaits Human GO.
