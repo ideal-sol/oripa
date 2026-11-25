@@ -14338,3 +14338,14 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   Formal Build, host installation, migration, Runtime activation and browser
   verification were not exercised. Fixed-head CI and Strict review are tracked
   on the Draft. Human approval is required for Phase 4.
+
+### DEPLOY-20261125A — Keep OLD Test acquisition outside the runtime lock
+
+- R3, Strict Change, application activation deferred. Host inspection after
+  PR #729 showed that D4, UnivaPay receipts, prize exchange and scheduled
+  publication share the deployment lock. Source review and artifact acquisition
+  must allow these timers to run.
+- Serialize same-session work separately. Recheck host and retained asset
+  identities under the common lock immediately before switching. Cover a
+  successful cold acquisition and a changed runtime during acquisition in
+  isolated tests. Runtime and migration were not exercised.
