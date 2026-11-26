@@ -39,6 +39,7 @@ SESSIONS = Path("/var/lib/oripa-old-test-simple")
 BINDINGS = Path("/etc/oripa-old-test-simple/bindings.json")
 ORDINARY_POLICY = BINDINGS.with_name("ordinary-policy.json")
 IDLE_LIMIT = 24 * 3600
+PIN_ACCEPTANCE = ("univapay-monitor", "f2b-worker", "f2b-purge")
 PROCEDURES = Path("/usr/local/lib/oripa-old-test-simple/private")
 WORKFLOW = ".github/workflows/old-test-main-artifact.yml"
 
@@ -184,17 +185,42 @@ def trusted(path, *, private=False, directory=False):
             and not info.st_mode & (0o077 if private else 0o022), "untrusted_path")
 
 
+def verify_registry(plan, raw):
+    actual = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if actual == plan["site_policy"]:
+        return
+    # Administrator-only handoff for one immutable plan. Keep the original
+    # profile, operations and entry points through the binding-code upgrade.
+    grant = BINDINGS.with_name("registry-continuation.json")
+    require("ordinary_policy" in plan and grant.exists(), "site_policy_changed")
+    trusted(grant, private=True)
+    expected = {"plan": digest(plan), "previous": plan["site_policy"], "current": actual}
+    require(json.loads(grant.read_bytes()) == expected, "registry_continuation_mismatch")
+    previous = BINDINGS.with_name("registry-before-continuation.json")
+    trusted(previous, private=True)
+    before = previous.read_bytes()
+    require("sha256:" + hashlib.sha256(before).hexdigest() == plan["site_policy"],
+            "registry_continuation_baseline_changed")
+    approved = json.loads(before)
+    current = json.loads(raw)
+    for name, ref in approved["operations"].items():
+        if ref["module"] == "scoped.py":
+            ref["sha256"] = current["operations"][name]["sha256"]
+    require(current == approved, "registry_continuation_exceeds_scope")
+
+
 @contextlib.contextmanager
 def runtime_lock(path=LOCK, *, session_directory=False):
     trusted(path, directory=session_directory, private=session_directory)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | (os.O_DIRECTORY if session_directory else 0))
     try:
-        for attempt in range(3):
+        deadline = time.monotonic() + (20 if path == LOCK else 0.5)
+        while True:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
-                if session_directory or attempt == 2:
+                if session_directory or time.monotonic() >= deadline:
                     raise Hold("session_lock_busy" if session_directory else "deployment_lock_busy") from None
                 time.sleep(0.25)
 
@@ -326,8 +352,7 @@ class Site:
         require(self.guard is not None or operation == "propose", "site_session_required")
         trusted(BINDINGS, private=True)
         raw_registry = BINDINGS.read_bytes()
-        require("sha256:" + hashlib.sha256(raw_registry).hexdigest() == self.plan["site_policy"],
-                "site_policy_changed")
+        verify_registry(self.plan, raw_registry)
         registry = json.loads(raw_registry)
         require(registry["environment"] == "old-test" and operation in registry["operations"],
                 "unregistered_site_operation")
@@ -429,6 +454,10 @@ class Site:
                 return {"starting":True}
             return http_health(target, value)
         return value
+
+    def scheduled_result(self, worker, since):
+        import old_test_worker_host
+        return old_test_worker_host.scheduled_result(self.plan, worker, since, self.guard)
 
     def verify_contract(self):
         registry = json.loads((ROOT / "manifests/storefront-contract-releases.json").read_bytes())
@@ -722,7 +751,7 @@ def http_health(target, route, run=subprocess.run):
 
 
 def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.time, sleep=time.sleep,
-           *, enter_runtime=None):
+           *, enter_runtime=None, leave_runtime=None):
     affected, roles = shape(plan, targets)
     binding = digest(plan)
     delegated = "ordinary_policy" in plan
@@ -766,8 +795,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             ordinary_policy(targets, plan["ordinary_policy"])
             if isinstance(site, Site):
                 trusted(BINDINGS, private=True)
-                require("sha256:" + hashlib.sha256(BINDINGS.read_bytes()).hexdigest() == plan["site_policy"],
-                        "site_policy_changed")
+                verify_registry(plan, BINDINGS.read_bytes())
             # A new fixed-entry invocation is an explicit resume. It always
             # reconciles the live preflight before any subsequent effect.
             require(now() - max(started, journal["progress_at"]) < IDLE_LIMIT, "session_idle_resume_required")
@@ -836,7 +864,11 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             return
         resumable=(op=="prepare-build" and target in ("storefront","api","admin","api+admin") and observed=="resumable"
                    and completed.get(key)=="STARTED")
-        require(resumable or (key not in completed and observed == "ready"), "effect_requires_reconciliation")
+        retry_pin = (delegated and op == "switch" and target in PIN_ACCEPTANCE
+                     and completed.get(key) == "STARTED" and observed == "ready"
+                     and completed.get("switch/api") == results.get("api") == "PASS")
+        require(resumable or retry_pin or (key not in completed and observed == "ready"),
+                "effect_requires_reconciliation")
         completed[key] = "STARTED"
         save(journal)
         call(op, target, data)
@@ -857,7 +889,10 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         for target in affected:
             live = preflight["identities"][target]
             expected = [plan["previous"][target]]
-            if "switch/" + target in completed and asset_role(target) in acquired:
+            # The snapshot reports the active API image for a pin consumer.
+            # observe() separately validates its actual pin before each write.
+            api_switched = WORKERS.get(target) == "pin" and completed.get("switch/api") == "PASS"
+            if ("switch/" + target in completed or api_switched) and asset_role(target) in acquired:
                 expected.append(acquired[asset_role(target)]["identity"])
             require(live in expected, "runtime_identity_changed")
         return preflight
@@ -885,7 +920,9 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
                 else:
                     value = None
                 actual = call("observe", subject, {"operation": op, "input": value})
-                require(actual == "done" or op == "prepare-build" and actual in ("in-progress", "resumable"),
+                require(actual == "done" or op == "prepare-build" and actual in ("in-progress", "resumable")
+                        or op == "switch" and subject in PIN_ACCEPTANCE and actual == "ready"
+                        and completed.get("switch/api") == results.get("api") == "PASS",
                         "idle_session_intent_requires_reconciliation")
             journal["reconciled_at"] = started
             save(journal)
@@ -1003,6 +1040,31 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         if plan["workers"]:
             step, target = "worker-states", ""
             require(call("worker-states") == plan["workers"], "retained_worker_changed")
+        scheduled = [w for w in PIN_ACCEPTANCE if delegated and "api" in targets and w in affected]
+        if scheduled and leave_runtime is not None:
+            # Keep the session lock. F2B must acquire its own lock to produce
+            # a real result. Only observe existing scheduled invocations here.
+            runtime_check = None
+            leave_runtime()
+            since = time.monotonic_ns() // 1000
+            pending = set(scheduled)
+            while pending:
+                guard()
+                pending = {w for w in pending if not site.scheduled_result(w, since)}
+                if pending:
+                    require(time.monotonic_ns() // 1000 - since < 420_000_000, "scheduled_worker_result_timeout")
+                    sleep(3)
+            runtime_check = enter_runtime()
+            preflight = inspect_host()
+            for target in affected:
+                identity = acquired[asset_role(target)]["identity"]
+                require(preflight["identities"][target] == identity, "accepted_target_changed")
+                if WORKERS.get(target) == "pin":
+                    require(call("observe", target, {"operation": "switch", "input": identity}) == "done",
+                            "accepted_worker_pin_changed")
+            for target in targets:
+                wait_health(target)
+            journal["scheduled_results"] = dict.fromkeys(scheduled, "PASS")
         guard()
         journal.pop("error", None)
         if delegated:
@@ -1065,8 +1127,19 @@ def main(argv=None):
         import old_test_host as host
         from old_test_timezone import entry
         return entry(args, folder, host)
-    with runtime_lock(folder, session_directory=True) as check, contextlib.ExitStack() as runtime:
+    with (runtime_lock(folder, session_directory=True) as check, contextlib.ExitStack() as operator,
+          contextlib.ExitStack() as runtime):
+        operator_check = None
         def enter_runtime():
+            nonlocal operator_check
+            if operator_check is None:
+                try:
+                    operator_check = operator.enter_context(runtime_lock(SESSIONS, session_directory=True))
+                except Hold as exc:
+                    if str(exc) == "session_lock_busy":
+                        raise Hold("other_simple_deployment_active") from None
+                    raise
+            operator_check()
             locked = runtime.enter_context(runtime_lock())
             canonical_idle()
             if not args.prepare and "api" in targets and any(plan["workers"].get(w)=="active"
@@ -1145,7 +1218,7 @@ def main(argv=None):
         canonical_idle()
         try:
             deploy(plan, targets, approval, journal, lambda data: persist(path, data),
-                   Site(plan), check, enter_runtime=enter_runtime)
+                   Site(plan), check, enter_runtime=enter_runtime, leave_runtime=runtime.close)
         except (Hold, FileNotFoundError) as exc:
             revoked = (str(exc) in ("ordinary_policy_changed", "ordinary_policy_denied") or
                        isinstance(exc, FileNotFoundError) and exc.filename == str(ORDINARY_POLICY))

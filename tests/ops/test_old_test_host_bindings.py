@@ -1,3 +1,4 @@
+import contextlib
 import json
 from pathlib import Path
 import sys
@@ -12,6 +13,100 @@ import old_test_worker_host as workers
 
 
 class HostBindingsTest(unittest.TestCase):
+    def test_monitor_reconciliation_requires_missing_previous_container_and_accepted_api(self):
+        from tests.ops.test_old_test_simple import Fixture, OLD, NEW, SHA, image
+        host = workers.host
+        plan = Fixture(["api"], active=["univapay-monitor"]).plan
+        plan["ordinary_policy"] = OLD
+        previous = ("b" * 64, OLD, "a" * 40)
+        journal = {"completed": {"switch/api": "PASS"}, "results": {"api": "PASS"}, "assets": {"api": image("api")}}
+        files = {"journal.json": journal, "previous-pins.json": {"univapay-monitor": previous, "d4": previous[0]}}
+        unit = dict(ActiveState="failed", SubState="failed", Result="exit-code", ExecMainCode="1", ExecMainStatus="1",
+                    ExecMainExitTimestampMonotonic="100")
+        reader = {"monitor_state": Mock(return_value=unit), "monitor_empty": Mock(return_value=True),
+                  "monitor_program": Mock(), "idle_oneshots": Mock(side_effect=simple.Hold("utc_monitor_no_structured_result"))}
+        settings = {"ordinary_timers": {"reader": "reader"}, "routes": "route",
+                    "worker_specs": {"univapay-monitor": {"kind": "identity"}}}
+        api = {"Id": "c"*64, "Image": NEW, "State": {"Running": True, "StartedAt": "2025-01-01T00:00:00.000000000Z"},
+               "Config": {"Labels": {"org.opencontainers.image.revision": SHA}}}
+        records = [{"MESSAGE": "UNIVAPAY_MONITOR=READ_ONLY_CHECK_FAILED", "__REALTIME_TIMESTAMP": "1760000000000000"}]
+        with contextlib.ExitStack() as stack:
+            def stub(obj, name, **kwargs):
+                return stack.enter_context(patch.object(obj, name, **kwargs))
+            stub(host, "pinned", side_effect=lambda key: reader if key == "reader" else {"route": Mock()})
+            stub(host, "approved", return_value=(Path("/synthetic"), {}))
+            stub(host, "checked_file", side_effect=lambda path, private: json.dumps(files[path.name]).encode())
+            stub(host, "container", return_value=api)
+            stub(workers, "read_pin", return_value=(b"", previous))
+            run = stub(host, "run", side_effect=lambda args: previous[2].encode() if "image" in args else b"")
+            stub(workers, "invocation_records", return_value=records)
+            stub(workers.time, "monotonic_ns", return_value=110000)
+            stub(simple, "http_health", return_value={})
+            health = stub(simple, "health", return_value=True)
+            def verify():
+                workers.monitor_preflight(plan, settings, lambda: None)
+            verify()
+            health.return_value = False
+            with self.assertRaisesRegex(simple.Hold, "api_not_ready"):
+                verify()
+            health.return_value = True
+            reader["monitor_empty"].return_value = False
+            with self.assertRaisesRegex(simple.Hold, "not_idle"):
+                verify()
+            reader["monitor_empty"].return_value = True
+            records[0]["MESSAGE"] = "unknown"
+            with self.assertRaisesRegex(simple.Hold, "result_unknown"):
+                verify()
+            run.side_effect = lambda args: previous[2].encode() if "image" in args else previous[0].encode()
+            with self.assertRaisesRegex(simple.Hold, "old_container_present"):
+                verify()
+            journal["results"]["api"] = "FAIL"
+            with self.assertRaisesRegex(simple.Hold, "requires_accepted_api"):
+                verify()
+
+    def test_scheduled_acceptance_requires_post_switch_invocation_and_real_result(self):
+        from tests.ops.test_old_test_simple import Fixture, image
+        plan = Fixture(["api"], active=simple.PIN_ACCEPTANCE).plan
+        fields = dict(Id="test.service", InvocationID="1"*32, ExecMainPID="12", ExecMainCode="1",
+                      ExecMainStatus="0", Result="success", ActiveState="inactive",
+                      ExecMainStartTimestampMonotonic="100", ExecMainExitTimestampMonotonic="102")
+        settings = {"ordinary_timers": {"reader": "reader"}}
+        spec = {"service": "test.service", "file": "/runner.py"}
+        reader = {"monitor_program": Mock(), "monitor_state": Mock(return_value=fields),
+                  "monitor_empty": Mock(return_value=True), "known_report": Mock(), "unique_keys": dict}
+        with (patch.object(workers, "scope", return_value=(settings, spec)),
+              patch.object(workers.host, "cached", return_value=image("api")),
+              patch.object(workers, "observe", return_value="done"),
+              patch.object(workers.host, "pinned", return_value=reader),
+              patch.object(workers.host, "run", side_effect=lambda _: "\n".join(
+                  k + "=" + v for k, v in fields.items()).encode()),
+              patch.object(workers, "prop") as prop, patch.object(workers, "invocation_records") as records):
+            def check(role, messages, since=99):
+                records.return_value = [{"MESSAGE": m, "_BOOT_ID": "boot"} for m in messages]
+                return workers.scheduled_result(plan, role, since, lambda: None)
+            for role, mode in (("f2b-worker", "WORKER"), ("f2b-purge", "PURGE")):
+                prop.side_effect = lambda _, key: {"Type": "oneshot", "User": "root", "ExecStart":
+                    "{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 /runner.py " + mode.lower()
+                    + " ; ignore_errors=no ;"}[key]
+                good = ["F2B_AUTO=START_" + mode, "F2B_AUTO=PASS_" + mode]
+                self.assertTrue(check(role, good))
+                self.assertFalse(check(role, good, since=101))
+                self.assertFalse(check(role, ["F2B_AUTO=BUSY_SKIPPED"]))
+                with self.assertRaisesRegex(simple.Hold, "result_unknown"):
+                    check(role, ["F2B_AUTO=TARGET_HOLD"])
+            healthy = dict(pending=0, processing=0, checked_at="timestamp", stale_over_120s=0,
+                           retries_ge3=0, failed=0, unresolved_new_payments_over_5m=0, settled_grant_invariant=True,
+                           healthy=True, timer_active=True, service_failed=False, heartbeat_fresh=True)
+            self.assertTrue(check("univapay-monitor", ["UNIVAPAY_MONITOR=" + json.dumps(healthy)]))
+            with self.assertRaisesRegex(simple.Hold, "monitor_result_failed"):
+                check("univapay-monitor", ["UNIVAPAY_MONITOR=READ_ONLY_CHECK_FAILED"])
+            fields.update(Result="exit-code", ExecMainStatus="1")
+            self.assertTrue(check("univapay-monitor", ["structured known warning"]))
+            reader["known_report"].assert_called_once()
+            reader["known_report"].side_effect = simple.Hold("unexpected_warning")
+            with self.assertRaisesRegex(simple.Hold, "unexpected_warning"):
+                check("univapay-monitor", ["unknown warning"])
+
     def test_enrolled_static_timer_pins_detect_drift_only_for_active_consumers(self):
         import old_test_bindings as bindings
         name = "prize-exchange"

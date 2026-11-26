@@ -138,8 +138,8 @@ def preflight(plan, target, data, guard):
     if plan["workers"]:
         required.add("worker-states")
     if "ordinary_policy" in plan and states.get("univapay-monitor") == "active":
-        reader = host.pinned(settings["ordinary_timers"]["reader"])
-        reader["idle_oneshots"](settings, guard, ["univapay-monitor"])
+        import old_test_worker_host as worker
+        worker.monitor_preflight(plan, settings, guard)
     if plan["migration"]["files"]:
         required.update(("database-binding", "migration-inventory"))
     if plan["migration"]["writers"]:
@@ -288,8 +288,11 @@ def prepare_evidence(plan, target, data, guard):
         folder, _ = host.approved(plan, guard)
         settings = host.config(plan)
         for worker, prepare in (("member-rank", life.rank_config), ("line-sender", life.line_config)):
-            if plan["workers"].get(worker) == "active" and plan["previous"].get(worker) != data["identity"]:
-                prepare(plan, settings, host.container(settings, worker), data["identity"], folder)
+            if plan["workers"].get(worker) == "active":
+                current = host.container(settings, worker)
+                if current["Image"] != data["identity"]:
+                    require(current["Image"] == plan["previous"][worker], "worker_image_changed")
+                    prepare(plan, settings, current, data["identity"], folder)
 
 
 def verify_retained(plan, target, data, guard):

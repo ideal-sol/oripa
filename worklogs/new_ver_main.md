@@ -14471,3 +14471,11 @@ with protected main b08abcf0bef290e6bf3d0c318c02fd83d4f5f303.
 - R3, Strict Change, application runtime activation deferred. Adopt an explicit deployment request and a revocable, machine-bound policy for the limited OLD Test executor. Bind the plan and journal to the policy and keep individual approval for exceptions.
 - Reuse existing artifact, Security and worker checks. Verify cached evidence and timer definitions before switching. Keep UTC database sessions, Tokyo application time, native receipt freshness, bounded recovery and terminal replay protection.
 - The four-role UTC maintenance reached Technical PASS after six HOLDs. Ordinary feature deployment has separate installation and runtime acceptance. Preserve the historical handoff and enroll the reviewed source only after separate approval.
+
+### OLDRESUME-20261126 — Ordinary OLD Test worker recovery
+
+- R3, Strict Change, Application Runtime Activation deferred. Scope covers the OLD Test executor, scoped bindings, focused tests and runbook.
+- Reconcile an accepted API replacement with the previous monitor reference and an invocation-specific read-only failure. Verify the current API and empty monitor process group before a bounded atomic reference update.
+- Resume only positively observed pending monitor and F2B pin writes. Preserve successful service effects. Require scheduled worker and purge completions and a structured monitor outcome before closing the session.
+- Wait up to 20 seconds for the common deployment lock. Keep acquisition and scheduled observation outside the runtime critical section. An optional administrator-enrolled continuation binds one unchanged plan to a reviewed binding-code-only registry update.
+- Source review and CI precede host enrollment. No application image build, migration, payment operation or application switch belongs to this change.

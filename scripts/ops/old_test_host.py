@@ -24,10 +24,10 @@ def config(plan):
     raw = checked_file(simple.BINDINGS, True)
     require(
         plan["environment"] == "old-test"
-        and simple.SESSION.fullmatch(plan["session"])
-        and "sha256:" + hashlib.sha256(raw).hexdigest() == plan["site_policy"],
+        and simple.SESSION.fullmatch(plan["session"]),
         "old_site_policy_changed",
     )
+    simple.verify_registry(plan, raw)
     settings = json.loads(raw)["site"]
     require(
         hashlib.sha256(Path("/etc/machine-id").read_bytes()).hexdigest() == settings["machine"],
