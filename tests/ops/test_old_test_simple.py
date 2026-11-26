@@ -1,3 +1,4 @@
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -143,6 +144,117 @@ class Fixture:
                     "proxy_route": True, "checks": dict.fromkeys(("app", "db", "redis", "storage"), "ok")}
         else:
             raise AssertionError(op)
+
+
+class OrdinaryPolicyTest(unittest.TestCase):
+    def setUp(self):
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.folder = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        self.path = self.folder / "ordinary-policy.json"
+        stack.enter_context(mock.patch.object(deploy, "ORDINARY_POLICY", self.path))
+        stack.enter_context(mock.patch.object(deploy, "trusted"))
+        stack.enter_context(mock.patch.dict(deploy.os.environ, OLD_TEST_DELEGATED_CALLER="oripa-old-deployer"))
+        self.policy = dict(kind="ordinary-v1", revision=1, environment="old-test", executor="oripa-old-deployer",
+                           targets=list(deploy.SERVICES), enabled=True,
+                           machine=hashlib.sha256(Path("/etc/machine-id").read_bytes()).hexdigest())
+        self.path.write_text(json.dumps(self.policy))
+        self.f = Fixture(["admin"])
+        self.f.plan["ordinary_policy"] = deploy.ordinary_policy(self.f.targets)
+        self.f.journal.update(plan=deploy.digest(self.f.plan), progress_at=10,
+                              sources={source.PLATFORM: dict(source_sha=SHA, source_pr=1)})
+
+    def execute(self, hook=None):
+        f = self.f
+        def invoke(op, target="", data=None):
+            result = Fixture.call(f, op, target, data)
+            if op == "security":
+                result.update(measured=f.clock, expires=f.clock + 10)
+            if hook:
+                hook(op, target)
+            return result
+        f.call = invoke
+        deploy.deploy(f.plan, f.targets, None, f.journal, lambda j: None, f, lambda: None,
+                      lambda: f.clock, f.sleeps.append)
+
+    def test_standing_scope_and_actor(self):
+        for target in ("sms", "db-timezone-utc", "production", "provider", "reset", "worker", "shell"):
+            with self.subTest(target=target), self.assertRaises(deploy.Hold):
+                deploy.ordinary_policy([target])
+        for key, value in (("enabled", False), ("environment", "production"), ("executor", "root"),
+                           ("machine", "different"), ("targets", ["api"])):
+            self.path.write_text(json.dumps(dict(self.policy, **{key: value})))
+            with self.subTest(key=key), self.assertRaises(deploy.Hold):
+                deploy.ordinary_policy(["admin"])
+        self.path.write_text(json.dumps(self.policy))
+        with mock.patch.dict(deploy.os.environ, OLD_TEST_DELEGATED_CALLER=""), self.assertRaises(deploy.Hold):
+            deploy.ordinary_policy(["admin"])
+
+    def test_explicit_stale_resume_and_no_replay(self):
+        self.f.clock += deploy.IDLE_LIMIT
+        self.execute()
+        self.assertEqual(self.f.journal["reconciled_at"], self.f.clock)
+        self.assertEqual(self.f.journal["terminal"], "Technical PASS")
+        calls = list(self.f.calls)
+        self.execute()
+        self.assertEqual(self.f.calls, calls)
+
+    def test_elapsed_build_and_fresh_measurement(self):
+        def advance(op, _):
+            if op == "find-asset":
+                self.f.clock += 3700
+            if op == "observe" and self.f.calls.count(("observe", "admin")) == 1:
+                self.f.clock += 11
+        self.execute(advance)
+        self.assertEqual(self.f.calls.count(("security", "admin")), 2)
+        self.assertEqual(self.f.calls.count(("switch", "admin")), 1)
+
+    def test_revocation_and_idle_prevent_next_effect(self):
+        def revoke(op, _):
+            if op == "security":
+                self.path.write_text(json.dumps(dict(self.policy, enabled=False)))
+        with self.assertRaisesRegex(deploy.Hold, "ordinary_policy_denied"):
+            self.execute(revoke)
+        self.assertNotIn(("switch", "admin"), self.f.calls)
+        self.path.write_text(json.dumps(self.policy))
+        def delay(op, _):
+            if op in ("find-asset", "verify-retained"):
+                self.f.clock += deploy.IDLE_LIMIT
+        with self.assertRaisesRegex(deploy.Hold, "idle_resume_required"):
+            self.execute(delay)
+        self.assertNotIn(("switch", "admin"), self.f.calls)
+
+    def test_changed_source_or_artifact_refused(self):
+        self.f.items["admin"]["source"] = "b" * 40
+        with self.assertRaisesRegex(deploy.Hold, "asset_identity_mismatch"):
+            self.execute()
+        self.f.journal["sources"][source.PLATFORM]["source_sha"] = "c" * 40
+        with self.assertRaisesRegex(deploy.Hold, "plan_proof_required"):
+            self.execute()
+        self.assertNotIn(("switch", "admin"), self.f.calls)
+
+    def test_fixed_commands_prepare_then_execute_without_go_file(self):
+        f = self.f
+        def invoke(site, operation, target="", data=None):
+            if operation == "propose":
+                return f.plan
+            result = f.call(operation, target, data)
+            if operation == "security":
+                measured = deploy.time.time()
+                result.update(measured=measured, expires=measured + 60)
+            return result
+        with mock.patch.object(deploy, "SESSIONS", self.folder), \
+                mock.patch.object(deploy, "runtime_lock", return_value=mock.MagicMock()), \
+                mock.patch.object(deploy, "installed_entry"), mock.patch.object(deploy, "canonical_idle"), \
+                mock.patch.object(deploy, "BINDINGS", self.folder / "bindings.json"), \
+                mock.patch.object(deploy.Site, "call", invoke), mock.patch("builtins.print"):
+            deploy.BINDINGS.write_bytes(b'{"operations":{}}')
+            args = ["admin", "--session", f.plan["session"]]
+            deploy.main(args + ["--prepare", "--platform-source", "1@" + SHA, "--contract", OLD])
+            deploy.main(args)
+            deploy.main(args)
+        self.assertFalse((self.folder / f.plan["session"] / "go.json").exists())
+        self.assertEqual(f.calls.count(("switch", "admin")), 1)
 
 
 class TimezoneChangeTest(unittest.TestCase):

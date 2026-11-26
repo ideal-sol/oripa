@@ -178,11 +178,13 @@ judgments remain human decisions.
 
 ## OLD Test Speed Priority
 
-- Canonical remains the installed OLD Test release path until explicit Human
-  adoption. The [simple deployment rules](docs/operations/deployment/old-test-deploy.md#simple-deployment)
-  govern the separately installed OLD Test entry after adoption. Its one scoped
-  Runtime GO follows the ordinary reviewed merge. Source implementation or
-  merge alone grants no host, GitHub dispatch or Runtime authority.
+- Use `oldtest-deploy` for OLD Test and retain Canonical for recovery. Start
+  only on an explicit deployment request. Check the current protected adoption
+  record against the reviewed entry and registry before choosing the authority.
+  After administrator enrollment, ordinary merged feature releases use the
+  limited deployer and the revocable standing policy. The operator needs no
+  individual GO or server login. The [runbook](docs/operations/deployment/old-test-deploy.md#ordinary-feature-deployment)
+  defines exceptions, receipt renewal, resumption, measurements and handoff.
 - Minimize total elapsed time from investigation through Runtime activation and
   Technical PASS, including preparation, dependency/artifact checks, Canonical
   Prepare/dry-run, switch, health/acceptance, HOLD, fixes, re-preparation, Human
@@ -192,7 +194,7 @@ judgments remain human decisions.
 - Treat all OLD Test data as test data, distinct from commercial Production data.
   Do not add Production-equivalent reviews, audits, or protections. Preserve all
   existing Governance, Canonical Release Gate, Required Checks, Source/Artifact
-  Identity, Security Gate, and Runtime GO requirements without bypass.
+  Identity, Security Gate, and applicable operation-specific authority.
 - Reuse applicable successful artifacts, CI, verification evidence, and proven
   Canonical procedures after confirming validity and identity. Avoid redundant
   builds, tests, manual CI reruns, and additional audits; prefer focused checks.
