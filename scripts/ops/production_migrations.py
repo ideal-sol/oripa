@@ -1,16 +1,20 @@
 """Restricted NEW migration controller. The installed host adapter owns all private I/O."""
 
 import contextlib
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import secrets
+import select
 import sqlite3
 import stat
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 
 
@@ -26,6 +30,8 @@ GATES = ("db_identity", "schema_exact", "engine_identity", "ddl_capabilities",
 ERRORS = {"creator_failed", "reader_failed", "starter_failed", "observation_failed",
           "fence_lost", "snapshot_invalid", "financial_unknown", "sql_error"}
 SQLSTATES = {"23503", "23505", "40001", "40P01", "55P03", "57014"}
+INSPECT_WAIT = 5
+REPLY_WAIT = 300
 
 
 class Hold(Exception):
@@ -112,7 +118,7 @@ class Host:
         # No shell, configurable argv, caller environment, or inherited terminal.
         request = dict(release=self.release, plan_sha256=self.binding, phase=phase,
                        index=index, proof=proof, nonce=secrets.token_hex(16))
-        reply, code = exchange(request)
+        reply, code = exchange(request, getattr(self, "lock_fd", None))
         if code or reply.get("result") != "PASS":
             error = reply.get("error")
             state = reply.get("sqlstate")
@@ -123,17 +129,40 @@ class Host:
         return reply
 
 
-def exchange(request):
-    with subprocess.Popen([str(ADAPTER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                          stderr=subprocess.DEVNULL, cwd="/",
-                          env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin"}) as proc:
-        proc.stdin.write(json.dumps(request).encode())
-        proc.stdin.close()
-        raw = proc.stdout.read(65537)
-        if len(raw) > 65536:
+def exchange(request, lock_fd=None):
+    inspect = request["phase"] == "inspect"
+    deadline = time.monotonic() + (INSPECT_WAIT if inspect else REPLY_WAIT)
+    # A regular input file avoids blocking on an adapter that never reads stdin.
+    with tempfile.TemporaryFile() as payload:
+        payload.write(json.dumps(request).encode())
+        payload.seek(0)
+        proc = subprocess.Popen([str(ADAPTER)], stdin=payload, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, cwd="/", start_new_session=True,
+                                pass_fds=() if lock_fd is None else (lock_fd,),
+                                env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin"})
+    raw = bytearray()
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0 and select.select([proc.stdout], [], [], remaining)[0], "adapter_timeout")
+            chunk = os.read(proc.stdout.fileno(), 65537 - len(raw))
+            if not chunk:
+                break
+            raw.extend(chunk)
+            require(len(raw) <= 65536, "adapter_protocol")
+        try:
+            code = proc.wait(timeout=max(0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise Hold("adapter_timeout") from None
+        return json.loads(raw), code
+    finally:
+        # Only the read-only inspection helper can be cancelled. Never signal
+        # an effectful adapter, a process group, the Runner or a DB session.
+        if inspect and proc.poll() is None:
             proc.kill()
-            raise Hold("adapter_protocol")
-        return json.loads(raw), proc.wait()
+        proc.stdout.close()
+        if proc.poll() is None:
+            threading.Thread(target=proc.wait, daemon=True).start()
 
 
 def verify_fence(reading, now):
@@ -172,6 +201,14 @@ def initialize(db):
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_open ON runs ((1)) WHERE state != 'PASS'")
     db.execute("CREATE TABLE IF NOT EXISTS receipts (release TEXT, idx INTEGER, phase TEXT,"
                " runner TEXT, evidence TEXT, PRIMARY KEY(release,idx,phase))")
+    db.execute("CREATE TABLE IF NOT EXISTS recoveries (release TEXT, prior_state TEXT, prior_phase TEXT,"
+               " prior_idx INTEGER, reason TEXT, sqlstate TEXT, observation TEXT, recorded_ns INTEGER)")
+
+
+def record_post(db, release, index, runners, post):
+    db.execute("INSERT INTO receipts VALUES (?,?,?,?,?)", (release, index, "post", runners[index], post))
+    if index + 1 == len(runners):
+        db.execute("UPDATE runs SET state='PASS',phase='complete' WHERE release=?", (release,))
 
 
 def status(db, release):
@@ -184,44 +221,108 @@ def status(db, release):
     return report
 
 
+def recovery_view(db, host, report):
+    release = host.release
+    binding, = db.execute("SELECT binding FROM runs WHERE release=?", (release,)).fetchone()
+    require(binding == host.binding, "release_changed")
+    index = report["confirmed"]
+    require(index < len(host.plan["migrations"]), "journal_inconsistent")
+    receipts = db.execute("SELECT idx FROM receipts WHERE release=? AND phase='post' ORDER BY idx",
+                          (release,)).fetchall()
+    require(receipts == [(i,) for i in range(index)], "journal_inconsistent")
+    baseline = db.execute("SELECT evidence FROM receipts WHERE release=? AND phase='fence'",
+                          (release,)).fetchone()
+    require(baseline or report["phase"] == "fence", "original_fence_missing")
+    runners = [row[0] for row in db.execute(
+        "SELECT runner FROM receipts WHERE release=? AND phase='created' ORDER BY idx", (release,))]
+    pre = db.execute("SELECT evidence FROM receipts WHERE release=? AND idx=? AND "
+                     "(phase='pre' OR phase LIKE 'pre:%') ORDER BY rowid DESC LIMIT 1",
+                     (release, index)).fetchone()
+    proof = {"runner": runners[index] if runners else None, "pre": pre[0] if pre else None,
+             "fence": baseline[0] if baseline else None}
+    reading = host.call("inspect", index, proof)
+    verify_fence(reading, time.time())
+    fence = reading["fence_snapshot_sha256"]
+    require(not baseline or baseline[0] == fence, "fence_changed")
+    state = reading["state"]
+    if not runners:
+        # Creator may have completed before its response was recorded. Adopt
+        # only a complete independently verified original set. Never recreate
+        # after a possible create unless the host excludes even a pending intent.
+        require(not index and report["phase"] in ("fence", "create"), "runner_set_missing")
+        runners = reading["runners"]
+        if not runners:
+            require(runners == [] and state == "NOT_STARTED" and reading["no_create_intent"] is True
+                    and reading["no_start_intent"] is True and reading["settled"] is True,
+                    "creation_unknown")
+            return state, index, runners, fence, None
+        require(report["phase"] == "create" and reading["original_runner_set_verified"] is True,
+                "creator_identity")
+    check_runners(host.plan, runners)
+    runner = runners[index]
+    require(reading["runner"] == runner, "runner_identity")
+    if state == "RUNNING":
+        return state, index, runners, fence, None
+    require(reading["settled"] is True, "outstanding_effect")
+    if state == "NOT_STARTED":
+        require(reading["no_start_intent"] is True, "start_unknown")
+        verify_reader(host.plan, index, reading, runner, fence, False)
+        return state, index, runners, fence, None
+    require(state == "EXITED" and pre and reading["pre"] == pre[0], "outcome_unknown")
+    evidence = verify_reader(host.plan, index, reading, runner, fence, True)
+    require(evidence != pre[0], "post_identity")
+    return "APPLIED", index, runners, fence, evidence
+
+
 def inspect_run(db, release):
     report = status(db, release)
     if report["result"] in ("NOT_STARTED", "PASS"):
         return report
-    # Observation can neither clear an intent nor mark a migration as passed.
-    # Retain the durable status even when the reader or active plan is unavailable.
     report["observation"] = "UNKNOWN"
     try:
-        host = Host(release)
-        binding, = db.execute("SELECT binding FROM runs WHERE release=?", (release,)).fetchone()
-        require(binding == host.binding, "release_changed")
-        index = report["index"]
-        row = db.execute("SELECT runner,evidence FROM receipts WHERE release=? AND idx=? AND phase='pre'",
-                         (release, index)).fetchone()
-        proof = {"runner": row[0], "pre": row[1]} if row else {}
-        reading = host.call("inspect", index, proof)
-        if (reading.get("runner") == proof.get("runner") and
-                reading.get("state") in ("NOT_STARTED", "RUNNING", "EXITED", "UNKNOWN")):
-            report["observation"] = reading["state"]
+        report["observation"] = recovery_view(db, Host(release), report)[0]
     except Exception:
         pass
     return report
 
 
-def execute(db, host):
+def check_runners(plan, runners):
+    require(isinstance(runners, list) and len(runners) == len(plan["migrations"])
+            and all(matches(HASH, r) for r in runners) and len(set(runners)) == len(runners),
+            "creator_identity")
+
+
+def execute(db, host, *, resume=False):
     plan, release = host.plan, host.release
     validate_plan(plan, release)
     host.authorized()
-    # The reservation is committed before any host call. It survives process
-    # death, SSH loss and release changes. Only the reserving invocation runs.
-    try:
+    index = 0
+    runners = []
+    fence = None
+    if resume:
+        report = status(db, release)
+        require(report["result"] in ("INTENT", "HOLD"), "no_interrupted_run")
+        state, index, runners, fence, post = recovery_view(db, host, report)
+        require(state in ("APPLIED", "NOT_STARTED"), "recovery_wait")
+        host.authorized()
         with db:
-            db.execute("INSERT INTO runs VALUES (?,?,'INTENT','fence',NULL,NULL,NULL)",
-                       (release, host.binding))
-    except sqlite3.IntegrityError:
-        prior = db.execute("SELECT binding FROM runs WHERE release=?", (release,)).fetchone()
-        require(prior and prior[0] == host.binding, "other_or_changed_release")
-        return status(db, release)
+            db.execute("INSERT INTO recoveries VALUES (?,?,?,?,?,?,?,?)",
+                       (release, report["result"], report["phase"], report["index"], report["error"],
+                        report["sqlstate"], state, time.time_ns()))
+            if post:
+                record_post(db, release, index, runners, post)
+                index += 1
+            db.execute("UPDATE runs SET state='INTENT',reason=NULL,sqlstate=NULL WHERE release=? AND state!='PASS'",
+                       (release,))
+    else:
+        try:
+            with db:
+                db.execute("INSERT INTO runs VALUES (?,?,'INTENT','fence',NULL,NULL,NULL)",
+                           (release, host.binding))
+        except sqlite3.IntegrityError:
+            prior = db.execute("SELECT binding FROM runs WHERE release=?", (release,)).fetchone()
+            require(prior and prior[0] == host.binding, "other_or_changed_release")
+            return status(db, release)
 
     def call(phase, index=None, **proof):
         with db:
@@ -229,20 +330,30 @@ def execute(db, host):
         return host.call(phase, index, proof)
 
     try:
-        observed = call("fence")
-        verify_fence(observed, time.time())
-        fence = observed["fence_snapshot_sha256"]
-        created = call("create", fence=fence)
-        runners = created["runners"]
-        require(created["image"] == plan["image"] and created["state"] == "CREATED_NOT_STARTED"
-                and isinstance(runners, list) and len(runners) == len(plan["migrations"])
-                and all(matches(HASH, r) for r in runners) and len(set(runners)) == len(runners),
-                "creator_identity")
-        for index, runner in enumerate(runners):
+        if index == len(plan["migrations"]):
+            return status(db, release)
+        if fence is None:
+            observed = call("fence")
+            verify_fence(observed, time.time())
+            fence = observed["fence_snapshot_sha256"]
+        with db:
+            db.execute("INSERT OR IGNORE INTO receipts VALUES (?,-1,'fence',NULL,?)", (release, fence))
+        if not runners:
+            created = call("create", fence=fence)
+            require(created["image"] == plan["image"] and created["state"] == "CREATED_NOT_STARTED",
+                    "creator_identity")
+            runners = created["runners"]
+            check_runners(plan, runners)
+        with db:
+            db.executemany("INSERT OR IGNORE INTO receipts VALUES (?,?,'created',?,?)",
+                           [(release, i, r, fence) for i, r in enumerate(runners)])
+        for index in range(index, len(runners)):
+            runner = runners[index]
             pre = call("pre", index, runner=runner, fence=fence)
             pre_hash = verify_reader(plan, index, pre, runner, fence, False)
             with db:
-                db.execute("INSERT INTO receipts VALUES (?,?,?,?,?)", (release, index, "pre", runner, pre_hash))
+                phase = "pre:" + secrets.token_hex(16) if resume else "pre"
+                db.execute("INSERT INTO receipts VALUES (?,?,?,?,?)", (release, index, phase, runner, pre_hash))
             # Starter must recheck the live runner, pre receipt, snapshot and
             # continuous fence at the last possible instant before starting it.
             accepted = call("start", index, runner=runner, fence=fence, pre=pre_hash)
@@ -251,9 +362,7 @@ def execute(db, host):
             post_hash = verify_reader(plan, index, after, runner, fence, True)
             require(after["pre"] == pre_hash and post_hash != pre_hash, "post_identity")
             with db:
-                db.execute("INSERT INTO receipts VALUES (?,?,?,?,?)", (release, index, "post", runner, post_hash))
-                if index + 1 == len(runners):
-                    db.execute("UPDATE runs SET state='PASS',phase='complete' WHERE release=?", (release,))
+                record_post(db, release, index, runners, post_hash)
     except Exception as exc:
         failure = exc if isinstance(exc, Hold) else Hold("invalid_or_unknown_result")
         with db:
@@ -263,7 +372,7 @@ def execute(db, host):
 
 
 def main(args):
-    require(len(args) == 2 and args[0] in ("run", "status") and matches(ID, args[1]), "invalid_request")
+    require(len(args) == 2 and args[0] in ("run", "resume", "status") and matches(ID, args[1]), "invalid_request")
     op, release = args
     os.umask(0o077)
     trusted(STATE, directory=True)
@@ -279,7 +388,18 @@ def main(args):
             return inspect_run(db, release)
         db.execute("PRAGMA synchronous=FULL")
         initialize(db)
-        return execute(db, Host(release))
+        host = Host(release)
+        fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise Hold("controller_active") from None
+            # An adapter that outlives a lost reply retains this lock until exit.
+            host.lock_fd = fd
+            return execute(db, host, resume=(op == "resume"))
+        finally:
+            os.close(fd)
 
 
 if __name__ == "__main__":

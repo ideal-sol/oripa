@@ -14396,6 +14396,12 @@ against fixed source, contiguous ledger 107–119, one zero exit per runner and
   See the Draft PR for final-head CI and Strict review. No real host test,
   installation, permission change, operational migration or runtime change.
 
+- PR737 follow-up: bound the adapter response wait, including EOF and exit.
+  Timeout preserves migration effects. Explicit resume takes an exclusive
+  lock, reconciles fresh observations with the original fence and durable
+  receipts, and retains recovery history. Unknown outcomes remain held.
+  The private binding and separate OLD Test qualification remain pending.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.

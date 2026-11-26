@@ -76,7 +76,8 @@ class ControllerTest(unittest.TestCase):
         with sqlite3.connect(self.path) as second:
             self.assertEqual(m.execute(second,self.host), report)
             self.assertEqual(len(self.host.calls),8)
-            self.assertEqual(second.execute("SELECT count(*) FROM receipts").fetchone(), (4,))
+            self.assertEqual(second.execute(
+                "SELECT count(*) FROM receipts WHERE phase IN ('pre','post')").fetchone(), (4,))
 
     def test_disconnect_after_start_and_simultaneous_requests(self):
         def interrupt(phase, reply):
@@ -141,13 +142,90 @@ class ControllerTest(unittest.TestCase):
         writes_before = self.db.total_changes
         with patch.object(m, "Host", return_value=self.host):
             report = m.inspect_run(self.db, self.host.release)
-        self.assertEqual((report["observation"], report["result"], report["confirmed"]), ("EXITED","INTENT",0))
+        self.assertEqual((report["observation"], report["result"], report["confirmed"]), ("UNKNOWN","INTENT",0))
         self.assertEqual(self.db.total_changes, writes_before)
         self.assertEqual(self.host.calls[-1], ("inspect",0))
+
+    def test_resume_applied_row_only_starts_the_remaining_runner(self):
+        def lost_post(phase, reply):
+            if phase == "post":
+                raise m.Hold("reader_failed")
+        self.host.modify = lost_post
+        self.assertEqual(m.execute(self.db, self.host)["result"], "HOLD")
+        def reconcile(phase, reply):
+            if phase == "inspect":
+                row = self.host.plan["migrations"][0]
+                reply.update(state="EXITED", settled=True, runner_state="exited", starts=1,
+                             ledger=1, ledger_sha256=row["after_ledger_sha256"])
+        self.host.modify = reconcile
+        with patch.object(m, "Host", return_value=self.host):
+            self.assertEqual(m.inspect_run(self.db, self.host.release)["observation"], "APPLIED")
+        self.assertEqual(m.execute(self.db, self.host, resume=True)["confirmed"], 2)
+        self.assertEqual(self.host.calls.count(("start",0)), 1)
+        self.assertEqual(self.host.calls.count(("create",None)), 1)
+        self.assertEqual(self.db.execute("SELECT prior_state,reason,observation FROM recoveries").fetchall(),
+                         [("HOLD","reader_failed","APPLIED")])
+
+    def test_resume_requires_settled_unstarted_runner_or_verified_post(self):
+        def interrupted(phase, reply):
+            if phase == "start":
+                raise SystemExit
+        self.host.modify = interrupted
+        with self.assertRaises(SystemExit):
+            m.execute(self.db, self.host)
+        for fields in (dict(state="RUNNING"), dict(state="UNKNOWN", settled=True),
+                       dict(state="NOT_STARTED", settled=False),
+                       dict(state="NOT_STARTED", settled=True, no_start_intent=False),
+                       dict(state="EXITED", settled=True, exit=1)):
+            with self.subTest(fields=fields):
+                self.host.modify = lambda phase, reply: reply.update(fields)
+                with self.assertRaises(m.Hold):
+                    m.execute(self.db, self.host, resume=True)
+                self.assertEqual(self.host.calls[-1], ("inspect",0))
+                self.assertEqual(m.status(self.db, self.host.release)["result"], "INTENT")
+        self.host.modify = lambda phase, reply: reply.update(state="NOT_STARTED", settled=True,
+                                                             no_start_intent=True) if phase == "inspect" else None
+        self.assertEqual(m.execute(self.db, self.host, resume=True)["result"], "PASS")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM receipts WHERE idx=0 AND phase LIKE 'pre%'")
+                         .fetchone()[0], 2)
+        self.assertEqual(self.host.calls.count(("create",None)), 1)
 
     def test_idle_polling_and_pid_change_do_not_override_fence_evidence(self):
         self.host.modify = lambda phase, r: r.update(pid=101 if phase=="pre" else 202, idle_poll=True)
         self.assertEqual(m.execute(self.db,self.host)["result"], "PASS")
+
+    def test_reconcile_creator_without_duplicate_creation(self):
+        def lose_create(phase, reading):
+            if phase == "create":
+                raise SystemExit
+        self.host.modify = lose_create
+        with self.assertRaises(SystemExit):
+            m.execute(self.db, self.host)
+        def observe_created(phase, reading):
+            if phase == "inspect":
+                reading.update(state="NOT_STARTED", settled=True, no_start_intent=True,
+                               original_runner_set_verified=True, runners=self.host.runners,
+                               runner=self.host.runners[0])
+        self.host.modify = observe_created
+        self.assertEqual(m.execute(self.db, self.host, resume=True)["result"], "PASS")
+        self.assertEqual(self.host.calls.count(("create",None)), 1)
+
+    def test_no_creator_replay_when_its_attempt_is_unresolved(self):
+        def fail_create(phase, reading):
+            if phase == "create":
+                raise m.Hold("creator_failed")
+        self.host.modify = fail_create
+        self.assertEqual(m.execute(self.db, self.host)["result"], "HOLD")
+        for no_intent in (False, True):
+            self.host.modify = lambda phase,r: r.update(runners=[],state="NOT_STARTED",settled=True,
+                no_create_intent=no_intent,no_start_intent=True) if phase=="inspect" else None
+            if not no_intent:
+                with self.assertRaisesRegex(m.Hold, "creation_unknown"):
+                    m.execute(self.db, self.host, resume=True)
+                self.assertEqual(self.host.calls.count(("create",None)), 1)
+            else:
+                self.assertEqual(m.execute(self.db, self.host, resume=True)["result"], "PASS")
+
 
     def test_unapproved_order_or_caller_input(self):
         plan = release()
@@ -160,6 +238,29 @@ class ControllerTest(unittest.TestCase):
 
 
 class HostBoundaryTest(unittest.TestCase):
+    def test_inspection_has_deadline_and_effect_timeout_does_not_stop_adapter(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            marker = root / "finished"
+            adapter = root / "adapter"
+            adapter.write_text("#!/usr/bin/python3\nimport os, time\nfrom pathlib import Path\n"
+                               "os.close(1)\ntime.sleep(.5)\nPath(__file__).with_name('finished').touch()\n")
+            adapter.chmod(0o700)
+            with patch.object(m, "ADAPTER", adapter), patch.object(m, "REPLY_WAIT", .1):
+                with self.assertRaisesRegex(m.Hold, "adapter_timeout"):
+                    m.exchange({"phase":"start"})
+                for _ in range(100):
+                    if marker.exists():
+                        break
+                    time.sleep(.02)
+                self.assertTrue(marker.exists())
+            adapter.write_text("#!/usr/bin/python3\nimport time\nprint('{', end='', flush=True)\ntime.sleep(15)\n")
+            with patch.object(m, "ADAPTER", adapter), patch.object(m, "INSPECT_WAIT", .1):
+                started = time.monotonic()
+                with self.assertRaisesRegex(m.Hold, "adapter_timeout"):
+                    m.exchange({"phase":"inspect"})
+                self.assertLess(time.monotonic() - started, 3)
+
     def test_untrusted_parents_rejected(self):
         with tempfile.TemporaryDirectory() as name:
             Path(name).chmod(0o777)

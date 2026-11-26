@@ -73,12 +73,22 @@ ChatGPT本番反映担当と以下の各Codexは、担当Repositoryの最新main
 
 ### 限定Migration入口のSourceと実証
 
-工程8の共通入口は [production-migrations](../../../scripts/ops/production-migrations) の `run RELEASE_ID` と `status RELEASE_ID`。Stage・切替・復帰は上表の既存経路で行い、Migrationなしの場合はこの入口を使わない。配備時は呼出者にこの入口だけを許可し、実行ファイル、Python、設定、証跡DB、ホストアダプターとその依存物は呼出者が変更できない所有・権限にする。呼出者にENV指定、インタープリター、Dockerソケット、DB接続を渡さない。
+工程8の共通入口は [production-migrations](../../../scripts/ops/production-migrations) の `run RELEASE_ID`、`status RELEASE_ID`、明示復旧用の `resume RELEASE_ID`。Stage・切替・復帰は上表の既存経路で行い、Migrationなしの場合はこの入口を使わない。配備時は呼出者にこの入口だけを許可し、実行ファイル、Python、設定、証跡DB、ホストアダプターとその依存物は呼出者が変更できない所有・権限にする。呼出者にENV指定、インタープリター、Dockerソケット、DB接続を渡さない。
 
 - 実行側はホストが登録した `release.json` のバイト列のSHA256を、同じSite・Releaseに対する有効な一括GOと照合する。ReleaseにはSource・Tree・Authority、Artifact・Image・Build、サービス、運用条件packとアダプターのdigest、順序付きMigration名・SHA256・前後Ledger件数と全Ledgerのdigestを固定する。Ledgerのdigestは照合側と登録側で同じ規約（順序付きMigration名のUTF-8 JSON配列、空白なし、拡張子なし）のSHA256を使う。GO・Snapshotは運用側が登録し、呼出時の引数には含めない。
 - 固定アダプターとのやり取りはホスト内のJSON標準入力／出力に限る。[共通制御Source](../../../scripts/ops/production_migrations.py) の `Host.call` と `verify_reader` が入出力仕様である。アダプターは各呼出しでRelease・plan digest・phase・index・nonceを照合して応答に結合する。`fence` は最新の金融Drain、対象DB、連続Fenceと同じSnapshotがavailableである証跡を取得する。`create` はこのFenceを再確認し、成功版Creatorの固定Image・設定照合と未起動Runner作成を行う。既存Runnerとの衝突・作成状態不明なら停止する。
 - `pre`／`post` は修正版Readerの作成・起動・終了とObserverによる読取り専用トランザクションのrollback、Image内ファイルのhash、Ledger・Schema・履歴・金融検査を含む。`start` はStarterの責任で**起動直前**に同じGO・Fence・Snapshot、pre receiptのhashと鮮度、実測RunnerのID・Image・revision・コマンド・Mount・未起動状態を再照合し、排他的intent後に1件だけ起動する。postは同じRunnerの単一起動・終了0とpreへの結合を証明する。生ログ、ENV、照会結果はアダプター内部に留める。運用条件packと私有ヘルパーの同一性をアダプター側でも検証する。
-- 切断後は `status` で最終phase・index・確定件数を読む。未確定時の `inspect` は同じ試行の限定照会のみとし、照会不能はUNKNOWNとする。INTENT・HOLDが残る間は次のReleaseも起動しない。既存intent／receipt／RunnerとFenceを保存し、最後のpost PASSと現在の実DDL・履歴を照合して例外復旧を決める。終了0単独でPASSにしたり、証跡DBを消してやり直したりしない。
+- 切断・HOLD後の入口はまず `status RELEASE_ID`。最終phase・index・post確定件数を保持し、最初の未確定ファイルだけを限定照会する。アダプター応答は出力途中・終了待ちも含めて照会5秒、その他300秒が上限。期限超過は照会ならUNKNOWN、実行ならHOLDとし、Runner・DB・実行中アダプターには終了命令を送らない。この上限はDBの実行時間制限ではない。
+- 復旧は同じReleaseの `resume RELEASE_ID` で明示する。`run` の再呼出しは既存記録を返す。排他ロックを実行アダプターにも継承し、前の呼出しが残る間は復旧を開始しない。アダプターは非同期依頼の行方、Runner ID、元の連続Fence・Snapshotと最新のDB実測を照合する。`settled` は先行する作成・起動要求が後から発効しないことまで確認できた場合だけ真とする。
+
+| 未確定ファイルの照会結果 | 正式な復旧経路 |
+|---|---|
+| NOT_STARTED（未実行） | 同じRunnerが未起動・起動intentなし、前Ledger・Schema・整合性が一致すれば、新しいpre照合から再開する。Creator直後なら元のRunner集合全体を検証して引き継ぐ。Runnerがなく作成・起動intentも保留要求も存在しないことを証明できた場合だけ作成に進む。 |
+| RUNNING（実行中） | Fenceを保持し、後でstatusを再照会する。再起動・強制終了はしない。 |
+| APPLIED（適用済み） | 保存したpreに対応する同じRunnerの単一起動・終了0、実ファイル、後Ledger・Schema・履歴・金融整合性を含む新鮮なpost証跡が揃った場合のみ、resumeでpostを追記して次の未確定ファイルへ進む。 |
+| UNKNOWN（不明・失敗・照合不能） | 同じ試行とFenceを保全してHOLD。終了表示単独・部分適用・元証跡不足はこの区分。限定照会で解消できなければHumanの個別復旧判断へ引き継ぐ。 |
+
+resumeは有効なGO・同じplanとアダプターを再照合し、従来のINTENT／HOLD・理由・復旧判断を追記してから進む。以前のpre／postは保持する。証跡DBの削除、状態の強制書換え、別Release IDによる回避を禁止する。
 
 OLD Test実証は別GOで、通常のoldtest-deployから独立した専用DB・合成データ・試験用権限で行う。実証対象はこのPRの固定HEAD／Tree、両入口ファイルのSHA256、対応する非公開ホストアダプターと条件packのSHA256を一組で封印する。専用呼出者で同じ `run`／`status` を使用し、§5の正常・異常系、並行起動・切断後の再呼出し、呼出者からの設定変更拒否・秘密値非出力まで確認する。資料中の伏せ字版を実行せず、ホスト側の接続と実証の完了をStage前に記録する。
 
