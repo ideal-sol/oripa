@@ -177,6 +177,83 @@ class OrdinaryPolicyTest(unittest.TestCase):
         deploy.deploy(f.plan, f.targets, None, f.journal, lambda j: None, f, lambda: None,
                       lambda: f.clock, f.sleeps.append)
 
+    def test_reconcile_unwritten_monitor_and_shared_f2b_pin_without_replaying_api(self):
+        workers = deploy.PIN_ACCEPTANCE
+        self.f = f = Fixture(["api", "admin"], active=workers)
+        f.plan["ordinary_policy"] = deploy.ordinary_policy(f.targets)
+        f.journal.update(plan=deploy.digest(f.plan), progress_at=10, assets=f.items.copy(),
+                         sources={source.PLATFORM: dict(source_sha=SHA, source_pr=1)},
+                         completed={"switch/admin": "PASS", "switch/api": "PASS", "switch/univapay-monitor": "STARTED"},
+                         results={"api": "PASS", "admin": "PASS"})
+        f.live.update(api=NEW, admin=NEW)
+        def update_shared_pin(op, target):
+            if op == "switch" and target == "f2b-worker":
+                f.live["f2b-purge"] = NEW
+        self.execute(update_shared_pin)
+        self.assertEqual(f.journal["terminal"], "Technical PASS")
+        self.assertEqual([target for op, target in f.calls if op == "switch"], ["univapay-monitor", "f2b-worker"])
+        self.assertEqual([f.journal["results"][target] for target in workers], ["PASS"] * 3)
+        self.assertIn(("security", "api"), f.calls)
+
+    def test_common_lock_waits_for_timer_and_stops_at_deadline(self):
+        lock = self.folder / "common"
+        lock.touch()
+        with mock.patch.object(deploy, "LOCK", lock), mock.patch.object(deploy.time, "sleep") as sleep:
+            with mock.patch.object(deploy.fcntl, "flock", side_effect=[BlockingIOError()] * 8 + [None]):
+                with deploy.runtime_lock(lock) as check:
+                    check()
+                self.assertEqual(sleep.call_count, 8)
+            with mock.patch.object(deploy.fcntl, "flock", side_effect=BlockingIOError()), \
+                    mock.patch.object(deploy.time, "monotonic", side_effect=[5, 20, 25]):
+                with self.assertRaisesRegex(deploy.Hold, "deployment_lock_busy"), deploy.runtime_lock(lock):
+                    self.fail("lock never acquired")
+
+    def test_scheduled_acceptance_releases_locks_then_rechecks_successful_effects(self):
+        f = Fixture(["api"], active=deploy.PIN_ACCEPTANCE)
+        f.plan["ordinary_policy"] = deploy.ordinary_policy(f.targets)
+        f.journal.update(plan=deploy.digest(f.plan), progress_at=10,
+                         sources={source.PLATFORM: dict(source_sha=SHA, source_pr=1)})
+        held = []
+        samples = []
+        def acquire():
+            self.assertFalse(held)
+            held.append(True)
+            return lambda: self.assertTrue(held)
+        def sample(worker, since):
+            self.assertFalse(held)
+            samples.append(worker)
+            return samples.count(worker) == 2
+        with mock.patch.object(f, "scheduled_result", side_effect=sample, create=True):
+            deploy.deploy(f.plan, f.targets, None, f.journal, lambda j: None, f, lambda: None,
+                          lambda: f.clock, f.sleeps.append, enter_runtime=acquire, leave_runtime=held.pop)
+        self.assertTrue(held)
+        self.assertEqual(f.journal["scheduled_results"], dict.fromkeys(deploy.PIN_ACCEPTANCE, "PASS"))
+        self.assertEqual(f.journal["terminal"], "Technical PASS")
+        self.assertEqual(f.calls.count(("switch", "api")), 1)
+
+    def test_registry_handoff_binds_immutable_plan_and_preserves_site_profile(self):
+        path = self.folder / "bindings.json"
+        old = {"operations": {"preflight": {"module": "scoped.py", "function": "preflight", "sha256": OLD}},
+               "site": {"configuration": "original"}}
+        raw = json.dumps(old).encode()
+        path.with_name("registry-before-continuation.json").write_bytes(raw)
+        sha = lambda b: "sha256:" + hashlib.sha256(b).hexdigest()
+        plan = dict(self.f.plan, site_policy=sha(raw))
+        old["operations"]["preflight"]["sha256"] = NEW
+        with mock.patch.object(deploy, "BINDINGS", path):
+            def authorize():
+                new = json.dumps(old).encode()
+                path.with_name("registry-continuation.json").write_text(json.dumps(
+                    dict(plan=deploy.digest(plan), previous=plan["site_policy"], current=sha(new))))
+                return new
+            new = authorize()
+            deploy.verify_registry(plan, new)
+            with self.assertRaisesRegex(deploy.Hold, "mismatch"):
+                deploy.verify_registry(dict(plan, session="OTHER"), new)
+            old["site"]["configuration"] = "changed"
+            with self.assertRaisesRegex(deploy.Hold, "exceeds_scope"):
+                deploy.verify_registry(plan, authorize())
+
     def test_standing_scope_and_actor(self):
         for target in ("sms", "db-timezone-utc", "production", "provider", "reset", "worker", "shell"):
             with self.subTest(target=target), self.assertRaises(deploy.Hold):
@@ -750,6 +827,7 @@ class SimpleDeploymentTest(unittest.TestCase):
         def call(operation, target="", data=None):
             return f.plan if operation == "propose" else f.call(operation, target, data)
         with tempfile.TemporaryDirectory() as d, mock.patch.object(deploy, "SESSIONS", Path(d)), \
+                mock.patch.object(deploy, "ORDINARY_POLICY", Path(d) / "ordinary-policy.json"), \
                 mock.patch.object(deploy, "runtime_lock", return_value=mock.MagicMock()), \
                 mock.patch.object(deploy, "trusted"), mock.patch.object(deploy, "installed_entry"), \
                 mock.patch.object(deploy, "BINDINGS", Path(d) / "bindings.json"), \

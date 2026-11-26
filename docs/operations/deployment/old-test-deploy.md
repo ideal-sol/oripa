@@ -129,6 +129,37 @@ with the Human.
 
 ### Host integration and acceptance
 
+For ordinary API releases, verify the monitor against its current container
+before switching API. If the accepted replacement removed that exact container,
+the monitor may log a read-only check failure while waiting for its pin.
+Reconcile the old identity, new OCI revision, immutable plan, API health and
+completed API journal result. Verify the enrolled program, empty process group,
+current invocation and its precise failure after the new container started.
+Under the common lock and a fresh operation-specific Security receipt, repeat
+the idle check before replacing the reference. An unknown pin or result holds.
+Only a proven pending monitor or F2B reference write can resume a recorded
+switch intent. Keep completed service switches and all other intent rules.
+
+Observe scheduled acceptance after releasing the runtime and F2B locks, while
+retaining exclusive ownership of the simple deployment transition. Require
+a new structured healthy monitor result or its enrolled business warning and
+a completed worker and purge invocation using their actual runner. A busy
+skip waits for another run. Reacquire the runtime locks and revalidate the
+selected services and references before Technical PASS. Short timer contention
+on the common lock waits up to 20 seconds. A competing simple transition
+reports a separate conflict. Artifact acquisition stays outside this interval.
+
+An administrator may enroll one expressly approved in-flight continuation when
+updating the reviewed binding code. Beside the registry retain the original
+private bytes as `registry-before-continuation.json`. Set the root-private
+`registry-continuation.json` fields `plan`, `previous` and `current` to the
+exact plan digest and the two registry byte digests. Verify the installation
+under the shared lock and record the updated adoption. The executor compares
+both registries and permits only digest changes for the existing scoped module.
+Keep every operation, function, site setting, standing policy, plan and journal
+intact. The executor still measures fresh Security receipts for remaining work.
+Remove the single-plan grant at closure. New plans bind the current registry.
+
 The Canonical Executor consumes an exact execution envelope. The installed PHP
 verifier instead takes a policy and a verification request. For each selected
 PHP operation the simple entry prepares that request, binding the plan, source,
