@@ -23,6 +23,25 @@ def release():
                 start_ledger=0, end_ledger=2, migrations=rows)
 
 
+def publish_fixture(folder, records):
+    sources = {}
+    for kind, data in records.items():
+        path = folder / (kind + "-receipt")
+        path.write_text(json.dumps({"issuer": "fixture-" + kind, "facts": data}))
+        path.chmod(0o600)
+        sources[kind] = dict(path=str(path), issuer="fixture-" + kind, issuer_field=["issuer"],
+                             fields={key: ["facts", key] for key in data})
+    mapping = folder / "evidence-sources.json"
+    mapping.write_text(json.dumps(sources))
+    mapping.chmod(0o600)
+
+
+def approval(plan, stage_hash):
+    now = int(time.time())
+    return dict(release=plan["release"], site=plan["site"], approved=True, stage_sha256=stage_hash,
+                issued=now - 1, expires=now + 600, scope="production_release", authenticated_human=True)
+
+
 class SyntheticHost:
     def __init__(self):
         self.plan = release()
@@ -282,13 +301,9 @@ class HostBoundaryTest(unittest.TestCase):
                                "extra='private stdout test')))\n")
             adapter.chmod(0o700)
             plan["adapter_sha256"]=m.digest(adapter.read_bytes())
-            config=folder/"release.json"
-            config.write_text(json.dumps(plan))
-            go=folder/"go.json"
-            go.write_text(json.dumps(dict(release=plan["release"],site=plan["site"],approved=True,
-                                          plan_sha256=m.digest(config.read_bytes()),expires=int(time.time())+600)))
-            for p in (config,go):
-                p.chmod(0o600)
+            publish_fixture(folder, {"stage": plan})
+            config = folder / "stage-receipt"
+            publish_fixture(folder, {"stage": plan, "go": approval(plan, m.digest(config.read_bytes()))})
             with patch.object(m,"CONFIG",folder), patch.object(m,"ADAPTER",adapter), patch.dict(
                     os.environ,{"PARENT_SECRET":"synthetic"}), patch.object(m,"trusted"):
                 host=m.Host(plan["release"])
@@ -298,7 +313,7 @@ class HostBoundaryTest(unittest.TestCase):
                 adapter.write_text("changed")
                 with self.assertRaisesRegex(m.Hold,"adapter_changed"):
                     host.authorized()
-                config.write_text("{}")
+                config.write_bytes(config.read_bytes() + b" ")
                 with self.assertRaisesRegex(m.Hold,"release_changed"):
                     host.authorized()
 
@@ -306,11 +321,12 @@ class HostBoundaryTest(unittest.TestCase):
         host=object.__new__(m.Host)
         host.release="TEST"
         host.plan={"site":"SITE"}
-        host.binding=hash_of("bound")
-        valid=dict(site="SITE",release="TEST",plan_sha256=host.binding,expires=int(time.time())+100,approved=True)
-        for bad in ({"release":"OTHER"},{"site":"OTHER"},{"expires":0},{"approved":1},{"plan_sha256":"other"}):
-            with patch.object(host,"check_binding"), patch.object(m,"private_file",
-                    return_value=json.dumps(dict(valid,**bad)).encode()), self.assertRaisesRegex(m.Hold,"go_invalid"):
+        host.stage_hash = host.binding = hash_of("bound")
+        valid = approval(dict(site="SITE", release="TEST"), host.stage_hash)
+        for bad in ({"release":"OTHER"},{"site":"OTHER"},{"expires":0},{"approved":1},{"stage_sha256":"other"},
+                    {"authenticated_human":False},{"scope":"stage"},{"issued":int(time.time())+30}):
+            with patch.object(host,"check_binding"), patch.object(m,"evidence",
+                    return_value=(dict(valid,**bad), hash_of("receipt"))), self.assertRaisesRegex(m.Hold,"go_invalid"):
                 host.authorized()
         reply=({"error":"private","sqlstate":"XXXXX"},1)
         with patch.object(host,"authorized"),patch.object(m,"exchange",return_value=reply),self.assertRaises(m.Hold) as err:

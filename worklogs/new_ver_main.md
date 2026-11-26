@@ -14402,6 +14402,18 @@ against fixed source, contiguous ledger 107–119, one zero exit per runner and
   receipts, and retains recovery history. Unknown outcomes remain held.
   The private binding and separate OLD Test qualification remain pending.
 
+- Binding follow-up adds one fixed noninteractive adapter. The controller
+  reads existing publisher-owned Stage and Human GO receipts. The adapter
+  verifies the matching Snapshot, current fence, image, Runner identity,
+  immutable attempt and pre/post Reader evidence. A separate local fixture
+  exercises the controller and adapter together against a synthetic ledger.
+  Prior timeout and recovery evidence remains on the preceding head.
+- Enrollment still requires the authenticated publisher contract, original
+  private Reader and parity routines, and authoritative read-only evidence of
+  Runner history and outstanding effects. There is no caller-facing enrollment
+  or approval-write command. The private source and independent OLD Test
+  qualification require separate review before any operational use.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.

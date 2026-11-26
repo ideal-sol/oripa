@@ -75,9 +75,11 @@ ChatGPT本番反映担当と以下の各Codexは、担当Repositoryの最新main
 
 工程8の共通入口は [production-migrations](../../../scripts/ops/production-migrations) の `run RELEASE_ID`、`status RELEASE_ID`、明示復旧用の `resume RELEASE_ID`。Stage・切替・復帰は上表の既存経路で行い、Migrationなしの場合はこの入口を使わない。配備時は呼出者にこの入口だけを許可し、実行ファイル、Python、設定、証跡DB、ホストアダプターとその依存物は呼出者が変更できない所有・権限にする。呼出者にENV指定、インタープリター、Dockerソケット、DB接続を渡さない。
 
-- 実行側はホストが登録した `release.json` のバイト列のSHA256を、同じSite・Releaseに対する有効な一括GOと照合する。ReleaseにはSource・Tree・Authority、Artifact・Image・Build、サービス、運用条件packとアダプターのdigest、順序付きMigration名・SHA256・前後Ledger件数と全Ledgerのdigestを固定する。Ledgerのdigestは照合側と登録側で同じ規約（順序付きMigration名のUTF-8 JSON配列、空白なし、拡張子なし）のSHA256を使う。GO・Snapshotは運用側が登録し、呼出時の引数には含めない。
+- 非稼働Stageの既存証跡から、Source・Tree・Authority、Artifact・Image・Build、対象サービス、運用条件とアダプターのSHA256、順序付きMigration名・SHA256・前後Ledger件数とdigestを解決する。Ledgerは順序付きMigration名（拡張子なし）のUTF-8 JSON配列を空白なしで符号化し、SHA256を取る。
+- 限定入口は、ホスト側で初回登録した証跡発行元と項目対応（`evidence-sources.json`）を使い、既存Stage・一括GO・Snapshotの保護済み証跡を読む。GOは認証済みHumanによる対象Site・Release・本番反映の承認、発行時刻・有効期限、Stage原本のSHA256を含む。Snapshotは同じStage・対象DB・連続Fenceに結び付いた手動取得記録と、現在availableである実測を照合する。証跡を自動発行する上流とその認証・所有境界を実証時に確認する。呼出者による生成・差替えは禁止。通常4工程で必要項目が発行されない環境は接続未成立としてHOLDする。
 - 固定アダプターとのやり取りはホスト内のJSON標準入力／出力に限る。[共通制御Source](../../../scripts/ops/production_migrations.py) の `Host.call` と `verify_reader` が入出力仕様である。アダプターは各呼出しでRelease・plan digest・phase・index・nonceを照合して応答に結合する。`fence` は最新の金融Drain、対象DB、連続Fenceと同じSnapshotがavailableである証跡を取得する。`create` はこのFenceを再確認し、成功版Creatorの固定Image・設定照合と未起動Runner作成を行う。既存Runnerとの衝突・作成状態不明なら停止する。
 - `pre`／`post` は修正版Readerの作成・起動・終了とObserverによる読取り専用トランザクションのrollback、Image内ファイルのhash、Ledger・Schema・履歴・金融検査を含む。`start` はStarterの責任で**起動直前**に同じGO・Fence・Snapshot、pre receiptのhashと鮮度、実測RunnerのID・Image・revision・コマンド・Mount・未起動状態を再照合し、排他的intent後に1件だけ起動する。postは同じRunnerの単一起動・終了0とpreへの結合を証明する。生ログ、ENV、照会結果はアダプター内部に留める。運用条件packと私有ヘルパーの同一性をアダプター側でも検証する。
+- [共通ホストアダプター](../../../scripts/ops/production_migration_adapter.py) は全Releaseで同じ実装とする。固定Engine APIで未起動Runnerを作り、IDを永続化する。起動は検証済みIDへの1回に限る。ホスト専用の `conditions.json` は対象DB・architecture、封印済み `measurement.py` と読取り専用照会packのSHA256を持つ。非公開部分の契約は `measure`（実測Fence・金融Drain・Snapshot）、`runner_template`／`check_parity`（元の設定と実体の完全照合）、`reader_spec`／`read`／`evaluate`（承認済み照会、rollback済み観測、Ledger・Schema等の判定）、`runner_history`／`quiescent`（実起動回数と未処理要求の有無）。照会時の `read` はRunnerを作成・起動しない。新しい非対話入口へは成功版の検証処理を接続し、既存のHuman専用入口の認可・TTY検査を維持する。
 - 切断・HOLD後の入口はまず `status RELEASE_ID`。最終phase・index・post確定件数を保持し、最初の未確定ファイルだけを限定照会する。アダプター応答は出力途中・終了待ちも含めて照会5秒、その他300秒が上限。期限超過は照会ならUNKNOWN、実行ならHOLDとし、Runner・DB・実行中アダプターには終了命令を送らない。この上限はDBの実行時間制限ではない。
 - 復旧は同じReleaseの `resume RELEASE_ID` で明示する。`run` の再呼出しは既存記録を返す。排他ロックを実行アダプターにも継承し、前の呼出しが残る間は復旧を開始しない。アダプターは非同期依頼の行方、Runner ID、元の連続Fence・Snapshotと最新のDB実測を照合する。`settled` は先行する作成・起動要求が後から発効しないことまで確認できた場合だけ真とする。
 
@@ -90,7 +92,7 @@ ChatGPT本番反映担当と以下の各Codexは、担当Repositoryの最新main
 
 resumeは有効なGO・同じplanとアダプターを再照合し、従来のINTENT／HOLD・理由・復旧判断を追記してから進む。以前のpre／postは保持する。証跡DBの削除、状態の強制書換え、別Release IDによる回避を禁止する。
 
-OLD Test実証は別GOで、通常のoldtest-deployから独立した専用DB・合成データ・試験用権限で行う。実証対象はこのPRの固定HEAD／Tree、両入口ファイルのSHA256、対応する非公開ホストアダプターと条件packのSHA256を一組で封印する。専用呼出者で同じ `run`／`status` を使用し、§5の正常・異常系、並行起動・切断後の再呼出し、呼出者からの設定変更拒否・秘密値非出力まで確認する。資料中の伏せ字版を実行せず、ホスト側の接続と実証の完了をStage前に記録する。
+OLD Test実証は別GOで、通常のoldtest-deployから独立した専用DB・合成データ・試験用権限で行う。実証対象はこのPRの固定HEAD／Tree、入口・共通制御・共通ホストアダプターのSHA256、対応する非公開計測Source・条件と照会packのSHA256を一組で封印する。専用呼出者で同じ `run`／`status`／`resume` を使用し、§5の正常・異常系、並行起動・切断後の再呼出し、呼出者からの設定変更拒否・秘密値非出力まで確認する。資料中の伏せ字版を実行せず、ホスト側の接続と実証の完了をStage前に記録する。
 
 ## 6. 指示・引継ぎ・完了報告
 

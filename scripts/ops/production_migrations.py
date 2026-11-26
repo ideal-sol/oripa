@@ -67,6 +67,24 @@ def private_file(path):
     return path.read_bytes()
 
 
+def evidence(kind):
+    """Project an authenticated publisher's existing receipt using enrolled field paths."""
+    sources = json.loads(private_file(CONFIG / "evidence-sources.json"))
+    spec = sources[kind]
+    path = Path(spec["path"])
+    require(path.is_absolute() and ".." not in path.parts, "invalid_evidence_source")
+    raw = private_file(path)
+    source = json.loads(raw)
+    def field(keys):
+        require(isinstance(keys, list) and all(isinstance(k, str) for k in keys), "invalid_field_path")
+        value = source
+        for key in keys:
+            value = value[key]
+        return value
+    require(field(spec["issuer_field"]) == spec["issuer"], "unexpected_evidence_issuer")
+    return {key: field(keys) for key, keys in spec["fields"].items()}, digest(raw)
+
+
 def validate_plan(plan, release):
     require(matches(ID, release) and plan["release"] == release and matches(ID, plan["site"])
             and matches(SHA, plan["source"]) and matches(SHA, plan["tree"])
@@ -93,22 +111,26 @@ def validate_plan(plan, release):
 class Host:
     def __init__(self, release):
         self.release = release
-        raw = private_file(CONFIG / "release.json")
-        self.plan = json.loads(raw)
+        self.plan, self.stage_hash = evidence("stage")
         validate_plan(self.plan, release)
-        self.binding = digest(raw)
+        self.binding = digest(json.dumps([self.stage_hash, self.plan], sort_keys=True,
+                                         separators=(",", ":"), allow_nan=False).encode())
 
     def check_binding(self):
-        require(digest(private_file(CONFIG / "release.json")) == self.binding, "release_changed")
+        plan, binding = evidence("stage")
+        require(binding == self.stage_hash and plan == self.plan, "release_changed")
         trusted(ADAPTER)
         require(digest(ADAPTER.read_bytes()) == self.plan["adapter_sha256"], "adapter_changed")
 
     def authorized(self):
         self.check_binding()
-        go = json.loads(private_file(CONFIG / "go.json"))
+        go, _ = evidence("go")
+        now = time.time()
         require(go["release"] == self.release and go["site"] == self.plan["site"]
-                and go["approved"] is True and go["plan_sha256"] == self.binding
-                and type(go["expires"]) is int and time.time() < go["expires"], "go_invalid")
+                and go["approved"] is True and go["authenticated_human"] is True
+                and go["scope"] == "production_release" and go["stage_sha256"] == self.stage_hash
+                and type(go["issued"]) is int and type(go["expires"]) is int
+                and 0 < go["issued"] <= now < go["expires"], "go_invalid")
 
     def call(self, phase, index, proof):
         if phase == "inspect":
