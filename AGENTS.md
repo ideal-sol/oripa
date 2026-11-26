@@ -217,13 +217,11 @@ judgments remain human decisions.
 
 ## Task Start Procedure
 
-For NEW Production release work, first read the
-[Canonical Release Runbook](docs/operations/deployment/new-production-canonical-release-runbook.md).
-Prefer proven operations, including prior prize CSV integrated releases, and
-reuse approved artifacts, helpers, and procedures to minimize downtime. Do not
-invent a new release method for each task unless Human explicitly directs a
-change. Current Governance, Release Gates, security policy, and Human GO
-requirements remain unchanged.
+For NEW Production, both the directing ChatGPT session and the executing
+Platform Codex must start from the
+[Canonical Release Runbook](docs/operations/deployment/new-production-canonical-release-runbook.md)
+and the latest Production state handoff. Use its stage order, scope rules and
+handoff format across operator, model and session changes.
 
 1. Use one Change, one branch, and one PR. Add conditional controls only when
    their risk criteria require them.
@@ -266,7 +264,10 @@ Do not run or perform:
 - creating a Stable Tag before the Release Gate passes
 - deleting or overwriting Archive refs
 - `docker system prune -a --volumes`
-- Production migrations or direct Production database operations
+- direct Production database operations or arbitrary Production SQL
+- Production migrations outside the NEW Production runbook's approved, restricted one-shot path.
+  This exception requires separate adoption and provisioning of that path and
+  Human GO for the pinned release. Documentation grants no execution access.
 - builds on Production servers
 - displaying, logging, committing, or copying secrets
 - bypassing required checks, scope validation, or fresh self-review
