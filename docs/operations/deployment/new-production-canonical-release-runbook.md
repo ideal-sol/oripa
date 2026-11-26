@@ -1,22 +1,29 @@
 # オリポケ / オリパV2 — NEW Production 標準反映手順書（Canonical Release Runbook）
 
-**v1.1 改訂案（2026-11-25、制定 2026-10-20）**。対象はPlatformおよび承認済みStorefront。正式採用、限定経路の実装・配備、個別Releaseの実行承認は別の決定である。
+**v1.1（制定 2026-10-20、正式採用は本改訂のmainへのMerge時）**。対象はPlatformおよび承認済みStorefront。正式採用、限定経路の実装・配備、個別Releaseの実行承認は別の決定である。
 
 ## 1. 担当交代時の起点
 
-指示を作るChatGPTと実行するPlatform Codexは、最新mainのAGENTS.md、本書、現行Governance・Release Gate、最新の本番状態Handoffを読む。Handoffの実測状態と今回の差分から下表の適用行を選び、最後に完了した工程の次から進める。チャット履歴や過去のGOを権限の根拠にしない。
+ChatGPT本番反映担当と以下の各Codexは、担当Repositoryの最新mainのAGENTS.md、Platform最新mainの本書、現行Governance・Release Gate、最新の本番状態Handoffを読む。Handoffの実測状態と今回の差分から下表の適用行を選び、最後に完了した工程の次から進める。チャット履歴や過去のGOを権限の根拠にしない。
+
+| 担当 | 作業範囲 |
+|---|---|
+| OLD・Platform Source Codex | Platform RepositoryのSource、Authority、PR、CI、Mergeを担当し、既存GitHub Actionsで正式Artifactを発行する。 |
+| OLD・Storefront Source Codex | 担当Site RepositoryのStorefront Source、Authority、PR、CI、Mergeを担当し、既存GitHub Actionsで正式Artifactを発行する。 |
+| NEW本番Codex | 正式Artifactを取得・検証し、非稼働Stage、Readiness、Drain、Writer Fence、限定Migration、Runtime切替、Health、Handoffを担当する。NEWサーバーでのSource改修・PR・Merge・local Buildは禁止。 |
+| ChatGPT本番反映担当 | 本書に沿って工程ごとの担当を選び、標準指示を出す。進捗と証跡を引き継ぎ、Human判断が必要な事項をまとめる。 |
 
 通常Human作業は、最終Readiness・一括GO、必要時のALBメンテナンス切替、必要時のDB Snapshot取得、ブラウザ確認・ALB解除の4項目。Codexが準備とその他の通常操作を担当する。秘密値の新規登録・交換・注入、DB Restore、結果不明の決済処理、重大な金融・法務・会計・provider判断、初回商用GOは既存のHuman権限に従う。例外が必要なら停止前に一括GOへ集約する。
 
 ## 2. 共通フローと工程別の指示
 
-各行の「標準指示」をその工程の指示本文として使う。工程1以降は、直前の適用行が完了し、当該行の開始条件が成立したら開始する。完了欄を満たせば次の適用行へ進む。一括GO後はHumanの担当地点と実障害だけで待つ。省略は工程1で根拠をHandoffへ記録する。
+各行の「標準指示」をその工程の指示本文として使う。工程1で対象と依存関係を確定し、以降は対象ごとに直前の適用行の完了と当該行の開始条件を確認する。PlatformとStorefrontの独立したSource・Authority・Artifact作業は並行できる。NEWの非稼働Stageも対象の正式Artifactと依存条件が揃ったものから並行できる。全対象のStage・Readinessを工程5の前に集約する。完了欄を満たせば次の適用行へ進む。一括GO後はHumanの担当地点と実障害だけで待つ。省略は工程1で根拠をHandoffへ記録する。
 
 | 工程・担当 | 開始条件 | 標準指示（既存経路で行う操作） | 完了・次へ渡す証跡 | HOLD条件 |
 |---|---|---|---|---|
 | 1 対象確定・Codex | 最新Handoffと反映依頼あり | 差分、依存、契約互換性から更新・据置サービス、ENVキー名、機能状態、適用工程と復旧点を固定する | Scope、パターン、受入結果・条件 | 稼働状態・範囲・復旧点不明 |
-| 2 Production Authority・Codex | Scope確定 | 承認済みSource／Tree、契約来歴、Workflow Authorityを区別し、正式Authorityの保護PR経路を使う | Authority Merge後の対象main SHAでRequired 5件成功、Sourceの承認・Tree一致 | main CI未完了は停止前に待つ。Authority移動・Tree不一致は再照合 |
-| 3 正式Artifact・Codex | 工程2成立、発行権限あり | 一致する有効な正式Artifactを再利用。欠ける対象だけ正式Workflowで発行・Verifyする | Source・Authorityに結び付くArtifact ID、digest、Image／Build ID、対象アーキテクチャ、必須Security結果 | PR検証用のみ、digest不一致、Security Gate未成立 |
+| 2 Production Authority・各OLD Source Codex | Scope確定 | 承認済みSource／Tree、契約来歴、Workflow Authorityを区別し、正式Authorityの保護PR経路を使う | Sourceの承認、Tree一致、下記のRepository別Authority検証証跡 | 当該経路の必須証跡不足・不成功、Authority移動・Tree不一致 |
+| 3 正式Artifact・各OLD Source Codex | 対象Repositoryの工程2成立、発行権限あり | 一致する有効な正式Artifactを再利用。欠ける対象だけ既存GitHub Actionsの正式BuildをDispatchしてVerifyする | Source・Authorityに結び付くArtifact ID、digest、Image／Build ID、対象アーキテクチャ、必須Security結果 | PR検証用のみ、digest不一致、Security Gate未成立 |
 | 4 非稼働Stage・Codex | 検証済みArtifactあり | 対象のみ既存経路で非稼働Stage。現行版・復旧資産、対象別Health、旧状態との互換、必要なFence・実行器版のOLD Test証跡を照合する | Stage同一性と最終Readiness、Human作業・例外・予想停止範囲を一括提示 | 経路未配備、権限不足、未検証の操作、必要な資産不足 |
 | 5 一括GO・ALB切替・Human | 工程4完了 | 固定した反映内容・Migration・例外を一括承認し、停止対象ならALBをメンテナンスへ切り替える | 対象に結び付くGO、必要時はメンテナンス応答確認 | 未承認・対象変更・流入遮断失敗 |
 | 6 金融Drain・Writer Fence・Codex | GO、必要な流入遮断成立 | 対象Timerの新規起動を抑止し、処理中の決済・送信・PutをDrain。内部・外部Writerの停止と再起動抑止を既存経路で確認する | 対象処理の確定・未確定数、Writer停止状態、復帰対象 | 未確定の外部結果、書込継続、Fence喪失 |
@@ -25,6 +32,11 @@
 | 9 Runtime切替・Codex | Stage・GO成立、適用対象なら工程8完了 | Stage済みのAPI→Health→依存サービス・Storefront→Worker／Timerの順で対象だけ切替。承認済み機能状態・起動状態へ戻す | 各版、必要なAPI・DB・Redis・Storage Health、Worker／Timer復帰確認 | 対象違い、継続的Health異常、復帰不能 |
 | 10 ブラウザ確認・ALB解除・Human | 技術Health成立 | 対象画面・必要なログイン操作を確認し、使用したALBメンテナンスを解除する | Human受入と通常流入復帰、または適用外理由 | 受入失敗・流入復帰失敗 |
 | 11 最終確認・Handoff更新・Codex | 対象受入・流入復帰 | 通常経路のHealth、実際の稼働版・Ledger・機能状態と残課題を確認し、既存の本番状態Handoffを更新する | §6形式の完了報告、証跡、復旧資産、次担当の開始点 | 実測不一致は未完了として引き継ぐ |
+
+**工程2から3への移行条件**。各Repositoryの正式Workflowが要求するAuthorityをDispatch前に照合し、対象SHAと証跡を引き渡す。
+
+- Platformは、現行protected mainのWorkflow Authority SHAでRequired 5 checksがすべて成功し、固定Runtime SourceのReviewed HEADでもRequired Checksが成功していることを確認する。
+- Storefrontは既存の `production-provenance` に従い、固定SourceのReviewed HEADとTree・Required Checksを照合する。現行mainに対象Checkが1件でもあれば、同じSHAでRequired Checksがすべて成功するまで待つ。対象Checkが0件の場合だけ、同経路が特定する正式なMerge済みPRのReviewed HEADが現行mainと同一Treeで、Required Checks成功済みであることを確認し、その証跡を再利用する。この場合はmain CIを追加実行しない。
 
 工程6の判定単位は対象サービスの仕事と書込能力。Mail／SMSのアイドルポーリングだけで金融処理中とは判定しない。freeze前後でPID一致を求めず、対象unit・containerの停止、新規処理の抑止、処理中件数と外部結果を照合する。不明分を消すための再送・削除は禁止。
 
