@@ -79,7 +79,7 @@ class Fixture:
         repos = {source.SITE if r == "storefront" else source.PLATFORM for r in roles}
         self.plan = {"environment": "old-test", "session": "TEST-SESSION", "targets": self.targets,
                      "sources": {repo: {"pr": 1, "sha": SHA} for repo in repos}, "configuration": OLD,
-                     "site_policy": "sha256:" + hashlib.sha256(b"test-policy").hexdigest(),
+                     "site_policy": "sha256:" + hashlib.sha256(b'{"operations":{}}').hexdigest(),
                      "contract": OLD, "recipes": dict.fromkeys(roles, OLD), "recovery": "reconcile-only",
                      "workers": {w: "active" if w in active else "inactive" for w in workers},
                      "migration": {"files": list(migrations), "writers": [], "backup": False},
@@ -530,7 +530,7 @@ class SimpleDeploymentTest(unittest.TestCase):
                 mock.patch.object(deploy, "canonical_idle"), mock.patch.object(deploy.Site, "call") as site_call, \
                 mock.patch("builtins.print"):
             site_call.side_effect = call
-            deploy.BINDINGS.write_bytes(b"test-policy")
+            deploy.BINDINGS.write_bytes(b'{"operations":{}}')
             args = ["admin", "--session", "TEST-SESSION"]
             deploy.main(args + ["--prepare", "--platform-source", "1@" + SHA, "--contract", OLD])
             folder = Path(d) / "TEST-SESSION"
