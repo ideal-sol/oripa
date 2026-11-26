@@ -14415,3 +14415,8 @@ with protected main b08abcf0bef290e6bf3d0c318c02fd83d4f5f303.
   Encode the PR number as text at the GitHub boundary, as in the Canonical OLD Test dispatcher.
 - Exercise resumption after a definitive rejection with the same session and attempt budget.
   Runtime activation remains deferred.
+
+### OLDTZ-20261126 — Scoped OLD Test timezone maintenance
+
+- Add one plan and separate Human GO for the four PHP roles. Pin the retained SMS image, successor identity, member-rank image transition, worker states and both configuration fingerprints.
+- Reuse the admitted API artifact and native Gate. Preserve the enrolled LINE container PATH and PHP build metadata when preparing subsequent UTC launches. Runtime activation is deferred until the reviewed host bindings and exact approval are present. No migration or contract change.
