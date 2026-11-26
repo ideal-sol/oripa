@@ -71,6 +71,17 @@ ChatGPT本番反映担当と以下の各Codexは、担当Repositoryの最新main
 
 リリースごとに変えるのはScope・Authority・Artifact・Migration・ENV対象キー・運用条件・個別承認だけ。実行器本体・権限境界・基本順序を都度変更せず、専用Creator／Reader／Starter／Observer／Validatorを原則新設しない。メンテナンス中の開発・再封印は原則禁止。実障害は安全に停止・復旧し、修正を要する版は別途OLD Testで検証する。
 
+### 限定Migration入口のSourceと実証
+
+工程8の共通入口は [production-migrations](../../../scripts/ops/production-migrations) の `run RELEASE_ID` と `status RELEASE_ID`。Stage・切替・復帰は上表の既存経路で行い、Migrationなしの場合はこの入口を使わない。配備時は呼出者にこの入口だけを許可し、実行ファイル、Python、設定、証跡DB、ホストアダプターとその依存物は呼出者が変更できない所有・権限にする。呼出者にENV指定、インタープリター、Dockerソケット、DB接続を渡さない。
+
+- 実行側はホストが登録した `release.json` のバイト列のSHA256を、同じSite・Releaseに対する有効な一括GOと照合する。ReleaseにはSource・Tree・Authority、Artifact・Image・Build、サービス、運用条件packとアダプターのdigest、順序付きMigration名・SHA256・前後Ledger件数と全Ledgerのdigestを固定する。Ledgerのdigestは照合側と登録側で同じ規約（順序付きMigration名のUTF-8 JSON配列、空白なし、拡張子なし）のSHA256を使う。GO・Snapshotは運用側が登録し、呼出時の引数には含めない。
+- 固定アダプターとのやり取りはホスト内のJSON標準入力／出力に限る。[共通制御Source](../../../scripts/ops/production_migrations.py) の `Host.call` と `verify_reader` が入出力仕様である。アダプターは各呼出しでRelease・plan digest・phase・index・nonceを照合して応答に結合する。`fence` は最新の金融Drain、対象DB、連続Fenceと同じSnapshotがavailableである証跡を取得する。`create` はこのFenceを再確認し、成功版Creatorの固定Image・設定照合と未起動Runner作成を行う。既存Runnerとの衝突・作成状態不明なら停止する。
+- `pre`／`post` は修正版Readerの作成・起動・終了とObserverによる読取り専用トランザクションのrollback、Image内ファイルのhash、Ledger・Schema・履歴・金融検査を含む。`start` はStarterの責任で**起動直前**に同じGO・Fence・Snapshot、pre receiptのhashと鮮度、実測RunnerのID・Image・revision・コマンド・Mount・未起動状態を再照合し、排他的intent後に1件だけ起動する。postは同じRunnerの単一起動・終了0とpreへの結合を証明する。生ログ、ENV、照会結果はアダプター内部に留める。運用条件packと私有ヘルパーの同一性をアダプター側でも検証する。
+- 切断後は `status` で最終phase・index・確定件数を読む。未確定時の `inspect` は同じ試行の限定照会のみとし、照会不能はUNKNOWNとする。INTENT・HOLDが残る間は次のReleaseも起動しない。既存intent／receipt／RunnerとFenceを保存し、最後のpost PASSと現在の実DDL・履歴を照合して例外復旧を決める。終了0単独でPASSにしたり、証跡DBを消してやり直したりしない。
+
+OLD Test実証は別GOで、通常のoldtest-deployから独立した専用DB・合成データ・試験用権限で行う。実証対象はこのPRの固定HEAD／Tree、両入口ファイルのSHA256、対応する非公開ホストアダプターと条件packのSHA256を一組で封印する。専用呼出者で同じ `run`／`status` を使用し、§5の正常・異常系、並行起動・切断後の再呼出し、呼出者からの設定変更拒否・秘密値非出力まで確認する。資料中の伏せ字版を実行せず、ホスト側の接続と実証の完了をStage前に記録する。
+
 ## 6. 指示・引継ぎ・完了報告
 
 指示形式は「Release ID／Runbook版／工程番号・担当／対象と固定入力・既存証跡／工程表の標準指示／完了・HOLD条件／次の適用工程」。担当交代時にも同じ形式を使い、チャット独自のGate・追加GO・全件再テスト・再Build・再Stage・順序変更を加えない。

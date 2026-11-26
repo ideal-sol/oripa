@@ -14363,6 +14363,39 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   successful cold acquisition and a changed runtime during acquisition in
   isolated tests. Runtime and migration were not exercised.
 
+## PRODSTD-20261126 — Phase 2 common executor investigation
+
+Base d9df6bc943681bd76f276b015bf53d5acc0d559a. R3 / Strict Change /
+Application Runtime Activation: deferred. Issue none. Dedicated worktree.
+
+- The protected-main ARM64 workflow and Production source authority helper
+  already bind the reviewed source, tree and artifact. Preserve that path.
+- The OLD Test implementation has an ordered migration suffix check, a
+  process lock and a durable intent journal. Its database identity, worker
+  bindings and health probes are OLD-specific. Its host-state snapshot does
+  not attest to an available DB backup.
+- Focused local baseline tests passed (three Production source authority,
+  two synthetic OLD Test ledger/resume cases). These cover existing code.
+- Await the final November 25 NEW operator handoff to identify the successful
+  one-shot and its status protocol, including fence, snapshot, per-file
+  checks and diagnostic output. A build/preparation handoff cannot establish
+  the executed path. No host operation, grant or migration performed.
+
+Handoff received. Verified ZIP SHA256, 22 unique members and CRCs, all 21
+manifest entries, 17 original-source pin references, all 12 migration hashes
+against fixed source, contiguous ledger 107–119, one zero exit per runner and
+24 distinct receipt references. Distributed sources are redacted views.
+
+- Source draft fixes the invocation and read-only status path, active GO and
+  adapter binding, single durable reservation, pre/start/post ordering and
+  allowlisted output. Stage, activation, workers and health use the existing
+  release routes. The private adapter must bind real site operations before
+  OLD Test qualification. No site payloads or historical exceptions imported.
+- The focused synthetic tests cover authority drift, ordered ledger and
+  receipt checks, concurrency, interrupted effects, status and redaction.
+  See the Draft PR for final-head CI and Strict review. No real host test,
+  installation, permission change, operational migration or runtime change.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.
