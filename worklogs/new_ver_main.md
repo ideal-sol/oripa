@@ -14428,6 +14428,20 @@ against fixed source, contiguous ledger 107–119, one zero exit per runner and
   Separate cryptographic proof of the approver is optional. Keep Snapshot,
   fence, migration journal and recovery checks in place.
 
+- Human accepted independent OLD qualification, trial B, for PR #737 source
+  `3978823e974c5e7f7efecf5a9829dd876a557a47`. The isolated Docker/Laravel
+  and PostgreSQL fixture maintained its writer fence and verified a physical
+  snapshot. The two migrations advanced the ledger from 0 to 1 to 2, with one
+  start each. After the first application, status returned UNKNOWN in 3.703 s.
+  Resume confirmed APPLIED in about 5.4 s (35 s budget) and completed the
+  second migration. A concurrent run returned controller_active; a completed
+  run returned PASS again with both start counts unchanged.
+- Qualification report SHA-256:
+  `3db36c8cc60cb0492ddf2f169791c6cc94c901c3be142065f9395c1357af40b9`.
+  The entrypoint, controller and adapter matched the qualified bytes. The two
+  private source files in the NEW handoff also matched the trial. Production
+  enrollment, access and activation remain separate Human decisions.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.
