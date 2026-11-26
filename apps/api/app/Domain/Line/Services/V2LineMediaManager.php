@@ -5,6 +5,7 @@ namespace App\Domain\Line\Services;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use App\Support\V2DatabaseTimestamp;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -30,7 +31,7 @@ final class V2LineMediaManager
         DB::transaction(function () use ($context, $id, $kind, $files, $expires): void {
             app(V2LineMessagingSettingService::class)->setting(true); $bot = $this->bot();
             DB::table('line_media_intents')->insert(['id'=>$id,'line_bot_id'=>$bot->id,'authentication_revision'=>$bot->authentication_revision,
-                'created_by_admin_id'=>$context->adminId,'kind'=>$kind,'files'=>json_encode($files, JSON_THROW_ON_ERROR),'expires_at'=>$expires]);
+                'created_by_admin_id'=>$context->adminId,'kind'=>$kind,'files'=>json_encode($files, JSON_THROW_ON_ERROR),'expires_at'=>V2DatabaseTimestamp::format($expires)]);
             $this->audit($context, 'line.media.intent.created', $id);
         }, 1);
         $uploads = [];
@@ -78,7 +79,7 @@ final class V2LineMediaManager
                 app(V2LineMessagingSettingService::class)->setting(true);
                 $i=DB::table('line_media_intents')->where('id',$id)->lockForUpdate()->firstOrFail(); $this->usable($i);
                 DB::table('line_media_assets')->insert(['id'=>$id,'line_bot_id'=>$i->line_bot_id,'authentication_revision'=>$i->authentication_revision,'kind'=>$i->kind,'manifest'=>json_encode([...$result,'objects'=>$objects],JSON_THROW_ON_ERROR)]);
-                DB::table('line_media_intents')->where('id',$id)->update(['finalized_at'=>now()]); $this->audit($context,'line.media.verified',$id);
+                DB::table('line_media_intents')->where('id',$id)->update(['finalized_at'=>V2DatabaseTimestamp::format(now())]); $this->audit($context,'line.media.verified',$id);
             },1);
             return $result;
         } finally {

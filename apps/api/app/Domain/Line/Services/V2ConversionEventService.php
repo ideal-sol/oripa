@@ -3,6 +3,7 @@
 namespace App\Domain\Line\Services;
 
 use App\Domain\Identity\Exceptions\V2AuthenticationException;
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -30,7 +31,7 @@ final class V2ConversionEventService
             DB::table('user_conversion_events')->where('id', $row->id)->update([
                 'claim_token_hash' => hash('sha256', $token),
                 'claim_expires_at' => $now->addSeconds(120)->format('Y-m-d H:i:s.uP'),
-                'updated_at' => $now,
+                'updated_at' => V2DatabaseTimestamp::format($now),
             ]);
             return ['data' => ['claim_token' => $token, 'expires_in_seconds' => 120]];
         }, 3);

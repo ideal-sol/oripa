@@ -242,7 +242,7 @@ final class MemberRankMonthlyTest extends TestCase
         self::assertSame(1, $worker->run('worker-a', 1));
         self::assertSame(2, $worker->progress()['remaining']);
         DB::table('member_rank_promotion_jobs')->update([
-            'status' => 'processing', 'lease_owner' => str_repeat('a', 64), 'lease_expires_at' => now()->addSeconds(60),
+            'status' => 'processing', 'lease_owner' => str_repeat('a', 64), 'lease_expires_at' => now()->addSeconds(60)->toIso8601String(),
         ]);
         self::assertSame(0, $worker->run('worker-b', 1));
         $this->rankClock('2026-10-31T15:01:02Z');

@@ -12,11 +12,13 @@ use App\Domain\Point\Services\V2PointService;
 use App\Models\V2\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class AccountClosureTest extends TestCase
 {
     use \Tests\Support\MemberRankGachaFixture;
+    use \Tests\Support\TestsDatabaseTimeZones;
     protected function setUp(): void
     {
         parent::setUp();
@@ -134,8 +136,10 @@ final class AccountClosureTest extends TestCase
         self::assertDatabaseHas('wallets', ['user_id' => $user->id, 'free_balance' => 0]);
     }
 
-    public function test_financial_stop_retains_completion_and_does_not_change_other_user(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_financial_stop_retains_completion_and_does_not_change_other_user(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         $old = $this->user();
         $service = app(V2UserClosureService::class);
         $result = $service->closeLocked($old, 'admin', 'normal', (string) Str::uuid());

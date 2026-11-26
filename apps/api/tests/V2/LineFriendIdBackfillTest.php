@@ -9,11 +9,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 /** Committed synthetic fixture: HTTP must run outside a database transaction. */
 final class LineFriendIdBackfillTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     private int $bot;
     private string $actor;
     private string $subject;
@@ -70,11 +73,17 @@ final class LineFriendIdBackfillTest extends TestCase
             'https://api.line.me/v2/bot/followers/ids*' => $sequence]);
     }
 
-    public function test_all_pages_short_page_next_duplicates_encryption_and_rerun(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_all_pages_short_page_next_duplicates_encryption_and_rerun(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         $this->fake([[['userIds' => [$this->subject], 'next' => 'synthetic-next'], 200], [['userIds' => [$this->subject]], 200]]);
         $result = app(V2LineFriendIdBackfill::class)->execute($this->actor);
         self::assertSame('completed', $result['state']);
+        $run = DB::table('line_friend_id_runs')->where('id', $result['run'])->sole();
+        $this->assertStoredInstant(now(), $run->created_at);
+        $this->assertStoredInstant(now()->addDay(), $run->expires_at);
         self::assertSame(2, $result['pages']);
         self::assertSame(2, $result['fetched']);
         self::assertSame(1, $result['duplicates']);
@@ -184,12 +193,29 @@ final class LineFriendIdBackfillTest extends TestCase
         Http::assertNothingSent();
     }
 
+    #[DataProvider('databaseTimeZones')]
+    public function test_cleanup_at_the_run_expiration_boundary(string $zone): void
+    {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
+        $expires = now()->addDay();
+        $id = $this->stage('ready');
+        $service = app(V2LineFriendIdBackfill::class);
+        $this->travelTo($expires->copy()->subSecond());
+        $service->execute($this->actor, null, true);
+        self::assertSame('ready', DB::table('line_friend_id_runs')->where('id', $id)->value('state'));
+        $this->travelTo($expires);
+        $service->execute($this->actor, null, true);
+        self::assertSame('expired', DB::table('line_friend_id_runs')->where('id', $id)->value('state'));
+        Http::assertNothingSent();
+    }
+
     private function stage(string $state): string
     {
         $id = (string) Str::uuid();
         $revision = DB::table('line_bots')->where('id', $this->bot)->value('authentication_revision');
         DB::table('line_friend_id_runs')->insert(['id' => $id, 'actor_public_id' => $this->actor, 'line_bot_id' => $this->bot,
-            'authentication_revision' => $revision, 'state' => 'fetching', 'created_at' => now(), 'expires_at' => now()->addDay(), 'fetched' => 1, 'unique_count' => 1]);
+            'authentication_revision' => $revision, 'state' => 'fetching', 'created_at' => now()->toIso8601String(), 'expires_at' => now()->addDay()->toIso8601String(), 'fetched' => 1, 'unique_count' => 1]);
         DB::table('line_friend_id_staging')->insert(['run_id' => $id, 'subject_hash' => app(V2LineSubjectVault::class)->hashes($this->subject)[0],
             'subject_ciphertext' => Crypt::encryptString($this->subject), 'observed_at_ms' => now()->subHour()->getTimestampMs()]);
         if ($state !== 'fetching') DB::table('line_friend_id_runs')->where('id', $id)->update(['state' => $state]);

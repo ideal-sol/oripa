@@ -6,6 +6,7 @@ use App\Domain\Audit\V2\Services\V2AuditLogService;
 use App\Domain\Identity\Contracts\V2AdminAuthorizationContext;
 use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -89,7 +90,7 @@ final class V2LineDeliveryQuota
                 'usable_from' => $account === null || $account->halted || $account->authentication_revision !== $revision ? $month : $account->usable_from,
                 'halted' => false, 'halt_reason' => null, 'halted_at' => null, 'updated_at' => $now]);
             DB::table('line_quota_periods')->insert(['line_bot_id' => $botId, 'month' => $month, 'opening_used' => $used,
-                'approved_limit' => $limit, 'effective_limit' => $limit, 'evidence_id' => $evidenceId, 'verified_by_admin_id' => $context->adminId, ...($cut === null ? [] : ['baseline_cut_at' => $cut])]);
+                'approved_limit' => $limit, 'effective_limit' => $limit, 'evidence_id' => $evidenceId, 'verified_by_admin_id' => $context->adminId, ...($cut === null ? [] : ['baseline_cut_at' => V2DatabaseTimestamp::format($cut)])]);
             // Unresolved effects survive the retry window and every later month.
             foreach (DB::table('line_quota_charges as c')->join('line_delivery_batches as b', 'b.id', '=', 'c.batch_id')
                 ->where('c.line_bot_id', $botId)->where('c.state', 'unknown')->where('b.status', '<>', 'accepted')

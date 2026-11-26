@@ -18,10 +18,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\Support\MemberRankAccountingFixture;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class LineChatReceiverTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     use MemberRankAccountingFixture;
     private string $schema;
     private array $connection;
@@ -69,13 +73,17 @@ final class LineChatReceiverTest extends TestCase
         self::assertNull(DB::table('line_conversations')->value('user_id'));
         self::assertSame(0,DB::table('line_delivery_batches')->count()); Http::assertNothingSent();
     }
-    public function test_list_preview_is_bounded_and_unsend_never_decrypts_the_removed_body(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_list_preview_is_bounded_and_unsend_never_decrypts_the_removed_body(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         $event = $this->event(); $event['message']['text'] = str_repeat('あ', 100);
         $this->receive([$event]);
         $service = app(\App\Domain\Line\Services\V2LineChatAdmin::class);
         self::assertSame(str_repeat('あ', 80), $service->listing($this->context)['data'][0]['summary']);
         $this->receive([$this->unsend($event)]);
+        $this->assertStoredInstant(now(), DB::table('line_chat_messages')->value('read_at'));
         self::assertSame('取消済み', $service->listing($this->context)['data'][0]['summary']);
         self::assertNull(DB::table('line_chat_messages')->value('body_ciphertext'));
         Http::assertNothingSent();

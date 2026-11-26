@@ -181,6 +181,71 @@ test.beforeEach(async ({ page }) => {
   await installApi(page);
 });
 
+for (const timezoneId of ["UTC", "Asia/Tokyo"]) {
+  test.describe(`draft version in ${timezoneId}`, () => {
+    test.use({ timezoneId });
+
+    test("edits the publication period in Japan time", async ({ page }) => {
+      const original = { publish_start_at: "2026-11-30T14:58:47.000Z", publish_end_at: "2026-11-30T15:02:31.000Z" };
+      const writes: { publish_start_at: string; publish_end_at: string | null }[] = [];
+      const path = `/catalog/gachas/${gachaCode}/versions/${versionId}`;
+      await page.route("**/admin/api/v2/catalog/prizes?*", (route) => json(route, { items: [prize()], next_cursor: null }));
+      await page.route(`**/admin/api/v2${path}`, (route) => {
+        if (route.request().method() === "PUT") {
+          const { publish_start_at, publish_end_at } = route.request().postDataJSON();
+          writes.push({ publish_start_at, publish_end_at });
+        }
+        return json(route, { data: {
+          ...gacha().current_version, ...(writes.at(-1) ?? original), is_archived: false,
+          prizes: [{ prize: prize(), initial_inventory: 10, sort_order: 1 }],
+        }, request_id: uuid("9"), idempotent_replay: false });
+      });
+
+      await page.goto(path);
+      expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe(timezoneId);
+      const edit = page.getByRole("button", { name: "下書きを編集" });
+      const dialog = page.getByRole("dialog", { name: "下書きバージョンを編集" });
+      const start = dialog.getByLabel("開始日時（Asia/Tokyo）");
+      const end = dialog.getByLabel("終了日時（Asia/Tokyo）");
+      const save = dialog.getByRole("button", { name: "保存", exact: true });
+
+      await edit.click();
+      await expect(start).toHaveValue("2026-11-30T23:58");
+      await expect(end).toHaveValue("2026-12-01T00:02");
+      await dialog.getByLabel("タイトル").fill("時刻を維持して保存");
+      await save.click();
+      await expect(dialog).toHaveCount(0);
+      expect(writes).toEqual([original]);
+
+      await edit.click();
+      await start.fill("2026-12-01T00:01");
+      await end.fill("2026-12-01T00:01");
+      await save.click();
+      await expect(dialog.getByText("必須項目、公開期間、景品の重複と数量を確認してください。")).toBeVisible();
+      expect(writes).toHaveLength(1);
+      await end.fill("2026-12-01T18:00");
+      await save.click();
+      await expect(dialog).toHaveCount(0);
+      expect(writes[1]).toEqual({ publish_start_at: "2026-11-30T15:01:00.000Z", publish_end_at: "2026-12-01T09:00:00.000Z" });
+
+      await edit.click();
+      await end.fill("");
+      await save.click();
+      await expect(dialog).toHaveCount(0);
+      await edit.click();
+      await expect(start).toHaveValue("2026-12-01T00:01");
+      await expect(end).toHaveValue("");
+      await dialog.getByLabel("タイトル").fill("終了日時なしで保存");
+      await save.click();
+      await expect(dialog).toHaveCount(0);
+      expect(writes.slice(2)).toEqual([
+        { publish_start_at: "2026-11-30T15:01:00.000Z", publish_end_at: null },
+        { publish_start_at: "2026-11-30T15:01:00.000Z", publish_end_at: null },
+      ]);
+    });
+  });
+}
+
 test("canonical gacha edit uploads a file without banner dependencies", async ({ page }) => {
   const requests: string[] = [];
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
