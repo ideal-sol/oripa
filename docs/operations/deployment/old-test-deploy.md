@@ -2,6 +2,42 @@
 
 ## Simple deployment
 
+### One-time OLD Test DB session timezone maintenance
+
+Use `oldtest-deploy db-timezone-utc --prepare --session SESSION --platform-source PR@SHA --contract sha256:DIGEST`
+with the admitted API artifact. After the independent Human GO, run
+`oldtest-deploy db-timezone-utc --session SESSION`. Keep the proposed registry
+separate from the active registry until acceptance. The plan contains the four
+previous container IDs, image and configuration digests, the stopped SMS
+successor ID, retained recovery references, timer pins and expected final
+registry digest. The only environment change is adding `DB_TIMEZONE=UTC`.
+Use the admitted API image for member rank and preserve the independent SMS image.
+
+The operator enrolls five fixed private bindings. `utc-preflight` returns stable
+identity facts after checking the original worker states, an idle promotion and
+delivery window, private-first launch definitions, SMS startup verifier and
+rollback assets. It rejects in-flight or ambiguous deliveries. `utc-security`
+uses the reviewed `utc_security` authority to project each effect into the native
+Gate. Keep the local SMS exception specific to its retained image and bind its
+successor ID and both configuration digests into the request. `utc-observe`
+checks the selected role, including the new API pins on D4 and UnivaPay and both
+F2B consumers. Return after only for the full active and healthy target.
+`utc-switch` drains and switches one selected role under the shared lock and
+fresh receipt. Its fixed site procedure must call its guard immediately before
+each effect, preserve the original SMS and rank containers, and leave all
+application switches intact. `utc-finish` verifies HTTP, Basic/TLS, timer
+references, persistent startup definitions and worker states. The entry compares
+the staged `utc-registration.json` against the active registry, permits only
+the four exact container fingerprints and the API Compose fingerprint, and
+atomically publishes the preapproved bytes.
+A fresh read verifies the published fingerprints, retained identities and actual
+Laravel/PostgreSQL sessions. Preserve the original container and authority for
+recovery. Do not replay deliveries or repair stored timestamps on rollback.
+Missing host enrollment prevents plan creation. A source merge or a previously
+issued verification receipt cannot activate this maintenance operation.
+
+### Ordinary feature deployment
+
 Phase 2 introduces a source entry for OLD Test. Canonical governs every live
 deployment until explicit adoption. During coexistence both entries use the
 existing exclusive deployment lock. Commercial Production retains its own

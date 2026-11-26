@@ -145,6 +145,120 @@ class Fixture:
             raise AssertionError(op)
 
 
+class TimezoneChangeTest(unittest.TestCase):
+    def setUp(self):
+        from scripts.ops import old_test_timezone as utc
+        self.utc = utc
+        self.plan = {"session": "TEST-UTC", "sources": {source.PLATFORM: {"sha": SHA}},
+                     "artifact": {"id": 7, "digest": NEW}, "contract": NEW,
+                     "facts": {"targets": {r: {"image": NEW} for r in utc.ROLES},
+                               "authority": OLD, "sms_successor": "4"*64, "registration": NEW}}
+        self.go = {"issued": 10, "expires": 100}
+        self.state = dict.fromkeys(utc.ROLES, "before")
+        self.journal = {"plan": deploy.digest(self.plan)}
+        self.calls = []
+        self.clock = mock.patch.object(utc.time, "time", return_value=20)
+        self.clock.start()
+        self.addCleanup(self.clock.stop)
+
+    def call(self, op, role, data):
+        self.calls.append((op, role))
+        if op == "utc-security":
+            return dict(result="PASS", binding=data, measured=20, expires=80, receipt_digest=NEW)
+        if op == "utc-observe":
+            return self.state[role]
+        if op == "utc-switch":
+            self.assertEqual(self.journal["intent"], role)
+            self.state[role] = "after"
+
+    def run_change(self, handler=None):
+        self.utc.transition(self.plan, self.go, handler or self.call, lambda: None, self.journal, lambda j: None)
+
+    def test_all_native_grants_precede_first_effect_and_success_is_reused(self):
+        self.run_change()
+        self.assertEqual(self.calls[:4], [("utc-security", r) for r in self.utc.ROLES])
+        self.assertEqual(self.journal["completed"], list(self.utc.ROLES))
+        self.calls.clear()
+        self.run_change()
+        self.assertFalse(any(op == "utc-switch" for op, _ in self.calls))
+
+    def test_sms_grant_cannot_be_replaced_by_api_grant(self):
+        def changed(op, role, data):
+            result = self.call(op, role, data)
+            if op == "utc-security" and role == "sms":
+                result["binding"] = dict(data, target="api")
+            return result
+        with self.assertRaisesRegex(source.Hold, "receipt_invalid_sms"):
+            self.run_change(changed)
+        self.assertFalse(any(op == "utc-switch" for op, _ in self.calls))
+
+    def test_expired_receipt_and_future_or_wrong_plan_approval(self):
+        expired = dict(result="PASS", binding={}, measured=10, expires=20, receipt_digest=NEW)
+        with self.assertRaisesRegex(source.Hold, "receipt_invalid"):
+            self.utc.validate_receipt(dict(expired, binding={"target": "sms"}), {"target": "sms"}, self.go)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(deploy, "trusted"):
+            folder = Path(directory)
+            go = dict(self.go, session=self.plan["session"], decision="GO", plan=deploy.digest(self.plan))
+            for changed in (dict(go, issued=30), dict(go, plan=OLD), dict(go, expires=20)):
+                (folder / "go.json").write_text(json.dumps(changed))
+                with self.assertRaisesRegex(source.Hold, "exact_human_go"):
+                    self.utc.verify_go(folder, self.plan, lambda: None)
+
+    def test_registration_forbids_extra_operations_and_wrong_digest(self):
+        import copy
+        registry = {"operations": {"utc-switch": "original"}, "site": {"containers": {
+            r: {"configuration": OLD} for r in self.utc.ROLES}}}
+        registry["site"]["containers"]["api"]["compose"] = OLD
+        proposed = copy.deepcopy(registry)
+        for row in proposed["site"]["containers"].values():
+            row["configuration"] = NEW
+        proposed["site"]["containers"]["api"]["compose"] = NEW
+        facts = {"targets": {r: {"after": NEW} for r in self.utc.ROLES}}
+        host = mock.Mock()
+        def check(value):
+            raw = json.dumps(value, sort_keys=True).encode()
+            host.checked_file.return_value = raw
+            facts["registration"] = "sha256:" + hashlib.sha256(raw).hexdigest()
+            return self.utc.registration(Path("/fixture"), registry, facts, host)
+        self.assertEqual(check(proposed), proposed)
+        proposed["operations"]["utc-switch"] = "other"
+        with self.assertRaisesRegex(source.Hold, "registration_exceeds_scope"):
+            check(proposed)
+        facts["registration"] = OLD
+        with self.assertRaisesRegex(source.Hold, "registration_not_sealed"):
+            self.utc.registration(Path("/fixture"), registry, facts, host)
+
+    def test_ambiguous_effect_is_not_dispatched_again(self):
+        self.journal["intent"] = "api"
+        with self.assertRaisesRegex(source.Hold, "unresolved_intent_api"):
+            self.run_change()
+        self.state["api"] = "after"
+        self.run_change()
+        self.assertNotIn(("utc-switch", "api"), self.calls)
+
+    def test_utc_projection_preserves_other_config_and_rejects_an_unexpected_baseline(self):
+        obj = {"Config": {"Env": ["APP_TIMEZONE=Asia/Tokyo"]}}
+        new = self.utc.projected_configuration(obj, lambda c: c)
+        self.assertEqual(new["Config"]["Env"], ["APP_TIMEZONE=Asia/Tokyo", "DB_TIMEZONE=UTC"])
+        self.assertEqual(obj["Config"]["Env"], ["APP_TIMEZONE=Asia/Tokyo"])
+        with self.assertRaisesRegex(source.Hold, "previous_db_timezone"):
+            self.utc.projected_configuration(new, lambda c: c)
+
+    def test_successor_identity_and_host_config_are_pinned_before_go(self):
+        current = {"Id": "1"*64, "Image": OLD, "Config": {"Hostname": "1"*12, "Env": ["A=1"]},
+                   "HostConfig": {"NetworkMode": "private", "Privileged": False}, "Mounts": []}
+        staged = {**current, "Id": "2"*64, "State": {"Status": "created", "Running": False},
+                  "Config": {"Hostname": "2"*12, "Env": ["A=1", "DB_TIMEZONE=UTC"]},
+                  "NetworkSettings": {"Networks": {"private": {}}}}
+        self.utc.verify_sms_successor(current, staged, staged["Id"])
+        for field, value in [("Config", dict(staged["Config"], Env=["A=2", "DB_TIMEZONE=UTC"])),
+                             ("HostConfig", dict(staged["HostConfig"], Privileged=True)),
+                             ("State", {"Running": True, "Status": "running"}),
+                             ("Image", NEW), ("Id", "3"*64)]:
+            with self.subTest(field=field), self.assertRaises(source.Hold):
+                self.utc.verify_sms_successor(current, dict(staged, **{field: value}), staged["Id"])
+
+
 class SimpleDeploymentTest(unittest.TestCase):
     def setUp(self):
         block = mock.patch("subprocess.run", side_effect=AssertionError("unexpected live command"))

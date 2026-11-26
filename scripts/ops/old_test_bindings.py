@@ -226,6 +226,11 @@ def switch_binding(plan, target, data, guard):
     return sf.switch_binding(plan, target, data, guard)
 
 
+def utc_security(plan, target, data, guard):
+    import old_test_timezone as utc
+    return utc.issue_request(plan, target, data, guard, host)
+
+
 def security(plan, target, data, guard):
     if target == "admin":
         return admin_gate.verify(plan, target, data, guard)

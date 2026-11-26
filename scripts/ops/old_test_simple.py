@@ -960,7 +960,10 @@ def main(argv=None):
     parser.add_argument("--contract", metavar="sha256:DIGEST")
     parser.add_argument("--migration", action="append", default=[], metavar="FILE.php")
     args = parser.parse_args(argv)
-    targets = selection(args.targets)
+    utc = args.targets == ["db-timezone-utc"]
+    targets = [] if utc else selection(args.targets)
+    if utc:
+        require(not args.migration and not args.storefront_source, "utc_scope_is_fixed")
     require(SESSION.fullmatch(args.session), "invalid_session")
     installed_entry()
     folder = SESSIONS / args.session
@@ -968,6 +971,11 @@ def main(argv=None):
         trusted(directory, private=directory == SESSIONS, directory=True)
     if args.prepare:
         folder.mkdir(mode=0o700, exist_ok=True)
+    if utc:
+        # The installed CLI runs standalone with the protected scripts directory on sys.path.
+        import old_test_host as host
+        from old_test_timezone import entry
+        return entry(args, folder, host)
     with runtime_lock(folder, session_directory=True) as check, contextlib.ExitStack() as runtime:
         def enter_runtime():
             locked = runtime.enter_context(runtime_lock())
