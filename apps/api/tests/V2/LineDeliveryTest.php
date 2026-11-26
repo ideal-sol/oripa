@@ -13,10 +13,13 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class LineDeliveryTest extends TestCase
 {
+    use \Tests\Support\TestsDatabaseTimeZones;
+
     private object $bot;
     private string $schema;
     private array $originalConnection;
@@ -103,6 +106,23 @@ final class LineDeliveryTest extends TestCase
         DB::statement('SET search_path TO '.$this->schema.', pg_catalog');
     }
 
+    #[DataProvider('databaseTimeZones')]
+    public function test_resolver_starts_at_the_scheduled_second(string $zone): void
+    {
+        $this->assertDatabaseTimeZone($zone);
+        $this->clockAt('2026-11-30T23:59:58+09:00');
+        $this->newBot(10);
+        $this->quotaHttp(10, 0);
+        $id = $this->scheduled();
+        DB::table('line_deliveries')->where('id', $id)->update(['scheduled_at' => '2026-11-30T23:59:59+09:00']);
+        $service = app(V2LineDeliveryService::class);
+        $service->resolve($id);
+        self::assertSame('scheduled', DB::table('line_deliveries')->where('id', $id)->value('status'));
+        $this->clockAt('2026-11-30T23:59:59+09:00');
+        $service->resolve($id);
+        self::assertSame('completed', DB::table('line_deliveries')->where('id', $id)->value('status'));
+    }
+
     public function test_quota_reflected_and_lagging_usage_are_not_added_twice(): void
     {
         $this->newBot(200);
@@ -150,7 +170,7 @@ final class LineDeliveryTest extends TestCase
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame('unknown', DB::table('line_quota_charges')->where('batch_id', $id)->value('state'));
         self::assertSame(1, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
-        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame('accepted', DB::table('line_quota_charges')->where('batch_id', $id)->value('state'));
         self::assertSame(1, app(V2LineDeliveryQuota::class)->reserved($this->bot->id));
@@ -283,7 +303,7 @@ final class LineDeliveryTest extends TestCase
         DB::table('line_delivery_batches')->insert(['public_id' => (string) Str::uuid(), 'line_bot_id' => $this->bot->id,
             'authentication_revision' => 1, 'category' => 'transactional', 'method' => 'push', 'source_type' => 'automated',
             'source_key' => (string) Str::uuid(), 'retry_key' => (string) Str::uuid(), 'messages_ciphertext' => Crypt::encryptString('synthetic'),
-            'payload_ciphertext' => Crypt::encryptString('legacy'), 'first_attempted_at' => now(), 'not_before' => now(), 'status' => 'unknown', 'attempts' => 1]);
+            'payload_ciphertext' => Crypt::encryptString('legacy'), 'first_attempted_at' => now()->toIso8601String(), 'not_before' => now()->toIso8601String(), 'status' => 'unknown', 'attempts' => 1]);
         try { $this->baseline(1, 200); self::fail('Legacy exposure adopted without proof'); }
         catch (\RuntimeException $e) { self::assertStringContainsString('Unaccounted', $e->getMessage()); }
         self::assertFalse(DB::table('line_quota_accounts')->where('line_bot_id', $this->bot->id)->exists());
@@ -494,7 +514,7 @@ final class LineDeliveryTest extends TestCase
         DB::table('line_delivery_batches')->insert(['public_id'=>(string)Str::uuid(),'line_bot_id'=>$this->bot->id,'authentication_revision'=>1,
             'category'=>'transactional','method'=>'push','source_type'=>'automated','source_key'=>(string)Str::uuid(),'retry_key'=>(string)Str::uuid(),
             'messages_ciphertext'=>Crypt::encryptString('synthetic'),'payload_ciphertext'=>Crypt::encryptString('legacy'),
-            'first_attempted_at'=>now(),'not_before'=>now(),'status'=>'unknown','attempts'=>1]);
+            'first_attempted_at'=>now()->toIso8601String(),'not_before'=>now()->toIso8601String(),'status'=>'unknown','attempts'=>1]);
         self::assertSame(0,app(V2LineDeliveryQuota::class)->remaining($this->bot));
         self::assertSame('initial_history_requires_reconciliation',DB::table('line_quota_accounts')->where('line_bot_id',$this->bot->id)->value('halt_reason'));
         self::assertFalse(DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->exists());
@@ -584,7 +604,7 @@ final class LineDeliveryTest extends TestCase
         });
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame('retrying', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
-        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame($requests[0], $requests[1]);
         $b = DB::table('line_delivery_batches')->where('id', $id)->first();
@@ -624,7 +644,7 @@ final class LineDeliveryTest extends TestCase
         $this->fake([401, 0, 409], function ($r) use (&$requests): void { $requests[] = [$r->body(), $r->header('X-Line-Retry-Key')]; });
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame('retrying', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
-        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertCount(3, $requests);
         self::assertSame($requests[0], $requests[1]);
@@ -647,7 +667,7 @@ final class LineDeliveryTest extends TestCase
         } finally {
             DB::unprepared('DROP TRIGGER d3_test_commit_failure ON line_delivery_batches; DROP FUNCTION d3_test_commit_failure();');
         }
-        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertCount(2, $requests);
         self::assertSame($requests[0], $requests[1]);
@@ -690,7 +710,7 @@ final class LineDeliveryTest extends TestCase
         catch (\PDOException) { self::assertTrue($released); }
         DB::purge('pgsql');
         self::assertSame('sending', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
-        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame($requests[0], $requests[1]);
         self::assertSame('accepted', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
@@ -755,10 +775,10 @@ final class LineDeliveryTest extends TestCase
         $this->fake([500, 200], function ($r) use (&$bodies): void { $bodies[] = $r->body(); });
         app(V2LineDeliverySender::class)->send($id);
         DB::table('users')->update(['display_name' => 'Changed synthetic name']);
-        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond(), 'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->addMinute()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()->toIso8601String(), 'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->addMinute()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertCount(1, $bodies);
-        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['lease_until' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame($bodies[0], $bodies[1]);
         self::assertStringContainsString('Original synthetic name', $bodies[1]);
@@ -768,8 +788,8 @@ final class LineDeliveryTest extends TestCase
     {
         $id = $this->batch(true); $key = DB::table('line_delivery_batches')->where('id', $id)->value('retry_key');
         DB::table('line_delivery_batches')->where('id', $id)->update(['status' => 'sending', 'attempts' => 1,
-            'payload_ciphertext' => Crypt::encryptString('synthetic expired envelope'), 'first_attempted_at' => now()->subHours(23)->subSecond(),
-            'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->subSecond()]);
+            'payload_ciphertext' => Crypt::encryptString('synthetic expired envelope'), 'first_attempted_at' => now()->subHours(23)->subSecond()->toIso8601String(),
+            'lease_owner' => (string) Str::uuid(), 'lease_until' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertSame('unknown', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
         self::assertSame($key, DB::table('line_delivery_batches')->where('id', $id)->value('retry_key'));
@@ -783,7 +803,7 @@ final class LineDeliveryTest extends TestCase
         app(V2LineDeliverySender::class)->send($id);
         $batch = DB::table('line_delivery_batches')->where('id', $id)->first();
         foreach ([['retry_key' => (string) Str::uuid()], ['payload_ciphertext' => Crypt::encryptString('changed')],
-            ['first_attempted_at' => now()->addMinute()], ['line_bot_id' => $batch->line_bot_id + 1]] as $change) {
+            ['first_attempted_at' => now()->addMinute()->toIso8601String()], ['line_bot_id' => $batch->line_bot_id + 1]] as $change) {
             try {
                 DB::transaction(fn () => DB::table('line_delivery_batches')->where('id', $id)->update($change));
                 self::fail('Frozen request was mutable.');
@@ -791,7 +811,7 @@ final class LineDeliveryTest extends TestCase
         }
         $user = DB::table('line_delivery_recipients')->where('batch_id', $id)->value('user_id');
         DB::table('users')->where('id', $user)->update(['state' => 'suspended']);
-        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()]);
+        DB::table('line_delivery_batches')->where('id', $id)->update(['not_before' => now()->subSecond()->toIso8601String()]);
         app(V2LineDeliverySender::class)->send($id);
         self::assertCount(1, $requests);
         self::assertSame('unknown', DB::table('line_delivery_batches')->where('id', $id)->value('status'));
@@ -802,7 +822,7 @@ final class LineDeliveryTest extends TestCase
     {
         return DB::table('line_deliveries')->insertGetId(['public_id' => (string) Str::uuid(), 'category' => 'promotional',
             'recipient_group' => 'all_friends', 'messages_ciphertext' => Crypt::encryptString(json_encode([['type' => 'text', 'text' => 'Synthetic broadcast']])),
-            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing), 'status' => 'scheduled', 'scheduled_at' => now()->subMinute()]);
+            'pacing' => json_encode(new \App\Domain\Line\ValueObjects\V2LineDeliveryPacing), 'status' => 'scheduled', 'scheduled_at' => now()->subMinute()->toIso8601String()]);
     }
 
     private function quotaGetCount(): int

@@ -28,10 +28,13 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use SensitiveParameter;
 use Tests\Support\V2TimestampFixture;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class LineMessagingVerticalSliceTest extends TestCase
 {
+    use \Tests\Support\TestsDatabaseTimeZones;
+
     private FakeLineMessagingTransport $messaging;
 
     protected function setUp(): void
@@ -600,6 +603,42 @@ final class LineMessagingVerticalSliceTest extends TestCase
             ->assertJsonPath('code', 'LINE_MESSAGING_UNAVAILABLE');
         self::assertCount(0, $this->messaging->sent);
         self::assertSame(0, LineWebhookEvent::query()->count());
+    }
+
+    #[DataProvider('databaseTimeZones')]
+    public function test_reply_suppression_includes_the_supersession_second(string $zone): void
+    {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
+        $old = $this->user('old-line@example.test');
+        $subject = 'superseded-subject';
+        $this->lineAccount($old, $subject);
+        $this->postWebhook($this->followEvent('before-closure', $subject, 'first'))->assertOk();
+        self::assertCount(1, $this->messaging->sent);
+        app(\App\Domain\Identity\Services\V2UserClosureService::class)->closeLocked($old, 'admin', 'normal', (string) Str::uuid7());
+        $this->travel(1)->seconds();
+        ExternalIdentityAccount::query()->where('user_id', $old->id)->sole()
+            ->forceFill(['superseded_at' => now(), 'revoked_at' => now()])->save();
+        $this->lineAccount($this->user('new-line@example.test'), $subject);
+        $held = $this->followEvent('at-supersession', $subject, 'held');
+        $response = $this->postWebhook($held);
+        $event = LineWebhookEvent::query()->orderByDesc('id')->firstOrFail();
+        // The original database guard rejects pending -> skipped. Permit its
+        // observed fail-closed result as well as a durably recorded skip.
+        self::assertContains(
+            [$response->getStatusCode(), $event->reply_status],
+            [[503, 'pending'], [200, 'skipped']]
+        );
+        self::assertNull($event->reply_attempted_at);
+        $this->postWebhook($held)->assertOk();
+        self::assertSame(2, LineWebhookEvent::query()->count());
+        self::assertCount(1, $this->messaging->sent);
+        $previous = DB::table('line_friendships')->where('user_id', $old->id)->sole();
+        $this->assertStoredInstant(now(), $previous->superseded_at);
+        $this->travel(1)->seconds();
+        $this->postWebhook($this->followEvent('after-supersession', $subject, 'later'))->assertOk();
+        self::assertCount(2, $this->messaging->sent);
+        self::assertSame('later', $this->messaging->sent[1][0]);
     }
 
     public function test_reply_failure_keeps_committed_follow(): void

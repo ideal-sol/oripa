@@ -29,10 +29,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\Support\FakeLineOidcTransport;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class LineLoginVerticalSliceTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     private FakeLineOidcTransport $provider;
     private string $callbackUrl =
         'https://storefront.example.test/api/v2/auth/external/line/callback';
@@ -43,7 +47,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         config([
             'app.key' => 'base64:'.base64_encode(str_repeat('k', 32)),
             'cache.default' => 'array',
-            'database.connections.pgsql.timezone' => 'UTC',
+            'database.connections.pgsql.timezone' => $this->providedData()['zone'] ?? 'UTC',
             'v2_identity.origins.user' => 'https://storefront.example.test',
             'v2_identity.sms_verification.phone_hmac_key' =>
                 'base64:'.base64_encode(str_repeat('p', 32)),
@@ -708,8 +712,11 @@ final class LineLoginVerticalSliceTest extends TestCase
      *   query: array<string, string>
      * }
      */
-    public function test_normal_closure_allows_new_line_identity_and_later_financial_stop_keeps_new_login(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_normal_closure_allows_new_line_identity_and_later_financial_stop_keeps_new_login(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         config(['v2_identity.external_identity.line.email_scope_enabled' => true]);
         $first = $this->start('login');
         $this->provider->claims($first['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');
@@ -720,7 +727,7 @@ final class LineLoginVerticalSliceTest extends TestCase
         $new = $this->completeLine($second, 'closure-second-code')['user'];
         self::assertNotSame($old->id, $new->id);
         self::assertSame(2, ExternalIdentityAccount::query()->where('provider', 'line')->count());
-        self::assertNotNull(ExternalIdentityAccount::query()->where('user_id', $old->id)->value('superseded_at'));
+        self::assertTrue(now()->eq(ExternalIdentityAccount::query()->where('user_id', $old->id)->sole()->superseded_at));
         app(\App\Domain\Identity\Services\V2UserClosureService::class)->financialStop($old->id);
         $third = $this->start('login');
         $this->provider->claims($third['query']['nonce'], 'closure-line-subject', 'closure-line@example.test');

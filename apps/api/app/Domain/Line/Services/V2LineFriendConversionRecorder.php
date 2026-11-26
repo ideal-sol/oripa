@@ -2,6 +2,7 @@
 
 namespace App\Domain\Line\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -92,8 +93,8 @@ final class V2LineFriendConversionRecorder
             'source' => $source,
             'suppressed' => $reason !== null,
             'suppressed_reason' => $reason,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => V2DatabaseTimestamp::format(now()),
+            'updated_at' => V2DatabaseTimestamp::format(now()),
         ]);
     }
 }

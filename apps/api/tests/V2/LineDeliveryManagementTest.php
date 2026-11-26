@@ -18,10 +18,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\Support\MemberRankAccountingFixture;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class LineDeliveryManagementTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     use MemberRankAccountingFixture;
     private string $schema;
     private array $connection;
@@ -52,8 +56,10 @@ final class LineDeliveryManagementTest extends TestCase
             'messages'=>[['type'=>'text','text'=>'Hello %username%']],'pacing'=>['push_every'=>10,'push_wait_seconds'=>5,'multicast_wait_seconds'=>0],
             'mode'=>'draft','scheduled_at'=>null,'expected_revision'=>0,'request_key'=>(string)Str::uuid()];
     }
-    public function test_quota_view_initializes_estimated_usage_and_distinguishes_failure_and_halt(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_quota_view_initializes_estimated_usage_and_distinguishes_failure_and_halt(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         $service=app(V2LineDeliveryAdmin::class);
         self::assertSame('initialization_pending',$service->quota()['automation_state']);
         Http::fake(['*'=>Http::response([],503)]);
@@ -67,17 +73,30 @@ final class LineDeliveryManagementTest extends TestCase
         self::assertSame(300,$state['periods'][0]['opening_used']); self::assertSame(4700,$state['periods'][0]['remaining']);
         self::assertNotNull($state['last_checked_at']);
         $input=$this->input(); $input['mode']='scheduled'; $input['scheduled_at']=now()->addHour()->toIso8601String();
-        self::assertSame('scheduled',$service->save($this->context,null,$input)['data']['status']);
+        $scheduled = $service->save($this->context,null,$input)['data'];
+        self::assertSame('scheduled', $scheduled['status']);
+        $due = CarbonImmutable::parse($input['scheduled_at']);
+        $this->assertStoredInstant($due, $scheduled['scheduled_at']);
+        $input['scheduled_at'] = $due->utc()->toIso8601String();
+        self::assertSame($scheduled['id'], $service->save($this->context,null,$input)['data']['id']);
+        $id = DB::table('line_deliveries')->where('public_id',$scheduled['id'])->value('id');
+        app(V2LineDeliveryService::class)->resolve($id);
+        self::assertSame('scheduled', DB::table('line_deliveries')->where('id',$id)->value('status'));
         $service->quotaWrite($this->context,'halt',['bot_id'=>$this->bot->public_id,'authentication_revision'=>1,'evidence_id'=>(string)Str::uuid()]);
         self::assertSame('halted',$service->quota(true)['automation_state']);
         self::assertSame(300,DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->value('opening_used'));
         Http::assertNotSent(fn ($request)=>preg_match('~/message/(push|multicast)$~',$request->url())===1);
     }
-    public function test_create_edit_duplicate_cancel_and_stale_revision_and_no_send(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_create_edit_duplicate_cancel_and_stale_revision_and_no_send(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         $s=app(V2LineDeliveryAdmin::class); $s->authorize($this->context,true); $input=$this->input();
         $a=$s->save($this->context,null,$input); $id=$a['data']['id']; self::assertSame('draft',$a['data']['status']);
         self::assertSame($id,$s->save($this->context,null,$input)['data']['id']);
+        self::assertNull($a['data']['scheduled_at']);
+        $this->assertStoredInstant(now(), DB::table('line_deliveries')->where('public_id',$id)->value('updated_at'));
         $input['expected_revision']=1; $input['segment']=['points_min'=>1];
         self::assertSame(2,$s->save($this->context,$id,$input)['data']['revision']);
         try { $s->save($this->context,$id,$input); self::fail('Stale revision accepted'); } catch(\RuntimeException $e) { self::assertStringContainsString('conflict',$e->getMessage()); }
@@ -131,31 +150,65 @@ final class LineDeliveryManagementTest extends TestCase
         self::assertCount(0,$s->filter([$pair],['purchase_min'=>1],CarbonImmutable::now()));
     }
 
-    public function test_preview_and_resolve_share_segment_and_now_enqueues_without_delivery_http(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_preview_and_resolve_share_segment_and_now_enqueues_without_delivery_http(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         $user=$this->rankUser();
         $registry=app(\App\Domain\Line\Services\V2LineRecoveredFriendRegistry::class);
         foreach(['a','b'] as $letter) $registry->record($this->bot->id,1,'U'.str_repeat($letter,32),now()->getTimestampMs());
         \App\Models\V2\ExternalIdentityAccount::query()->create(['user_id'=>$user->id,'provider'=>'line','issuer'=>'https://access.line.me',
             'subject_hash'=>DB::table('line_recovered_friends')->orderBy('id')->value('subject_hash'),'linked_at'=>now(),'last_authenticated_at'=>now()]);
         $s=app(V2LineDeliveryAdmin::class); $q=app(\App\Domain\Line\Services\V2LineDeliveryQuota::class);
+        $cut = now()->subSecond()->startOfSecond();
         $s->quotaWrite($this->context,'baseline',['bot_id'=>$this->bot->public_id,'authentication_revision'=>1,'month'=>$q->month(CarbonImmutable::now()),
-            'opening_used'=>0,'approved_limit'=>100,'evidence_id'=>(string)Str::uuid(),'verified_at'=>now()->subSecond()->toIso8601String(),
+            'opening_used'=>0,'approved_limit'=>100,'evidence_id'=>(string)Str::uuid(),'verified_at'=>$cut->toIso8601String(),
             'confirmation'=>'課金対象送信の一元管理・正確な基準値・未確定の外部送信なしを確認しました']);
+        $this->assertStoredInstant($cut, DB::table('line_quota_periods')->value('baseline_cut_at'));
         $input=$this->input(); $input['segment']=['points_min'=>0]; $input['mode']='now';
         Http::fake(['*/oauth2/v3/token'=>Http::response(['access_token'=>'synthetic-token','expires_in'=>900]),
             '*/quota'=>Http::response(['type'=>'limited','value'=>100]),'*/consumption'=>Http::response(['totalUsage'=>0])]);
         $preview=$s->preview(array_intersect_key($input,array_flip(['category','recipient_group','segment','messages','pacing'])));
         self::assertSame(1,$preview['recipient_count']);
+        $this->freezeSecond();
         $saved=$s->save($this->context,null,$input); self::assertSame('scheduled',$saved['data']['status']);
+        $legacyHash = hash('sha256', json_encode([
+            $input['category'], $input['recipient_group'], $input['messages'], now()->toIso8601String(),
+            $input['pacing'], $input['title'], $input['segment'],
+        ], JSON_THROW_ON_ERROR));
+        self::assertSame($legacyHash, DB::table('line_deliveries')->where('public_id',$saved['data']['id'])->value('create_request_hash'));
+        $this->travel(1)->seconds();
         self::assertSame($saved['data']['id'],$s->save($this->context,null,$input)['data']['id']);
         Http::assertNotSent(fn($r)=>preg_match('~/message/(push|multicast)$~',$r->url())===1);
         $id=DB::table('line_deliveries')->where('public_id',$saved['data']['id'])->value('id');
+        try {
+            $s->save($this->context,null,array_replace($input,['title'=>'Different title']));
+            self::fail('Conflicting creation key was accepted');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('request conflict', $exception->getMessage());
+        }
         app(V2LineDeliveryService::class)->resolve($id);
+        app(V2LineDeliveryService::class)->resolve($id);
+        self::assertSame(1,DB::table('line_delivery_batches')->count());
         self::assertSame($preview['recipient_count'],DB::table('line_delivery_recipients')->count());
         self::assertSame($user->id,DB::table('line_delivery_recipients')->value('user_id'));
         self::assertSame(1,$q->reserved($this->bot->id));
         self::assertNotNull($s->detail($saved['data']['id'])['estimated_dispatch_end']);
+        $legacyInput = array_replace($input, ['request_key' => (string) Str::uuid()]);
+        $legacyId = $s->save($this->context, null, $legacyInput)['data']['id'];
+        $legacyRow = DB::table('line_deliveries')->where('public_id', $legacyId);
+        $originalHash = (clone $legacyRow)->value('create_request_hash');
+        $shifted = CarbonImmutable::now()->shiftTimezone('UTC');
+        // A pre-fix UTC writer bound the application wall time without its offset.
+        (clone $legacyRow)->update(['scheduled_at' => $shifted->toIso8601String()]);
+        $this->travel(1)->seconds();
+        self::assertSame($legacyId, $s->save($this->context, null, $legacyInput)['data']['id']);
+        $replayed = $legacyRow->sole();
+        self::assertSame($originalHash, $replayed->create_request_hash);
+        $this->assertStoredInstant($shifted, $replayed->scheduled_at);
+        self::assertSame(2, DB::table('line_deliveries')->count());
+        self::assertSame(1, DB::table('line_delivery_batches')->count());
+        self::assertSame(1, $q->reserved($this->bot->id));
         try { DB::table('line_quota_periods')->where('line_bot_id',$this->bot->id)->update(['baseline_cut_at'=>now()->subHour()]); self::fail('Baseline evidence rewritten'); }
         catch (\Illuminate\Database\QueryException) { self::assertTrue(true); }
         Http::assertNotSent(fn($r)=>preg_match('~/message/(push|multicast)$~',$r->url())===1);
@@ -169,8 +222,10 @@ final class LineDeliveryManagementTest extends TestCase
         $input['scheduled_at']=now()->addHour()->toIso8601String();
         $this->expectException(\RuntimeException::class); $s->save($this->context,null,$input);
     }
-    public function test_media_manifest_is_verified_and_immutable_and_duplicate_finalize_rejected(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_media_manifest_is_verified_and_immutable_and_duplicate_finalize_rejected(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         config(['v2_assets.public_base_url'=>'https://cdn.example.test']);
         $unverified='https://cdn.example.test/line-delivery/'.Str::uuid().'/original';
         try {
@@ -186,13 +241,20 @@ final class LineDeliveryManagementTest extends TestCase
             public function download(array $f,string $p): void { file_put_contents($p,$this->bytes); }
             public function publish(string $key,string $path,string $mime): void { if(isset($this->published[$key])) throw new \RuntimeException; $this->published[$key]=hash_file('sha256',$path); }
         }; app()->instance(V2LineMediaStorage::class,$storage);
+        $this->freezeSecond();
         $s=app(V2LineMediaManager::class); $i=$s->intent($this->context,['kind'=>'imagemap','original'=>['mime'=>'image/png','bytes'=>strlen($bytes),'sha256'=>hash('sha256',$bytes)]]);
-        $a=$s->finalize($this->context,$i['id']); self::assertCount(5,$storage->published);
+        $expires = CarbonImmutable::parse($i['expires_at']);
+        self::assertTrue(now()->addMinutes(5)->eq($expires));
+        $this->assertStoredInstant($expires, DB::table('line_media_intents')->where('id',$i['id'])->value('expires_at'));
+        $this->travelTo($expires->subSecond());
+        $a=$s->finalize($this->context,$i['id']);
+        $this->assertStoredInstant($expires->subSecond(), DB::table('line_media_intents')->where('id',$i['id'])->value('finalized_at'));
+        self::assertCount(5,$storage->published);
         app(V2LineDeliveryMedia::class)->assertVerified(['type'=>'imagemap','baseUrl'=>$a['original_url'],'height'=>520,'layout'=>'full']);
         try { DB::table('line_media_assets')->where('id',$i['id'])->delete(); self::fail('Verified asset deleted'); } catch(\Illuminate\Database\QueryException) { self::assertTrue(true); }
         try { DB::statement('TRUNCATE line_media_assets'); self::fail('Verified assets truncated'); } catch(\Illuminate\Database\QueryException) { self::assertTrue(true); }
         $expired=$s->intent($this->context,['kind'=>'image','original'=>['mime'=>'image/png','bytes'=>strlen($bytes),'sha256'=>hash('sha256',$bytes)]]);
-        Carbon::setTestNow(now()->addMinutes(6)); CarbonImmutable::setTestNow(Carbon::now());
+        $this->travelTo(CarbonImmutable::parse($expired['expires_at']));
         DB::table('admin_sessions')->where('admin_id',$this->context->adminId)->update(['mfa_verified_at'=>now()]);
         try { $s->finalize($this->context,$expired['id']); self::fail('Expired upload finalized'); } catch(\InvalidArgumentException) { self::assertTrue(true); }
         Carbon::setTestNow(); CarbonImmutable::setTestNow();

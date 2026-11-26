@@ -47,13 +47,28 @@ final class V2LineDeliveryAdmin
         $d=$publicId===null ? null : DB::table('line_deliveries')->where('public_id',$publicId)->firstOrFail();
         if ($d===null && $input['expected_revision']!==0) $this->invalid();
         $when=match($input['mode']) {'draft'=>null,'now'=>CarbonImmutable::now(),'scheduled'=>$this->date($input['scheduled_at']),default=>$this->invalid()};
+        $service = app(V2LineDeliveryService::class);
+        $pacing = $service->pacing(json_encode($input['pacing'],JSON_THROW_ON_ERROR));
+        $purpose = Purpose::from($input['category']);
+        $group = Group::from($input['recipient_group']);
         if ($publicId === null && $input['mode'] === 'now') {
             $original = DB::table('line_deliveries')->where('create_request_key',$input['request_key'])->where('created_by_admin_id',$context->adminId)->first();
-            if ($original !== null && $original->scheduled_at !== null) $when = CarbonImmutable::parse($original->scheduled_at);
+            if ($original !== null && $original->scheduled_at !== null) {
+                $zone = config('app.timezone');
+                $stored = CarbonImmutable::parse($original->scheduled_at);
+                $when = $stored->setTimezone($zone);
+                // Before offset-aware writes, a UTC session could store the local wall clock as UTC.
+                $legacy = $stored->utc()->shiftTimezone($zone);
+                $segment = app(V2LineDeliverySegment::class)->normalize($input['segment']);
+                if (hash_equals($original->create_request_hash, $service->creationHash(
+                    $purpose, $group, $input['messages'], $legacy, $pacing, $input['title'], $segment
+                ))) {
+                    $when = $legacy;
+                }
+            }
         }
         if ($input['mode']!=='scheduled' && $input['scheduled_at']!==null) $this->invalid();
         if ($input['mode']==='scheduled' && $when->lte(CarbonImmutable::now())) $this->invalid();
-        $pacing=app(V2LineDeliveryService::class)->pacing(json_encode($input['pacing'],JSON_THROW_ON_ERROR));
         app(V2LineDeliveryMessages::class)->validate($input['messages']);
         foreach ($input['messages'] as $m) if ($m['type']!=='text') app(V2LineDeliveryMedia::class)->assertVerified($m);
         if ($when!==null) {
@@ -61,7 +76,7 @@ final class V2LineDeliveryAdmin
             if ($this->quota()['halted']) throw new \RuntimeException('LINE quota unavailable.');
             if (! DB::table('line_quota_periods')->where('line_bot_id',$bot->id)->where('month',$q->month($when))->exists()) throw new \RuntimeException('LINE quota baseline unavailable.');
         }
-        $id=app(V2LineDeliveryService::class)->save($context,$d?->id,$input['expected_revision'],Purpose::from($input['category']),Group::from($input['recipient_group']),
+        $id=$service->save($context,$d?->id,$input['expected_revision'],$purpose,$group,
             $input['messages'],$when,$pacing,$input['title'],$input['segment'],$input['request_key']);
         return $this->detail(DB::table('line_deliveries')->where('id',$id)->value('public_id'));
     }

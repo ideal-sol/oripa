@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\V2Permission;
 use App\Domain\Identity\Services\V2AdminFreshMfaAuthorizer;
 use App\Domain\Line\Exceptions\V2LineMessagingException;
 use App\Domain\Point\Services\V2PointIdempotencyService;
+use App\Support\V2DatabaseTimestamp;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -59,7 +60,7 @@ final class V2LineBotManagement
                 ->where($operation === 'login' ? 'id' : 'public_id', $operation === 'login' ? 1 : $id)->lockForUpdate()->first();
             if ($operation !== 'create' && $row === null) throw $this->problem('LINE_CONFIGURATION_NOT_FOUND', 404);
             if ($row !== null && (int) $row->revision !== $input['expected_revision']) throw $this->problem('LINE_CONFIGURATION_REVISION_CONFLICT', 409);
-            $values = ['revision' => ($row?->revision ?? 0) + 1, 'updated_by_admin_id' => $admin->id, 'updated_at' => now()];
+            $values = ['revision' => ($row?->revision ?? 0) + 1, 'updated_by_admin_id' => $admin->id, 'updated_at' => V2DatabaseTimestamp::format(now())];
             if (in_array($operation, ['login', 'create', 'update'], true)) {
                 $values['channel_id'] = $input['channel_id'];
                 if (isset($input['channel_secret'])) $values['channel_secret_ciphertext'] = Crypt::encryptString($input['channel_secret']);
@@ -91,14 +92,14 @@ final class V2LineBotManagement
                 if ($row->connection_status !== 'succeeded' || $row->channel_id === null || $row->channel_secret_ciphertext === null) throw $this->problem('LINE_BOT_CONNECTION_REQUIRED', 409);
                 $values = array_merge($values, $this->connection($row));
                 if (Schema::hasTable('line_deliveries') && DB::table('line_deliveries')->where('status', 'sending')->exists()) throw $this->problem('LINE_DELIVERY_SENDING', 409);
-                DB::table('line_bots')->where('is_active', true)->where('id', '<>', $row->id)->update(['is_active' => false, 'revision' => DB::raw('revision + 1'), 'authentication_revision' => DB::raw('authentication_revision + 1'), 'updated_by_admin_id' => $admin->id, 'updated_at' => now()]);
+                DB::table('line_bots')->where('is_active', true)->where('id', '<>', $row->id)->update(['is_active' => false, 'revision' => DB::raw('revision + 1'), 'authentication_revision' => DB::raw('authentication_revision + 1'), 'updated_by_admin_id' => $admin->id, 'updated_at' => V2DatabaseTimestamp::format(now())]);
                 if (! $row->is_active) $values['authentication_revision'] = $row->authentication_revision + 1;
                 $values['is_active'] = true;
             } elseif ($operation === 'quota') {
                 $limit = $this->transport->get($row, '/v2/bot/message/quota');
                 $used = $this->transport->get($row, '/v2/bot/message/quota/consumption');
                 if (! in_array($limit['type'] ?? null, ['none', 'limited'], true) || ! is_int($used['totalUsage'] ?? null) || ($limit['type'] === 'limited' && ! is_int($limit['value'] ?? null))) throw $this->problem('LINE_PROVIDER_RESPONSE_INVALID', 503);
-                $values += ['quota_snapshot' => json_encode(['type' => $limit['type'], 'limit' => $limit['value'] ?? null, 'used' => $used['totalUsage']], JSON_THROW_ON_ERROR), 'quota_fetched_at' => now()];
+                $values += ['quota_snapshot' => json_encode(['type' => $limit['type'], 'limit' => $limit['value'] ?? null, 'used' => $used['totalUsage']], JSON_THROW_ON_ERROR), 'quota_fetched_at' => V2DatabaseTimestamp::format(now())];
             } elseif ($operation === 'followers') {
                 $date = now()->timezone('Asia/Tokyo')->subDay()->format('Ymd');
                 $snapshot = $this->transport->get($row, '/v2/bot/insight/followers', ['date' => $date]);
@@ -108,11 +109,11 @@ final class V2LineBotManagement
                     if (isset($snapshot[$field]) && (! is_int($snapshot[$field]) || $snapshot[$field] < 0)) throw $this->problem('LINE_PROVIDER_RESPONSE_INVALID', 503);
                     $safe[$field] = $snapshot[$field] ?? null;
                 }
-                $values += ['followers_snapshot' => json_encode($safe, JSON_THROW_ON_ERROR), 'followers_fetched_at' => now()];
+                $values += ['followers_snapshot' => json_encode($safe, JSON_THROW_ON_ERROR), 'followers_fetched_at' => V2DatabaseTimestamp::format(now())];
             }
             if ($operation === 'create') {
                 $id = (string) Str::uuid7();
-                $rowId = DB::table($table)->insertGetId($values + ['public_id' => $id, 'created_by_admin_id' => $admin->id, 'created_at' => now()]);
+                $rowId = DB::table($table)->insertGetId($values + ['public_id' => $id, 'created_by_admin_id' => $admin->id, 'created_at' => V2DatabaseTimestamp::format(now())]);
             } else {
                 $rowId = $row->id;
                 DB::table($table)->where('id', $rowId)->update($values);
@@ -136,7 +137,7 @@ final class V2LineBotManagement
         $info = $this->transport->get($bot, '/v2/bot/info');
         if (! is_string($info['basicId'] ?? null) || ! is_string($info['displayName'] ?? null)
             || strlen($info['basicId']) > 255 || strlen($info['displayName']) > 255) throw $this->problem('LINE_PROVIDER_RESPONSE_INVALID', 503);
-        return ['basic_id' => $info['basicId'], 'display_name' => $info['displayName'], 'connection_status' => 'succeeded', 'connected_at' => now()];
+        return ['basic_id' => $info['basicId'], 'display_name' => $info['displayName'], 'connection_status' => 'succeeded', 'connected_at' => V2DatabaseTimestamp::format(now())];
     }
 
     private function loginPresentation(object $row): array

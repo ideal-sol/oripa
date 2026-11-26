@@ -15,10 +15,13 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class LineRecipientResolverTest extends TestCase
 {
+    use \Tests\Support\TestsDatabaseTimeZones;
+
     private object $bot;
 
     protected function setUp(): void
@@ -95,8 +98,10 @@ final class LineRecipientResolverTest extends TestCase
         self::assertSame([], $this->recipients());
     }
 
-    public function test_newer_negative_observation_blocks_old_recovery_and_stale_follow(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_newer_negative_observation_blocks_old_recovery_and_stale_follow(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         $user = $this->linked('block-member');
         $ref = $this->recipients()[0];
         $service = app(V2LineFriendService::class);

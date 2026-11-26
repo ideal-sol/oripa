@@ -11,10 +11,14 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class LineConversionEventTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,14 +33,17 @@ final class LineConversionEventTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_only_one_claim_and_a_new_claim_invalidates_the_old_token(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_only_one_claim_and_a_new_claim_invalidates_the_old_token(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         $owner = $this->user();
         $id = $this->record($owner, CarbonImmutable::now());
         $service = app(V2ConversionEventService::class);
         self::assertSame([['id' => $id, 'event' => 'line_friend_added', 'occurred_at' => '2026-11-24T00:00:00.000+00:00']],
             $service->pending($owner->id)['data']);
         $first = $service->claim($owner->id, $id)['data'];
+        $this->assertStoredInstant(CarbonImmutable::now(), DB::table('user_conversion_events')->where('public_id',$id)->value('updated_at'));
         self::assertSame(120, $first['expires_in_seconds']);
         self::assertSame(hash('sha256', $first['claim_token']), DB::table('user_conversion_events')->where('public_id', $id)->value('claim_token_hash'));
         $this->expectProblem('CONVERSION_CLAIM_HELD', 409, fn () => $service->claim($owner->id, $id));
@@ -119,7 +126,7 @@ final class LineConversionEventTest extends TestCase
             'public_id' => $id,
             'user_id' => $user->id,
             'event_name' => 'line_friend_added',
-            'occurred_at' => $occurredAt,
+            'occurred_at' => $occurredAt->format('Y-m-d H:i:s.vP'),
             'source' => 'transition',
             'suppressed' => $suppressed,
             'suppressed_reason' => $suppressed ? 'before_start' : null,

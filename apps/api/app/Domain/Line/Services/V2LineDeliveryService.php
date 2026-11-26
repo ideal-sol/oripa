@@ -10,6 +10,7 @@ use App\Domain\Line\Enums\V2LineDeliveryPurpose as Purpose;
 use App\Domain\Line\Enums\V2LineRecipientGroup as Group;
 use App\Domain\Line\ValueObjects\V2LineDeliveryPacing;
 use App\Domain\Line\ValueObjects\V2LineRecipient;
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,12 @@ use Illuminate\Support\Str;
 
 final class V2LineDeliveryService
 {
+    public function creationHash(Purpose $purpose, Group $group, #[\SensitiveParameter] array $messages,
+        ?CarbonImmutable $scheduledAt, ?V2LineDeliveryPacing $pacing, #[\SensitiveParameter] string $title, array $segment): string
+    {
+        return hash('sha256', json_encode([$purpose, $group, $messages, $scheduledAt?->toIso8601String(), $pacing, $title, $segment], JSON_THROW_ON_ERROR));
+    }
+
     public function save(V2AdminAuthorizationContext $context, ?int $id, int $expectedRevision, Purpose $purpose, Group $group,
         #[\SensitiveParameter] array $messages, ?CarbonImmutable $scheduledAt, ?V2LineDeliveryPacing $pacing = null, #[\SensitiveParameter] string $title = 'LINE配信', array $segment = [], ?string $requestKey = null): int
     {
@@ -25,7 +32,7 @@ final class V2LineDeliveryService
         app(V2LineDeliveryMessages::class)->validate($messages);
         $segment = app(V2LineDeliverySegment::class)->normalize($segment);
         if ($requestKey !== null && ! Str::isUuid($requestKey)) throw new \InvalidArgumentException('Invalid request key.');
-        $requestHash = hash('sha256', json_encode([$purpose, $group, $messages, $scheduledAt?->toIso8601String(), $pacing, $title, $segment], JSON_THROW_ON_ERROR));
+        $requestHash = $this->creationHash($purpose, $group, $messages, $scheduledAt, $pacing, $title, $segment);
         $planned = 0;
         // Reservation-time quota is advisory for future membership; resolving checks afresh.
         if ($scheduledAt !== null) {
@@ -51,9 +58,9 @@ final class V2LineDeliveryService
             $values = ['category' => $purpose->value, 'recipient_group' => $group->value,
                 'planned_count' => $planned, 'title_ciphertext' => Crypt::encryptString($title), 'segment' => json_encode((object) $segment, JSON_THROW_ON_ERROR),
                 'messages_ciphertext' => Crypt::encryptString(json_encode($messages, JSON_THROW_ON_ERROR)),
-                'pacing' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'scheduled_at' => $scheduledAt,
+                'pacing' => json_encode($snapshot, JSON_THROW_ON_ERROR), 'scheduled_at' => V2DatabaseTimestamp::format($scheduledAt),
                 'status' => $scheduledAt === null ? 'draft' : 'scheduled', 'revision' => ($row?->revision ?? 0) + 1,
-                'updated_by_admin_id' => $admin->id, 'updated_at' => now()];
+                'updated_by_admin_id' => $admin->id, 'updated_at' => V2DatabaseTimestamp::format(now())];
             if ($row === null) $id = DB::table('line_deliveries')->insertGetId([...$values, 'public_id' => (string) Str::uuid(), 'created_by_admin_id' => $admin->id, 'create_request_key' => $requestKey, 'create_request_hash' => $requestKey === null ? null : $requestHash]);
             else DB::table('line_deliveries')->where('id', $id)->update($values);
             $this->audit($context, 'line.delivery.saved', $id);
@@ -69,7 +76,7 @@ final class V2LineDeliveryService
             if ($row->revision !== $revision) throw new \RuntimeException('LINE pacing revision conflict.');
             DB::table('line_delivery_settings')->where('id', 1)->update(['revision' => $revision + 1, 'push_every' => $pacing->pushEvery,
                 'push_wait_seconds' => $pacing->pushWaitSeconds, 'multicast_wait_seconds' => $pacing->multicastWaitSeconds,
-                'updated_by_admin_id' => $admin->id, 'updated_at' => now()]);
+                'updated_by_admin_id' => $admin->id, 'updated_at' => V2DatabaseTimestamp::format(now())]);
             $this->audit($context, 'line.delivery.pacing.updated', 1);
         }, 1);
     }
@@ -80,7 +87,7 @@ final class V2LineDeliveryService
         DB::transaction(function () use ($context, $id, $revision): void {
             app(V2LineMessagingSettingService::class)->setting(true);
             if (DB::table('line_deliveries')->where('id', $id)->where('revision', $revision)->whereIn('status', ['draft', 'scheduled'])
-                ->update(['status' => 'cancelled', 'revision' => $revision + 1, 'updated_at' => now()]) !== 1) throw new \RuntimeException('LINE delivery revision conflict.');
+                ->update(['status' => 'cancelled', 'revision' => $revision + 1, 'updated_at' => V2DatabaseTimestamp::format(now())]) !== 1) throw new \RuntimeException('LINE delivery revision conflict.');
             $this->audit($context, 'line.delivery.cancelled', $id);
         }, 1);
     }

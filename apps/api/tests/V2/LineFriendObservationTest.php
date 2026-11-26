@@ -16,10 +16,13 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class LineFriendObservationTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -63,8 +66,10 @@ final class LineFriendObservationTest extends TestCase
         self::assertNull($vault->rawSubjectFor($user));
     }
 
-    public function test_false_without_friendship_rejects_delayed_follow_and_equal_time_unfollow_wins(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_false_without_friendship_rejects_delayed_follow_and_equal_time_unfollow_wins(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         [$user, $subject, $account] = $this->linked();
         $service = app(V2LineFriendService::class);
         $at = CarbonImmutable::now()->startOfSecond();
@@ -82,11 +87,17 @@ final class LineFriendObservationTest extends TestCase
         self::assertSame('friend', DB::table('line_friendships')->value('status'));
         self::assertNull($service->applyObservation($subject, $user, false, $at->addSecond(), $request));
         self::assertSame('unfollowed', DB::table('line_friendships')->value('status'));
+        $this->assertStoredInstant($at->addSecond(), DB::table('line_friendships')->value('unfollowed_at'));
+        $service->applyObservation($subject, $user, true, $at->addSeconds(2), $request);
+        self::assertSame('friend', DB::table('line_friendships')->value('status'));
     }
 
-    public function test_observation_uses_event_time_and_recovers_missing_evidence_without_delivery(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_observation_uses_event_time_and_recovers_missing_evidence_without_delivery(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         [$user, $subject] = $this->linked();
+        $this->freezeSecond();
         $at = CarbonImmutable::now('UTC')->subSecond()->startOfSecond();
         config(['v2_line.conversion_started_at' => $at->format('Y-m-d\TH:i:s\Z')]);
         $friends = app(V2LineFriendService::class);
@@ -94,8 +105,10 @@ final class LineFriendObservationTest extends TestCase
         self::assertNull($friends->applyObservation($subject, $user, true, $at, $requestId));
         $query = DB::table('user_conversion_events')->where('user_id', $user->id);
         $row = $query->sole();
+        $this->assertStoredInstant(now(), $row->created_at);
+        $this->assertStoredInstant(now(), $row->updated_at);
         self::assertFalse($row->suppressed);
-        self::assertTrue($at->eq(CarbonImmutable::parse($row->occurred_at)));
+        $this->assertStoredInstant($at, $row->occurred_at);
 
         (clone $query)->delete();
         self::assertNull($friends->applyObservation($subject, $user, true, $at->addSecond(), $requestId));

@@ -3,6 +3,7 @@
 namespace App\Domain\Line\Services;
 
 use App\Domain\Identity\Exceptions\V2OidcProtocolException;
+use App\Support\V2DatabaseTimestamp;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +22,7 @@ final class V2LineConfiguration
             if ($login->channel_id === null && is_string($id) && preg_match('/\A[0-9]{1,32}\z/', $id) && is_string($secret) && $secret !== '') {
                 DB::table('line_login_settings')->where('id', 1)->update([
                     'channel_id' => $id, 'channel_secret_ciphertext' => Crypt::encryptString($secret),
-                    'revision' => DB::raw('revision + 1'), 'updated_at' => now(),
+                    'revision' => DB::raw('revision + 1'), 'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
             }
             $bot = DB::table('line_bots')->where('legacy', true)->lockForUpdate()->first();
@@ -30,7 +31,7 @@ final class V2LineConfiguration
                 DB::table('line_bots')->where('id', $bot->id)->update([
                     'channel_secret_ciphertext' => Crypt::encryptString($secret),
                     'authentication_revision' => DB::raw('authentication_revision + 1'),
-                    'revision' => DB::raw('revision + 1'), 'updated_at' => now(),
+                    'revision' => DB::raw('revision + 1'), 'updated_at' => V2DatabaseTimestamp::format(now()),
                 ]);
             }
             // No Channel ID inference, activation or access-token persistence.

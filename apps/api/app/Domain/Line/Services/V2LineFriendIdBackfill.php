@@ -3,6 +3,7 @@
 namespace App\Domain\Line\Services;
 
 use App\Domain\Audit\V2\Services\V2AuditLogService;
+use App\Support\V2DatabaseTimestamp;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -48,7 +49,7 @@ final class V2LineFriendIdBackfill
                 $id = (string) Str::uuid();
                 DB::table(self::RUNS)->insert(['id' => $id, 'actor_public_id' => $actor, 'line_bot_id' => $bot->id,
                     'authentication_revision' => $bot->authentication_revision, 'state' => 'fetching',
-                    'created_at' => now(), 'expires_at' => now()->addDay()]);
+                    'created_at' => V2DatabaseTimestamp::format(now()), 'expires_at' => V2DatabaseTimestamp::format(now()->addDay())]);
                 $this->acquire($id, $bot);
             }
             $this->apply($id, $bot);
@@ -193,7 +194,7 @@ final class V2LineFriendIdBackfill
     private function cleanAbandoned(string $actor): void
     {
         foreach (DB::table(self::RUNS)->where(fn ($q) => $q->where('state', 'fetching')
-            ->orWhere(fn ($expired) => $expired->whereIn('state', ['ready', 'applying'])->where('expires_at', '<=', now()))
+            ->orWhere(fn ($expired) => $expired->whereIn('state', ['ready', 'applying'])->where('expires_at', '<=', V2DatabaseTimestamp::format(now())))
             ->orWhere(fn ($residual) => $residual->whereIn('state', ['failed', 'expired'])->whereExists(fn ($rows) =>
                 $rows->selectRaw('1')->from(self::ROWS)->whereColumn('run_id', self::RUNS.'.id'))))
             ->orderBy('id')->lazyById(100) as $run) {

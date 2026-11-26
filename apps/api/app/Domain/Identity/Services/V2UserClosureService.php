@@ -55,7 +55,7 @@ final class V2UserClosureService
     {
         if (DB::transactionLevel() < 1) throw new \LogicException('Closure transaction required.');
         $existing = DB::table('account_closures')->where('user_id', $user->id)->first();
-        if ($existing !== null) return ['closed_at' => CarbonImmutable::parse($existing->completed_at)->toIso8601String()];
+        if ($existing !== null) return ['closed_at' => CarbonImmutable::parse($existing->completed_at)->setTimezone(config('app.timezone'))->toIso8601String()];
         $payments = DB::table('payments')->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
         if ($payments->contains('status', 'processing')) throw new V2AuthenticationException('ACCOUNT_CLOSURE_BLOCKED', 409);
         $now = CarbonImmutable::now()->startOfSecond();
