@@ -12,6 +12,32 @@ import old_test_worker_host as workers
 
 
 class HostBindingsTest(unittest.TestCase):
+    def test_utc_sender_preserves_container_path_and_php_metadata(self):
+        import tempfile
+        import old_test_worker_lifecycle as lifecycle
+        original = {"PATH": "/container/bin", "PHP_VERSION": "retained", "DB_TIMEZONE": "UTC"}
+        old = {"Config": {"Env": [k + "=" + v for k, v in original.items()]}}
+        image = {"Config": {"Env": ["PATH=/image/bin", "PHP_VERSION=from-image"]}}
+        helper = {"PHP_METADATA": {"PHP_VERSION"}, "prepare_compose": Mock(return_value=["docker", "compose"])}
+        settings = {"line_helper": {}, "database": {"source_repository": "/fixture"}}
+        plan = {"sources": {"ideal-sol/oripa": {"sha": "a"*40}}}
+        def decoded(cmd, environment=None):
+            if cmd[1:3] == ["image", "inspect"]:
+                return [image]
+            overlay = json.loads(Path(cmd[cmd.index("-f")+1]).read_text())
+            env = {"DB_TIMEZONE": "UTC"}
+            for key, expression in overlay["services"]["line-delivery-worker"]["environment"].items():
+                env[key] = environment[expression[2:].split("?")[0]]
+            self.assertNotEqual(environment["PATH"], original["PATH"])
+            return {"services": {"line-delivery-worker": {"environment": env}}}
+        with tempfile.TemporaryDirectory() as directory, (
+            patch.object(lifecycle.host, "pinned", return_value=helper)
+        ), patch.object(lifecycle.host.canonical, "source_bytes", return_value=b"fixture"), (
+            patch.object(lifecycle.host.canonical, "decoded", side_effect=decoded)
+        ):
+            command, _, _ = lifecycle.line_config(plan, settings, old, "pinned", Path(directory))
+            self.assertEqual(Path(command[-1]).name, "line-launch.json")
+
     def test_scope_only_dispatch_input(self):
         plan = {
             "sources": {build.PLATFORM: {"pr": 21, "sha": "a" * 40}},

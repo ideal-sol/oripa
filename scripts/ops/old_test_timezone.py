@@ -376,11 +376,12 @@ def entry(args, folder, host):
         go = verify_go(folder, plan, locked)
         if policy != plan["site_policy"]:
             require(policy == plan["facts"]["registration"] and journal.get("completed") == list(ROLES)
-                    and "intent" not in journal, "utc_registration_drift")
+                    and journal.get("accepted_registry") == policy and "intent" not in journal,
+                    "utc_registration_drift")
         else:
             site = simple.Site(plan)
             def guard():
-                verify_go(folder, plan, locked)
+                require(verify_go(folder, plan, locked) == go, "utc_approval_changed")
             site.guard = guard
             def call(op, role, value):
                 guard()
@@ -432,6 +433,9 @@ def entry(args, folder, host):
             approved_raw = json.dumps(approved_registry, sort_keys=True, allow_nan=False).encode()
             require("sha256:" + hashlib.sha256(approved_raw).hexdigest() == plan["facts"]["registration"],
                     "utc_registration_encoding")
+            guard()
+            journal["accepted_registry"] = plan["facts"]["registration"]
+            simple.persist(log, journal)
             guard()
             simple.persist(simple.BINDINGS, approved_registry)
         final_hash, final_reg = registry()

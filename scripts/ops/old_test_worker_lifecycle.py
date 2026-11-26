@@ -123,6 +123,24 @@ def line_config(plan, settings, old, image, folder):
             os.environ["DOCKER_HOST"] = saved
     env = dict(os.environ, **env_of(old))
     env["PATH"] = "/usr/sbin:/usr/bin:/sbin:/bin"
+    if env_of(old).get("DB_TIMEZONE") == "UTC":
+        # Compose must not substitute the restricted host PATH into the container.
+        # The historical helper also inherits PHP build metadata from the image;
+        # after UTC enrollment the complete launch environment is fingerprinted.
+        original = env_of(old)
+        carried = {}
+        for index, key in enumerate(sorted({"PATH"} | helper["PHP_METADATA"])):
+            if key in original:
+                variable = "OLDTEST_LINE_LAUNCH_" + str(index)
+                env[variable] = original[key]
+                carried[key] = "${" + variable + "?required}"
+        override = folder / "line-launch.json"
+        simple.persist(override, {"services": {"line-delivery-worker": {"environment": carried}}})
+        cmd = [*cmd, "-f", str(override)]
+        rendered = host.canonical.decoded(cmd + ["config", "--format", "json"], environment=env)
+        metadata = host.canonical.decoded(["docker", "image", "inspect", image])[0]
+        effective = {**env_of(metadata), **rendered["services"]["line-delivery-worker"]["environment"]}
+        require(effective == original, "line_utc_launch_environment_changed")
     return cmd, env, helper
 
 
