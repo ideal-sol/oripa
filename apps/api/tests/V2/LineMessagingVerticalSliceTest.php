@@ -623,13 +623,12 @@ final class LineMessagingVerticalSliceTest extends TestCase
         $held = $this->followEvent('at-supersession', $subject, 'held');
         $response = $this->postWebhook($held);
         $event = LineWebhookEvent::query()->orderByDesc('id')->firstOrFail();
-        // The original database guard rejects pending -> skipped. Permit its
-        // observed fail-closed result as well as a durably recorded skip.
-        self::assertContains(
-            [$response->getStatusCode(), $event->reply_status],
-            [[503, 'pending'], [200, 'skipped']]
-        );
+        // Known E4 defect: the database rejects the service's pending -> skipped transition.
+        // Capture its current failure separately from the no-reply and replay guarantees below.
+        $response->assertServiceUnavailable();
+        self::assertSame('pending', $event->reply_status);
         self::assertNull($event->reply_attempted_at);
+        self::assertCount(1, $this->messaging->sent);
         $this->postWebhook($held)->assertOk();
         self::assertSame(2, LineWebhookEvent::query()->count());
         self::assertCount(1, $this->messaging->sent);
