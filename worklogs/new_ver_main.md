@@ -14414,6 +14414,14 @@ against fixed source, contiguous ledger 107–119, one zero exit per runner and
   or approval-write command. The private source and independent OLD Test
   qualification require separate review before any operational use.
 
+- Reviewed the NEW operator's additional source/evidence report. The site owns
+  the original Creator and final guarded send, private Reader/Observer and
+  side-effect-free inspection. Bind the single authenticated approval to the
+  sealed plan and separate audit event. Preserve the subsequent Snapshot receipt.
+  Recovery uses the complete intent-to-terminal history and a measured read
+  budget. A missing terminal result cannot authorize replay. No historical
+  exception or private implementation was published.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.

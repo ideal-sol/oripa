@@ -1,12 +1,10 @@
 #!/usr/bin/python3 -ISB
 """Fixed noninteractive adapter. Only the controller entry is granted to the caller."""
 
-import http.client
 import json
 import os
 from pathlib import Path
 import re
-import socket
 import sys
 import time
 from types import SimpleNamespace
@@ -41,30 +39,6 @@ def stamp(path, record):
         os.close(fd)
 
 
-class Engine(http.client.HTTPConnection):
-    def connect(self):
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(25)
-        self.sock.connect("/var/run/docker.sock")
-
-
-def engine(method, route, body=None, *, missing=False):
-    client = Engine("localhost")
-    try:
-        client.request(method, route, body=None if body is None else canonical(body),
-                       headers={"Content-Type": "application/json"})
-        reply = client.getresponse()
-        if missing and reply.status == 404:
-            return None
-        expected = 200 if method == "GET" else 204 if route.endswith("/start") else 201
-        require(reply.status == expected, "engine_response")
-        raw = reply.read(2_000_001)
-        require(len(raw) <= 2_000_000, "engine_response")
-        return json.loads(raw) if raw else None
-    finally:
-        client.close()
-
-
 def load_site(plan):
     # The manifest pins private, reviewed noninteractive data/measurement code
     # separately from the public adapter. No module or query comes from stdin.
@@ -78,18 +52,18 @@ def load_site(plan):
     functions = {}
     exec(compile(source, "<sealed-measurement>", "exec"), functions)
     return SimpleNamespace(**{k: functions[k] for k in
-                             ("measure", "runner_template", "check_parity", "reader_spec",
-                              "read", "evaluate", "runner_history", "quiescent")}), conditions, json.loads(pack)
+                             ("measure", "image", "runner", "runner_template", "check_parity",
+                              "create_runners", "created_set", "start_runner", "reader_spec",
+                              "read", "inspect_read", "evaluate", "runner_history", "effect_history")}), conditions, json.loads(pack)
 
 
 class Adapter:
-    def __init__(self, host, site, conditions, pack, transport=engine):
+    def __init__(self, host, site, conditions, pack):
         self.host = host
         self.plan = host.plan
         self.site = site
         self.conditions = conditions
         self.pack = pack
-        self.transport = transport
         self.prefix = "migration-" + host.binding
         self.files = self.plan["migrations"]
 
@@ -102,7 +76,8 @@ class Adapter:
         require(snapshot["release"] == self.plan["release"] and snapshot["site"] == self.plan["site"]
                 and snapshot["database"] == live["database"] == self.conditions["database"]
                 and snapshot["stage_sha256"] == self.host.stage_hash and snapshot["status"] == "available"
-                and snapshot["manual"] is True and isinstance(snapshot["id"], str) and snapshot["id"]
+                and snapshot["manual"] is True and snapshot["human_instance_mapping_confirmed"] is True
+                and isinstance(snapshot["id"], str) and snapshot["id"]
                 and live["available_snapshot_id"] == snapshot["id"]
                 and ctl.matches(ctl.HASH, live["freeze_sha256"])
                 and snapshot["freeze_sha256"] == live["freeze_sha256"]
@@ -128,8 +103,9 @@ class Adapter:
 
     def current(self, index, *, missing=False):
         name = self.prefix + "-" + str(index)
-        actual = self.transport("GET", "/containers/" + name + "/json", missing=missing)
+        actual = self.site.runner(self.plan, index, name)
         if actual is None:
+            require(missing, "runner_missing")
             return None
         require(ctl.matches(ctl.HASH, actual["Id"]) and actual["Name"] == "/" + name
                 and actual["Image"] == self.plan["image"] and actual["RestartCount"] == 0
@@ -146,25 +122,33 @@ class Adapter:
         require(self.fence()["fence_snapshot_sha256"] == frozen, "fence_lost")
 
     def create(self, frozen):
-        image = self.transport("GET", "/images/" + self.plan["image"] + "/json")
+        image = self.site.image(self.plan)
         require(image["Id"] == self.plan["image"] and image["Os"] == "linux"
                 and image["Architecture"] == self.conditions["architecture"]
                 and image["Config"]["Labels"]["org.opencontainers.image.revision"] == self.plan["source"],
                 "image_identity")
         require(all(self.current(i, missing=True) is None for i in range(len(self.files))), "creator_collision")
-        self.guard(frozen)
-        stamp(self.record("create"), {"plan":self.host.binding, "fence":frozen})
-        runners = []
-        for i in range(len(self.files)):
-            payload = self.template(i)
+        def latch():
             self.guard(frozen)
-            created = self.transport("POST", "/containers/create?name=" + self.prefix + "-" + str(i), payload)
-            actual = self.current(i)
-            require(actual["Id"] == created["Id"] and actual["State"]["Status"] == "created", "creator_failed")
-            stamp(self.record("runner-" + str(i)), {"runner": actual["Id"]})
-            runners.append(actual["Id"])
+            stamp(self.record("create"), {"plan": self.host.binding, "fence": frozen})
+            return ctl.digest(ctl.private_file(self.record("create")))
+
+        names = [self.prefix + "-" + str(i) for i in range(len(self.files))]
+        runners = self.site.create_runners(self.plan, names, latch)
         ctl.check_runners(self.plan, runners)
+        self.verify_created_set(runners, frozen)
+        for index, runner in enumerate(runners):
+            actual = self.current(index)
+            require(actual["Id"] == runner and actual["State"]["Status"] == "created", "creator_failed")
         return dict(image=self.plan["image"], state="CREATED_NOT_STARTED", runners=runners)
+
+    def verify_created_set(self, runners, frozen):
+        # The private Creator's durable, ordered result can outlive its response.
+        raw = ctl.private_file(self.record("create"))
+        original = self.site.created_set(self.plan)
+        require(json.loads(raw) == {"plan": self.host.binding, "fence": frozen}
+                and original["intent_sha256"] == ctl.digest(raw)
+                and original["runners"] == runners, "creator_identity")
 
     def reading(self, index, actual, post, inspect=False):
         # read() uses the original sealed Reader/Observer or a side-effect-free
@@ -174,7 +158,7 @@ class Adapter:
                 and isinstance(spec["queries"], dict) and spec["queries"]
                 and all(isinstance(sql, str) and sql.startswith("SELECT ") and ";" not in sql
                         for sql in spec["queries"].values()), "invalid_reader_spec")
-        capture = self.site.read(self.plan, spec, inspect)
+        capture = (self.site.inspect_read if inspect else self.site.read)(self.plan, spec)
         require(capture["status"] == "READ_ONLY_OBSERVATION_NOT_GATE_PASS"
                 and capture["phase"] == spec["phase"] and capture["source_sha"] == self.plan["source"]
                 and capture["image_id"] == self.plan["image"]
@@ -195,7 +179,7 @@ class Adapter:
         result["observed_at"] = min(result["observed_at"], observed)
         history = self.site.runner_history(self.plan, actual["Id"])
         require(history["runner"] == actual["Id"] and history["complete"] is True
-                and type(history["starts"]) is int
+                and history["exclusive_start_path"] is True and type(history["starts"]) is int
                 and history["starts"] == int(self.record("start-" + str(index)).exists()), "runner_history")
         for k in ctl.GATES:
             require(measured[k] is True, "reader_checks")
@@ -211,8 +195,10 @@ class Adapter:
 
     def observed(self, phase, index, proof, frozen):
         actual = self.current(index)
-        original = json.loads(ctl.private_file(self.record("runner-" + str(index))))
-        require(original == {"runner": actual["Id"]} and actual["Id"] == proof["runner"], "runner_identity")
+        runners = self.site.created_set(self.plan)["runners"]
+        ctl.check_runners(self.plan, runners)
+        self.verify_created_set(runners, frozen)
+        require(runners[index] == actual["Id"] == proof["runner"], "runner_identity")
         start_path = self.record("start-" + str(index))
         if phase == "post":
             deadline = time.monotonic() + ctl.REPLY_WAIT
@@ -234,42 +220,85 @@ class Adapter:
             else:
                 stamp(path, result)
         else:
-            original = json.loads(ctl.private_file(self.record("pre-" + proof["pre"])))
-            require(ctl.verify_reader(self.plan,index,original,actual["Id"],frozen,False) == proof["pre"],
-                    "start_identity")
-            self.guard(frozen)
-            latest = self.current(index)
-            require(latest["Id"] == actual["Id"] and latest["State"]["Status"] == "created",
-                    "start_identity")
-            stamp(start_path, dict(runner=actual["Id"], pre=proof["pre"], fence=frozen))
-            self.transport("POST", "/containers/" + actual["Id"] + "/start")
+            intent = dict(runner=actual["Id"], pre=proof["pre"], fence=frozen)
+
+            def validate_start():
+                self.guard(frozen)
+                latest = self.current(index)
+                require(latest["Id"] == intent["runner"] and latest["State"]["Status"] == "created",
+                        "start_identity")
+                original = json.loads(ctl.private_file(self.record("pre-" + proof["pre"])))
+                require(ctl.verify_reader(self.plan, index, original, latest["Id"], frozen, False)
+                        == proof["pre"], "start_identity")
+
+            def latch():
+                validate_start()
+                stamp(start_path, intent)
+                return ctl.digest(ctl.private_file(start_path))
+
+            def before_send():
+                require(json.loads(ctl.private_file(start_path)) == intent, "start_identity")
+                validate_start()
+
+            self.site.start_runner(self.plan, index, intent, latch, before_send)
+            require(json.loads(ctl.private_file(start_path)) == intent, "start_identity")
             return dict(runner=actual["Id"],pre=proof["pre"])
         return result
+
+    def effect_history(self, fence, completed=()):
+        history = self.site.effect_history(self.plan, self.host.binding)
+        now = time.time()
+        observed = history["observed_at"]
+        require(history["binding"] == self.host.binding and history["complete"] is True
+                and history["exclusive_effect_path"] is True
+                and type(observed) is int and fence["available_at"] <= observed <= now <= observed + 300,
+                "outcome_unknown")
+        intents, terminal = history["intents"], history["terminal"]
+        require(isinstance(intents, dict) and isinstance(terminal, dict)
+                and set(intents) == set(terminal), "outstanding_effect")
+        for key, attempt in intents.items():
+            require(ctl.matches(ctl.HASH, key) and attempt["kind"] in ("create", "start", "reader")
+                    and (attempt["index"] is None if attempt["kind"] == "create" else
+                         type(attempt["index"]) is int and 0 <= attempt["index"] < len(self.files))
+                    and terminal[key] in ("COMPLETED", "DEFINITIVELY_REJECTED"), "outstanding_effect")
+        local = [(self.record("create"), {"kind": "create", "index": None})]
+        local.extend((self.record("start-" + str(i)), {"kind": "start", "index": i}) for i in range(len(self.files)))
+        for path, attempt in local:
+            if path.exists():
+                require(intents.get(ctl.digest(ctl.private_file(path))) == attempt, "outstanding_effect")
+        for path in completed:
+            require(terminal.get(ctl.digest(ctl.private_file(path))) == "COMPLETED", "outcome_unknown")
+        return list(intents.values())
 
     def inspect(self,index,proof,fence):
         all_runners = [self.current(i,missing=True) for i in range(len(self.files))]
         create = self.record("create")
-        settled = self.site.quiescent(self.plan,index) is True
-        state = dict(fence, settled=settled)
+        state = dict(fence, settled=False)
         if not any(all_runners):
-            return dict(state, state="NOT_STARTED", runners=[], no_create_intent=not create.exists(),
-                        no_start_intent=not any(self.record("start-"+str(i)).exists() for i in range(len(self.files))))
+            attempts = self.effect_history(fence)
+            state["settled"] = True
+            return dict(state, state="NOT_STARTED", runners=[],
+                        no_create_intent=not any(a["kind"] == "create" for a in attempts),
+                        no_start_intent=not any(a["kind"] == "start" for a in attempts))
         require(all(all_runners) and json.loads(ctl.private_file(create)) == {
             "plan":self.host.binding,"fence":fence["fence_snapshot_sha256"]}, "creator_identity")
         runners = [r["Id"] for r in all_runners]
         ctl.check_runners(self.plan,runners)
-        require(all(json.loads(ctl.private_file(self.record("runner-" + str(i)))) == {"runner": runner}
-                    for i, runner in enumerate(runners)), "creator_identity")
+        self.verify_created_set(runners, fence["fence_snapshot_sha256"])
         actual = all_runners[index]
         require(proof["runner"] in (None,actual["Id"]), "runner_identity")
         state.update(runners=runners,runner=actual["Id"],original_runner_set_verified=True)
         status = actual["State"]["Status"]
         if status == "running":
-            require(self.record("start-"+str(index)).exists(), "start_identity")
+            intent = json.loads(ctl.private_file(self.record("start-" + str(index))))
+            require(intent == dict(runner=actual["Id"], pre=proof["pre"], fence=fence["fence_snapshot_sha256"]),
+                    "start_identity")
             return dict(state,state="RUNNING")
-        require(settled and status in ("created","exited"), "outcome_unknown")
+        require(status in ("created","exited"), "outcome_unknown")
         post = status == "exited"
         intent = self.record("start-"+str(index))
+        attempts = self.effect_history(fence, (create, intent) if post else (create,))
+        state["settled"] = True
         state.update(self.reading(index,actual,post,inspect=True))
         require(state["fence_snapshot_sha256"] == fence["fence_snapshot_sha256"], "fence_lost")
         ctl.verify_reader(self.plan,index,state,actual["Id"],state["fence_snapshot_sha256"],post)
@@ -277,7 +306,7 @@ class Adapter:
             expected = dict(runner=actual["Id"],pre=proof["pre"],fence=state["fence_snapshot_sha256"])
             require(json.loads(ctl.private_file(intent)) == expected, "start_identity")
             return dict(state,state="EXITED",pre=proof["pre"])
-        return dict(state,state="NOT_STARTED",no_start_intent=not intent.exists())
+        return dict(state,state="NOT_STARTED",no_start_intent={"kind": "start", "index": index} not in attempts)
 
     def dispatch(self,q):
         require(set(q)=={"release","plan_sha256","phase","index","nonce","proof"}

@@ -19,7 +19,8 @@ def release():
                  before_ledger_sha256=hash_of(n-1), after_ledger_sha256=hash_of(n)) for n in (1, 2)]
     return dict(release="TEST-1", site="SYNTHETIC", artifact="artifact", build="build",
                 source="a"*40, tree="b"*40, authority="c"*40, image="sha256:"+hash_of("image"),
-                services=["api"], adapter_sha256=hash_of("adapter"), conditions_sha256=hash_of("gates"),
+                services=["api"], stage_receipts={"platform": hash_of("staged")},
+                adapter_sha256=hash_of("adapter"), conditions_sha256=hash_of("gates"),
                 start_ledger=0, end_ledger=2, migrations=rows)
 
 
@@ -39,7 +40,8 @@ def publish_fixture(folder, records):
 def approval(plan, stage_hash):
     now = int(time.time())
     return dict(release=plan["release"], site=plan["site"], approved=True, stage_sha256=stage_hash,
-                issued=now - 1, expires=now + 600, scope="production_release", authenticated_human=True)
+                issued=now - 1, expires=now + 600, scope="production_release", authenticated_human=True,
+                approver="fixture-owner", audit_event="fixture-event")
 
 
 class SyntheticHost:
@@ -54,7 +56,7 @@ class SyntheticHost:
     def authorized(self):
         return None
 
-    def call(self, phase, index, proof):
+    def call(self, phase, index, proof, *, recovery=False):
         self.calls.append((phase, index))
         now = int(time.time())
         reply = {k: True for k in m.GATES}
@@ -324,7 +326,8 @@ class HostBoundaryTest(unittest.TestCase):
         host.stage_hash = host.binding = hash_of("bound")
         valid = approval(dict(site="SITE", release="TEST"), host.stage_hash)
         for bad in ({"release":"OTHER"},{"site":"OTHER"},{"expires":0},{"approved":1},{"stage_sha256":"other"},
-                    {"authenticated_human":False},{"scope":"stage"},{"issued":int(time.time())+30}):
+                    {"authenticated_human":False},{"scope":"stage"},{"issued":int(time.time())+30},
+                    {"approver":""},{"audit_event":" "}):
             with patch.object(host,"check_binding"), patch.object(m,"evidence",
                     return_value=(dict(valid,**bad), hash_of("receipt"))), self.assertRaisesRegex(m.Hold,"go_invalid"):
                 host.authorized()

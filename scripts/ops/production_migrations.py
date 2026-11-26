@@ -95,6 +95,10 @@ def validate_plan(plan, release):
     services = plan["services"]
     require(isinstance(services, list) and services and all(matches(ID, s) for s in services)
             and len(services) == len(set(services)), "invalid_release")
+    stages = plan["stage_receipts"]
+    require(isinstance(stages, dict) and "platform" in stages and set(stages) <= {"platform", "storefront"}
+            and all(matches(HASH, value) for value in stages.values())
+            and ("storefront" not in services or "storefront" in stages), "invalid_stage_receipts")
     rows = plan["migrations"]
     require(isinstance(rows, list) and rows and type(plan["start_ledger"]) is int
             and plan["start_ledger"] >= 0 and type(plan["end_ledger"]) is int
@@ -128,19 +132,29 @@ class Host:
         now = time.time()
         require(go["release"] == self.release and go["site"] == self.plan["site"]
                 and go["approved"] is True and go["authenticated_human"] is True
+                and all(isinstance(go[k], str) and go[k].strip() for k in ("approver", "audit_event"))
                 and go["scope"] == "production_release" and go["stage_sha256"] == self.stage_hash
                 and type(go["issued"]) is int and type(go["expires"]) is int
                 and 0 < go["issued"] <= now < go["expires"], "go_invalid")
 
-    def call(self, phase, index, proof):
+    def call(self, phase, index, proof, *, recovery=False):
+        inspect_wait = None
         if phase == "inspect":
             self.check_binding()
+            if recovery:
+                raw = private_file(CONFIG / "conditions.json")
+                require(digest(raw) == self.plan["conditions_sha256"], "conditions_changed")
+                # Recorded during qualification of this exact private reader.
+                budget = json.loads(raw)["recovery_read_budget_ms"]
+                require(type(budget) is int and 0 < budget <= REPLY_WAIT * 1000, "invalid_recovery_budget")
+                inspect_wait = budget / 1000
         else:
+            require(not recovery, "invalid_request")
             self.authorized()
         # No shell, configurable argv, caller environment, or inherited terminal.
         request = dict(release=self.release, plan_sha256=self.binding, phase=phase,
                        index=index, proof=proof, nonce=secrets.token_hex(16))
-        reply, code = exchange(request, getattr(self, "lock_fd", None))
+        reply, code = exchange(request, getattr(self, "lock_fd", None), inspect_wait=inspect_wait)
         if code or reply.get("result") != "PASS":
             error = reply.get("error")
             state = reply.get("sqlstate")
@@ -151,9 +165,13 @@ class Host:
         return reply
 
 
-def exchange(request, lock_fd=None):
+def exchange(request, lock_fd=None, *, inspect_wait=None):
     inspect = request["phase"] == "inspect"
-    deadline = time.monotonic() + (INSPECT_WAIT if inspect else REPLY_WAIT)
+    wait = INSPECT_WAIT if inspect else REPLY_WAIT
+    if inspect_wait is not None:
+        require(inspect and 0 < inspect_wait <= REPLY_WAIT, "invalid_recovery_budget")
+        wait = inspect_wait
+    deadline = time.monotonic() + wait
     # A regular input file avoids blocking on an adapter that never reads stdin.
     with tempfile.TemporaryFile() as payload:
         payload.write(json.dumps(request).encode())
@@ -243,7 +261,7 @@ def status(db, release):
     return report
 
 
-def recovery_view(db, host, report):
+def recovery_view(db, host, report, *, recovery=False):
     release = host.release
     binding, = db.execute("SELECT binding FROM runs WHERE release=?", (release,)).fetchone()
     require(binding == host.binding, "release_changed")
@@ -262,7 +280,7 @@ def recovery_view(db, host, report):
                      (release, index)).fetchone()
     proof = {"runner": runners[index] if runners else None, "pre": pre[0] if pre else None,
              "fence": baseline[0] if baseline else None}
-    reading = host.call("inspect", index, proof)
+    reading = host.call("inspect", index, proof, recovery=recovery)
     verify_fence(reading, time.time())
     fence = reading["fence_snapshot_sha256"]
     require(not baseline or baseline[0] == fence, "fence_changed")
@@ -324,7 +342,7 @@ def execute(db, host, *, resume=False):
     if resume:
         report = status(db, release)
         require(report["result"] in ("INTENT", "HOLD"), "no_interrupted_run")
-        state, index, runners, fence, post = recovery_view(db, host, report)
+        state, index, runners, fence, post = recovery_view(db, host, report, recovery=True)
         require(state in ("APPLIED", "NOT_STARTED"), "recovery_wait")
         host.authorized()
         with db:
