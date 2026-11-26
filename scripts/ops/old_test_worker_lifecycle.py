@@ -257,6 +257,7 @@ def switch_selected(plan, target, image, guard):
                     and host.stable_container(prior) == settings["containers"][target]["configuration"],
                     "rank_recovery_identity_changed",
                 )
+                guard()
                 host.run(["/usr/bin/docker", "rename", old["Id"], name])
                 if old["State"]["Running"]:
                     guard()
@@ -301,9 +302,13 @@ def switch_selected(plan, target, image, guard):
                 and c["Image"] == image
                 and line["EGRESS"] in c["NetworkSettings"]["Networks"]
             ):
+                if "ordinary_policy" in plan:
+                    simple.ordinary_policy(plan["targets"], plan["ordinary_policy"])
                 try:
                     host.run(["/usr/bin/docker", "network", "disconnect", line["EGRESS"], c["Id"]])
                 except Exception:
+                    if "ordinary_policy" in plan:
+                        simple.ordinary_policy(plan["targets"], plan["ordinary_policy"])
                     host.run(["/usr/bin/docker", "pause", c["Id"]])
             raise
 

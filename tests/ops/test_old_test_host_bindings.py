@@ -12,6 +12,62 @@ import old_test_worker_host as workers
 
 
 class HostBindingsTest(unittest.TestCase):
+    def test_enrolled_static_timer_pins_detect_drift_only_for_active_consumers(self):
+        import old_test_bindings as bindings
+        name = "prize-exchange"
+        settings = {"ordinary_timers": {"reader": {}, "pins": {name: "static"}},
+                    "worker_specs": {name: {}}, "containers": {"api": {"name": "test-api"}}}
+        reader = Mock(return_value="static")
+        with patch.object(bindings.host, "pinned", return_value={"exec_timer_pin": reader}):
+            self.assertEqual(bindings.static_timer_pins(settings, {name: "active"}), {name: "static"})
+            reader.return_value = "different"
+            self.assertEqual(bindings.static_timer_pins(settings, {name: "inactive"}), {})
+            with self.assertRaisesRegex(simple.Hold, "timer_definition_changed"):
+                bindings.static_timer_pins(settings, {name: "active"})
+
+    def test_independent_authority_reads_policy_and_bound_request_deadline(self):
+        import old_test_host as host
+        from tests.ops.test_old_test_simple import Fixture, OLD
+        plan = Fixture(["admin"]).plan
+        plan["ordinary_policy"] = OLD
+        journal = dict(plan=simple.digest(plan), request_deadline=105)
+        def read(path, private):
+            self.assertIn(path.name, ("plan.json", "journal.json"))
+            return json.dumps(plan if path.name == "plan.json" else journal).encode()
+        with patch.object(host, "checked_file", side_effect=read), patch.object(host, "config"), \
+                patch.object(simple, "ordinary_policy") as policy, patch.object(host.time, "time", return_value=100):
+            _, window = host.approved(plan, lambda: None)
+            self.assertEqual(window["expires"], 105)
+            policy.assert_called_once_with(["admin"], OLD)
+            journal["terminal"] = "Technical PASS"
+            with self.assertRaisesRegex(simple.Hold, "ordinary_session_closed"):
+                host.approved(plan, lambda: None)
+
+    def test_cached_security_checks_nested_files(self):
+        import hashlib
+        import tempfile
+        import old_test_php_authority as php
+
+        with tempfile.TemporaryDirectory() as folder, patch.object(simple, "trusted"):
+            root = Path(folder)
+            file = root / "evidence"
+            file.write_bytes(b"original")
+            expected = hashlib.sha256(file.read_bytes()).hexdigest()
+            ref = {"path": str(file), "sha256": expected}
+            recipe = root / "recipe"
+            recipe.write_text(json.dumps({"files": [ref]}))
+            material = dict(artifact=dict(id=1, digest="verified", authority={"source_sha": "merged"},
+                                          directory=folder, files={"evidence": expected}),
+                            recipe=php.ref(recipe), gate=ref, policy=ref, evidence=[ref])
+            item = dict(artifact_id=1, artifact_digest="verified", source="merged")
+            php.verify_cached_material(material, item, lambda: None)
+            file.write_bytes(b"different")
+            with self.assertRaisesRegex(simple.Hold, "cached_security_file_changed"):
+                php.verify_cached_material(material, item, lambda: None)
+            file.unlink()
+            with self.assertRaisesRegex(simple.Hold, "restore_missing_pinned"):
+                php.verify_cached_material(material, item, lambda: None)
+
     def test_utc_sender_preserves_container_path_and_php_metadata(self):
         import tempfile
         import old_test_worker_lifecycle as lifecycle
