@@ -166,7 +166,7 @@ final class V2LineFriendService
                 } else {
                     $this->friendships()->where('subject_hash', $account->subject_hash)
                         ->where('user_id', $user->id)->whereNull('superseded_at')->where('status', 'friend')
-                        ->update(['status' => 'unfollowed', 'unfollowed_at' => $observedAt->startOfSecond()]);
+                        ->update(['status' => 'unfollowed', 'unfollowed_at' => V2DatabaseTimestamp::format($observedAt->startOfSecond())]);
                 }
                 $conversion->recordTransition((int) $user->id, $before, $observedAt);
                 app(V2LineSubjectVault::class)->backfill($subject);

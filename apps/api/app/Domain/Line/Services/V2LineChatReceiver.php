@@ -2,6 +2,7 @@
 
 namespace App\Domain\Line\Services;
 
+use App\Support\V2DatabaseTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -40,7 +41,7 @@ final class V2LineChatReceiver
                     $conversation = DB::table('line_conversations')->where('id', $existing->conversation_id)->firstOrFail();
                     if (! hash_equals($conversation->subject_hash, $hash)) return null;
                     if ($unsent && ! $existing->unsent) DB::table('line_chat_messages')->where('id', $existing->id)->update([
-                        'unsent' => true, 'body_ciphertext' => null, 'media_key' => null, 'media_mime' => null, 'media_bytes' => null, 'media_state' => 'cancelled', 'read_at' => now(),
+                        'unsent' => true, 'body_ciphertext' => null, 'media_key' => null, 'media_mime' => null, 'media_bytes' => null, 'media_state' => 'cancelled', 'read_at' => V2DatabaseTimestamp::format(now()),
                     ]);
                     DB::table('line_chat_events')->insert(['line_bot_id' => $botId, 'event_id' => $eventId, 'message_id' => $existing->id, 'event_type' => $event['type']]);
                     return null;

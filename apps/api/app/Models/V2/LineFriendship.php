@@ -16,6 +16,7 @@ final class LineFriendship extends Model
     protected function casts(): array
     {
         return [
+            'superseded_at' => 'immutable_datetime',
             'followed_at' => 'immutable_datetime',
             'unfollowed_at' => 'immutable_datetime',
             'rewarded_at' => 'immutable_datetime',

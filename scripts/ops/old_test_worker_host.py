@@ -1,5 +1,6 @@
 """Fixed OLD Test worker dependencies. Never invoke a worker job to measure its health."""
 
+import datetime
 import hashlib
 import json
 import os
@@ -76,6 +77,10 @@ def baseline(plan, w, settings):
     spec = settings["worker_specs"][w]
     if spec["kind"] in ("unit", "runner", "identity"):
         _, value = read_pin(spec)
+        if w == "univapay-monitor" and "ordinary_policy" in plan:
+            api = host.container(settings, "api")
+            revision = api["Config"]["Labels"]["org.opencontainers.image.revision"]
+            require(value == (api["Id"], api["Image"], revision), "monitor_baseline_changed")
         return value
     return None
 
@@ -118,6 +123,126 @@ def observe(plan, op, worker, desired, guard):
     return host.observed_service(plan, worker, desired)
 
 
+def invocation_records(state):
+    unit, invocation = state["Id"], state["InvocationID"]
+    require(re.fullmatch("[0-9a-f]{32}", invocation), "worker_invocation_unknown")
+    raw = host.run(["/usr/bin/journalctl", "--boot=0", "--no-pager", "--output=json", "-n", "3",
+                    "_SYSTEMD_UNIT=" + unit, "_SYSTEMD_INVOCATION_ID=" + invocation, "_TRANSPORT=stdout"])
+    records = [json.loads(line) for line in raw.splitlines()]
+    boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip().replace("-", "")
+    start = int(state["ExecMainStartTimestampMonotonic"])
+    end = int(state["ExecMainExitTimestampMonotonic"])
+    require(0 < start < end and int(state["ExecMainPID"]) > 1 and records
+            and all(r["_SYSTEMD_UNIT"] == unit and r["_SYSTEMD_INVOCATION_ID"] == invocation
+                    and r["_UID"] == "0" and r["_BOOT_ID"] == boot and r["_TRANSPORT"] == "stdout"
+                    and r["_PID"] == state["ExecMainPID"] and start <= int(r["__MONOTONIC_TIMESTAMP"]) <= end
+                    for r in records), "worker_invocation_changed")
+    return records
+
+
+def monitor_preflight(plan, settings, guard):
+    name = "univapay-monitor"
+    reader = host.pinned(settings["ordinary_timers"]["reader"])
+    try:
+        reader["idle_oneshots"](settings, guard, [name])
+        return
+    except simple.Hold as error:
+        if str(error) != "utc_monitor_no_structured_result":
+            raise
+    # This exception is unique to a completed API replacement and its exact
+    # removed container. Never classify a generic monitor failure as idle.
+    folder, _ = host.approved(plan, guard)
+    journal = json.loads(host.checked_file(folder / "journal.json", True))
+    require("ordinary_policy" in plan and "api" in plan["targets"] and
+            journal.get("completed", {}).get("switch/api") == journal.get("results", {}).get("api") == "PASS",
+            "monitor_requires_accepted_api")
+    item = journal["assets"]["api"]
+    desired = simple.asset(plan, "api", item)
+    api = host.container(settings, "api")
+    spec = settings["worker_specs"][name]
+    original = json.loads(host.checked_file(folder / "previous-pins.json", True))
+    old = read_pin(spec)[1]
+    require(spec["kind"] == "identity" and list(old) == original[name]
+            and old[1] == plan["previous"]["api"] and old[0] != api["Id"]
+            and old[1] != desired and api["State"]["Running"] and api["Image"] == desired
+            and api["Config"]["Labels"]["org.opencontainers.image.revision"] == item["source"],
+            "monitor_reference_mismatch")
+    # Older plans captured the identity tuple as well as each independent
+    # API container consumer. Confirm its revision from the retained OCI image.
+    revision = host.run(["/usr/bin/docker", "image", "inspect", "--format",
+                         '{{index .Config.Labels "org.opencontainers.image.revision"}}', old[1]]).decode().strip()
+    require(revision == old[2] and all(original[w] == old[0] for w in ("d4", "univapay-receipts")
+            if w in original), "monitor_previous_api_mismatch")
+    require(not host.run(["/usr/bin/docker", "container", "ls", "-aq", "--no-trunc",
+                          "--filter", "id=" + old[0]]).strip(), "monitor_old_container_present")
+    reader["monitor_program"](spec)
+    state = reader["monitor_state"]()
+    require(reader["monitor_empty"](state) and state["ActiveState"] == state["SubState"] == "failed"
+            and state["Result"] == "exit-code" and state["ExecMainCode"] == state["ExecMainStatus"] == "1",
+            "monitor_transition_not_idle")
+    records = invocation_records(state)
+    created = datetime.datetime.fromisoformat(api["State"]["StartedAt"][:26] + "+00:00").timestamp()
+    age = time.monotonic_ns() // 1000 - int(state["ExecMainExitTimestampMonotonic"])
+    require(0 <= age < 120_000_000 and [r["MESSAGE"] for r in records] == ["UNIVAPAY_MONITOR=READ_ONLY_CHECK_FAILED"]
+            and int(records[0]["__REALTIME_TIMESTAMP"]) >= created * 1_000_000,
+            "monitor_transition_result_unknown")
+    route = host.pinned(settings["routes"])["route"](plan, "api", None, guard)
+    require(simple.health("api", simple.http_health("api", route)), "monitor_api_not_ready")
+    guard()
+    require(reader["monitor_state"]() == state and reader["monitor_empty"](state), "monitor_transition_raced")
+
+
+def scheduled_result(plan, worker, since, guard):
+    settings, spec = scope(plan, worker, guard)
+    require(worker in simple.PIN_ACCEPTANCE, "worker_acceptance_scope")
+    item = host.cached(plan, "api")
+    desired = simple.asset(plan, "api", item)
+    require(observe(plan, "switch", worker, desired, guard) == "done", "worker_pin_changed")
+    unit = spec["service"]
+    fields = ("Id,InvocationID,ExecMainPID,ExecMainCode,ExecMainStatus,Result,ActiveState,"
+              "ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic")
+    def sample():
+        return dict(line.split("=", 1) for line in host.run(
+            ["/usr/bin/systemctl", "show", unit, "--property=" + fields]).decode().splitlines())
+    state = sample()
+    if int(state["ExecMainStartTimestampMonotonic"]) < since or state["ActiveState"] in ("active", "activating"):
+        return False
+    records = invocation_records(state)
+    if sample() != state:
+        return False
+    require(state["Id"] == unit and state["ExecMainCode"] == "1", "worker_invocation_changed")
+    messages = [r["MESSAGE"] for r in records]
+    if worker == "univapay-monitor":
+        reader = host.pinned(settings["ordinary_timers"]["reader"])
+        reader["monitor_program"](spec)
+        evidence = reader["monitor_state"]()
+        require(evidence["InvocationID"] == state["InvocationID"] and reader["monitor_empty"](evidence),
+                "monitor_result_changed")
+        if state["Result"] == "exit-code":
+            reader["known_report"](evidence, records, records[0]["_BOOT_ID"], time.monotonic_ns() // 1000)
+        else:
+            require(state["Result"] == "success" and state["ExecMainStatus"] == "0" and len(messages) == 1
+                    and messages[0].startswith("UNIVAPAY_MONITOR={"), "monitor_result_failed")
+            report = json.loads(messages[0].split("=", 1)[1], object_pairs_hook=reader["unique_keys"])
+            expected = dict(stale_over_120s=0, retries_ge3=0, failed=0, unresolved_new_payments_over_5m=0,
+                            settled_grant_invariant=True, healthy=True, timer_active=True,
+                            service_failed=False, heartbeat_fresh=True)
+            require(set(report) == set(expected) | {"pending", "processing", "checked_at"}
+                    and all(type(report[k]) is type(v) and report[k] == v for k, v in expected.items())
+                    and all(type(report[k]) is int and report[k] >= 0 for k in ("pending", "processing"))
+                    and isinstance(report["checked_at"], str), "monitor_result_failed")
+        return True
+    mode = "WORKER" if worker == "f2b-worker" else "PURGE"
+    command = "/usr/bin/python3 " + spec["file"] + " " + mode.lower()
+    require(prop(unit, "ExecStart").startswith("{ path=/usr/bin/python3 ; argv[]=" + command + " ; ignore_errors=no ;")
+            and prop(unit, "User") == "root" and prop(unit, "Type") == "oneshot", "f2b_runner_changed")
+    require(state["Result"] == "success" and state["ExecMainStatus"] == "0", "f2b_scheduled_result_failed")
+    if messages == ["F2B_AUTO=BUSY_SKIPPED"]:
+        return False
+    require(messages == ["F2B_AUTO=START_" + mode, "F2B_AUTO=PASS_" + mode], "f2b_scheduled_result_unknown")
+    return True
+
+
 def write_pin(plan, worker, desired, guard):
     settings, spec = scope(plan, worker, guard)
     kind = spec["kind"]
@@ -153,6 +278,9 @@ def write_pin(plan, worker, desired, guard):
                 output.write(new)
                 output.flush()
                 os.fsync(output.fileno())
+            if worker == "univapay-monitor" and "ordinary_policy" in plan:
+                monitor_preflight(plan, settings, guard)
+            guard()
             require(host.checked_file(path) == raw, "worker_pin_changed_before_write")
             os.replace(name, path)
             directory = os.open(path.parent, os.O_DIRECTORY)

@@ -280,10 +280,10 @@ describe("Admin Gacha Draft management", () => {
     fireEvent.change(screen.getByLabelText("表示素材"), {
       target: { value: ASSET_ID },
     });
-    fireEvent.change(screen.getByLabelText("公開開始"), {
+    fireEvent.change(screen.getByLabelText("開始日時（Asia/Tokyo）"), {
       target: { value: "2026-08-01T09:00" },
     });
-    fireEvent.change(screen.getByLabelText("公開終了"), {
+    fireEvent.change(screen.getByLabelText("終了日時（Asia/Tokyo）"), {
       target: { value: "2027-08-01T09:00" },
     });
     fireEvent.change(screen.getByLabelText("景品"), {
@@ -312,7 +312,8 @@ describe("Admin Gacha Draft management", () => {
       totalCount: 1000,
     });
     expect(submitted).not.toHaveProperty("probability");
-    expect(submitted.publishStartAt).toMatch(/Z$/);
+    expect(submitted.publishStartAt).toBe("2026-08-01T00:00:00.000Z");
+    expect(submitted.publishEndAt).toBe("2027-08-01T00:00:00.000Z");
   });
 
   it("keeps Published and archived Versions read-only", () => {

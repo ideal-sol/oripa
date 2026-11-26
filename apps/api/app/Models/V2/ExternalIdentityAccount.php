@@ -34,6 +34,7 @@ final class ExternalIdentityAccount extends Model
     protected function casts(): array
     {
         return [
+            'superseded_at' => 'immutable_datetime',
             'linked_at' => 'immutable_datetime',
             'last_authenticated_at' => 'immutable_datetime',
             'revoked_at' => 'immutable_datetime',

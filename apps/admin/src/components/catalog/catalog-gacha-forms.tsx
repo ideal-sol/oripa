@@ -684,16 +684,18 @@ export function CatalogGachaVersionForm({
         </label>
         <div className="catalog-form-grid">
           <DateTimeField
-            label="公開開始"
+            label="開始日時（Asia/Tokyo）"
             onChange={(publishStartAt) => setDraft({ ...draft, publishStartAt })}
+            timeZone="Asia/Tokyo"
             value={draft.publishStartAt}
           />
           <DateTimeField
-            label="公開終了"
+            label="終了日時（Asia/Tokyo）"
             onChange={(publishEndAt) =>
               setDraft({ ...draft, publishEndAt: publishEndAt || null })
             }
             required={false}
+            timeZone="Asia/Tokyo"
             value={draft.publishEndAt ?? ""}
           />
         </div>

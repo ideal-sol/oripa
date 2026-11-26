@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use SensitiveParameter;
 use Tests\Support\V2TimestampFixture;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 
@@ -38,6 +40,8 @@ use Illuminate\Support\Facades\Crypt;
 
 final class LineBotManagementTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -212,8 +216,11 @@ final class LineBotManagementTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_bot_connection_activation_snapshots_and_channel_identity(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_bot_connection_activation_snapshots_and_channel_identity(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         $owner = $this->adminSession(V2AdminRole::Owner);
         $bot = $this->adminMutation($owner, 'POST', '/admin/api/v2/line-bots', $this->botInput())->assertOk()
             ->assertJsonPath('is_active', false)->assertJsonPath('connection_status', 'pending')->json();
@@ -231,7 +238,10 @@ final class LineBotManagementTest extends TestCase
         $read = $this->asAdmin($owner)->getJson('/admin/api/v2/line-bots')->assertOk()->getContent();
         self::assertStringNotContainsString('synthetic-messaging-secret', $read);
         self::assertStringNotContainsString('synthetic-stateless-token', $read);
-        self::assertNotNull(DB::table('line_bots')->where('public_id', $bot['id'])->value('followers_fetched_at'));
+        $record = DB::table('line_bots')->where('public_id', $bot['id'])->sole();
+        foreach (['created_at', 'updated_at', 'connected_at', 'quota_fetched_at', 'followers_fetched_at'] as $field) {
+            $this->assertStoredInstant(now(), $record->$field);
+        }
     }
 
     public function test_failed_connection_is_persisted_and_cannot_activate(): void
@@ -281,8 +291,11 @@ final class LineBotManagementTest extends TestCase
         self::assertSame(0, DB::table('line_bots')->where('channel_secret_ciphertext', 'like', '%synthetic-one%')->count());
     }
 
-    public function test_environment_import_preserves_admin_values_and_never_imports_tokens_or_activates(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_environment_import_preserves_admin_values_and_never_imports_tokens_or_activates(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
+        $this->freezeSecond();
         config(['v2_identity.external_identity.line.client_id' => '3333333', 'v2_identity.external_identity.line.client_secret' => 'synthetic-env-login']);
         $configuration = app(V2LineConfiguration::class);
         self::assertSame('3333333', $configuration->login('client_id'));
@@ -290,6 +303,8 @@ final class LineBotManagementTest extends TestCase
         $first = DB::table('line_login_settings')->first();
         $legacy = DB::table('line_bots')->where('legacy', true)->first();
         config(['v2_identity.external_identity.line.client_id' => '4444444', 'v2_identity.external_identity.line.client_secret' => 'replacement-env']);
+        $this->assertStoredInstant(now(), $first->updated_at);
+        $this->assertStoredInstant(now(), $legacy->updated_at);
         $configuration->importEnvironment();
         self::assertEquals($first, DB::table('line_login_settings')->first());
         self::assertEquals($legacy, DB::table('line_bots')->where('legacy', true)->first());

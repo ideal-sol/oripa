@@ -24,10 +24,10 @@ def config(plan):
     raw = checked_file(simple.BINDINGS, True)
     require(
         plan["environment"] == "old-test"
-        and simple.SESSION.fullmatch(plan["session"])
-        and "sha256:" + hashlib.sha256(raw).hexdigest() == plan["site_policy"],
+        and simple.SESSION.fullmatch(plan["session"]),
         "old_site_policy_changed",
     )
+    simple.verify_registry(plan, raw)
     settings = json.loads(raw)["site"]
     require(
         hashlib.sha256(Path("/etc/machine-id").read_bytes()).hexdigest() == settings["machine"],
@@ -41,6 +41,15 @@ def approved(plan, guard):
     config(plan)
     folder = simple.SESSIONS / plan["session"]
     bound = json.loads(checked_file(folder / "plan.json", True))
+    if "ordinary_policy" in plan:
+        simple.shape(plan, plan["targets"])
+        simple.ordinary_policy(plan["targets"], plan["ordinary_policy"])
+        journal = json.loads(checked_file(folder / "journal.json", True))
+        require(bound == plan and journal["plan"] == simple.digest(plan) and not journal.get("terminal"),
+                "ordinary_session_closed_or_changed")
+        deadline = journal.get("request_deadline", 0)
+        require(type(deadline) is int and deadline <= time.time() + 3600, "invalid_verification_deadline")
+        return folder, {"expires": deadline}
     go = json.loads(checked_file(folder / "go.json", True))
     require(
         bound == plan
@@ -60,6 +69,40 @@ def pinned(ref):
     path = Path(ref["path"])
     require(hashlib.sha256(checked_file(path)).hexdigest() == ref["sha256"], "registered_tool_changed")
     return runpy.run_path(str(path))
+
+
+def reconcile_stopped(plan, journal):
+    """Read outcomes of recorded intents. Never dispatch, retry or grant a receipt."""
+    settings = config(plan)
+    affected, _ = simple.shape(plan, plan["targets"])
+    require(journal["plan"] == simple.digest(plan), "reconciliation_plan_changed")
+    observations = {}
+    for key, status in journal.get("completed", {}).items():
+        if status != "STARTED":
+            continue
+        op, target = key.split("/", 1)
+        outcome = "requires_readonly_reconciliation"
+        if op == "switch" and target in affected:
+            item = journal["assets"][simple.asset_role(target)]
+            desired = simple.asset(plan, simple.asset_role(target), item)
+            if target in settings["containers"]:
+                outcome = observed_service(plan, target, desired)
+            elif target == "storefront":
+                import old_test_storefront_host as sf
+                live, _ = sf.current(settings)
+                outcome = "done" if live == desired else "previous" if live == plan["previous"][target] else "unknown"
+            else:
+                import old_test_worker_host as worker
+                spec = settings["worker_specs"][target]
+                expected = worker.values(plan, target, settings, desired)[spec["kind"]]
+                outcome = "pin_matches" if worker.read_pin(spec)[1] == expected else "pin_differs"
+        elif op == "migrate" and target in plan["migration"]["files"]:
+            import old_test_migration_host as db
+            outcome = "in_ledger" if target in db.ledger(plan, settings) else "absent_from_ledger"
+        elif op in ("drain", "resume") and target in plan["migration"]["writers"]:
+            outcome = pinned(settings["warm"])["active_info"]([target])[target]
+        observations[key] = outcome
+    return observations
 
 
 def call(plan, guard, operation, target="", data=None):

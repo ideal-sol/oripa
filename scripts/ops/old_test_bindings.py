@@ -32,12 +32,26 @@ def selected(plan, settings):
     return states, affected
 
 
+def static_timer_pins(settings, workers):
+    checks = settings["ordinary_timers"]
+    reader = host.pinned(checks["reader"])
+    pins = {}
+    for name in ("prize-exchange", "scheduled-publish"):
+        if workers.get(name) == "active":
+            pin = reader["exec_timer_pin"](settings["worker_specs"][name], settings["containers"]["api"]["name"])
+            require(pin == checks["pins"][name], "timer_definition_changed_" + name)
+            pins[name] = pin
+    return pins
+
+
 def snapshot(plan):
     settings = host.config(plan)
     states, affected = selected(plan, settings)
     if "previous" in plan:
         affected = list(plan["previous"])
     identities, configuration = {}, {}
+    if "ordinary_policy" in plan and "api" in plan["targets"]:
+        configuration.update(static_timer_pins(settings, plan.get("workers", states)))
     for t in affected:
         if t in ("api", "admin") or t in settings["containers"]:
             current = host.container(settings, t)
@@ -123,6 +137,9 @@ def preflight(plan, target, data, guard):
         required.add("exec-binding")
     if plan["workers"]:
         required.add("worker-states")
+    if "ordinary_policy" in plan and states.get("univapay-monitor") == "active":
+        import old_test_worker_host as worker
+        worker.monitor_preflight(plan, settings, guard)
     if plan["migration"]["files"]:
         required.update(("database-binding", "migration-inventory"))
     if plan["migration"]["writers"]:
@@ -219,11 +236,23 @@ def observe(plan, target, data, guard):
 
 
 def switch_binding(plan, target, data, guard):
+    if target == "api" and "ordinary_policy" in plan:
+        settings = host.config(plan)
+        static_timer_pins(settings, plan["workers"])
+        names = [w for w in ("d4", "univapay-receipts", "f2b-worker", "f2b-purge",
+                             "prize-exchange", "scheduled-publish", "univapay-monitor")
+                 if plan["workers"][w] == "active"]
+        host.pinned(settings["ordinary_timers"]["reader"])["idle_oneshots"](settings, guard, names)
     if target in build.FILES:
         return host.service_switch(plan, target, data, guard)
     import old_test_storefront_host as sf
 
     return sf.switch_binding(plan, target, data, guard)
+
+
+def utc_security(plan, target, data, guard):
+    import old_test_timezone as utc
+    return utc.issue_request(plan, target, data, guard, host)
 
 
 def security(plan, target, data, guard):
@@ -259,8 +288,11 @@ def prepare_evidence(plan, target, data, guard):
         folder, _ = host.approved(plan, guard)
         settings = host.config(plan)
         for worker, prepare in (("member-rank", life.rank_config), ("line-sender", life.line_config)):
-            if plan["workers"].get(worker) == "active" and plan["previous"].get(worker) != data["identity"]:
-                prepare(plan, settings, host.container(settings, worker), data["identity"], folder)
+            if plan["workers"].get(worker) == "active":
+                current = host.container(settings, worker)
+                if current["Image"] != data["identity"]:
+                    require(current["Image"] == plan["previous"][worker], "worker_image_changed")
+                    prepare(plan, settings, current, data["identity"], folder)
 
 
 def verify_retained(plan, target, data, guard):

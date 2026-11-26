@@ -27,10 +27,13 @@ use Illuminate\Support\Facades\Log;
 use App\Domain\Mail\Services\V2TemplateMailDeliveryService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Illuminate\Support\Str;
+use Tests\Support\TestsDatabaseTimeZones;
 use Tests\TestCase;
 
 final class PrizeShippingVerticalSliceTest extends TestCase
 {
+    use TestsDatabaseTimeZones;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -136,8 +139,10 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertDatabaseHas('user_prizes', ['public_id' => $ids[0], 'status' => 'converted', 'exchange_only_snapshot' => true]);
     }
 
-    public function test_auto_exchange_flag_deadline_snapshot_expiry_and_replay(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_auto_exchange_flag_deadline_snapshot_expiry_and_replay(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         [$user, $ids] = $this->fixture(1);
         $service = app(V2PrizeShippingService::class);
         $prize = DB::table('user_prizes')->where('public_id', $ids[0])->first();
@@ -161,6 +166,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         self::assertSame('converted', DB::table('user_prizes')->where('id', $prize->id)->value('status'));
         self::assertSame($before + (int) $prize->exchange_point_snapshot, (int) DB::table('wallets')->where('user_id', $user->id)->value('free_balance'));
         $request = DB::table('prize_exchange_requests')->where('user_id', $user->id)->sole();
+        self::assertTrue(CarbonImmutable::parse($request->completed_at)->equalTo($deadline));
         $operation = DB::table('point_operations')->where('id', $request->point_operation_id)->sole();
         self::assertSame('system', $operation->actor_type);
         $lot = DB::table('point_lots')->where('grant_operation_id', $operation->id)->sole();
@@ -590,8 +596,10 @@ final class PrizeShippingVerticalSliceTest extends TestCase
         }
     }
 
-    public function test_bulk_exchange_grants_snapshot_free_points_and_replays_once(): void
+    #[DataProvider('databaseTimeZones')]
+    public function test_bulk_exchange_grants_snapshot_free_points_and_replays_once(string $zone): void
     {
+        $this->assertDatabaseTimeZone($zone);
         [$user, $prizes] = $this->fixture(3);
         $service = app(V2PrizeShippingService::class);
         $before = (int) DB::table('wallets')->where('user_id', $user->id)
@@ -609,6 +617,7 @@ final class PrizeShippingVerticalSliceTest extends TestCase
             (string) Str::uuid7()
         );
 
+        self::assertTrue(CarbonImmutable::parse(DB::table('prize_exchange_requests')->where('public_id', $first['id'])->value('completed_at'))->equalTo(now()->startOfSecond()));
         self::assertSame(16_000, $first['exchange_point_total']);
         self::assertFalse($first['idempotent_replay']);
         self::assertTrue($replay['idempotent_replay']);

@@ -135,13 +135,40 @@ def authorize(plan, target, data, guard):
     return ref(grant)
 
 
+def verify_cached_material(material, item, guard):
+    artifact = material["artifact"]
+    require(artifact["id"] == item["artifact_id"] and artifact["digest"] == item["artifact_digest"]
+            and artifact["authority"]["source_sha"] == item["source"] and artifact["files"]
+            and material["evidence"], "php_security_artifact_changed")
+    recipe = checked(material["recipe"])
+    refs = [material["gate"], material["policy"], *recipe["files"], *material["evidence"]]
+    for name, checksum in artifact["files"].items():
+        member = Path(name)
+        require(not member.is_absolute() and ".." not in member.parts, "invalid_artifact_member")
+        refs.append({"path": str(Path(artifact["directory"]) / member), "sha256": checksum})
+    for path, checksum in dict.fromkeys((r["path"], r["sha256"]) for r in refs):
+        guard()
+        file = Path(path)
+        for parent in file.parents:
+            simple.trusted(parent, directory=True)
+        try:
+            simple.trusted(file)
+            with file.open("rb") as stream:
+                checksum_actual = hashlib.sha256()
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    checksum_actual.update(chunk)
+        except FileNotFoundError:
+            raise simple.Hold("restore_missing_pinned_security_file_" + file.name) from None
+        require(checksum_actual.hexdigest() == checksum, "cached_security_file_changed")
+
+
 def prepare(plan, item, guard):
     folder, _ = host.approved(plan, guard)
     root = simple.SESSIONS / "security"
     path = root / ("api-" + item["source"] + ".json")
     if path.exists():
         material = json.loads(host.checked_file(path, True))
-        require(material["artifact"]["digest"] == item["artifact_digest"], "php_security_artifact_changed")
+        verify_cached_material(material, item, guard)
         return
     template = host.config(plan)["php_gate"]
     mapping = checked(template["recipe"])

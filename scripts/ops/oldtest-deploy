@@ -1,6 +1,7 @@
 #!/usr/bin/env -S /usr/bin/python3 -I -S -B
 """Fixed OLD Test entry. Install with the reviewed source subset at adoption."""
 import os
+import pwd
 from itertools import chain
 from pathlib import Path
 import runpy
@@ -11,9 +12,16 @@ import sys
 def main():
     os.umask(0o077)
     os.chdir("/")
+    # sudo supplies the invoking identity at the fixed NOSETENV entry.
+    caller = os.environ.get("SUDO_USER")
+    uid = os.environ.get("SUDO_UID")
+    delegated = (os.geteuid() == 0 and caller == "oripa-old-deployer"
+                 and uid == str(pwd.getpwnam(caller).pw_uid) and uid != "0")
     os.environ.clear()
     os.environ.update(PATH="/usr/sbin:/usr/bin:/sbin:/bin", LANG="C",
                       HOME="/var/empty", DOCKER_HOST="unix:///var/run/docker.sock")
+    if delegated:
+        os.environ["OLD_TEST_DELEGATED_CALLER"] = caller
     sys.dont_write_bytecode = True
     root = Path("/usr/local/lib/oripa-old-test-simple")
     scripts = root / "scripts/ops"

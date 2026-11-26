@@ -376,7 +376,7 @@ final class V2PrizeShippingService
                 'exchange_point_total' => $total,
                 'point_operation_id' => $point['operation']->id,
                 'response_data' => json_encode($response, JSON_THROW_ON_ERROR),
-                'completed_at' => $now,
+                'completed_at' => V2DatabaseTimestamp::format($now),
             ]);
             $this->idempotency->complete(
                 $claim->record,
