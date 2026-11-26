@@ -188,7 +188,7 @@ class AdapterTest(unittest.TestCase):
 
     def test_snapshot_go_and_financial_binding_before_create(self):
         for kind, key, wrong in (("snapshot", "database", "other"), ("snapshot", "manual", False),
-                                 ("snapshot", "freeze_sha256", hash_of("other")), ("go", "authenticated_human", False)):
+                                 ("snapshot", "freeze_sha256", hash_of("other")), ("go", "approved", False)):
             with self.subTest(kind=kind, key=key):
                 records = dict(self.records)
                 records[kind] = dict(records[kind], **{key: wrong})

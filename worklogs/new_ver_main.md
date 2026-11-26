@@ -14422,6 +14422,12 @@ against fixed source, contiguous ledger 107–119, one zero exit per runner and
   budget. A missing terminal result cannot authorize replay. No historical
   exception or private implementation was published.
 
+- Updated the approval contract by Human decision. The existing protected
+  one-GO record binds the site, release, stage digest, scope and validity.
+  Qualification checks its publisher and the caller's read-only boundary.
+  Separate cryptographic proof of the approver is optional. Keep Snapshot,
+  fence, migration journal and recovery checks in place.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.

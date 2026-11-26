@@ -40,7 +40,7 @@ def publish_fixture(folder, records):
 def approval(plan, stage_hash):
     now = int(time.time())
     return dict(release=plan["release"], site=plan["site"], approved=True, stage_sha256=stage_hash,
-                issued=now - 1, expires=now + 600, scope="production_release", authenticated_human=True,
+                issued=now - 1, expires=now + 600, scope="production_release",
                 approver="fixture-owner", audit_event="fixture-event")
 
 
@@ -312,6 +312,14 @@ class HostBoundaryTest(unittest.TestCase):
                 with self.assertRaises(m.Hold) as raised:
                     host.call("pre",0,{})
                 self.assertEqual((raised.exception.reason,raised.exception.sqlstate),("sql_error","57014"))
+                go_file = folder / "go-receipt"
+                original = go_file.read_bytes()
+                receipt = json.loads(original)
+                receipt["issuer"] = "unregistered"
+                go_file.write_text(json.dumps(receipt))
+                with self.assertRaisesRegex(m.Hold, "unexpected_evidence_issuer"):
+                    host.authorized()
+                go_file.write_bytes(original)
                 adapter.write_text("changed")
                 with self.assertRaisesRegex(m.Hold,"adapter_changed"):
                     host.authorized()
@@ -326,7 +334,7 @@ class HostBoundaryTest(unittest.TestCase):
         host.stage_hash = host.binding = hash_of("bound")
         valid = approval(dict(site="SITE", release="TEST"), host.stage_hash)
         for bad in ({"release":"OTHER"},{"site":"OTHER"},{"expires":0},{"approved":1},{"stage_sha256":"other"},
-                    {"authenticated_human":False},{"scope":"stage"},{"issued":int(time.time())+30},
+                    {"approved":False},{"scope":"stage"},{"issued":int(time.time())+30},
                     {"approver":""},{"audit_event":" "}):
             with patch.object(host,"check_binding"), patch.object(m,"evidence",
                     return_value=(dict(valid,**bad), hash_of("receipt"))), self.assertRaisesRegex(m.Hold,"go_invalid"):
