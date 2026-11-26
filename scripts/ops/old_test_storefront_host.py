@@ -577,6 +577,7 @@ def switch_binding(plan, target, identity, guard):
                 stream.write(body)
                 stream.flush()
                 os.fsync(stream.fileno())
+    guard()
     host.run(["/usr/bin/systemctl", "daemon-reload"])
     require(
         unit_fields(old)["WorkingDirectory"] == str(previous)

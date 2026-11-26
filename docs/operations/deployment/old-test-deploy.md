@@ -38,11 +38,11 @@ issued verification receipt cannot activate this maintenance operation.
 
 ### Ordinary feature deployment
 
-Phase 2 introduces a source entry for OLD Test. Canonical governs every live
-deployment until explicit adoption. During coexistence both entries use the
-existing exclusive deployment lock. Commercial Production retains its own
-Authority, Security and Release Gates. Ordinary feature PRs, Required Checks,
-lane-specific review and squash merge follow the existing development rules.
+`oldtest-deploy` is the OLD Test standard. Canonical remains available for
+recovery under the same exclusive runtime lock. Ordinary feature PRs, Required
+Checks, lane-specific review, migration allocation, contracts and squash merge
+continue in each repository. Source merge and successful CI trigger no deploy.
+Start on an explicit request, for example “OLD Testに反映してください”.
 
 After adoption the operator prepares a plan for a merged change, for example
 
@@ -51,7 +51,11 @@ oldtest-deploy api admin --session OLDTEST-EXAMPLE --prepare --platform-source P
 oldtest-deploy api admin --session OLDTEST-EXAMPLE
 ```
 
-The second command requires the Human GO for the first command's plan.
+Run these fixed commands through the existing restricted sudo entry as
+`oripa-old-deployer`. After one-time policy enrollment, the second command
+verifies the same plan under delegated authority. Human server login, manual
+GO registration and the fixed one-hour Human approval deadline are unnecessary.
+Until enrollment, honor the installed approval requirements.
 Select `api`, `admin`, `storefront`, their combinations, `all`, or
 `worker NAME`. Use `--storefront-source PR@FULL_SHA` for Storefront, and
 repeat `--migration FILE.php` for each reviewed additive migration in order.
@@ -63,13 +67,35 @@ approved alpha.54 release for the existing installation.
 The private, immutable plan records targeted repository/PR/SHA, recipes,
 contract, previous identities, config fingerprint, Worker states, migration
 and recovery scope. The journal records fixed-head checks, review comment,
-tree, artifact/run IDs, digests, intent and observed results. The Human-only
-approval channel writes `go.json` containing `session`, `plan` (the displayed
-digest), `decision: GO`, UTC epoch `issued` and `expires`. The maximum
-session is one hour. The deployment caller cannot issue GO. One GO covers
-acquisition, necessary build, selected effects and bounded health retries.
-Recheck a changed configuration, identity or expired approval before further
-effects. Keep the existing session journal when renewing the same scope.
+tree, artifact/run IDs, digests, intent and observed results. The ordinary plan
+also binds the administrator policy digest. It covers API, Admin and Storefront,
+the corresponding registered running consumers, selected classified additive
+migrations, artifact/build acquisition, verification, health and bounded recovery.
+ENV/provider changes, permissions or Security enrollment, independent SMS image
+replacement, new workers, destructive or unclassified migrations, database resets
+and real payment/notification tests require separate Human decisions. Production
+uses its own entry and authority. Standalone worker sessions retain individual GO.
+
+At installation the administrator provisions root-private `ordinary-policy.json`
+beside the bindings. Its fields are `kind=ordinary-v1`, positive integer
+`revision`, `environment=old-test`, `executor=oripa-old-deployer`, enrolled
+`targets`, local machine digest `machine`, and boolean `enabled`. Run the
+ordinary operator from a genuinely unprivileged OS session with the existing
+fixed NOSETENV sudo rule. A UID 0 agent retains administrative power and is
+unsuitable as the ordinary operator. Verify the deployer cannot edit either
+configuration, issue a personal GO, or use general sudo, Docker or privileged App
+operations. The administrator atomically disables the policy to revoke it.
+Increment the revision on each replacement or re-enrollment to invalidate old
+plans. Preserve outstanding intents and reconcile the last actual identity, pin,
+ledger or build run read-only before authorizing more work.
+
+After 24 hours without verified progress the running session pauses. On an
+explicit resume request, call the same fixed entry with the same targets and
+session. Recheck policy, current state, retained identities and outstanding
+intents. Discover ambiguous outcomes before further effects. Refresh an expired
+Security Receipt through its original verifier. Request deadlines, receipt TTLs,
+per-command timeouts and retry limits apply independently. Technical PASS closes
+the session against repeated effects. Browser verification belongs to the Human.
 
 Reuse formally admitted local images after checking OCI revision, image ID,
 architecture, recipe, contract and current target security. Remote expiration
@@ -105,16 +131,16 @@ with the Human.
 
 The Canonical Executor consumes an exact execution envelope. The installed PHP
 verifier instead takes a policy and a verification request. For each selected
-PHP operation the simple entry prepares that request, binding the GO, source,
-artifact, image, recipe, logical target and session deadline. Enroll
+PHP operation the simple entry prepares that request, binding the plan, source,
+artifact, image, recipe, logical target and verification request deadline. Enroll
 `php-gate-inputs` to supply approved evidence and independently pinned Gate,
 template and recipe bytes. Enroll `authorize-php-request` in the private
-authority to verify the Human GO and the exact effect and issue the policy
+authority to verify the applicable plan authority and exact effect and issue the policy
 grant for the computed request hash. The entry checks that all other template
 constraints are identical, then calls native `verify` and `validate_receipt`.
 The private journal records the binding and receipt digests. A denied image,
 absent grant or changed scope holds. Receipt expiration requires fresh
-measurement inside the original GO. Canonical policy files stay read-only.
+measurement under the still-valid plan authority. Canonical policy files stay read-only.
 
 Phase 4 enrollment requires the following checks before enabling the entry.
 
@@ -126,8 +152,8 @@ Phase 4 enrollment requires the following checks before enabling the entry.
 | Storefront | Verify the staged release manifest, build ID, installed pnpm links, contract packages, Node and proxy routing. Bind staged health to the selected directory, listener and service. Prove that the old unit can be started again, including its transient unit definition, before stopping it. |
 | Coexistence | Install disabled on OLD Test after separate approval. Exercise the registered private operations with isolated resources, including the App grant and target-specific verifier. Confirm both entries honor the same lock and can read the retained recovery assets. Registration requires no application restart. |
 
-Normal releases use zero release PRs, zero release-specific CI runs, one scoped
-GO and zero manually prepared candidates or envelopes. A cache miss needs one
+After enrollment normal releases use zero release PRs, release-specific CI runs,
+individual GO registrations or manually prepared envelopes. A cache miss needs one
 Platform workflow for the selected images and at most one Storefront build.
 The entry serializes each session independently while it checks GitHub, obtains
 artifacts or waits for a build. It takes the common lock for the local plan
@@ -142,7 +168,7 @@ only after checking schema compatibility. An applied migration needs its own
 database recovery decision.
 
 Launch only the reviewed, protected installed code with a clean Python and
-command environment. Keep private state and GO under the operator's ownership.
+command environment. Keep private state, policy and exception GO administrator-owned.
 Never grant the deployment user Docker group membership or general sudo.
 The private site boundary is deliberately separate from the public repository.
 Its fixed operations are defined by `Site.call` in
@@ -172,7 +198,7 @@ transient definition and release must remain available for recovery.
 Each enrolled function takes a copy of the scoped plan, the logical target,
 operation data and a session-check callback. Only read-only proposal receives
 an empty callback. Check the session immediately before every private effect,
-bound subprocess timeouts to the approval window and return sanitized data.
+bound each subprocess timeout and return sanitized data.
 Use actual private measurements for the Security and environment gates.
 Phase 2 includes the coordinator, artifact admission, selected
 Compose/systemd switch, migration command and HTTP probes. Existing private
@@ -184,10 +210,29 @@ this interface. A missing binding holds before a switch.
 | propose, preflight | Measure OLD Test host identity, selected runtime/config/ENV, private networks and mounts, TEST provider/notification fences, effective proxy, capacity, inodes, compatibility and Canonical entry inactivity. Read only the relevant worker inventory. Bind old state and approved recipes. |
 | find-asset, verify-retained, cache-admission | Return a protected previous admission, a formally downloaded archive ID, or a cache miss. Accept cache writes only from the trusted entry after inner/outer verification and local OCI inspection. Verify Storefront vendored packages, actual dependencies and build identity. |
 | ensure-formal-build, prepare-build | Use only the approved fixed GitHub dispatcher/download operations or the existing Storefront builder. Adopt the same run on resume. Distinguish an expired remote artifact, a verified local image and an unknown dispatch. |
-| security, switch-binding, database-binding | Measure the actual selected image/build, policy and configuration, bound to the GO and session deadline. Check mount/network/ENV and staged units immediately before effects. Verify actual database identity, non-destructive classification, next ledger file and required writer drain. |
+| security, switch-binding, database-binding | Measure the selected image/build and configuration under the bound authority and current verification deadline. Check mount/network/ENV and staged units immediately before effects. Verify database identity, additive classification, next ledger file and required writer drain. |
 | observe, migration-inventory | Reconcile actual before/after identity, ordered ledger and effects. Return done only on positive evidence. Partial, conflicting or ambiguous state holds. Read-only ledger commands that need Artisan JSON use `SHELL_VERBOSITY=0`. |
 | drain, resume, switch for registered workers, exec-binding, worker-states, worker-lock-released | Permit fixed registered actions only on their approved existing runtime. Revalidate running/held state. For a pin bind the actual new API container/image. Limit sender lock ownership to the drain and release before resume. |
 | health | Prove effective local proxy routing/listener ownership for the selected role, or query the registered worker/timer process, last result and next trigger. Provide only the sanitized metadata required by the entry. |
+
+For ordinary API enrollment, pin the approved private timer reader under
+`site.ordinary_timers.reader` and the two enrolled static digests under
+`pins` keyed by `prize-exchange` and `scheduled-publish`. Verify executable,
+argv, container, lock, unit files and drop-ins. Exclude PID and last-run
+timestamps. Reuse the invocation-specific UnivaPay business warning check,
+including exit status, journal evidence, empty process group and recheck under
+the lock. Preserve Paidy OFF and all pre-deployment worker states. Preserve
+the accepted UTC database session and Tokyo application/PHP fingerprints in
+both launch definitions and the active registry.
+
+At handoff retain the historical Phase 4 adoption record and UTC maintenance
+Technical PASS. After authorized installation append the current entry source,
+policy revision/digest, registry digest, enabled targets, and acceptance status
+to the private adoption record. Re-read the registered bytes. Each new operator
+compares this current record with the installed state. UTC maintenance evidence
+covers its four roles only. Record elapsed time from request to Technical PASS,
+build/CI reuse, errors, HOLD count, Human waits/approvals and browser handoff
+separately. Keep identifiers and site-specific measurements in the private journal.
 
 Before adoption exercise these bindings offline against the actual private
 interfaces, including source review format, GitHub App permissions, migration

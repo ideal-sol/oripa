@@ -37,6 +37,8 @@ MIGRATION = re.compile(r"[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_[a-z0-9_]+(?:\.php)
 LOCK = Path("/run/lock/oripa-v2-preview-deployment.lock")
 SESSIONS = Path("/var/lib/oripa-old-test-simple")
 BINDINGS = Path("/etc/oripa-old-test-simple/bindings.json")
+ORDINARY_POLICY = BINDINGS.with_name("ordinary-policy.json")
+IDLE_LIMIT = 24 * 3600
 PROCEDURES = Path("/usr/local/lib/oripa-old-test-simple/private")
 WORKFLOW = ".github/workflows/old-test-main-artifact.yml"
 
@@ -55,8 +57,29 @@ def digest(value):
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
+def ordinary_policy(targets, expected=None):
+    """Only an administrator can enroll or revoke this fixed capability."""
+    trusted(ORDINARY_POLICY.parent, directory=True)
+    trusted(ORDINARY_POLICY, private=True)
+    policy = json.loads(ORDINARY_POLICY.read_bytes())
+    require(set(policy) == {"kind", "revision", "environment", "executor", "targets", "machine", "enabled"}
+            and policy["kind"] == "ordinary-v1" and policy["enabled"] is True
+            and type(policy["revision"]) is int and policy["revision"] > 0
+            and policy["environment"] == "old-test"
+            and policy["executor"] == os.environ.get("OLD_TEST_DELEGATED_CALLER") == "oripa-old-deployer"
+            and policy["machine"] == hashlib.sha256(Path("/etc/machine-id").read_bytes()).hexdigest()
+            and isinstance(policy["targets"], list) and set(targets) <= set(policy["targets"]) <= set(SERVICES)
+            and targets, "ordinary_policy_denied")
+    pin = digest(policy)
+    require(expected is None or expected == pin, "ordinary_policy_changed")
+    return pin
+
+
 def shape(plan, targets):
-    require(set(plan) == {"environment", "session", "targets", "sources", "contract", "recipes",
+    if "ordinary_policy" in plan:
+        require(DIGEST.fullmatch(plan["ordinary_policy"]) and targets and set(targets) <= set(SERVICES),
+                "ordinary_scope_denied")
+    require(set(plan) - {"ordinary_policy"} == {"environment", "session", "targets", "sources", "contract", "recipes",
                           "previous", "configuration", "site_policy", "workers", "migration", "recovery"}
             and plan["environment"] == "old-test" and plan["targets"] == targets
             and SESSION.fullmatch(plan["session"]), "plan_scope_mismatch")
@@ -702,15 +725,34 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
            *, enter_runtime=None):
     affected, roles = shape(plan, targets)
     binding = digest(plan)
-    require(approval["plan"] == binding and approval["session"] == plan["session"]
-            and approval["decision"] == "GO" and type(approval["issued"]) is int
-            and type(approval["expires"]) is int and 0 < approval["expires"] - approval["issued"] <= 3600,
-            "approval_required")
+    delegated = "ordinary_policy" in plan
+    if delegated:
+        require(approval is None and journal.get("plan") == binding and journal.get("sources")
+                and all(journal["sources"].get(repo, {}).get("source_sha") == src["sha"]
+                        and journal["sources"][repo]["source_pr"] == src["pr"]
+                        for repo, src in plan["sources"].items()), "ordinary_plan_proof_required")
+        ordinary_policy(targets, plan["ordinary_policy"])
+    else:
+        require(approval["plan"] == binding and approval["session"] == plan["session"]
+                and approval["decision"] == "GO" and type(approval["issued"]) is int
+                and type(approval["expires"]) is int and 0 < approval["expires"] - approval["issued"] <= 3600,
+                "approval_required")
     require(journal.get("plan", binding) == binding, "journal_binding_changed")
     journal.setdefault("plan", binding)
     completed = journal.setdefault("completed", {})
     acquired = journal.setdefault("assets", {})
     results = journal.setdefault("results", {})
+    if delegated and journal.get("terminal") == "Technical PASS":
+        return
+    started = now()
+    if delegated:
+        require(type(journal.get("progress_at")) in (float, int) and journal["progress_at"] <= started,
+                "session_progress_invalid")
+
+    def progress():
+        if delegated:
+            journal["progress_at"] = now()
+        save(journal)
     step, target = "preflight", ""
     security_role, security_details, valid_until = "", {}, 0
     measuring = False
@@ -720,7 +762,17 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         lock_check()
         if runtime_check:
             runtime_check()
-        require(approval["issued"] <= now() < approval["expires"], "session_expired")
+        if delegated:
+            ordinary_policy(targets, plan["ordinary_policy"])
+            if isinstance(site, Site):
+                trusted(BINDINGS, private=True)
+                require("sha256:" + hashlib.sha256(BINDINGS.read_bytes()).hexdigest() == plan["site_policy"],
+                        "site_policy_changed")
+            # A new fixed-entry invocation is an explicit resume. It always
+            # reconciles the live preflight before any subsequent effect.
+            require(now() - max(started, journal["progress_at"]) < IDLE_LIMIT, "session_idle_resume_required")
+        else:
+            require(approval["issued"] <= now() < approval["expires"], "session_expired")
         if security_role and not measuring and now() >= valid_until:
             measure()
 
@@ -728,9 +780,14 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         nonlocal measuring, valid_until
         measuring = True
         try:
+            if delegated:
+                security_details["deadline"] = int(now()) + 3600
+                journal["request_deadline"] = security_details["deadline"]
+                save(journal)
             reading = site.call("security", security_role, security_details)
             require(reading["result"] == "PASS" and reading["binding"] == security_details
-                    and approval["issued"] <= reading["measured"] <= now() < reading["expires"] <= approval["expires"],
+                    and (started if delegated else approval["issued"]) <= reading["measured"] <= now()
+                    < reading["expires"] <= security_details["deadline"],
                     "security_binding_failed")
             valid_until = reading["expires"]
             key = security_details["operation"] + "/" + security_details["target"]
@@ -773,8 +830,9 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             raise Hold("build_still_running")
         observed = observe()
         if observed == "done":
-            completed[key] = "PASS"
-            save(journal)
+            if completed.get(key) != "PASS":
+                completed[key] = "PASS"
+                progress()
             return
         resumable=(op=="prepare-build" and target in ("storefront","api","admin","api+admin") and observed=="resumable"
                    and completed.get(key)=="STARTED")
@@ -784,7 +842,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         call(op, target, data)
         require(observe() == "done", "effect_unconfirmed")
         completed[key] = "PASS"
-        save(journal)
+        progress()
 
     def inspect_host():
         preflight = call("preflight")
@@ -811,7 +869,29 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             if repo not in proofs:
                 proofs[repo] = merged_source(repo, src["pr"], src["sha"], lambda path: call("github-read", data=path))
         preflight = inspect_host()
+        if delegated and started - journal["progress_at"] >= IDLE_LIMIT:
+            # The previous process cannot renew this session by polling. This
+            # explicit call reconciles durable intents before acquisition.
+            for key, status in completed.items():
+                if status != "STARTED":
+                    continue
+                op, subject = key.split("/", 1)
+                if op == "prepare-build":
+                    value = subject.split("+")
+                elif op in ("migrate", "backup"):
+                    value = acquired["api"]["identity"]
+                elif op == "switch":
+                    value = acquired[asset_role(subject)]["identity"]
+                else:
+                    value = None
+                actual = call("observe", subject, {"operation": op, "input": value})
+                require(actual == "done" or op == "prepare-build" and actual in ("in-progress", "resumable"),
+                        "idle_session_intent_requires_reconciliation")
+            journal["reconciled_at"] = started
+            save(journal)
         missing = []
+        prepare_evidence = (enter_runtime is not None and isinstance(site, Site) and
+                            "prepare-evidence" in json.loads(BINDINGS.read_bytes()).get("operations", {}))
         for role in roles:
             step, target = "find-asset", role
             item = call("verify-retained", role, acquired[role]) if role in acquired else call(step, role)
@@ -822,6 +902,9 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             asset(plan, role, item)
             if role in acquired:
                 require(acquired[role] == item, "verified_asset_changed")
+            if prepare_evidence:
+                step = "prepare-evidence"
+                call(step, role, item)
             acquired[role] = item
         if missing:
             # Combine missing API/Admin into one formal AMD64 workflow dispatch.
@@ -837,10 +920,10 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         save(journal)
 
         if enter_runtime is not None:
-            if isinstance(site, Site) and "prepare-evidence" in json.loads(BINDINGS.read_bytes()).get("operations", {}):
-                for role, item in acquired.items():
+            if prepare_evidence:
+                for role in missing:
                     step, target = "prepare-evidence", role
-                    call(step, role, item)
+                    call(step, role, acquired[role])
             step, target = "runtime-lock", ""
             runtime_check = enter_runtime()
             guard()
@@ -855,7 +938,8 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             security_role, valid_until = role, 0
             security_details = {"source": acquired[role]["source"], "identity": acquired[role]["identity"],
                                 "configuration": plan["configuration"], "contract": plan["contract"], "plan": binding,
-                                "operation": operation, "target": subject, "deadline": approval["expires"]}
+                                "operation": operation, "target": subject,
+                                "deadline": 0 if delegated else approval["expires"]}
             if role in ("api", "admin"):
                 security_details.update(artifact_id=acquired[role]["artifact_id"],
                                         artifact_digest=acquired[role]["artifact_digest"])
@@ -906,7 +990,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             step = "health"
             wait_health(target)
             results[target] = "PASS"
-            save(journal)
+            progress()
             security_role = ""
         guard()
         if "api" in targets:
@@ -921,9 +1005,11 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
             require(call("worker-states") == plan["workers"], "retained_worker_changed")
         guard()
         journal.pop("error", None)
+        if delegated:
+            journal["terminal"] = "Technical PASS"
         save(journal)
     except Exception as exc:
-        if target in affected or target in plan["workers"]:
+        if (target in affected or target in plan["workers"]) and results.get(target) != "PASS":
             results[target] = "FAIL"
         frames = traceback.extract_tb(exc.__traceback__)
         frame = next((f for f in reversed(frames) if f.name != "require"), frames[-1])
@@ -937,6 +1023,7 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
         elif isinstance(exc,OSError):
             reason="os_error_"+str(exc.errno)
         recovery={"prepare-build":"Reconcile the recorded workflow run or local Build before resuming this session.",
+                  "prepare-evidence":"Recover the pinned member from the same verified artifact or retained evidence, verify its digest and resume.",
                   "find-asset":"Verify the recorded artifact ID, expiry and local space, then resume acquisition.",
                   "security":"Check the selected image, scanner result and current receipt within this GO.",
                   "migrate":"Read the selected database ledger and reconcile the named migration before retrying.",
@@ -946,6 +1033,8 @@ def deploy(plan, targets, approval, journal, save, site, lock_check, now=time.ti
                             "file": Path(frame.filename).name, "line": frame.lineno,
                             "exit": getattr(exc, "returncode", 1),
                             "reason":reason,"recovery":recovery.get(step,"Correct the named precondition and resume the same plan.")}
+        if delegated:
+            journal["holds"] = journal.get("holds", 0) + 1
         save(journal)
         raise
 
@@ -1004,8 +1093,14 @@ def main(argv=None):
                     "invalid_plan_input")
             request = {"environment": "old-test", "session": args.session, "targets": targets, "sources": sources,
                        "contract": args.contract, "site_policy": "sha256:" + hashlib.sha256(BINDINGS.read_bytes()).hexdigest()}
+            if set(targets) <= set(SERVICES) and ORDINARY_POLICY.exists():
+                request["ordinary_policy"] = ordinary_policy(targets)
             site = Site(request)
-            site.guard = check
+            def check_preparation():
+                check()
+                if "ordinary_policy" in request:
+                    ordinary_policy(targets, request["ordinary_policy"])
+            site.guard = check_preparation
             proofs = {repo: merged_source(repo, src["pr"], src["sha"],
                                           lambda path: site.call("github-read", data=path))
                       for repo, src in sources.items()}
@@ -1014,10 +1109,12 @@ def main(argv=None):
                 proposal["inputs"] = site.call("prepare-inputs", data=proposal)
             site.guard = None
             enter_runtime()
+            check_preparation()
             plan = site.call("propose", data=proposal)
             require(all(plan[k] == v for k, v in request.items())
                     and plan["migration"]["files"] == args.migration, "proposed_scope_changed")
             shape(plan, targets)
+            check_preparation()
             trusted(folder, private=True, directory=True)
             path = folder / "plan.json"
             if path.exists():
@@ -1027,7 +1124,7 @@ def main(argv=None):
                 persist(path, plan)
             journal = folder / "journal.json"
             if not journal.exists():
-                persist(journal, {"plan": digest(plan), "sources": proofs})
+                persist(journal, {"plan": digest(plan), "sources": proofs, "progress_at": time.time()})
             print(json.dumps({"plan": plan, "sources": proofs, "approval_digest": digest(plan)}, sort_keys=True))
             return
         require(not (args.platform_source or args.storefront_source or args.contract or args.migration),
@@ -1041,10 +1138,26 @@ def main(argv=None):
         require(plan["session"] == args.session, "session_mismatch")
         path = folder / "journal.json"
         journal = read(path.name) if path.exists() else {}
-        require((folder / "go.json").exists(), "human_go_missing_for_prepared_plan")
+        approval = None
+        if "ordinary_policy" not in plan:
+            require((folder / "go.json").exists(), "human_go_missing_for_prepared_plan")
+            approval = read("go.json")
         canonical_idle()
-        deploy(plan, targets, read("go.json"), journal, lambda data: persist(path, data),
-               Site(plan), check, enter_runtime=enter_runtime)
+        try:
+            deploy(plan, targets, approval, journal, lambda data: persist(path, data),
+                   Site(plan), check, enter_runtime=enter_runtime)
+        except (Hold, FileNotFoundError) as exc:
+            revoked = (str(exc) in ("ordinary_policy_changed", "ordinary_policy_denied") or
+                       isinstance(exc, FileNotFoundError) and exc.filename == str(ORDINARY_POLICY))
+            if ("ordinary_policy" in plan and revoked and plan["targets"] == targets
+                    and os.environ.get("OLD_TEST_DELEGATED_CALLER") == "oripa-old-deployer"):
+                import old_test_host as host
+                try:
+                    journal["revocation_observations"] = host.reconcile_stopped(plan, journal)
+                except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError):
+                    journal["revocation_observations"] = {"status": "requires_readonly_reconciliation"}
+                persist(path, journal)
+            raise
         print(json.dumps(journal["results"], sort_keys=True))
 
 

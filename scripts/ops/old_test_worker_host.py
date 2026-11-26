@@ -144,6 +144,8 @@ def write_pin(plan, worker, desired, guard):
         else:
             raise simple.Hold("worker_oneshot_not_drained_" + worker)
     if new != raw:
+        if worker == "univapay-monitor" and "ordinary_policy" in plan:
+            host.pinned(settings["ordinary_timers"]["reader"])["idle_oneshots"](settings, guard, [worker])
         guard()
         require(observe(plan, "switch", worker, desired, guard) == "ready", "worker_pin_changed_before_write")
         fd, name = tempfile.mkstemp(dir=path.parent)

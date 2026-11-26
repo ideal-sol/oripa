@@ -14420,3 +14420,9 @@ with protected main b08abcf0bef290e6bf3d0c318c02fd83d4f5f303.
 
 - Add one plan and separate Human GO for the four PHP roles. Pin the retained SMS image, successor identity, member-rank image transition, worker states and both configuration fingerprints.
 - Reuse the admitted API artifact and native Gate. Preserve the enrolled LINE container PATH and PHP build metadata when preparing subsequent UTC launches. Runtime activation is deferred until the reviewed host bindings and exact approval are present. No migration or contract change.
+
+### OLDPOL-20261126 — Ordinary OLD Test deployment delegation
+
+- R3, Strict Change, application runtime activation deferred. Adopt an explicit deployment request and a revocable, machine-bound policy for the limited OLD Test executor. Bind the plan and journal to the policy and keep individual approval for exceptions.
+- Reuse existing artifact, Security and worker checks. Verify cached evidence and timer definitions before switching. Keep UTC database sessions, Tokyo application time, native receipt freshness, bounded recovery and terminal replay protection.
+- The four-role UTC maintenance reached Technical PASS after six HOLDs. Ordinary feature deployment has separate installation and runtime acceptance. Preserve the historical handoff and enroll the reviewed source only after separate approval.
