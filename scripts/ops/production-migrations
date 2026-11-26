@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I -S -B /usr/local/lib/oripa-production-migrations/production_migrations.py "$@"

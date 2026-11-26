@@ -14363,6 +14363,85 @@ Apply the following fixed-source blobs in order. PHP migration blobs 000001–00
   successful cold acquisition and a changed runtime during acquisition in
   isolated tests. Runtime and migration were not exercised.
 
+## PRODSTD-20261126 — Phase 2 common executor investigation
+
+Base d9df6bc943681bd76f276b015bf53d5acc0d559a. R3 / Strict Change /
+Application Runtime Activation: deferred. Issue none. Dedicated worktree.
+
+- The protected-main ARM64 workflow and Production source authority helper
+  already bind the reviewed source, tree and artifact. Preserve that path.
+- The OLD Test implementation has an ordered migration suffix check, a
+  process lock and a durable intent journal. Its database identity, worker
+  bindings and health probes are OLD-specific. Its host-state snapshot does
+  not attest to an available DB backup.
+- Focused local baseline tests passed (three Production source authority,
+  two synthetic OLD Test ledger/resume cases). These cover existing code.
+- Await the final November 25 NEW operator handoff to identify the successful
+  one-shot and its status protocol, including fence, snapshot, per-file
+  checks and diagnostic output. A build/preparation handoff cannot establish
+  the executed path. No host operation, grant or migration performed.
+
+Handoff received. Verified ZIP SHA256, 22 unique members and CRCs, all 21
+manifest entries, 17 original-source pin references, all 12 migration hashes
+against fixed source, contiguous ledger 107–119, one zero exit per runner and
+24 distinct receipt references. Distributed sources are redacted views.
+
+- Source draft fixes the invocation and read-only status path, active GO and
+  adapter binding, single durable reservation, pre/start/post ordering and
+  allowlisted output. Stage, activation, workers and health use the existing
+  release routes. The private adapter must bind real site operations before
+  OLD Test qualification. No site payloads or historical exceptions imported.
+- The focused synthetic tests cover authority drift, ordered ledger and
+  receipt checks, concurrency, interrupted effects, status and redaction.
+  See the Draft PR for final-head CI and Strict review. No real host test,
+  installation, permission change, operational migration or runtime change.
+
+- PR737 follow-up: bound the adapter response wait, including EOF and exit.
+  Timeout preserves migration effects. Explicit resume takes an exclusive
+  lock, reconciles fresh observations with the original fence and durable
+  receipts, and retains recovery history. Unknown outcomes remain held.
+  The private binding and separate OLD Test qualification remain pending.
+
+- Binding follow-up adds one fixed noninteractive adapter. The controller
+  reads existing publisher-owned Stage and Human GO receipts. The adapter
+  verifies the matching Snapshot, current fence, image, Runner identity,
+  immutable attempt and pre/post Reader evidence. A separate local fixture
+  exercises the controller and adapter together against a synthetic ledger.
+  Prior timeout and recovery evidence remains on the preceding head.
+- Enrollment still requires the authenticated publisher contract, original
+  private Reader and parity routines, and authoritative read-only evidence of
+  Runner history and outstanding effects. There is no caller-facing enrollment
+  or approval-write command. The private source and independent OLD Test
+  qualification require separate review before any operational use.
+
+- Reviewed the NEW operator's additional source/evidence report. The site owns
+  the original Creator and final guarded send, private Reader/Observer and
+  side-effect-free inspection. Bind the single authenticated approval to the
+  sealed plan and separate audit event. Preserve the subsequent Snapshot receipt.
+  Recovery uses the complete intent-to-terminal history and a measured read
+  budget. A missing terminal result cannot authorize replay. No historical
+  exception or private implementation was published.
+
+- Updated the approval contract by Human decision. The existing protected
+  one-GO record binds the site, release, stage digest, scope and validity.
+  Qualification checks its publisher and the caller's read-only boundary.
+  Separate cryptographic proof of the approver is optional. Keep Snapshot,
+  fence, migration journal and recovery checks in place.
+
+- Human accepted independent OLD qualification, trial B, for PR #737 source
+  `3978823e974c5e7f7efecf5a9829dd876a557a47`. The isolated Docker/Laravel
+  and PostgreSQL fixture maintained its writer fence and verified a physical
+  snapshot. The two migrations advanced the ledger from 0 to 1 to 2, with one
+  start each. After the first application, status returned UNKNOWN in 3.703 s.
+  Resume confirmed APPLIED in about 5.4 s (35 s budget) and completed the
+  second migration. A concurrent run returned controller_active; a completed
+  run returned PASS again with both start counts unchanged.
+- Qualification report SHA-256:
+  `3db36c8cc60cb0492ddf2f169791c6cc94c901c3be142065f9395c1357af40b9`.
+  The entrypoint, controller and adapter matched the qualified bytes. The two
+  private source files in the NEW handoff also matched the trial. Production
+  enrollment, access and activation remain separate Human decisions.
+
 ## PRODSTD-20261125 — NEW Production release standardization draft
 
 R3 / Strict Change / Application Runtime Activation: none / Issue: none.
