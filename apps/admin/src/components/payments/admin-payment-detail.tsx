@@ -43,6 +43,14 @@ export function AdminPaymentDetail({ paymentId }: { paymentId: string }) {
     {detail && <>
       <section className="admin-payment-detail-panel" aria-label="決済情報"><h2>{detail.payment.amount.amount.toLocaleString()}円</h2>
         <p style={{ overflowWrap: "anywhere" }}>決済ID：{detail.payment.id}</p>
+        {detail.stripe_checkout && <section aria-label="Stripe 決済"><h3>Stripe 決済</h3>
+          <p>Session ID：{detail.stripe_checkout.session_id ?? "未発行"}</p>
+          <p>PaymentIntent ID：{detail.stripe_checkout.payment_intent_id
+            ? <a href={`https://dashboard.stripe.com/${detail.stripe_checkout.livemode ? "" : "test/"}payments/${encodeURIComponent(detail.stripe_checkout.payment_intent_id)}`}>{detail.stripe_checkout.payment_intent_id}</a> : "未発行"}</p>
+          <p>支払手段：{[detail.stripe_checkout.actual_method_type, detail.stripe_checkout.wallet_type].filter(Boolean).join(" ／ ") || "未確定"}</p>
+          <h4>Session 作成履歴</h4><ol>{detail.stripe_checkout.attempts.map(attempt =>
+            <li key={attempt.attempt_no}>{attempt.state} {attempt.session_id} {attempt.error_code}</li>)}</ol>
+        </section>}
         <section aria-label="決済の経過"><h2>決済の経過（日本時間・記録時刻）</h2><ol>{detail.progress?.map((event, index) => <li key={index} className="admin-payment-detail-event"><time dateTime={event.recorded_at}>{date(event.recorded_at)}</time><strong>{progressLabels[event.type] ?? event.type}{event.source === "client" ? "（会員画面の参考記録）" : ""}</strong><pre>{JSON.stringify(event.detail, null, 2)}</pre></li>)}</ol></section>
         <p>決済会社：{detail.payment.provider_label ?? detail.payment.provider} ／ 支払方法：{detail.payment.method_label ?? detail.payment.method} ／ 状態：{detail.payment.status}</p>
         <p style={{overflowWrap: "anywhere"}}>決済会社側の取引ID：{detail.payment.provider_payment_reference ?? "未発行"}</p>

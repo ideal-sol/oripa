@@ -13,6 +13,16 @@ use SensitiveParameter;
 
 final class V2PointIdempotencyService
 {
+    public function completedPayment(string $userPublicId, #[SensitiveParameter] string $key): ?object
+    {
+        return DB::table('idempotency_records as record')
+            ->join('payments as payment', 'payment.public_id', '=', 'record.resource_public_id')
+            ->where('record.scope', 'payment.create')->where('record.actor_type', 'user')
+            ->where('record.actor_public_id', $userPublicId)->where('record.key_hash', hash('sha256', $key))
+            ->where('record.status', 'completed')->where('record.resource_type', 'payment')
+            ->first(['payment.provider_code', 'payment.payment_method']);
+    }
+
     /**
      * @param array<string, mixed> $request
      */

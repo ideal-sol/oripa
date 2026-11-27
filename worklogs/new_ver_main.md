@@ -14596,3 +14596,131 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   image IDs, native verification and current security results. Previous
   release-specific security exceptions do not transfer.
 - NEW staging and activation are outside this preparation.
+
+## STRIPE-CARD-20261125 — Stripe card Checkout
+
+- Human approved the policy-gate expectation change from 97 to 100 Public
+  operations in this PR. The inventory retains all 97 existing operation IDs
+  and adds cancelStripeCheckout, resumeStripeCheckout and syncStripePayment.
+  The validation logic and required checks retain their existing behavior.
+- Human also approved adding migration 000120 to the required-files and
+  ordered migration inventories. Both retain all existing migration entries.
+
+- R3 / Strict Change / Application Runtime Activation deferred. Platform base
+  a7095dc4955960a7d66f3d9b7a04f631f3e6624e, dedicated feature worktree,
+  Issue none. Storefront base 29d384bf46aeaeb86ac96936e8efbcc379ca4903.
+- The Platform owns Checkout Session creation, cancellation, signed event
+  receipt, reconciliation, point grants and operator review. The checkout
+  flow uses Stripe PHP 23.1.0 and API 2026-11-18.endive. Public alpha.51,
+  Admin/Webhook alpha.48 and Client/Testkit alpha.55 are source candidates.
+  Storefront integration depends on the immutable merged-main Artifact.
+  The Site implementation targets @stripe/stripe-js 10.4.0 and
+  @stripe/react-stripe-js 7.1.0 with CheckoutElementsProvider and checkout.confirm.
+  Publish the merged source through the normal Contract Artifact workflow,
+  register its checksums and source in the release ledger, then consume the
+  immutable bundle in the Site. The pending source digest for the Public bundle
+  is c6b772ec130d18e2293cd0d23b44a7aa922abcf91ffeedc868e519e58bc626a1.
+- Reserve migration 000120 under the shared Migration Allocation Lock after
+  000119. Keep Stripe checkout attempts, encrypted session credentials and
+  append-only progress history on rollback. Runtime activation count zero.
+- Human approved the minimum Composer patch set for eleven advisories.
+  Symfony http-client, http-kernel, routing and serializer move from 8.1.11
+  to 8.1.12, mailer from 8.1.0 to 8.1.12. The corrected kernel requires
+  http-foundation 8.1.12 (previously 8.1.11). Laravel retains its version.
+  The locked Composer audit reports zero advisories and abandoned packages.
+  The initial Draft quality check rejected an exact semver constraint in
+  composer.json. The manifest now accepts the SDK's 23.1 patch series and
+  composer.lock fixes the installation at 23.1.0. The correction changes only
+  the constraint and lock content hash. The strict validation rule is retained.
+  Composer minimal-changes retained all other locked versions. Resolved IDs:
+
+  | Package | Before | After | Composer advisories |
+  | --- | --- | --- | --- |
+  | symfony/http-client | 8.1.11 | 8.1.12 | PKSA-mb68-27bd-wyzv, PKSA-g3m4-qj64-dvzh, PKSA-k2g9-z9qx-r1jw, PKSA-y31j-3k1p-67dc |
+  | symfony/http-kernel | 8.1.11 | 8.1.12 | PKSA-k1tg-4k6j-w4xf |
+  | symfony/mailer | 8.1.0 | 8.1.12 | PKSA-vqxj-j8fm-1q3k, PKSA-9r8k-3vgs-8f3v |
+  | symfony/routing | 8.1.11 | 8.1.12 | PKSA-pbtx-4qgh-mmkh, PKSA-2vy6-qchn-f13r |
+  | symfony/serializer | 8.1.11 | 8.1.12 | PKSA-1b51-1qqv-synq, PKSA-8kyx-1yw4-pbyj |
+  | symfony/http-foundation | 8.1.11 | 8.1.12 | Dependency of patched http-kernel |
+
+- Local policy-gate passed with the two approved inventories. The schema
+  runner also expects both new Stripe tables and the forward-only migration
+  rejection. Its 71 guard tests and 42 contract artifact tests passed.
+- Isolated PHP 8.4.28/PostgreSQL tests cover adoption and the ten-minute
+  cutoff, the first-purchase slot, cancellation, uncertain creation, fixed
+  retry parameters, concurrent settlement, immutable receipts, operator review
+  and closed-account settlement. A concurrency test caught an attempted receipt
+  update. The corrected worker appends review evidence and the six-process race
+  delivered the webhook and granted each settled payment exactly once.
+- Storefront Client (50 cases), Testkit (55 cases) and the targeted Stripe
+  Admin component passed. One existing Admin history case exceeded its local
+  five-second timeout. CI uses the pinned Node runtime. The Site's browser
+  verification and formal Artifact publication await the post-merge phase.
+- Site-specific configuration uses V2_STRIPE_MODE (test/live), the matching
+  V2_STRIPE_SECRET_KEY and V2_STRIPE_PUBLISHABLE_KEY, and V2_STRIPE_WEBHOOK_SECRET.
+  Session creation timeout is 10 seconds. V2_STRIPE_CHECKOUT_EXPIRES_MINUTES
+  defaults to 35 (35–1440) and V2_STRIPE_START_LIMIT_PER_HOUR to 10.
+  V2_STRIPE_WORKER_ENABLED defaults to false. Schedule v2:stripe:work every
+  minute and v2:stripe:reconcile every five minutes when enabled.
+- Configure POST /webhooks/v2/stripe on the Site's Stripe Dashboard at the pinned
+  API version. Select checkout.session.completed, checkout.session.expired,
+  checkout.session.async_payment_succeeded, checkout.session.async_payment_failed,
+  charge.refunded, charge.dispute.created and charge.dispute.closed. The test
+  reverse proxy needs a POST-only webhook location with Basic Auth disabled.
+  Enable card payments, disable Stripe receipt emails, Link and wallets,
+  and check the statement descriptor and Radar settings.
+- Human cutover after pending-payment review uses V2_PAYMENT_CREDIT_CARD_PROVIDER.
+  Retain UnivaPay workers for at least 24 hours and until drained. Revert new
+  purchases to univapay if needed, and reconcile existing Stripe payments.
+  Browser acceptance follows phase 7 on OLD Test, including declines, 3DS,
+  pagehide, bfcache and first-purchase eligibility on mobile and desktop.
+
+- Human approved binding the existing alpha.54 republication test to publication
+  record commit `776264704734e1282802ff5695c6abcab87df6ed`. The current
+  tree verifies the single pending alpha.55 candidate, its alpha.54 predecessor,
+  and rejection of every immutable bundle version as a reissue. The preceding
+  CI run passed all four database shards and identified the release test's
+  assumption about the current tree. The publication code and historical
+  release records retain their original contents.
+- All three focused release tests passed, including rejection of all 34
+  recorded versions. The first push of this test reached CI before the PR
+  inventory update. Policy correctly rejected the stale 50-file inventory.
+  The Draft now declares the complete 51-file diff ahead of the next push.
+  Three supplemental synthetic payment handoff checks also passed (13
+  assertions) for atomic receipt/outbox rollback, revoked SMS eligibility,
+  and member rank and bonus deduplication.
+
+### PR #744 review of 544a94c4
+
+- R1. The release test validates the current source through the existing
+  governance and source validators. It checks the immediate successor of
+  alpha.54 in the candidate or historical ledger, checks the active release
+  state, and tries to reissue each immutable version. The fixed alpha.54
+  publication test remains in place. The three release tests passed locally;
+  additional disposable source fixtures passed with alpha.55 published both
+  with no candidate and with a subsequent alpha.56 candidate.
+- R2. Refund and dispute lookups expand the PaymentIntent. When the intent
+  identifier is still missing locally, the worker verifies provider metadata,
+  member, amount, currency and mode before deferring to the existing Outbox.
+  A claim retries after 60 seconds. The fifteenth unresolved claim records
+  operator review; a foreign reference or mismatch goes to review directly.
+  The regression delivers all three reversal event types before settlement,
+  reconciles the payment, then verifies the original event identities, one
+  grant, and zero adjustments. A separate case exercises the wait limit.
+- R3. The Stripe mode check reads the original commercial classification
+  and verifies it against the key mode and the provider's livemode. Creation,
+  recovery, lookup and disclosure of an existing session use that check.
+  Regressions cover both test-to-live and live-to-test, including an
+  inconsistent stored session from before this correction.
+- R4. Both new and replayed requests enforce the existing method policy with
+  the resolved provider. Tests cover disabled fincode, Paidy and Techcoin
+  methods and both directions of the Stripe/UnivaPay switch, including
+  different provider limits and configuration availability.
+- Same Strict Change, Activation deferred. Migration 000120 remains reserved
+  under the existing lock. This correction changes no migration, contract,
+  dependency, release ledger, publishing implementation or CI control.
+- Local PostgreSQL verification included 22 Stripe cases (176 assertions).
+  The focused legacy replay and provider-switch cases passed. A new negative
+  test caught the missing receipt in the operator-review callback; after
+  fixing that capture, the five affected reversal and mode cases passed
+  (52 assertions). The complete PR file inventory and credential scan passed.

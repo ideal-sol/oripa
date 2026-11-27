@@ -29,6 +29,24 @@ describe("Admin manual payment adjustments", () => {
     expect(screen.getByText(/決済会社側の取引ID/u)).toHaveTextContent("synthetic-provider-order");
   });
 
+  it("shows the Stripe session, creation attempt and test-mode dashboard payment", async () => {
+    const value = detail();
+    value.payment.provider = "stripe";
+    value.stripe_checkout = {
+      session_id: "cs_test_Synthetic", payment_intent_id: "pi_Synthetic", livemode: false,
+      actual_method_type: "card", wallet_type: null,
+      attempts: [{ attempt_no: 1, state: "created", error_code: null, session_id: "cs_test_Synthetic" }],
+    };
+    vi.mocked(AdminApiClient.prototype.getAdminPayment).mockResolvedValue({ data: value, request_id: paymentId });
+    render(<AdminPaymentDetail paymentId={paymentId} />);
+    const panel = await screen.findByRole("region", { name: "Stripe 決済" });
+    expect(panel).toHaveTextContent("cs_test_Synthetic");
+    expect(panel).toHaveTextContent("created");
+    expect(screen.getByRole("link", { name: "pi_Synthetic" })).toHaveAttribute(
+      "href", "https://dashboard.stripe.com/test/payments/pi_Synthetic",
+    );
+  });
+
   it("shows Techcoin mismatch review for an unpaid payment without implying cancellation", async () => {
     const value = detail();
     value.payment.provider = "techcoin";

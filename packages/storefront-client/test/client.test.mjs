@@ -88,6 +88,32 @@ test("Paidy authorization uses CSRF, exact idempotency and no transport replay",
   assert.equal(calls[0].retry, false);
 });
 
+test("Stripe sync, resume and cancellation preserve CSRF, cancellation trigger and idempotency", async () => {
+  const calls = [];
+  const transport = {request: async request => { calls.push(request); return {data: {status: "requires_action"}}; }};
+  const csrfToken = "a".repeat(64);
+  for (const [client, headers] of [
+    [createStorefrontPaymentClient(transport), {csrf_token: csrfToken}],
+    [createCsrfManagedStorefrontPaymentClient(transport), {}],
+  ]) {
+    const options = {...headers, timeout_ms: 5000};
+    await client.syncStripePayment("opaque id", options);
+    await client.resumeStripeCheckout("opaque id", {...options, idempotency_key: "resume-key"});
+    await client.cancelStripeCheckout("opaque id", "user", {...options, idempotency_key: "cancel-key"});
+  }
+  for (const offset of [0, 3]) {
+    assert.deepEqual(calls.slice(offset, offset + 3).map(call => call.path), [
+      "/payments/opaque%20id/stripe-sync", "/payments/opaque%20id/stripe-checkout-sessions",
+      "/payments/opaque%20id/stripe-checkout-cancellations",
+    ]);
+    assert.equal(calls[offset + 1].idempotency_key, "resume-key");
+    assert.equal(calls[offset + 2].idempotency_key, "cancel-key");
+    assert.deepEqual(calls[offset + 2].body, {trigger: "user"});
+  }
+  assert.ok(calls.every(call => call.method === "POST" && call.csrf === "required" && call.retry === false && call.timeout_ms === 5000));
+  assert.ok(calls.slice(0, 3).every(call => call.headers["X-XSRF-TOKEN"] === csrfToken));
+});
+
 test("Paidy checkout abandonment uses the same mutation boundary and returns the current payment", async () => {
   const calls = [];
   const transport = {request: async request => { calls.push(request); return { data: { status: "requires_action" } }; }};

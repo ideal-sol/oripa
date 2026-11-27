@@ -1208,6 +1208,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/{payment_id}/stripe-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stripeを照会して現在の決済を取得 */
+        post: operations["syncStripePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/stripe-checkout-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** カード入力用Sessionの作成を回復・再開 */
+        post: operations["resumeStripeCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/stripe-checkout-cancellations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** カード入力を取り消し現在の決済を取得 */
+        post: operations["cancelStripeCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments/{payment_id}/univapay-charges": {
         parameters: {
             query?: never;
@@ -1874,10 +1925,10 @@ export interface components {
             label: string;
             available: boolean;
             /** @enum {unknown} */
-            unavailable_reason: null | "provider_unavailable" | "amount_too_large";
+            unavailable_reason: null | "provider_unavailable" | "amount_too_large" | "amount_too_small" | "email_unverified";
             saved_cards_enabled: boolean;
             /** @enum {unknown} */
-            flow: "card_component" | "inline_card_form" | "redirect" | "paidy_checkout";
+            flow: "card_component" | "inline_card_form" | "redirect" | "paidy_checkout" | "stripe_payment_element";
             inline_form?: null | components["schemas"]["PaymentUnivapayInlineForm"];
         };
         UnivapayChargeReport: {
@@ -1910,6 +1961,16 @@ export interface components {
                 /** @constant */
                 showCvv: true;
             };
+        };
+        PaymentStripeCheckoutAction: {
+            /** @constant */
+            type: "stripe_checkout";
+            publishable_key: string;
+            client_secret: string;
+            /** Format: uri */
+            return_url: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         PaymentUnivapayInlineAction: {
             /** @constant */
@@ -2068,6 +2129,8 @@ export interface components {
             point_product_id?: components["schemas"]["OpaqueId"];
             method: components["schemas"]["PaymentMethod"];
             method_label?: string;
+            provider_sync?: boolean;
+            cancellation_pending?: boolean;
             status: components["schemas"]["PaymentStatus"];
             amount: components["schemas"]["PointProductPrice"];
             grant: components["schemas"]["PaymentGrant"];
@@ -2080,7 +2143,7 @@ export interface components {
             /** Format: date-time */
             succeeded_at: string | null;
             /** @description Payment開始直後のactionであり、Konbini／Virtual Accountのdurable resume URLとして依存しない。再開にはresumeUnpaidPaymentを使用する。 */
-            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"] | components["schemas"]["PaymentPaidyCheckoutAction"] | components["schemas"]["PaymentUnivapayInlineAction"];
+            next_action: null | components["schemas"]["PaymentRedirectAction"] | components["schemas"]["PaymentCardComponentAction"] | components["schemas"]["PaymentFormPostAction"] | components["schemas"]["PaymentPaidyCheckoutAction"] | components["schemas"]["PaymentUnivapayInlineAction"] | components["schemas"]["PaymentStripeCheckoutAction"];
         };
         PaymentDetail: components["schemas"]["Payment"] & Record<string, never>;
         MemberRankPurchaseBonus: {
@@ -3342,7 +3405,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
+        /** @description Stripe決済ではPAYMENT_START_RATE_LIMITED (429)、PAYMENT_AMOUNT_TOO_SMALL (422)、 PAYMENT_NOT_RESUMABLE (409)、PAYMENT_CANCELLATION_PENDING (409)を返す。 PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
         PaymentProblem: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -5714,6 +5777,93 @@ export interface operations {
                     "application/json": {
                         data: components["schemas"]["PaymentMethodOption"][];
                     };
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    syncStripePayment: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 所有会員の現在の決済。private, no-store。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    resumeStripeCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 所有会員の現在の決済。private, no-store。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    cancelStripeCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @default user
+                     * @enum {unknown}
+                     */
+                    trigger?: "user" | "leave";
+                };
+            };
+        };
+        responses: {
+            /** @description 所有会員の現在の決済。private, no-store。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
                 };
             };
             default: components["responses"]["PaymentProblem"];

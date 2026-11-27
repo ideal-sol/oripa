@@ -9,6 +9,8 @@ Route::post('/v2/techcoin/{token}', \App\Http\Controllers\V2\V2TechcoinWebhookCo
 
 Route::post('/v2/line/{bot_public_id}', V2LineMessagingWebhookController::class)->name('v2.webhook.line.bot');
 
+Route::post('/v2/stripe', \App\Http\Controllers\V2\V2StripeWebhookController::class)->name('v2.webhook.stripe');
+
 Route::post('/v2/line', V2LineMessagingWebhookController::class)
     ->name('v2.webhook.line');
 Route::post('/v2/fincode', V2FincodeWebhookController::class)

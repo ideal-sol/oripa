@@ -31,6 +31,22 @@ if (config('v2_paidy.worker_enabled') === true) {
     Schedule::command('v2:paidy:work')->everyMinute()->withoutOverlapping();
 }
 
+Artisan::command('v2:stripe:work {--limit=20}', function (): int {
+    $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT);
+    if (config('v2_stripe.worker_enabled') !== true || ! $limit || $limit < 1 || $limit > 100) return 1;
+    app(\App\Domain\Payment\V2\Services\V2StripeWorker::class)->work($limit);
+    return 0;
+});
+Artisan::command('v2:stripe:reconcile', function (): int {
+    if (config('v2_stripe.worker_enabled') !== true) return 1;
+    app(\App\Domain\Payment\V2\Services\V2StripeWorker::class)->reconcile();
+    return 0;
+});
+if (config('v2_stripe.worker_enabled') === true) {
+    Schedule::command('v2:stripe:work')->everyMinute()->withoutOverlapping();
+    Schedule::command('v2:stripe:reconcile')->everyFiveMinutes()->withoutOverlapping();
+}
+
 Artisan::command('v2:univapay:work {--limit=20}', function (): int {
     if (config('v2_univapay.worker_enabled') !== true) return 1;
     $this->info('Processed receipts: '.app(\App\Domain\Payment\V2\Services\V2UnivapayWebhookService::class)->work((int) $this->option('limit')));

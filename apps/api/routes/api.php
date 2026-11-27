@@ -208,6 +208,10 @@ Route::prefix('v2')
             ->name('v2.public.payments.paidy-checkout-abandonments');
         Route::post('/payments/{paymentId}/univapay-charges', [V2PaymentController::class, 'univapayCharge'])
             ->name('v2.public.payments.univapay-charges');
+        foreach (['stripe-sync' => 'sync', 'stripe-checkout-sessions' => 'resume', 'stripe-checkout-cancellations' => 'cancel'] as $path => $operation) {
+            Route::post('/payments/{paymentId}/'.$path, [V2PaymentController::class, 'stripe'])
+                ->defaults('operation', $operation)->name('v2.public.payments.'.$path);
+        }
         Route::post('/me/payment-card-registration-intents/{registrationIntentId}/complete', [V2PaymentController::class, 'completeCard'])
             ->whereUuid('registrationIntentId')
             ->name('v2.public.payment-card-registration-intents.complete');

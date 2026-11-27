@@ -215,6 +215,8 @@ EXPECTED_V2_SCHEMA_INVENTORY = [
     "public.shipping_request_status_histories",
     "public.shipping_requests",
     "public.sms_verification_challenges",
+    "public.stripe_checkout_attempts",
+    "public.stripe_checkout_sessions",
     "public.user_advertising_attributions",
     "public.user_conversion_events",
     "public.user_email_change_requests",
@@ -607,6 +609,7 @@ def rollback_and_reapply_latest(
     latest = sorted((repository / MIGRATION_PATH).glob("*.php"))[-1].name
     forward_only_messages = {
         "2026_11_24_000119_create_v2_user_conversion_events.php": "Retain conversion evidence and use a forward correction.",
+        "2026_11_27_000120_add_v2_stripe_checkout.php": "Retain Stripe checkout and progress history and use a forward correction.",
         "2026_11_20_000118_add_v2_line_quota_initial_origin.php": "Forward-only LINE initial quota migration.",
         "2026_11_20_000117_add_v2_line_quota_system_actor.php": "Forward-only LINE quota actor migration.",
         "2026_11_17_000116_add_v2_line_friend_id_staging.php": "Forward-only migration; retain D7 aggregate progress.",

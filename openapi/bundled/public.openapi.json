@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Public API",
-    "version": "2.0.0-alpha.50",
+    "version": "2.0.0-alpha.51",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -3584,6 +3584,162 @@
         }
       }
     },
+    "/payments/{payment_id}/stripe-sync": {
+      "post": {
+        "operationId": "syncStripePayment",
+        "summary": "Stripeを照会して現在の決済を取得",
+        "x-idempotency": "safe",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "所有会員の現在の決済。private, no-store。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
+    "/payments/{payment_id}/stripe-checkout-sessions": {
+      "post": {
+        "operationId": "resumeStripeCheckout",
+        "summary": "カード入力用Sessionの作成を回復・再開",
+        "x-idempotency": "required",
+        "x-retry-semantics": "same-idempotency-key",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "所有会員の現在の決済。private, no-store。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
+    "/payments/{payment_id}/stripe-checkout-cancellations": {
+      "post": {
+        "operationId": "cancelStripeCheckout",
+        "summary": "カード入力を取り消し現在の決済を取得",
+        "x-idempotency": "required",
+        "x-retry-semantics": "same-idempotency-key",
+        "x-rate-limit": "user-mutation",
+        "x-cache-policy": "private-no-store",
+        "x-stability": "alpha",
+        "security": [
+          {
+            "userSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "trigger": {
+                    "enum": [
+                      "user",
+                      "leave"
+                    ],
+                    "default": "user"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "所有会員の現在の決済。private, no-store。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/PaymentProblem"
+          }
+        }
+      }
+    },
     "/payments/{payment_id}/univapay-charges": {
       "post": {
         "operationId": "reportUnivapayCharge",
@@ -5644,7 +5800,9 @@
             "enum": [
               null,
               "provider_unavailable",
-              "amount_too_large"
+              "amount_too_large",
+              "amount_too_small",
+              "email_unverified"
             ]
           },
           "saved_cards_enabled": {
@@ -5655,7 +5813,8 @@
               "card_component",
               "inline_card_form",
               "redirect",
-              "paidy_checkout"
+              "paidy_checkout",
+              "stripe_payment_element"
             ]
           },
           "inline_form": {
@@ -5749,6 +5908,38 @@
                 "const": true
               }
             }
+          }
+        }
+      },
+      "PaymentStripeCheckoutAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "publishable_key",
+          "client_secret",
+          "return_url",
+          "expires_at"
+        ],
+        "properties": {
+          "type": {
+            "const": "stripe_checkout"
+          },
+          "publishable_key": {
+            "type": "string",
+            "pattern": "^pk_(test|live)_"
+          },
+          "client_secret": {
+            "type": "string",
+            "pattern": "^cs_(test|live)_.+_secret_.+"
+          },
+          "return_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -6304,6 +6495,12 @@
           "method_label": {
             "type": "string"
           },
+          "provider_sync": {
+            "type": "boolean"
+          },
+          "cancellation_pending": {
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
           },
@@ -6362,6 +6559,9 @@
               },
               {
                 "$ref": "#/components/schemas/PaymentUnivapayInlineAction"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentStripeCheckoutAction"
               }
             ]
           }
@@ -11557,7 +11757,7 @@
         }
       },
       "PaymentProblem": {
-        "description": "PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
+        "description": "Stripe決済ではPAYMENT_START_RATE_LIMITED (429)、PAYMENT_AMOUNT_TOO_SMALL (422)、 PAYMENT_NOT_RESUMABLE (409)、PAYMENT_CANCELLATION_PENDING (409)を返す。 PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/XRequestId"

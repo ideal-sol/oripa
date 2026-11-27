@@ -1042,14 +1042,15 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつLINE CVを含むOperation 97件である", () => {
+test("Public OpenAPIは3.1.1かつStripe決済を含むOperation 100件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 97);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 100);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "abandonPaidyCheckout",
     "cancelPaymentCardRegistration",
+    "cancelStripeCheckout",
     "changeUserPassword",
     "claimConversionEvent",
     "closeAccount",
@@ -1129,6 +1130,7 @@ test("Public OpenAPIは3.1.1かつLINE CVを含むOperation 97件である", () 
     "requestPasswordReset",
     "resendSmsVerification",
     "resendUserEmailVerification",
+    "resumeStripeCheckout",
     "resumeUnpaidPayment",
     "sendAccountClosureEmailCode",
     "sendSmsVerification",
@@ -1139,6 +1141,7 @@ test("Public OpenAPIは3.1.1かつLINE CVを含むOperation 97件である", () 
     "startLineLogin",
     "startLineReauthentication",
     "startPaymentCardRegistration",
+    "syncStripePayment",
     "unlinkGoogleIdentity",
     "unlinkLineIdentity",
     "updateShippingAddress",

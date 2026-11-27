@@ -90,8 +90,18 @@ final class V2PaymentService
                     ->firstOrFail();
             }
             $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if ($providerCode === 'stripe') {
+                app(V2StripeConfiguration::class)->assertConfigured();
+                if ($user->email_verified_at === null) {
+                    throw new \App\Domain\Payment\V2\Exceptions\V2FincodeException('EMAIL_VERIFICATION_REQUIRED', 403, 'Email verification is required.');
+                }
+                if (DB::table('payments')->where('user_id', $user->id)->where('provider_code', 'stripe')
+                    ->where('created_at', '>', V2DatabaseTimestamp::format(now()->subHour()))->count() >= (int) config('v2_stripe.start_limit_per_hour')) {
+                    throw new \App\Domain\Payment\V2\Exceptions\V2FincodeException('PAYMENT_START_RATE_LIMITED', 429, 'Too many payment starts.');
+                }
+            }
             app(\App\Domain\MemberRank\Services\V2MemberRankResolver::class)->materialize((int) $user->id);
-            if ($requireSmsVerification) {
+            if ($requireSmsVerification || $providerCode === 'stripe') {
                 app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($user);
             }
             if ($paymentMethod === 'konbini' && DB::table('payments')
@@ -113,6 +123,9 @@ final class V2PaymentService
                 ->first();
             if ($plan === null) {
                 throw new V2PaymentException('PURCHASE_PLAN_NOT_AVAILABLE');
+            }
+            if ($providerCode === 'stripe' && (int) $plan->amount < 50) {
+                throw new \App\Domain\Payment\V2\Exceptions\V2FincodeException('PAYMENT_AMOUNT_TOO_SMALL', 422, 'The payment amount is below the provider minimum.');
             }
             $campaigns = DB::table('point_purchase_plan_limited_bonus_campaigns')
                 ->where('point_purchase_plan_id', $plan->id)
@@ -153,12 +166,11 @@ final class V2PaymentService
                 ]);
             }
             $this->paymentHistory($paymentId, null, 'created', 'user', null);
-            if (in_array($providerCode, ['fincode', 'univapay', 'paidy'], true)) {
+            if (in_array($providerCode, ['fincode', 'univapay', 'paidy', 'stripe'], true)) {
                 if ($providerCode === 'paidy') app(V2PaidyConfiguration::class)->validate();
                 if ($providerCode === 'univapay') app(V2UnivapayConfiguration::class)->assertConfigured();
-                $live = $providerCode === 'paidy' ? config('v2_paidy.mode') === 'live'
-                    : ($providerCode === 'univapay' ? config('v2_univapay.mode') === 'live'
-                    : config('v2_fincode.base_url') === 'https://api.fincode.jp');
+                $live = $providerCode === 'fincode' ? config('v2_fincode.base_url') === 'https://api.fincode.jp'
+                    : config('v2_'.$providerCode.'.mode') === 'live';
                 DB::table('payment_commercial_classifications')->insert([
                     'payment_id' => $paymentId, 'classification' => $live ? 'commercial' : 'test',
                     'reason' => $live ? 'provider_live_mode' : 'provider_test_mode',
@@ -171,6 +183,14 @@ final class V2PaymentService
 
             return DB::table('payments')->where('id', $paymentId)->firstOrFail();
         });
+    }
+
+    public function cancelUnstartedStripe(object $payment): void
+    {
+        if (! DB::transactionLevel() || $payment->provider_code !== 'stripe' || $payment->status !== 'created') {
+            throw new V2PaymentException('PAYMENT_STATUS_INVALID');
+        }
+        $this->transitionPayment($payment, 'canceled', 'user', null);
     }
 
     public function applyProviderStartResult(
@@ -191,7 +211,7 @@ final class V2PaymentService
         ): object {
             $payment = DB::table('payments')->where('id', $paymentId)
                 ->lockForUpdate()->firstOrFail();
-            if (! in_array($payment->provider_code, ['fincode', 'univapay', 'paidy', 'techcoin'], true)) {
+            if (! in_array($payment->provider_code, ['fincode', 'univapay', 'paidy', 'techcoin', 'stripe'], true)) {
                 throw new V2PaymentException('PAYMENT_PROVIDER_INVALID');
             }
             DB::table('payments')->where('id', $payment->id)->update([
@@ -230,6 +250,22 @@ final class V2PaymentService
             throw new V2PaymentException('PROVIDER_OCCURRED_AT_REQUIRED');
         }
         $payloadHash = hash('sha256', $rawPayload);
+        if ($providerCode === 'stripe') {
+            $envelope = json_decode($rawPayload, true, 8, JSON_THROW_ON_ERROR);
+            $prefixes = ['event_id' => 'evt_', 'session_id' => 'cs_(?:test|live)_', 'payment_intent_id' => 'pi_',
+                'charge_id' => 'ch_', 'dispute_id' => 'dp_', 'refund_id' => 're_'];
+            $normalized = ['event_type' => $eventType];
+            foreach ($prefixes as $field => $prefix) {
+                if (! isset($envelope[$field])) continue;
+                if (! is_string($envelope[$field]) || ! preg_match('/\A'.$prefix.'[a-zA-Z0-9]{1,190}\z/', $envelope[$field])) {
+                    throw new V2PaymentException('PROVIDER_EVENT_INVALID');
+                }
+                $normalized[$field] = $envelope[$field];
+            }
+            $rawPayload = json_encode($normalized, JSON_THROW_ON_ERROR);
+            $payloadHash = hash('sha256', $rawPayload);
+            $headers = [];
+        }
         if (in_array($providerCode, ['univapay', 'techcoin', 'paidy'], true)) {
             // PAY2–PAY4 must normalize verified provider data before calling this boundary.
             // No raw body, request headers or credentials are retained for these providers.

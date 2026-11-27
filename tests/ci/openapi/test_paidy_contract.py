@@ -49,7 +49,8 @@ class PaidyContractTest(unittest.TestCase):
         self.assertIn('ltv', payload['buyer_data']['required'])
         self.assertNotIn('secret', json.dumps(action))
         variants = schemas['Payment']['properties']['next_action']['oneOf']
-        self.assertEqual(len(variants), 6)
+        self.assertEqual(len(variants), 7)
+        self.assertIn({'$ref': '#/components/schemas/PaymentStripeCheckoutAction'}, variants)
         self.assertIn({'$ref': '#/components/schemas/PaymentUnivapayInlineAction'}, variants)
         self.assertIn({'$ref': '#/components/schemas/PaymentCardComponentAction'}, variants)
 
@@ -80,4 +81,4 @@ class PaidyContractTest(unittest.TestCase):
         self.assertEqual(operation['security'], [])
         self.assertIn('503', operation['responses'])
         self.assertIn('404', operation['responses'])
-        self.assertEqual(webhook['info']['version'], '2.0.0-alpha.47')
+        self.assertEqual(webhook['info']['version'], '2.0.0-alpha.48')
