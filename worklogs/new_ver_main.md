@@ -14558,3 +14558,34 @@ with protected main b08abcf0bef290e6bf3d0c318c02fd83d4f5f303.
 - Resume only positively observed pending monitor and F2B pin writes. Preserve successful service effects. Require scheduled worker and purge completions and a structured monitor outcome before closing the session.
 - Wait up to 20 seconds for the common deployment lock. Keep acquisition and scheduled observation outside the runtime critical section. An optional administrator-enrolled continuation binds one unchanged plan to a reviewed binding-code-only registry update.
 - Source review and CI precede host enrollment. No application image build, migration, payment operation or application switch belongs to this change.
+
+## NEWPROD-20261127 — PR #740 Production Authority preparation
+
+R3 / Strict Change / Application Runtime Activation: deferred / Issue: none.
+Runbook v1.1 stages 1–3, multiple services without migration.
+
+- Requested source 40dd90ff14e692b697ad53df34100a8ae6b3911a is the #740
+  squash. Reviewed HEAD 21444c0e82efb923a59b9a3614649c3ad8a306c6 has the
+  same tree 622ea7fe3ba0c7d14a8a8d1ef3dcd3b994aac9fc. Five required checks
+  passed in run 45780167198. Reuse UTC/Tokyo PostgreSQL and Admin Chromium
+  evidence. Known SEV-2 E4 remains tracked in #741.
+- OLD Test Technical PASS, run 45789100338, artifact 15101448474. API and
+  Admin health and recorded scheduled worker results passed.
+- The November 26 handoff records Platform #724, ARM64 artifact 14989204035
+  as the recovery version. Scope API, Admin and related workers invoking
+  shared LINE or prize-exchange services. Preserve original timer and worker
+  states, including disabled LINE delivery. Retain previous image references
+  and consumer settings for recovery. Reverting images cannot undo persisted
+  timestamps or external effects.
+- Preserve Storefront #255, Agency, features, DB settings and Ledger 119.
+  ENV key changes and migrations: none. Immutable Contract alpha.54,
+  artifact 14926246450, run 45406520533, source
+  457ca5edd918441368717e4974f588dcf0079bba. Packages and OpenAPI match.
+- Formal ARM64 artifacts matching the source at intake: zero. After Authority
+  merge and issuance approval, verify the exact protected main and required
+  five checks. Dispatch platform-production-arm64-artifact.yml once with
+  source PR 740, TIMEZONE-FIX-20261126 and agency mode. The canonical workflow
+  packages Agency alongside API and Admin. Record the new artifact digest,
+  image IDs, native verification and current security results. Previous
+  release-specific security exceptions do not transfer.
+- NEW staging and activation are outside this preparation.
