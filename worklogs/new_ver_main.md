@@ -3,6 +3,7 @@
 - R3 / Strict Change / Application Runtime Activation deferred / Issue none. Dedicated branch `fix/SEC-PAM-20261127`, base `a7095dc4955960a7d66f3d9b7a04f631f3e6624e`.
 - The previous ARM64 API scan identified four High rows for CVE-2025-6020 in PAM 1.5.2-6+deb12u2. Debian DLA-4941-1 fixes this CVE and CVE-2024-22365 in 1.5.2-6+deb12u3. The production API/worker and preview stages request that exact version and check dpkg status for all four packages. Builder copies contain no PAM package files.
 - Draft PR records candidate checks and fixed-head review. No migration, contract, runtime activation or release authority change. Rollback requires reverting the source patch and reassessing the vulnerable version.
+- Human approved correcting the PR #717 historical test fixture after quality-gate failed. It reads the Dockerfile bytes from the immutable #717 source and retains the original SHA256 and assertions. GitHub delivery Task ID is `PAM-20261127`.
 
 ## GACHA-SCHEDULE-PUBLISH-FIX-20261124 — 通常ガチャ編集の予約公開
 

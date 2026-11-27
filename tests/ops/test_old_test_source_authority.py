@@ -804,7 +804,11 @@ class Line717SourceAuthorityTest(unittest.TestCase):
         prepare = runpy.run_path(str(ROOT / 'scripts/ops/old_test_source_authority.py'))['prepare_recipe']
         with tempfile.TemporaryDirectory() as temp:
             payload = Path(temp); recipe = payload / 'infra/docker/backend/Dockerfile'
-            recipe.parent.mkdir(parents=True); original = (ROOT / 'infra/docker/backend/Dockerfile').read_bytes(); recipe.write_bytes(original)
+            recipe.parent.mkdir(parents=True)
+            original = subprocess.check_output(
+                ['git', 'show', self.SOURCE + ':infra/docker/backend/Dockerfile'], cwd=ROOT
+            )
+            recipe.write_bytes(original)
             with mock.patch('subprocess.check_output', return_value=self.SOURCE+'\n'):
                 prepare(result, payload, ROOT, payload/'approved')
             self.assertEqual((payload/'approved').read_bytes(), original)
