@@ -104,3 +104,22 @@ class LineAlpha54ReleaseTest(unittest.TestCase):
         self.assertEqual(release['packages']['@oripa/storefront-client']['sha256'], 'f1cb940e1e712fc7e2d41d3a63595d289fc084d4299205454169972dd6e2e6b6')
         self.assertEqual(release['packages']['@oripa/storefront-testkit']['sha256'], '3d94069ddeeba8fa59ccc893d07fde59731544cec8d3ad7f8a85af4f2c887cac')
         self.assertEqual(release['packages']['@oripa/site-schema'], source['latest_immutable']['packages']['@oripa/site-schema'])
+
+    def test_pending_payment_alpha56_matches_published_artifact_and_predecessors(self):
+        history = ARTIFACT['governance'](ROOT)['immutable_history']
+        source = json.loads(subprocess.check_output([
+            'git', 'show', '536a02e8f600c1ee68696245f9133558601973f8:manifests/storefront-contract-releases.json',
+        ], cwd=ROOT))
+        index = len(source['immutable_history'])
+        self.assertEqual(history[:index], source['immutable_history'])
+        release = history[index]
+        self.assertEqual(release['bundle_version'], '2.0.0-alpha.56')
+        self.assertEqual(release['source_commit'], '536a02e8f600c1ee68696245f9133558601973f8')
+        self.assertEqual(release['manifest_sha256'], 'ca4b577f9c25d33269a002f2899ddd72498678aaf666417e628d5ed59b12531b')
+        self.assertEqual(release['publication']['artifact_id'], 15210212345)
+        self.assertEqual(release['publication']['github_digest'], 'sha256:da317cd1c67395b9027127776fa794fd0cdc6f5eaa272d259cb8467e2231fc01')
+        self.assertEqual(release['publication']['sha256sums_sha256'], '8bf1df43a9ba812934e031c6737d7634950cf361bff5b53d243e3aa6394f8685')
+        self.assertEqual(release['public_openapi']['sha256'], 'a880f2fb866b230c39d4781048b87dc81f511360cbdc0104e2bd135d8878d2c5')
+        self.assertEqual(release['packages']['@oripa/storefront-client']['sha256'], '86f1a7b3a4495993ba4d3c9c366d00b0f2b443eebc8cfb02dd2f0a10d4686220')
+        self.assertEqual(release['packages']['@oripa/storefront-testkit']['sha256'], '91626babe41664d03a3eb6d5eca1f6a822406cc5267a48496b9dc2dc0acaeaf6')
+        self.assertEqual(release['packages']['@oripa/site-schema'], source['latest_immutable']['packages']['@oripa/site-schema'])
