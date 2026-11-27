@@ -199,6 +199,20 @@ final class StripeCheckoutTest extends TestCase
         return [...$this->session, 'status' => 'complete', 'payment_status' => 'paid', 'payment_intent' => $intent];
     }
 
+    public function test_lookup_with_a_different_session_id_records_review_without_a_grant(): void
+    {
+        $user = $this->univapayUser();
+        $client = $this->mock(V2StripeClient::class);
+        $client->shouldReceive('create')->once()->andReturnUsing(fn ($p, $k) => $this->created($p, $k));
+        $payment = app(V2StripePaymentService::class)->start($user, $this->univapayPlan()->public_id, 'mismatch');
+        $client->shouldReceive('session')->once()->andReturn([...$this->paidSession(), 'id' => 'cs_test_Other']);
+        self::assertTrue(app(V2StripeReconciliationService::class)->lookup($this->session['id']));
+        $row = DB::table('payments')->where('public_id', $payment['id'])->sole();
+        self::assertSame('requires_action', $row->status);
+        self::assertSame(0, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
+        self::assertSame(1, DB::table('payment_progress_events')->where('payment_id', $row->id)->where('detail->match', 'source_mismatch')->count());
+    }
+
     public function test_verified_late_payment_after_expiry_requires_review_once(): void
     {
         $user = $this->univapayUser();

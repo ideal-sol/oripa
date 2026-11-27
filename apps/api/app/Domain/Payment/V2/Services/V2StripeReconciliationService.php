@@ -29,23 +29,24 @@ final class V2StripeReconciliationService
         } catch (ApiErrorException|V2FincodeException) {
             return false;
         }
-        if (($object['id'] ?? null) !== $id) return false;
         $view = $expected;
+        $sameId = ($object['id'] ?? null) === $id;
         if (! $view) {
             $local = DB::table('stripe_checkout_sessions')->where('session_id', $id)->first();
             $public = $object['metadata']['oripa-payment-id'] ?? null;
             $view = $local ? DB::table('payments')->find($local->payment_id)
-                : (is_string($public) && Str::isUuid($public) ? DB::table('payments')->where('public_id', $public)->first() : null);
+                : ($sameId && is_string($public) && Str::isUuid($public) ? DB::table('payments')->where('public_id', $public)->first() : null);
         }
         if (! $view || $view->provider_code !== 'stripe') {
             if ($receiptId !== null) $this->checkout->reviewReceipt($receiptId);
             return true;
         }
-        return $this->checkout->locked($view, function ($payment, $user, $session, $current) use ($object, $id) {
+        return $this->checkout->locked($view, function ($payment, $user, $session, $current) use ($object, $id, $sameId) {
             $number = filter_var($object['metadata']['oripa-attempt'] ?? null, FILTER_VALIDATE_INT);
             $attempt = $number ? DB::table('stripe_checkout_attempts')->where('payment_id', $payment->id)
                 ->where('attempt_no', $number)->lockForUpdate()->first() : null;
-            if (! $attempt || ! $this->checkout->belongs($payment, $user, $object, $number)) {
+            if (! $sameId || ! $attempt || ! $this->checkout->belongs($payment, $user, $object, $number)
+                || ($session?->session_id === $id && $session->livemode !== $object['livemode'])) {
                 $this->checkout->review($payment);
                 return true;
             }

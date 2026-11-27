@@ -14607,6 +14607,12 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   flow uses Stripe PHP 23.1.0 and API 2026-11-18.endive. Public alpha.51,
   Admin/Webhook alpha.48 and Client/Testkit alpha.55 are source candidates.
   Storefront integration depends on the immutable merged-main Artifact.
+  The Site implementation targets @stripe/stripe-js 10.4.0 and
+  @stripe/react-stripe-js 7.1.0 with CheckoutElementsProvider and checkout.confirm.
+  Publish the merged source through the normal Contract Artifact workflow,
+  register its checksums and source in the release ledger, then consume the
+  immutable bundle in the Site. The pending source digest for the Public bundle
+  is c6b772ec130d18e2293cd0d23b44a7aa922abcf91ffeedc868e519e58bc626a1.
 - Reserve migration 000120 under the shared Migration Allocation Lock after
   000119. Keep Stripe checkout attempts, encrypted session credentials and
   append-only progress history on rollback. Runtime activation count zero.
@@ -14615,6 +14621,10 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   to 8.1.12, mailer from 8.1.0 to 8.1.12. The corrected kernel requires
   http-foundation 8.1.12 (previously 8.1.11). Laravel retains its version.
   The locked Composer audit reports zero advisories and abandoned packages.
+  The initial Draft quality check rejected an exact semver constraint in
+  composer.json. The manifest now accepts the SDK's 23.1 patch series and
+  composer.lock fixes the installation at 23.1.0. The correction changes only
+  the constraint and lock content hash. The strict validation rule is retained.
   Composer minimal-changes retained all other locked versions. Resolved IDs:
 
   | Package | Before | After | Composer advisories |
