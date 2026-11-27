@@ -823,7 +823,7 @@ const memberRankTypes = Object.entries(contract.components.schemas)
   .join("\n\n");
 
 const paymentSchemaNames = [
-  "PaymentProgressEvent", "PaymentProviderSales",
+  "PaymentProgressEvent", "PaymentProviderSales", "AdminStripeCheckout",
   "AdminPaymentPurchaseBonusImpact", "AdminPaymentRankRecovery", "AdminPaymentRankAdjustment",
   "AdminPaymentRankChoice", "AdminPaymentChargebackInput",
   "AdminPaymentAdjustmentInput", "AdminPaymentRefundCompleteInput", "AdminPaymentAdjustmentStatus",

@@ -80,6 +80,11 @@ final class V2UserClosureService
         }
         $forfeited = $this->points->forfeit((int) $user->id);
         foreach ($payments->whereIn('status', ['created', 'requires_action']) as $payment) {
+            if ($payment->provider_code === 'stripe') {
+                $id = DB::table('stripe_checkout_sessions')->where('payment_id', $payment->id)
+                    ->where('session_status', 'open')->value('session_id');
+                if ($id !== null) app(\App\Domain\Payment\V2\Services\V2StripePaymentService::class)->queueExpiry($payment, $id);
+            }
             DB::table('payments')->where('id', $payment->id)->update(['status' => 'canceled', 'canceled_at' => $at, 'updated_at' => $at]);
             // Use the same append-only transition record shape as the payment service.
             DB::table('payment_status_histories')->insert([

@@ -21,7 +21,7 @@ final class V2PaymentMethodPolicy
 
     public static function providerLabel(string $provider): string
     {
-        return ['univapay' => 'UnivaPay', 'techcoin' => 'テックコイン', 'paidy' => 'ペイディ', 'fincode' => 'fincode'][$provider] ?? $provider;
+        return ['stripe' => 'Stripe', 'univapay' => 'UnivaPay', 'techcoin' => 'テックコイン', 'paidy' => 'ペイディ', 'fincode' => 'fincode'][$provider] ?? $provider;
     }
 
     public function enabled(): array
@@ -41,7 +41,7 @@ final class V2PaymentMethodPolicy
     public function provider(string $method): ?string
     {
         return match ($method) {
-            'credit_card' => in_array(config('v2_payment.credit_card_provider'), ['fincode', 'univapay'], true)
+            'credit_card' => in_array(config('v2_payment.credit_card_provider'), ['fincode', 'univapay', 'stripe'], true)
                 ? config('v2_payment.credit_card_provider') : null,
             'netridecash' => 'techcoin', 'paidy' => 'paidy',
             'paypay', 'konbini', 'virtual_account' => 'fincode',
@@ -72,11 +72,16 @@ final class V2PaymentMethodPolicy
             }
             $reason = $provider === 'techcoin' && $amount !== null && $amount > 999999
                 ? 'amount_too_large' : ($this->available($provider) ? null : 'provider_unavailable');
+            if ($provider === 'stripe' && $reason === null) {
+                if ($amount !== null && $amount < 50) $reason = 'amount_too_small';
+                elseif ($user?->email_verified_at === null) $reason = 'email_unverified';
+            }
             $result[] = [
                 'method' => $method, 'label' => self::methodLabel($method),
                 'available' => $reason === null, 'unavailable_reason' => $reason,
                 'saved_cards_enabled' => $method === 'credit_card' && $provider === 'fincode' && $this->savedCardsEnabled(),
                 'flow' => match (true) {
+                    $provider === 'stripe' => 'stripe_payment_element',
                     $provider === 'univapay' => 'inline_card_form',
                     $method === 'paidy' => 'paidy_checkout',
                     $method === 'credit_card' => 'card_component',
@@ -113,6 +118,7 @@ final class V2PaymentMethodPolicy
 
     private function available(?string $provider): bool
     {
+        if ($provider === 'stripe') return app(V2StripeConfiguration::class)->available();
         if ($provider === 'techcoin') {
             return app(V2TechcoinConfiguration::class)->available();
         }

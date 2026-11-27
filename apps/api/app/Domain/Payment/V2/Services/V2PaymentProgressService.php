@@ -48,7 +48,26 @@ final class V2PaymentProgressService
     public function append(int $paymentId, string $type, array $detail = [], string $source = 'server'): void
     {
         // Only bounded enums and numeric money are accepted; never arbitrary provider/browser text.
-        if (array_diff(array_keys($detail), ['result', 'amount', 'method', 'provider', 'charge_id', 'match', 'operation', 'http_status', 'reason', 'error_code'])
+        $stripeDetail = [];
+        if ($source === 'server' && ($detail['provider'] ?? null) === 'stripe') {
+            foreach (['session_id' => 'cs_(?:test|live)_', 'payment_intent_id' => 'pi_', 'stripe_charge_id' => 'ch_',
+                'dispute_id' => 'dp_', 'event_id' => 'evt_'] as $field => $prefix) {
+                if (! isset($detail[$field])) continue;
+                if (! is_string($detail[$field]) || ! preg_match('/\A'.$prefix.'[a-zA-Z0-9]{1,190}\z/', $detail[$field])) {
+                    throw new \InvalidArgumentException('Stripe progress identifier is invalid.');
+                }
+                $stripeDetail[] = $field;
+            }
+            if (isset($detail['refund_ids']) && is_array($detail['refund_ids']) && array_is_list($detail['refund_ids'])
+                && ! array_filter($detail['refund_ids'], fn ($id) => ! is_string($id) || ! preg_match('/\Are_[a-zA-Z0-9]{1,190}\z/', $id))) {
+                $stripeDetail[] = 'refund_ids';
+            }
+            if (in_array($detail['trigger'] ?? null, ['user','leave'], true)) $stripeDetail[] = 'trigger';
+            foreach (['dispute_status','dispute_reason'] as $field) {
+                if (is_string($detail[$field] ?? null) && preg_match('/\A[a-z_]{1,64}\z/', $detail[$field])) $stripeDetail[] = $field;
+            }
+        }
+        if (array_diff(array_keys($detail), [...$stripeDetail, 'result', 'amount', 'method', 'provider', 'charge_id', 'match', 'operation', 'http_status', 'reason', 'error_code'])
             || (isset($detail['error_code']) && (! is_int($detail['error_code']) || $detail['error_code'] < 0 || $detail['error_code'] > 999999))
             || (isset($detail['result']) && ! in_array($detail['result'], ['success','error','authorized','rejected','closed','complete','cancel','failure'], true))
             || (isset($detail['amount']) && (! is_int($detail['amount']) || $detail['amount'] < 0))

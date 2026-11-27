@@ -14589,3 +14589,71 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   image IDs, native verification and current security results. Previous
   release-specific security exceptions do not transfer.
 - NEW staging and activation are outside this preparation.
+
+## STRIPE-CARD-20261125 — Stripe card Checkout
+
+- Human approved the policy-gate expectation change from 97 to 100 Public
+  operations in this PR. The inventory retains all 97 existing operation IDs
+  and adds cancelStripeCheckout, resumeStripeCheckout and syncStripePayment.
+  The validation logic and required checks retain their existing behavior.
+- Human also approved adding migration 000120 to the required-files and
+  ordered migration inventories. Both retain all existing migration entries.
+
+- R3 / Strict Change / Application Runtime Activation deferred. Platform base
+  a7095dc4955960a7d66f3d9b7a04f631f3e6624e, dedicated feature worktree,
+  Issue none. Storefront base 29d384bf46aeaeb86ac96936e8efbcc379ca4903.
+- The Platform owns Checkout Session creation, cancellation, signed event
+  receipt, reconciliation, point grants and operator review. The checkout
+  flow uses Stripe PHP 23.1.0 and API 2026-11-18.endive. Public alpha.51,
+  Admin/Webhook alpha.48 and Client/Testkit alpha.55 are source candidates.
+  Storefront integration depends on the immutable merged-main Artifact.
+- Reserve migration 000120 under the shared Migration Allocation Lock after
+  000119. Keep Stripe checkout attempts, encrypted session credentials and
+  append-only progress history on rollback. Runtime activation count zero.
+- Human approved the minimum Composer patch set for eleven advisories.
+  Symfony http-client, http-kernel, routing and serializer move from 8.1.11
+  to 8.1.12, mailer from 8.1.0 to 8.1.12. The corrected kernel requires
+  http-foundation 8.1.12 (previously 8.1.11). Laravel retains its version.
+  The locked Composer audit reports zero advisories and abandoned packages.
+  Composer minimal-changes retained all other locked versions. Resolved IDs:
+
+  | Package | Before | After | Composer advisories |
+  | --- | --- | --- | --- |
+  | symfony/http-client | 8.1.11 | 8.1.12 | PKSA-mb68-27bd-wyzv, PKSA-g3m4-qj64-dvzh, PKSA-k2g9-z9qx-r1jw, PKSA-y31j-3k1p-67dc |
+  | symfony/http-kernel | 8.1.11 | 8.1.12 | PKSA-k1tg-4k6j-w4xf |
+  | symfony/mailer | 8.1.0 | 8.1.12 | PKSA-vqxj-j8fm-1q3k, PKSA-9r8k-3vgs-8f3v |
+  | symfony/routing | 8.1.11 | 8.1.12 | PKSA-pbtx-4qgh-mmkh, PKSA-2vy6-qchn-f13r |
+  | symfony/serializer | 8.1.11 | 8.1.12 | PKSA-1b51-1qqv-synq, PKSA-8kyx-1yw4-pbyj |
+  | symfony/http-foundation | 8.1.11 | 8.1.12 | Dependency of patched http-kernel |
+
+- Local policy-gate passed with the two approved inventories. The schema
+  runner also expects both new Stripe tables and the forward-only migration
+  rejection. Its 71 guard tests and 42 contract artifact tests passed.
+- Isolated PHP 8.4.28/PostgreSQL tests cover adoption and the ten-minute
+  cutoff, the first-purchase slot, cancellation, uncertain creation, fixed
+  retry parameters, concurrent settlement, immutable receipts, operator review
+  and closed-account settlement. A concurrency test caught an attempted receipt
+  update. The corrected worker appends review evidence and the six-process race
+  delivered the webhook and granted each settled payment exactly once.
+- Storefront Client (50 cases), Testkit (55 cases) and the targeted Stripe
+  Admin component passed. One existing Admin history case exceeded its local
+  five-second timeout. CI uses the pinned Node runtime. The Site's browser
+  verification and formal Artifact publication await the post-merge phase.
+- Site-specific configuration uses V2_STRIPE_MODE (test/live), the matching
+  V2_STRIPE_SECRET_KEY and V2_STRIPE_PUBLISHABLE_KEY, and V2_STRIPE_WEBHOOK_SECRET.
+  Session creation timeout is 10 seconds. V2_STRIPE_CHECKOUT_EXPIRES_MINUTES
+  defaults to 35 (35–1440) and V2_STRIPE_START_LIMIT_PER_HOUR to 10.
+  V2_STRIPE_WORKER_ENABLED defaults to false. Schedule v2:stripe:work every
+  minute and v2:stripe:reconcile every five minutes when enabled.
+- Configure POST /webhooks/v2/stripe on the Site's Stripe Dashboard at the pinned
+  API version. Select checkout.session.completed, checkout.session.expired,
+  checkout.session.async_payment_succeeded, checkout.session.async_payment_failed,
+  charge.refunded, charge.dispute.created and charge.dispute.closed. The test
+  reverse proxy needs a POST-only webhook location with Basic Auth disabled.
+  Enable card payments, disable Stripe receipt emails, Link and wallets,
+  and check the statement descriptor and Radar settings.
+- Human cutover after pending-payment review uses V2_PAYMENT_CREDIT_CARD_PROVIDER.
+  Retain UnivaPay workers for at least 24 hours and until drained. Revert new
+  purchases to univapay if needed, and reconcile existing Stripe payments.
+  Browser acceptance follows phase 7 on OLD Test, including declines, 3DS,
+  pagehide, bfcache and first-purchase eligibility on mobile and desktop.

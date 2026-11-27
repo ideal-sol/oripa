@@ -56,6 +56,16 @@ final class V2AdminPaymentAdjustmentService
             'rank_adjustment_pending' => $this->rankPending($payment),
             'rank_change' => $this->rankChoice($payment),
         ];
+        if ($payment->provider_code === 'stripe') {
+            $session = DB::table('stripe_checkout_sessions')->where('payment_id', $payment->id)->first();
+            $data['stripe_checkout'] = [
+                'session_id' => $session?->session_id, 'payment_intent_id' => $session?->payment_intent_id,
+                'livemode' => $session?->livemode, 'actual_method_type' => $session?->actual_method_type,
+                'wallet_type' => $session?->wallet_type, 'attempts' => DB::table('stripe_checkout_attempts')
+                    ->where('payment_id', $payment->id)->orderBy('attempt_no')
+                    ->get(['attempt_no', 'state', 'error_code', 'session_id'])->all(),
+            ];
+        }
         $this->audit->record('admin.payment.detail.viewed', $this->auditContext($context, $payment->public_id));
 
         return ['data' => $data, 'request_id' => $context->requestId];

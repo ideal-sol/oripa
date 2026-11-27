@@ -49,6 +49,9 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 ] as const satisfies readonly Schemas["PaymentCardRegistrationStatus"][];
 
 export interface StorefrontPaymentClient {
+  syncStripePayment(paymentId: string, options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  resumeStripeCheckout(paymentId: string, options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  cancelStripeCheckout(paymentId: string, trigger: "user" | "leave", options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
@@ -99,6 +102,9 @@ export interface StorefrontPaymentClient {
 }
 
 export interface BrowserStorefrontPaymentClient {
+  syncStripePayment(paymentId: string, options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  resumeStripeCheckout(paymentId: string, options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  cancelStripeCheckout(paymentId: string, trigger: "user" | "leave", options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   reportUnivapayCharge(paymentId: string, input: Schemas["UnivapayChargeReport"], options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
@@ -182,10 +188,35 @@ function historyQuery(query: PaymentHistoryQuery): string {
   return `?${parameters.toString()}`;
 }
 
+// A shared deadline also covers CSRF initialization before the payment request.
+function stripeDeadline(options: BrowserPaymentCsrfOptions) {
+  const timeout_ms = Math.min(options.timeout_ms ?? 5000, 5000);
+  const deadline = AbortSignal.timeout(timeout_ms);
+  return { timeout_ms, signal: options.signal ? AbortSignal.any([options.signal, deadline]) : deadline };
+}
+
 export function createStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): StorefrontPaymentClient {
   return {
+    syncStripePayment: (id, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-sync`, method: "POST",
+      headers: csrf(options.csrf_token),
+      csrf: "required", retry: false, ...stripeDeadline(options),
+    }),
+    resumeStripeCheckout: (id, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-checkout-sessions`, method: "POST",
+      headers: csrf(options.csrf_token),
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
+    cancelStripeCheckout: (id, trigger, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-checkout-cancellations`, method: "POST",
+      body: {trigger},
+      headers: csrf(options.csrf_token),
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, ...stripeDeadline(options),
+    }),
     abandonPaidyCheckout: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/paidy-checkout-abandonments`, method: "POST", body: input,
       headers: csrf(options.csrf_token), idempotency_key: options.idempotency_key,
@@ -306,6 +337,21 @@ export function createCsrfManagedStorefrontPaymentClient(
   transport: StorefrontTransport,
 ): BrowserStorefrontPaymentClient {
   return {
+    syncStripePayment: (id, options = {}) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-sync`, method: "POST",
+      csrf: "required", retry: false, ...stripeDeadline(options),
+    }),
+    resumeStripeCheckout: (id, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-checkout-sessions`, method: "POST",
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
+    cancelStripeCheckout: (id, trigger, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/stripe-checkout-cancellations`, method: "POST",
+      body: {trigger},
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, ...stripeDeadline(options),
+    }),
     abandonPaidyCheckout: (id, input, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/paidy-checkout-abandonments`, method: "POST", body: input,
       idempotency_key: options.idempotency_key,

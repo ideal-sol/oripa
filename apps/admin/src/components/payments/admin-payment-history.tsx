@@ -127,7 +127,7 @@ export function AdminPaymentHistory({
       {!userPublicId ? (
         <div className="admin-payment-filters" aria-label="決済履歴フィルター">
           <label>決済会社<select aria-label="決済会社" value={provider} onChange={(event) => { beginLoad(); resetCursor(); setProvider(event.target.value); }}>
-            <option value="">すべて</option><option value="univapay">UnivaPay</option><option value="techcoin">テックコイン</option><option value="paidy">ペイディ</option><option value="fincode">fincode</option>
+            <option value="">すべて</option><option value="stripe">Stripe</option><option value="univapay">UnivaPay</option><option value="techcoin">テックコイン</option><option value="paidy">ペイディ</option><option value="fincode">fincode</option>
           </select></label>
           <label>決済経過<select aria-label="決済経過" value={progress} onChange={(event) => { beginLoad(); resetCursor(); setProgress(event.target.value as typeof progress); if (event.target.value === "review_required") setStatus("all"); }}>
             <option value="">すべて</option><option value="notification_missing">通知が来ていない</option><option value="review_required">要確認</option>

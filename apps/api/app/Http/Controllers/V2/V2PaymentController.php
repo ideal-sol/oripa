@@ -54,7 +54,23 @@ final class V2PaymentController
             }
 
             app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($this->user());
-            app(V2PaymentMethodPolicy::class)->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
+            $policy = app(V2PaymentMethodPolicy::class);
+            $key = $this->idempotencyKey($request);
+            $replay = app(\App\Domain\Point\Services\V2PointIdempotencyService::class)->completedPayment($this->user()->public_id, $key);
+            if ($replay && $replay->payment_method !== $method) {
+                throw new V2FincodeException('IDEMPOTENCY_KEY_REUSED', 409, 'The idempotency key was used for a different payment.');
+            }
+            $provider = $replay?->provider_code ?? $policy->provider($method);
+            if (! $replay) $policy->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
+            if ($replay && $provider !== 'fincode' && $request->exists('card')) {
+                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'Card input is not accepted.');
+            }
+            if ($provider === 'stripe') {
+                if (array_diff(array_keys($request->all()), ['point_product_id', 'payment_method'])) {
+                    throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
+                }
+                return app(\App\Domain\Payment\V2\Services\V2StripePaymentService::class)->start($this->user(), $pointProductId, $key);
+            }
 
             if ($method === 'netridecash') {
                 if (array_diff(array_keys($request->all()), ['point_product_id', 'payment_method'])) {
@@ -70,7 +86,7 @@ final class V2PaymentController
                 return app(\App\Domain\Payment\V2\Services\V2PaidyPaymentService::class)
                     ->start($this->user(), $pointProductId, $this->idempotencyKey($request));
             }
-            if (app(V2PaymentMethodPolicy::class)->provider($method) === 'univapay') {
+            if ($provider === 'univapay') {
                 return app(\App\Domain\Payment\V2\Services\V2UnivapayPaymentService::class)->start($this->user(), $pointProductId, $this->idempotencyKey($request));
             }
 
@@ -82,6 +98,23 @@ final class V2PaymentController
                 $card
             );
         }, 201);
+    }
+
+    public function stripe(Request $request, string $paymentId, string $operation): JsonResponse
+    {
+        return $this->handle($request, function () use ($request, $paymentId, $operation): array {
+            $user = $this->user();
+            app(V2RateLimiter::class)->assertSubject('user_mutation', $user->public_id);
+            $input = $request->json()->all();
+            $trigger = array_key_exists('trigger', $input) ? $input['trigger'] : 'user';
+            if (array_diff(array_keys($input), $operation === 'cancel' ? ['trigger'] : [])
+                || ! in_array($trigger, ['user','leave'], true)) {
+                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');
+            }
+            if ($operation === 'resume') app(\App\Domain\Identity\Services\V2SmsVerificationService::class)->assertVerified($user);
+            return app(\App\Domain\Payment\V2\Services\V2StripeReconciliationService::class)->operation(
+                $user, $paymentId, $operation, $operation === 'sync' ? null : $this->idempotencyKey($request), $trigger);
+        });
     }
 
     public function paidyAuthorization(Request $request, string $paymentId): JsonResponse

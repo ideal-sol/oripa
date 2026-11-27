@@ -485,6 +485,16 @@ final class V2FincodePaymentService
         if ($payment->provider_code === 'univapay' && $includeNextAction) {
             $nextAction = app(V2UnivapayPaymentService::class)->action($payment);
         }
+        $sync = $payment->provider_code === 'stripe' && in_array($payment->status, ['created','processing','requires_action'], true);
+        $stripe = $sync ? DB::table('stripe_checkout_sessions')->where('payment_id', $payment->id)->first() : null;
+        $pending = $stripe?->cancel_requested_at !== null;
+        if ($includeNextAction && $payment->status === 'requires_action' && $stripe?->session_status === 'open'
+            && ! $pending && CarbonImmutable::parse($stripe->session_expires_at)->isFuture()) {
+            $nextAction = ['type' => 'stripe_checkout', 'publishable_key' => config('v2_stripe.publishable_key'),
+                'client_secret' => Crypt::decryptString($stripe->client_secret_ciphertext),
+                'return_url' => $this->returns->storefrontNormalForPayment($payment->public_id),
+                'expires_at' => CarbonImmutable::parse($stripe->session_expires_at)->utc()->toIso8601ZuluString()];
+        }
         $paidPoints = (int) $payment->paid_point_amount;
         $bonusPoints = (int) $payment->free_point_amount;
         $limitedBonusPoints = (int) ($payment->limited_bonus_point_amount ?? 0);
@@ -516,6 +526,7 @@ final class V2FincodePaymentService
                 ? null
                 : CarbonImmutable::parse($payment->succeeded_at)->utc()->toIso8601ZuluString(),
             'next_action' => $nextAction,
+            'provider_sync' => $sync, 'cancellation_pending' => $pending,
         ];
     }
 

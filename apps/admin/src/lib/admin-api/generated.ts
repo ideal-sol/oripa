@@ -1,5 +1,5 @@
 // Generated from openapi/bundled/admin.openapi.json.
-// Contract SHA-256: 672da5758c0e43556b5409253c75aeea9d9d2467d5b069e31f4d28742cadfbfa
+// Contract SHA-256: a06a0b957c3fcf774735b2853b6b63a8659e1f4fadf68ab6a3e534edc2df825b
 // Do not edit manually.
 
 export const ADMIN_API_BASE_PATH = "/admin/api/v2" as const;
@@ -381,8 +381,9 @@ export interface AdminPayment {
   updated_at: string;
 }
 
-export type PaymentProgressEvent = { type: string; source: "client" | "server"; detail: { result?: string; amount?: number; method?: string; provider?: string; charge_id?: string; match?: "ok" | "amount_mismatch" | "member_mismatch" | "source_mismatch" | "mode_mismatch" | "expired" | "duplicate_charge"; operation?: "lookup" | "capture" | "cancel" | "refund"; http_status?: number; error_code?: number; reason?: "provider_event" | "provider_api" | "system" | "user" | "timeout" | "reconciliation_failed" | "capture_grant_failed" | "provider_reversed"; }; recorded_at: string; };
+export type PaymentProgressEvent = { type: string; source: "client" | "server"; detail: { result?: string; amount?: number; method?: string; provider?: string; charge_id?: string; stripe_charge_id?: string; session_id?: string; payment_intent_id?: string; event_id?: string; dispute_id?: string; dispute_status?: string; dispute_reason?: string; refund_ids?: Array<string>; trigger?: "user" | "leave"; match?: "ok" | "amount_mismatch" | "member_mismatch" | "source_mismatch" | "mode_mismatch" | "expired" | "duplicate_charge"; operation?: "lookup" | "capture" | "cancel" | "refund"; http_status?: number; error_code?: number; reason?: "provider_event" | "provider_api" | "system" | "user" | "timeout" | "reconciliation_failed" | "capture_grant_failed" | "provider_reversed"; }; recorded_at: string; };
 export type PaymentProviderSales = { method: string | null; provider: string; method_label: string; provider_label: string; count: number; gross_amount: number; refund_amount: number; chargeback_amount: number; net_amount: number; };
+export type AdminStripeCheckout = { session_id: string | null; payment_intent_id: string | null; livemode: boolean | null; actual_method_type: string | null; wallet_type: string | null; attempts: Array<{ attempt_no: number; state: string; error_code: string | null; session_id: string | null; }>; };
 export type AdminPaymentPurchaseBonusImpact = { required_amount: number; reversed_amount: number; shortfall_amount: number; };
 export type AdminPaymentRankRecovery = { rank: AdminMemberRankCode; requested_amount: number; recovered_amount: number; shortfall_amount: number; };
 export type AdminPaymentRankAdjustment = { month: string; effect: "none" | "current_month" | "past_month"; requested_points: number; applied_points: number; before_rank: string | null; after_rank: string | null; recoveries: Array<AdminPaymentRankRecovery>; };
@@ -396,7 +397,7 @@ export type AdminPaymentAdjustmentHistory = { from_status: string | null; to_sta
 export type AdminPaymentAdjustment = { id: string; type: "refund" | "chargeback" | "chargeback_reversal"; status: AdminPaymentAdjustmentStatus; parent_id: string | null; amount: number; reason: string | null; requested_by_admin_id: string | null; provider_adjustment_id: string | null; provider_case_id: string | null; source: "admin" | "provider" | "system"; requested_at: string | null; succeeded_at: string | null; canceled_at: string | null; impact: AdminPaymentPointImpact | null; history: Array<AdminPaymentAdjustmentHistory>; };
 export type AdminPaymentLot = { operation_id: string; point_type: "paid" | "free"; source: string; granted_amount: number; remaining_amount: number; reserved_amount: number; expire_at: string | null; member_rank_purchase_bonus: boolean; };
 export type AdminPaymentAdjustmentSummary = { refund_pending: boolean; refunded: boolean; chargeback: boolean; review_required: boolean; };
-export type AdminPaymentDetail = { payment: AdminPayment; lots: Array<AdminPaymentLot>; adjustments: Array<AdminPaymentAdjustment>; refund_eligibility: { allowed: boolean; code: string | null; reason: string | null; }; rank_adjustment_pending: boolean; progress?: Array<PaymentProgressEvent>; rank_change?: AdminPaymentRankChoice | null; };
+export type AdminPaymentDetail = { payment: AdminPayment; lots: Array<AdminPaymentLot>; adjustments: Array<AdminPaymentAdjustment>; refund_eligibility: { allowed: boolean; code: string | null; reason: string | null; }; rank_adjustment_pending: boolean; progress?: Array<PaymentProgressEvent>; rank_change?: AdminPaymentRankChoice | null; stripe_checkout?: AdminStripeCheckout; };
 export type AdminPaymentDetailResponse = { data: AdminPaymentDetail; request_id: string; };
 export type AdminPaymentAdjustmentResponse = { data: AdminPaymentAdjustment; rank_adjustment_pending: boolean; idempotent_replay: boolean; request_id: string; };
 export type AdminPaymentChargebackPreview = { impact: AdminPaymentPointImpact; rank_adjustment_pending: boolean; rank_change?: AdminPaymentRankChoice | null; };

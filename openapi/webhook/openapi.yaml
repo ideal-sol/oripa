@@ -2,7 +2,7 @@ openapi: 3.1.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Oripa Webhook API
-  version: 2.0.0-alpha.47
+  version: 2.0.0-alpha.48
   license:
     name: UNLICENSED
     identifier: LicenseRef-Proprietary
@@ -12,6 +12,36 @@ x-oripa-surface: webhook
 servers:
   - url: /webhooks/v2
 paths:
+  /stripe:
+    post:
+      operationId: receiveStripeWebhook
+      summary: Stripe署名を検証しイベントをOutboxに登録する
+      x-idempotency: provider-event-id
+      x-rate-limit: provider-signed-webhook
+      x-cache-policy: no-store
+      x-stability: alpha
+      security: []
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, type, data, livemode]
+              properties:
+                id: {type: string}
+                type: {type: string}
+                livemode: {type: boolean}
+                data: {type: object}
+      responses:
+        '200': {description: Durable receipt.}
+        '400': {description: Invalid signature or payload.}
+        '503': {description: Receipt unavailable.}
   /univapay/{token}:
     post:
       operationId: receiveUnivapayWebhook

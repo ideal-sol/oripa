@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Oripa Admin API",
-    "version": "2.0.0-alpha.47",
+    "version": "2.0.0-alpha.48",
     "license": {
       "name": "UNLICENSED",
       "identifier": "LicenseRef-Proprietary"
@@ -17970,6 +17970,86 @@
                 "type": "null"
               }
             ]
+          },
+          "stripe_checkout": {
+            "$ref": "#/components/schemas/AdminStripeCheckout"
+          }
+        }
+      },
+      "AdminStripeCheckout": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session_id",
+          "payment_intent_id",
+          "livemode",
+          "actual_method_type",
+          "wallet_type",
+          "attempts"
+        ],
+        "properties": {
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_intent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "livemode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "actual_method_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wallet_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "attempt_no",
+                "state",
+                "error_code",
+                "session_id"
+              ],
+              "properties": {
+                "attempt_no": {
+                  "type": "integer"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "error_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "session_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
           }
         }
       },
@@ -19053,6 +19133,39 @@
               "charge_id": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "stripe_charge_id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "payment_intent_id": {
+                "type": "string"
+              },
+              "event_id": {
+                "type": "string"
+              },
+              "dispute_id": {
+                "type": "string"
+              },
+              "dispute_status": {
+                "type": "string"
+              },
+              "dispute_reason": {
+                "type": "string"
+              },
+              "refund_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "trigger": {
+                "enum": [
+                  "user",
+                  "leave"
+                ]
               },
               "match": {
                 "enum": [
