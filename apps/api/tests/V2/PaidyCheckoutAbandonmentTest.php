@@ -57,6 +57,11 @@ final class PaidyCheckoutAbandonmentTest extends TestCase
         ], $headers)->assertCreated()->assertJsonPath('status', 'requires_action')->json();
         $url = $this->path($payment['id']);
         $headers['Idempotency-Key'] = 'checkout-abandonment';
+        $notice = $this->getJson('/api/v2/point-products')->assertOk()->json('first_user_offer.blocking_payments.0');
+        self::assertTrue($notice['cancellable'] && $notice['cancel_restores_offer']);
+        self::assertFalse($notice['resumable']);
+        $row = DB::table('payments')->where('public_id', $payment['id'])->firstOrFail();
+        self::assertSame(\App\Domain\Payment\V2\Services\V2PaidyDeadline::authorization($row)->utc()->toIso8601ZuluString(), $notice['auto_release_at']);
         $this->assertOffers($plans, false);
         self::assertSame(['paidy.payment'], DB::table('outbox_messages')->where('aggregate_public_id', $payment['id'])
             ->where('topic', 'payment.paidy')->pluck('event_type')->all());
@@ -74,6 +79,40 @@ final class PaidyCheckoutAbandonmentTest extends TestCase
             ->where('to_status', $status)->pluck('transition_source')->all());
         self::assertSame(1, DB::table('payment_progress_events')->where('payment_id', $row->id)
             ->where('type', 'paidy_checkout_result')->where('source', 'server')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_common_cancel_requires_ownership_and_a_bodyless_key_bound_to_one_payment(): void
+    {
+        [$owner, $payment] = $this->paidyPayment();
+        [$other, $foreign] = $this->paidyPayment();
+        $url = '/api/v2/payments/'.$payment->public_id.'/cancellations';
+        $this->post($url, [], $this->browser($other))->assertNotFound()->assertJsonPath('code', 'PAYMENT_NOT_FOUND');
+        $headers = $this->browser($owner);
+        $this->post('/api/v2/payments/'.Str::uuid().'/cancellations', [], $headers)->assertNotFound();
+        $this->postJson($url, ['trigger' => 'leave'], $headers)->assertUnprocessable();
+        $this->post($url, [], array_diff_key($headers, ['Idempotency-Key' => true]))->assertUnprocessable();
+        $this->post($url, [], $headers)->assertOk()->assertJsonPath('status', 'canceled');
+        $this->post($url, [], $headers)->assertOk()->assertJsonPath('status', 'canceled');
+        $next = app(V2PaidyPaymentService::class)->start($owner, $this->paidyPlan()->public_id, 'second-purchase');
+        $this->post('/api/v2/payments/'.$next['id'].'/cancellations', [], $headers)
+            ->assertConflict()->assertJsonPath('code', 'IDEMPOTENCY_KEY_REUSED');
+        $this->assertDatabaseHas('payments', ['public_id' => $next['id'], 'status' => 'requires_action']);
+        Http::assertNothingSent();
+    }
+
+    public function test_common_cancel_rejects_unsupported_active_payments_and_returns_terminal_state(): void
+    {
+        [$owner, $payment] = $this->paidyPayment();
+        $row = DB::table('payments')->where('id', $payment->id);
+        $headers = $this->browser($owner);
+        $url = '/api/v2/payments/'.$payment->public_id.'/cancellations';
+        foreach (['univapay', 'techcoin', 'fincode'] as $provider) {
+            $row->update(['provider_code' => $provider]);
+            $this->post($url, [], $headers)->assertConflict()->assertJsonPath('code', 'PAYMENT_NOT_CANCELLABLE');
+        }
+        $row->update(['status' => 'expired']);
+        $this->post($url, [], $headers)->assertOk()->assertJsonPath('status', 'expired');
         Http::assertNothingSent();
     }
 
@@ -114,6 +153,8 @@ final class PaidyCheckoutAbandonmentTest extends TestCase
             $idempotency->complete($claim->record, 'payment', $recorded->public_id);
         });
         foreach ([[$user, $linked], [$lookupUser, $queued], [$recordUser, $recorded]] as [$owner, $row]) {
+            $this->post('/api/v2/payments/'.$row->public_id.'/cancellations', [], $this->browser($owner))
+                ->assertConflict()->assertJsonPath('code', 'PAYMENT_NOT_CANCELLABLE');
             $this->postJson($this->path($row->public_id), ['result' => 'rejected'], $this->browser($owner))
                 ->assertOk()->assertJsonPath('status', 'requires_action');
         }
@@ -212,7 +253,7 @@ final class PaidyCheckoutAbandonmentTest extends TestCase
         $this->withCredentials()->withServerVariables(['HTTPS' => 'on'])
             ->withUnencryptedCookie('__Host-oripa_user_xsrf', str_repeat('a', 64));
 
-        return ['Origin' => 'https://example.test', 'X-XSRF-TOKEN' => str_repeat('a', 64), 'Idempotency-Key' => 'synthetic-key'];
+        return ['Origin' => 'https://example.test', 'Content-Type' => 'application/json', 'X-XSRF-TOKEN' => str_repeat('a', 64), 'Idempotency-Key' => 'synthetic-key'];
     }
 
     private function path(string $paymentId): string

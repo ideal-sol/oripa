@@ -100,18 +100,22 @@ test("Stripe sync, resume and cancellation preserve CSRF, cancellation trigger a
     await client.syncStripePayment("opaque id", options);
     await client.resumeStripeCheckout("opaque id", {...options, idempotency_key: "resume-key"});
     await client.cancelStripeCheckout("opaque id", "user", {...options, idempotency_key: "cancel-key"});
+    await client.cancelPayment("opaque id", {...options, idempotency_key: "notice-key"});
   }
-  for (const offset of [0, 3]) {
-    assert.deepEqual(calls.slice(offset, offset + 3).map(call => call.path), [
+  for (const offset of [0, 4]) {
+    assert.deepEqual(calls.slice(offset, offset + 4).map(call => call.path), [
       "/payments/opaque%20id/stripe-sync", "/payments/opaque%20id/stripe-checkout-sessions",
-      "/payments/opaque%20id/stripe-checkout-cancellations",
+      "/payments/opaque%20id/stripe-checkout-cancellations", "/payments/opaque%20id/cancellations",
     ]);
     assert.equal(calls[offset + 1].idempotency_key, "resume-key");
     assert.equal(calls[offset + 2].idempotency_key, "cancel-key");
+    assert.equal(calls[offset + 3].body, undefined);
+    assert.equal(calls[offset + 3].idempotency_key, "notice-key");
     assert.deepEqual(calls[offset + 2].body, {trigger: "user"});
   }
   assert.ok(calls.every(call => call.method === "POST" && call.csrf === "required" && call.retry === false && call.timeout_ms === 5000));
-  assert.ok(calls.slice(0, 3).every(call => call.headers["X-XSRF-TOKEN"] === csrfToken));
+  assert.ok(calls.filter(call => call.path.endsWith("/cancellations")).every(call => call.body === undefined && call.headers["Content-Type"] === "application/json"));
+  assert.ok(calls.slice(0, 4).every(call => call.headers["X-XSRF-TOKEN"] === csrfToken));
 });
 
 test("Paidy checkout abandonment uses the same mutation boundary and returns the current payment", async () => {

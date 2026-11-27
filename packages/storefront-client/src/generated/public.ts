@@ -1242,6 +1242,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/payments/{payment_id}/cancellations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 本人の途中決済を明示的に取り消す
+         * @description 本文は空とし、Content-Type に application/json を指定する。終了済みは現在の状態を返す。取消対象外は409 PAYMENT_NOT_CANCELLABLE。
+         */
+        post: operations["cancelPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/payments/{payment_id}/stripe-checkout-cancellations": {
         parameters: {
             query?: never;
@@ -2663,10 +2683,10 @@ export interface components {
         /** @enum {string} */
         PointProductUserState: "unauthenticated" | "authenticated";
         /**
-         * @description first_purchase_requiredは初回商品の24時間・商品ごと1回・未確定決済条件を満たさない場合を含む互換identifier。
+         * @description first_purchase_pendingは進行中の決済だけが初回購入を妨げている場合。
          * @enum {string|null}
          */
-        PointProductIneligibleReason: "sale_not_started" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "first_purchase_required" | null;
+        PointProductIneligibleReason: "sale_not_started" | "sale_ended" | "authentication_required" | "audience_not_eligible" | "first_purchase_required" | "first_purchase_pending" | null;
         PointProductCta: {
             /** @enum {string} */
             state: "enabled" | "disabled";
@@ -2674,7 +2694,27 @@ export interface components {
             action: "login" | "purchase" | null;
             reason: components["schemas"]["PointProductIneligibleReason"];
         };
+        BlockingPayment: {
+            id: components["schemas"]["OpaqueId"];
+            point_product_name: string;
+            method: components["schemas"]["PaymentMethod"] | null;
+            method_label: string;
+            /** @enum {unknown} */
+            status: "created" | "requires_action" | "processing";
+            /** Format: date-time */
+            started_at: string;
+            blocks_point_product_ids: components["schemas"]["OpaqueId"][];
+            cancellable: boolean;
+            /** @enum {unknown} */
+            cancel_unavailable_reason: "cancellation_pending" | "in_progress_at_provider" | "provider_not_supported" | null;
+            cancel_restores_offer: boolean;
+            resumable: boolean;
+            cancellation_pending: boolean;
+            /** Format: date-time */
+            auto_release_at: string | null;
+        };
         PointProduct: {
+            blocking_payments?: components["schemas"]["BlockingPayment"][];
             id: components["schemas"]["OpaqueId"];
             title: string;
             price: components["schemas"]["PointProductPrice"];
@@ -2695,6 +2735,8 @@ export interface components {
             data: components["schemas"]["PointProduct"][];
         };
         FirstUserOffer: {
+            blocking_payments?: components["schemas"]["BlockingPayment"][];
+            blocking_payments_truncated?: boolean;
             /**
              * @description activeは24時間内で購入可能な初回商品あり、expiredは期限到達、unauthenticatedは匿名、unavailableはその他の購入不可。
              * @enum {string}
@@ -3405,7 +3447,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description Stripe決済ではPAYMENT_START_RATE_LIMITED (429)、PAYMENT_AMOUNT_TOO_SMALL (422)、 PAYMENT_NOT_RESUMABLE (409)、PAYMENT_CANCELLATION_PENDING (409)を返す。 PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
+        /** @description Stripe決済ではPAYMENT_START_RATE_LIMITED (429)、PAYMENT_AMOUNT_TOO_SMALL (422)、 PAYMENT_NOT_RESUMABLE (409)、PAYMENT_CANCELLATION_PENDING (409)を返す。共通取消で対象外の場合はPAYMENT_NOT_CANCELLABLE (409)。 PaymentのRFC 9457 Problem Details。PAY4 adds PAYMENT_PROVIDER_MISMATCH (409), PAYMENT_REQUEST_INVALID (422), PAYMENT_NOT_FOUND (404). PAY1 adds PAYMENT_METHOD_UNAVAILABLE (422), PAYMENT_AMOUNT_TOO_LARGE (422), PAYMENT_PROVIDER_UNAVAILABLE (503), PAYMENT_SAVED_CARDS_DISABLED (409), PAYMENT_CLIENT_EVENT_INVALID (422). Legacy source=new save=trueの CARD_REGISTRATION_3DS_REQUIREDをtypedに含み、その他のPayment codeはgeneric Problem Detailsとして扱う。 */
         PaymentProblem: {
             headers: {
                 "X-Request-Id": components["headers"]["XRequestId"];
@@ -5808,6 +5850,32 @@ export interface operations {
         };
     };
     resumeStripeCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-XSRF-TOKEN": components["parameters"]["XsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                payment_id: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 所有会員の現在の決済。private, no-store。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            default: components["responses"]["PaymentProblem"];
+        };
+    };
+    cancelPayment: {
         parameters: {
             query?: never;
             header: {

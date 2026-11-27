@@ -76,7 +76,7 @@ final class ZPaidyConcurrencyTest extends TestCase
     public static function captureTimes(): array { return [[0], [70]]; }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('checkoutRequestOrder')]
-    public function test_authorization_and_abandonment_wait_on_the_same_payment_row(bool $authorizeFirst): void
+    public function test_authorization_and_abandonment_wait_on_the_same_payment_row(bool $authorizeFirst, bool $bothCancel = false): void
     {
         $this->configurePaidy();
         [$user, $payment] = $this->paidyPayment();
@@ -84,9 +84,13 @@ final class ZPaidyConcurrencyTest extends TestCase
         // Keep the provider result unassociated so only durable acceptance can block abandonment.
         $body['order']['order_ref'] = (string) Str::uuid();
         Http::fake(['https://api.paidy.com/*' => Http::response($body)]);
-        $run = static function (bool $authorize) use ($user, $payment, $body): string {
+        $run = static function (bool $authorize) use ($user, $payment, $body, $bothCancel): string {
             $service = app(V2PaidyPaymentService::class);
             $owner = User::query()->findOrFail($user->id);
+            if ($authorize && $bothCancel) {
+                return app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)
+                    ->cancel($owner, $payment->public_id, 'notice-race')['status'];
+            }
             $response = $authorize
                 ? $service->authorize($owner, $payment->public_id, ['paidy_payment_id' => $body['id']], 'concurrent-authorize')
                 : $service->abandon($owner, $payment->public_id, ['result' => 'closed'], 'concurrent-abandon');
@@ -135,14 +139,19 @@ final class ZPaidyConcurrencyTest extends TestCase
             self::fail('The second checkout request did not wait for the payment row lock.');
         });
         try {
-            $expected = $authorizeFirst ? 'requires_action' : 'canceled';
+            $expected = $authorizeFirst && ! $bothCancel ? 'requires_action' : 'canceled';
             self::assertSame($expected, $run($authorizeFirst));
             self::assertFalse($firstLock);
             self::assertSame($expected."\n", fgets($parent));
             $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => $expected]);
-            $this->assertDatabaseHas('outbox_messages', [
-                'aggregate_public_id' => $payment->public_id, 'event_type' => 'paidy.lookup',
-            ]);
+            if ($bothCancel) {
+                self::assertSame(1, DB::table('payment_status_histories')->where('payment_id', $payment->id)->where('to_status', 'canceled')->count());
+                self::assertSame(1, DB::table('payment_progress_events')->where('payment_id', $payment->id)->where('type', 'paidy_checkout_result')->count());
+            } else {
+                $this->assertDatabaseHas('outbox_messages', [
+                    'aggregate_public_id' => $payment->public_id, 'event_type' => 'paidy.lookup',
+                ]);
+            }
         } finally {
             fclose($parent);
             pcntl_waitpid($pid, $status);
@@ -151,5 +160,5 @@ final class ZPaidyConcurrencyTest extends TestCase
         self::assertSame(0, pcntl_wexitstatus($status));
     }
 
-    public static function checkoutRequestOrder(): array { return [[true], [false]]; }
+    public static function checkoutRequestOrder(): array { return [[true], [false], [true, true], [false, true]]; }
 }

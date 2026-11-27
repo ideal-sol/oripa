@@ -142,6 +142,10 @@ final class V2StripeReconciliationService
                     }
                     return CarbonImmutable::parse($session->session_expires_at)->lte(now()) ? ['lookup',$session->session_id] : [];
                 }
+                if ($operation === 'notice_cancel' && ! V2PaymentCancellationService::terminal($current->status)
+                    && ($current->payment_method !== 'credit_card' || $current->status === 'processing')) {
+                    throw V2PaymentCancellationService::unavailable();
+                }
                 if (! in_array($current->status, ['created','requires_action'], true)) return [];
                 if ($session?->cancel_requested_at === null) {
                     $this->progress->append($current->id, 'cancel_requested', ['provider' => 'stripe', 'trigger' => $trigger]);

@@ -545,6 +545,10 @@ test("Point Product Fixtureは順序、Eligibility、CTAをBackend判定済み�
       .ineligible_reason,
     "first_purchase_required",
   );
+  const pending = PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_pending;
+  assert.equal(pending.data[1].eligible, false);
+  assert.equal(pending.data[1].cta.reason, "first_purchase_pending");
+  assert.deepEqual(pending.first_user_offer.blocking_payments, pending.data[1].blocking_payments);
   assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.unavailable.data[0].is_available, false);
   assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_eligible.data[0].limited_bonus.state, "active");
   assert.equal(PUBLIC_POINT_PRODUCT_FIXTURES.authenticated_eligible.data[1].limited_bonus.state, "upcoming");
@@ -1042,13 +1046,14 @@ test("Advertising fixtures keep validity minimal and new registration candidates
   assert.deepEqual(Object.keys(fixtures.external_new_user).sort(), ["authenticated", "provider", "purpose", "return_path", "user"]);
 });
 
-test("Public OpenAPIは3.1.1かつStripe決済を含むOperation 100件である", () => {
+test("Public OpenAPIは3.1.1かつStripe決済を含むOperation 101件である", () => {
   assert.equal(PUBLIC_CONTRACT_FIXTURE.openapi, "3.1.1");
-  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 100);
+  assert.equal(PUBLIC_CONTRACT_FIXTURE.operation_count, 101);
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("listPaymentMethods"));
   assert.ok(PUBLIC_CONTRACT_FIXTURE.operation_ids.includes("recordPaymentClientEvent"));
   assert.deepEqual(PUBLIC_CONTRACT_FIXTURE.operation_ids, [
     "abandonPaidyCheckout",
+    "cancelPayment",
     "cancelPaymentCardRegistration",
     "cancelStripeCheckout",
     "changeUserPassword",

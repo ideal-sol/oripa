@@ -541,6 +541,16 @@ const firstPurchasePointProduct = {
   cta: { state: "enabled", action: "purchase", reason: null },
 } as const satisfies PublicComponents["schemas"]["PointProduct"];
 
+const pendingCardPayment = {
+  id: "0198a001-0000-7000-8000-000000000056",
+  point_product_name: firstPurchasePointProduct.title,
+  method: "credit_card", method_label: "クレジットカード",
+  status: "requires_action", started_at: "2026-08-15T00:00:00Z",
+  blocks_point_product_ids: [firstPurchasePointProduct.id],
+  cancellable: true, cancel_unavailable_reason: null, cancel_restores_offer: true,
+  resumable: true, cancellation_pending: false, auto_release_at: "2026-08-15T00:40:00Z",
+} satisfies PublicComponents["schemas"]["BlockingPayment"];
+
 export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
   anonymous: {
     first_user_offer: { state: "unauthenticated", expires_at: null, as_of: "2026-08-15T00:00:00Z" },
@@ -573,6 +583,13 @@ export const PUBLIC_POINT_PRODUCT_FIXTURES = Object.freeze({
   authenticated_eligible: {
     first_user_offer: { state: "active", expires_at: "2026-08-16T00:00:00Z", as_of: "2026-08-15T00:00:00Z" },
     data: [allUsersPointProduct, firstPurchasePointProduct],
+  },
+  authenticated_pending: {
+    first_user_offer: { state: "unavailable", expires_at: "2026-08-16T00:00:00Z", as_of: "2026-08-15T00:00:00Z",
+      blocking_payments: [pendingCardPayment], blocking_payments_truncated: false },
+    data: [allUsersPointProduct, { ...firstPurchasePointProduct, eligible: false,
+      ineligible_reason: "first_purchase_pending", blocking_payments: [pendingCardPayment],
+      cta: { state: "disabled", action: "purchase", reason: "first_purchase_pending" } }],
   },
   authenticated_after_first_purchase: {
     first_user_offer: { state: "unavailable", expires_at: "2026-08-16T00:00:00Z", as_of: "2026-08-15T00:00:00Z" },

@@ -47,6 +47,9 @@ final class StripeCheckoutTest extends TestCase
     {
         $user = $this->univapayUser();
         $plan = $this->univapayPlan();
+        $user->forceFill(['first_sms_verified_at' => now()->subMinute()])->save();
+        DB::table('point_purchase_plans')->where('id', $plan->id)->update(['audience_code' => 'first_purchase_users']);
+        $notice = fn () => app(\App\Domain\Payment\V2\Services\V2PointProductReadService::class)->listing($user)['first_user_offer'];
         $client = $this->mock(V2StripeClient::class);
         $client->shouldReceive('create')->twice()->andReturnUsing(function ($params, $key) {
             $session = $this->created($params, $key);
@@ -66,16 +69,27 @@ final class StripeCheckoutTest extends TestCase
         } catch (V2FincodeException $failure) {
             self::assertSame(503, $failure->status);
         }
+        $created = $notice()['blocking_payments'][0];
+        self::assertTrue($created['cancellable'] && $created['resumable']);
+        self::assertNull($created['auto_release_at']);
         $this->travel(60)->seconds();
         $payment = $start->start($user, $plan->public_id, 'stripe-create');
         self::assertSame($this->calls[0], $this->calls[1]);
         self::assertSame('stripe_checkout', $payment['next_action']['type']);
         self::assertTrue($payment['provider_sync']);
         $sync = app(V2StripeReconciliationService::class);
+        $action = $notice()['blocking_payments'][0];
+        self::assertSame($payment['next_action']['expires_at'], $action['auto_release_at']);
         $pending = $sync->operation($user, $payment['id'], 'cancel', 'same-key', 'leave');
         self::assertTrue($pending['cancellation_pending']);
         self::assertNull($pending['next_action']);
-        $done = $sync->operation($user, $payment['id'], 'cancel', 'same-key', 'user');
+        $waiting = $notice()['blocking_payments'][0];
+        self::assertTrue($waiting['cancellation_pending']);
+        self::assertFalse($waiting['resumable'] || $waiting['cancellable']);
+        self::assertNull($waiting['auto_release_at']);
+        $done = app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)->cancel($user, $payment['id'], 'notice-retry');
+        self::assertSame('active', $notice()['state']);
+        self::assertSame([], $notice()['blocking_payments']);
         self::assertSame('canceled', $done['status']);
         self::assertFalse($done['provider_sync']);
         self::assertSame(1, DB::table('payment_progress_events')->where('type', 'cancel_requested')->where('detail->trigger', 'leave')->count());
@@ -177,7 +191,7 @@ final class StripeCheckoutTest extends TestCase
                 $locks[] = $table[1];
             }
         });
-        $done = $sync->operation($user, $payment['id'], 'cancel', 'cancel', 'user');
+        $done = app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)->cancel($user, $payment['id'], 'cancel');
         self::assertSame(['users', 'payments', 'stripe_checkout_sessions', 'stripe_checkout_attempts', 'payment_provider_events'],
             array_values(array_unique($locks)));
         self::assertSame('succeeded', $done['status']);

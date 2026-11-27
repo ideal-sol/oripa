@@ -51,6 +51,7 @@ export const CARD_REGISTRATION_INCOMPLETE_STATUSES = [
 export interface StorefrontPaymentClient {
   syncStripePayment(paymentId: string, options: PaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   resumeStripeCheckout(paymentId: string, options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  cancelPayment(paymentId: string, options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   cancelStripeCheckout(paymentId: string, trigger: "user" | "leave", options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: PaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
@@ -104,6 +105,7 @@ export interface StorefrontPaymentClient {
 export interface BrowserStorefrontPaymentClient {
   syncStripePayment(paymentId: string, options?: BrowserPaymentCsrfOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   resumeStripeCheckout(paymentId: string, options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
+  cancelPayment(paymentId: string, options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   cancelStripeCheckout(paymentId: string, trigger: "user" | "leave", options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   abandonPaidyCheckout(paymentId: string, input: Schemas["PaymentPaidyCheckoutAbandonmentRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
   confirmPaidyAuthorization(paymentId: string, input: Schemas["PaymentPaidyAuthorizationRequest"], options: BrowserPaymentMutationOptions): Promise<StorefrontResponse<Schemas["Payment"]>>;
@@ -209,6 +211,12 @@ export function createStorefrontPaymentClient(
       headers: csrf(options.csrf_token),
       idempotency_key: options.idempotency_key,
       csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
+    cancelPayment: (id, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/cancellations`, method: "POST",
+      headers: { ...csrf(options.csrf_token), "Content-Type": "application/json" },
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, ...stripeDeadline(options),
     }),
     cancelStripeCheckout: (id, trigger, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/stripe-checkout-cancellations`, method: "POST",
@@ -345,6 +353,12 @@ export function createCsrfManagedStorefrontPaymentClient(
       path: `/payments/${segment(id, "payment_id")}/stripe-checkout-sessions`, method: "POST",
       idempotency_key: options.idempotency_key,
       csrf: "required", retry: false, signal: options.signal, timeout_ms: options.timeout_ms,
+    }),
+    cancelPayment: (id, options) => transport.request({
+      path: `/payments/${segment(id, "payment_id")}/cancellations`, method: "POST",
+      headers: { "Content-Type": "application/json" },
+      idempotency_key: options.idempotency_key,
+      csrf: "required", retry: false, ...stripeDeadline(options),
     }),
     cancelStripeCheckout: (id, trigger, options) => transport.request({
       path: `/payments/${segment(id, "payment_id")}/stripe-checkout-cancellations`, method: "POST",

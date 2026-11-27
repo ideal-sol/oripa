@@ -74,6 +74,7 @@ final class ZStripeConcurrencyTest extends TestCase
         $jobs = [
             fn () => $sync->operation($user, $stripe['id'], 'sync', null),
             fn () => $sync->operation($user, $stripe['id'], 'cancel', 'cancel-race'),
+            fn () => app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)->cancel($user, $stripe['id'], 'notice-race'),
             fn () => $worker->work(10),
             fn () => $worker->reconcile(),
             fn () => app(V2UnivapayPaymentService::class)->reconcile($otherCharge['id'], $other->id),

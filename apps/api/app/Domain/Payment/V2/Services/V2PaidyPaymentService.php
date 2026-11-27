@@ -10,6 +10,7 @@ use App\Domain\Point\Services\V2PointIdempotencyService;
 use App\Domain\Point\Services\V2PointTransactionRunner;
 use App\Models\V2\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -107,9 +108,7 @@ final class V2PaidyPaymentService
                 if ($claim->replay) {
                     return;
                 }
-                if ($fresh->status === 'requires_action' && $fresh->provider_payment_id === null && ! $this->hasAuthorization($fresh)) {
-                    app(V2PaymentService::class)->applyPaidyCheckoutAbandonment($fresh, $input['result']);
-                }
+                $this->abandonLocked($fresh, $input['result']);
                 $idempotency->complete($claim->record, 'payment', $fresh->public_id);
             });
         } catch (V2PointException $exception) {
@@ -119,13 +118,40 @@ final class V2PaidyPaymentService
         return app(V2FincodePaymentService::class)->show($user, $payment->public_id);
     }
 
+    public function cancelFromNotice(object $payment): void
+    {
+        app(V2PointTransactionRunner::class)->run(function () use ($payment) {
+            $fresh = $this->lockPayment($payment);
+            if (! V2PaymentCancellationService::terminal($fresh->status) && ! $this->abandonLocked($fresh, 'closed')) {
+                throw V2PaymentCancellationService::unavailable();
+            }
+        });
+    }
+
+    private function abandonLocked(object $payment, string $result): bool
+    {
+        if ($payment->status !== 'requires_action' || $payment->provider_payment_id !== null || $this->hasAuthorization($payment)) {
+            return false;
+        }
+        app(V2PaymentService::class)->applyPaidyCheckoutAbandonment($payment, $result);
+        return true;
+    }
+
     private function hasAuthorization(object $payment): bool
     {
-        return DB::table('idempotency_records')->where('scope', self::AUTHORIZATION_SCOPE)
-            ->where('resource_type', 'payment')->where('resource_public_id', $payment->public_id)->exists()
-            || DB::table('outbox_messages')->where('topic', 'payment.paidy')->where('event_type', 'paidy.lookup')
-                ->where('aggregate_type', 'payment')->where('aggregate_public_id', $payment->public_id)
-                ->whereNotNull('payload->paidy_payment_id')->exists();
+        return self::authorizationRecords()->where('resource_public_id', $payment->public_id)->exists()
+            || self::lookupRecords()->where('aggregate_public_id', $payment->public_id)->exists();
+    }
+
+    public static function authorizationRecords(): Builder
+    {
+        return DB::table('idempotency_records')->where('scope', self::AUTHORIZATION_SCOPE)->where('resource_type', 'payment');
+    }
+
+    public static function lookupRecords(): Builder
+    {
+        return DB::table('outbox_messages')->where('topic', 'payment.paidy')->where('event_type', 'paidy.lookup')
+            ->where('aggregate_type', 'payment')->whereNotNull('payload->paidy_payment_id');
     }
 
     private function lockPayment(object $payment): object

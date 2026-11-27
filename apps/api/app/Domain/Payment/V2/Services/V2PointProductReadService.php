@@ -54,17 +54,56 @@ final class V2PointProductReadService
             ->groupBy('point_purchase_plan_id');
 
         $bonus = app(\App\Domain\MemberRank\Services\V2MemberRankPurchaseBonusService::class)->estimateContext($user, $asOf);
-        $products = $rows->map(
-            fn (object $plan): array => $this->present(
-                $plan,
-                $user,
-                $asOf,
-                $campaigns->get($plan->id, collect())->all(),
-                $bonus
-            )
-        )->values()->all();
+        $tags = $user === null ? [] : DB::table('user_tag_assignments')
+            ->where('user_id', $user->id)->whereIn('user_tag_id', $rows->pluck('target_user_tag_id')->filter()->unique())
+            ->pluck('user_tag_id')->flip()->all();
+        $firstPlans = $rows->where('audience_code', V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE)
+            ->filter(fn ($plan) => $this->saleState($plan, $asOf) === 'available'
+                && ($plan->target_user_tag_id === null || isset($tags[$plan->target_user_tag_id])));
+        $qualifiedAt = $user === null ? null : $this->eligibility->qualifiedAt($user);
+        $inWindow = $user !== null && $firstPlans->isNotEmpty() && $this->eligibility->withinQualifiedWindow($user, $asOf, $qualifiedAt);
+        $blocking = $inWindow ? $this->eligibility->blockingRows($user->id, $firstPlans->pluck('code')->all()) : [];
+        $reasons = [];
+        foreach ($blocking as $payment) {
+            if ((int) $payment->position === 1) {
+                $reasons[$this->eligibility->scopeKey($payment->code)] = $this->eligibility->blockReason($payment);
+            }
+        }
 
-        $expiresAt = $user === null ? null : $this->eligibility->qualifiedAt($user)?->addHours(24);
+        $products = [];
+        $blockedIds = [];
+        foreach ($rows as $plan) {
+            $sale = $this->saleState($plan, $asOf);
+            $scope = $this->eligibility->scopeKey($plan->code);
+            $reason = match (true) {
+                $sale !== 'available' => $sale === 'coming_soon' ? 'sale_not_started' : 'sale_ended',
+                $user === null => 'authentication_required',
+                $plan->target_user_tag_id !== null && ! isset($tags[$plan->target_user_tag_id]) => 'audience_not_eligible',
+                $plan->audience_code !== V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE => null,
+                ! $inWindow => 'first_purchase_required',
+                default => $reasons[$scope] ?? null,
+            };
+            $products[$plan->public_id] = $this->present($plan, $user, $asOf,
+                $campaigns->get($plan->id, collect())->all(), $bonus, $sale, $reason);
+            if ($reason === 'first_purchase_pending') $blockedIds[$scope][] = $plan->public_id;
+        }
+
+        $offerPayments = [];
+        $truncated = false;
+        $byScope = [];
+        foreach ($blocking as $payment) {
+            $scope = $this->eligibility->scopeKey($payment->code);
+            if (! isset($blockedIds[$scope])) continue;
+            $notice = $this->notice($payment, $blockedIds[$scope]);
+            if (count($byScope[$scope] ?? []) < 3) $byScope[$scope][] = $notice;
+            if (count($offerPayments) < 10) $offerPayments[] = $notice;
+            else $truncated = true;
+        }
+        foreach ($blockedIds as $scope => $ids) {
+            foreach ($ids as $id) $products[$id]['blocking_payments'] = $byScope[$scope];
+        }
+
+        $expiresAt = $qualifiedAt?->addHours(24);
         $hasEligibleOffer = collect($products)->contains(
             fn (array $product): bool => $product['audience']['code']
                 === V2PointPurchaseEligibilityService::AUDIENCE_FIRST_PURCHASE
@@ -79,9 +118,11 @@ final class V2PointProductReadService
         };
 
         return [
-            'data' => $products,
+            'data' => array_values($products),
             'first_user_offer' => [
                 'state' => $state,
+                'blocking_payments' => $offerPayments,
+                'blocking_payments_truncated' => $truncated,
                 'expires_at' => $expiresAt?->toIso8601ZuluString(),
                 'as_of' => $asOf->toIso8601ZuluString(),
             ],
@@ -94,12 +135,11 @@ final class V2PointProductReadService
         ?User $user,
         CarbonImmutable $now,
         array $campaigns,
-        ?array $bonus
+        ?array $bonus,
+        string $saleState,
+        ?string $reason
     ): array
     {
-        $saleState = $this->saleState($plan, $now);
-        $reason = $this->reason($plan, $user, $saleState, $now);
-
         return [
             'id' => $plan->public_id,
             'title' => $plan->name,
@@ -133,6 +173,7 @@ final class V2PointProductReadService
             'eligible' => $reason === null,
             'ineligible_reason' => $reason,
             'cta' => $this->cta($reason),
+            'blocking_payments' => [],
         ];
     }
 
@@ -191,16 +232,40 @@ final class V2PointProductReadService
         return 'available';
     }
 
-    private function reason(object $plan, ?User $user, string $saleState, CarbonImmutable $asOf): ?string
+    private function notice(object $p, array $blockedIds): array
     {
-        if ($saleState !== 'available') {
-            return $saleState === 'coming_soon' ? 'sale_not_started' : 'sale_ended';
-        }
-        if ($user === null) {
-            return 'authentication_required';
-        }
-
-        return $this->eligibility->evaluate($user, $plan, $asOf)['reason'];
+        $pending = $p->provider_code === 'stripe' && $p->cancel_requested_at !== null;
+        $resume = $p->provider_code === 'stripe' && $p->payment_method === 'credit_card' && ! $pending
+            && in_array($p->status, ['created', 'requires_action'], true);
+        $paidy = $p->provider_code === 'paidy' && $p->status === 'requires_action'
+            && $p->provider_payment_id === null && ! $p->authorization_record && ! $p->lookup_record;
+        $reason = match (true) {
+            $resume || $paidy => null,
+            $pending => 'cancellation_pending',
+            in_array($p->provider_code, ['stripe', 'paidy'], true) => 'in_progress_at_provider',
+            default => 'provider_not_supported',
+        };
+        $deadline = match (true) {
+            $p->status !== 'requires_action' || $pending => null,
+            $p->provider_code === 'stripe' => $p->session_expires_at,
+            $p->provider_code === 'paidy' => $paidy && $p->expires_at !== null ? V2PaidyDeadline::authorization($p) : null,
+            default => $p->expires_at,
+        };
+        return [
+            'id' => $p->public_id,
+            'point_product_name' => $p->plan_name_snapshot,
+            'method' => $p->payment_method,
+            'method_label' => V2PaymentMethodPolicy::methodLabel($p->payment_method),
+            'status' => $p->status,
+            'started_at' => $this->utc($p->created_at),
+            'blocks_point_product_ids' => $blockedIds,
+            'cancellable' => $reason === null,
+            'cancel_unavailable_reason' => $reason,
+            'cancel_restores_offer' => ! $p->issued,
+            'resumable' => $resume,
+            'cancellation_pending' => $pending,
+            'auto_release_at' => $deadline === null ? null : $this->utc($deadline),
+        ];
     }
 
     /** @return array{state: string, action: string, reason: ?string} */

@@ -14730,3 +14730,13 @@ Runbook v1.1 stages 1–3, multiple services without migration.
 PR #744 merged at 8696021fb45b968ff2f77aa8915e2ab967764adf. The reviewed and merged trees match, with zero content differences. All five main checks passed in run 45972449029. Migration 000120 is permanently allocated and its physical allocation lock released. Operational migrations applied: 0.
 
 Human confirmed this exact squash for the contract-only publication. Run 45974755687 attempt 1 published Artifact 15185489903. Independent exact-ID readback, Manifest, SHA256SUMS and both tarballs passed verification. REL-055 registers the measured release and preserves all 34 predecessors. Four focused release tests and local policy passed. Release details and checksums are in the [release record](../docs/operations/releases/storefront-contract-artifact.md#rel-055-stripe-card-alpha55-reconciliation). Runtime Activation: none.
+
+## PAYMENT-PENDING-NOTICE-20261125 — 初回限定商品の途中決済案内と明示取消
+
+- Platform / R3 / Strict Change / Application Runtime Activation deferred。基点 7e7e6bc73a7f5ba05734fb97a53cc7241823e9e3、専用作業ツリー。App用Task Policyは NOTICE-20261125。
+- 初回限定の成立履歴、発行済み非同期決済、進行中決済を同じ購入制限クエリで判定。恒久的な制限を優先し、進行中だけの場合に理由と案内を同じ行から生成する。商品別3件と重複のない一覧10件を独立に取得。会員用の応答は private, no-store および Vary: Cookie を維持する。
+- 本文なしの cancelPayment は所有者、CSRF、user_mutation、会員別冪等キーと対象決済の相関を検証する。Stripeでは①のロック・expire・照会、ペイディでは既存のロック下の承認判定と終了遷移を共用する。表示はローカルの保存状態だけを読む。
+- Public alpha.52 は従来100 operationIdに1件追加。Bundle・Client・Testkitはalpha.56候補、Admin/Webhookはalpha.48、Site Schemaはalpha.23参照。alpha.55までの確定台帳を維持する。Migration・新規Workerは不要。
+- 商品別と一覧の件数・優先順位、所有者・対象違いの冪等キー、保留・支払優先・旧新入口の競合を回帰テスト対象とした。現行Storefrontの購入処理が eligible と CTA の両方を要求することをソースで確認。実機受入は①＋⑦のOLD Test一括反映後。NEW Production時はPR #745のPAM更新も含む。
+- この段階はPlatform Draft PRでHumanレビュー待ち。Merge、正式Artifact公開、Storefront実装、実環境Migration適用・Activationは後続の判断事項。
+- 隔離PostgreSQLの指摘対象・競合テストは異なる18ケースを確認。本文なしPOSTのJSONヘッダー（当初415）と商品一覧の追加フィールドに対する厳密な期待値を修正し、該当ケースの再確認は5件・88 assertions PASS。Clientの本文・CSRF・同一キー、Testkitの101件固定一覧・案内Fixture、4件のリリース検証、公開済み35件の台帳一致、ローカルpolicy-gateを確認。

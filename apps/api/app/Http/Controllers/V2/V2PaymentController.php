@@ -8,6 +8,7 @@ use App\Domain\Payment\V2\Services\V2FincodeCardService;
 use App\Domain\Payment\V2\Services\V2FincodePaymentService;
 use App\Domain\Payment\V2\Services\V2FincodePublicConfiguration;
 use App\Domain\Payment\V2\Services\V2PaidyPaymentService;
+use App\Domain\Payment\V2\Services\V2PaymentCancellationService;
 use App\Domain\Payment\V2\Services\V2PaymentMethodPolicy;
 use App\Domain\Payment\V2\Services\V2PaymentProgressService;
 use App\Domain\Reporting\Exceptions\V2ReportingException;
@@ -95,6 +96,18 @@ final class V2PaymentController
                 $card
             );
         }, 201);
+    }
+
+    public function cancel(Request $request, string $paymentId): JsonResponse
+    {
+        return $this->handle($request, function () use ($request, $paymentId): array {
+            $user = $this->user();
+            app(V2RateLimiter::class)->assertSubject('user_mutation', $user->public_id);
+            if ($request->getContent() !== '' || $request->request->count() > 0) {
+                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'This operation has no request body.');
+            }
+            return app(V2PaymentCancellationService::class)->cancel($user, $paymentId, $this->idempotencyKey($request));
+        });
     }
 
     public function stripe(Request $request, string $paymentId, string $operation): JsonResponse
