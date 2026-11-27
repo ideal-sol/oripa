@@ -14740,3 +14740,5 @@ Human confirmed this exact squash for the contract-only publication. Run 4597475
 - 商品別と一覧の件数・優先順位、所有者・対象違いの冪等キー、保留・支払優先・旧新入口の競合を回帰テスト対象とした。現行Storefrontの購入処理が eligible と CTA の両方を要求することをソースで確認。実機受入は①＋⑦のOLD Test一括反映後。NEW Production時はPR #745のPAM更新も含む。
 - この段階はPlatform Draft PRでHumanレビュー待ち。Merge、正式Artifact公開、Storefront実装、実環境Migration適用・Activationは後続の判断事項。
 - 隔離PostgreSQLの指摘対象・競合テストは異なる18ケースを確認。本文なしPOSTのJSONヘッダー（当初415）と商品一覧の追加フィールドに対する厳密な期待値を修正し、該当ケースの再確認は5件・88 assertions PASS。Clientの本文・CSRF・同一キー、Testkitの101件固定一覧・案内Fixture、4件のリリース検証、公開済み35件の台帳一致、ローカルpolicy-gateを確認。
+
+- CI run 46008133511 のintegration-suiteは、テスト実行前のapt updateでMicrosoftの追加配布元がHTTP 403を返して停止。ffmpegとutil-linuxを取得する2コマンドを、同じランナーの署名付きUbuntu標準配布元に限定。両パッケージのインストール・GD/ffprobe/prlimit実行確認・全Required Checksは従来どおり実行する。

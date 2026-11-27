@@ -462,8 +462,11 @@ jobs:
 
       - name: Install isolated LINE media verification dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg util-linux
+          # Both packages are provided by Ubuntu. Unrelated vendor feeds on the hosted runner can be unavailable.
+          test -s /etc/apt/sources.list.d/ubuntu.sources
+          ubuntu_sources=(-o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${ubuntu_sources[@]}" update
+          sudo apt-get "${ubuntu_sources[@]}" install -y --no-install-recommends ffmpeg util-linux
           php -r 'if (!extension_loaded("gd")) { exit(1); }'
           /usr/bin/ffprobe -version
           /usr/bin/prlimit --version
