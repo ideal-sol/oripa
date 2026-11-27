@@ -733,3 +733,23 @@ Canonical contract-only [publication and readback](https://github.com/ideal-sol/
 The exact five-file Artifact is `oripa-storefront-contract-2.0.0-alpha.54`. Client/Testkit alpha.54, Public alpha.50 with97 operations, Admin/Webhook alpha.47, referenced Site Schema alpha.23. All94 Paidy predecessor operations are retained and only pending/claim/delivered for LINE friend conversion are added. Release mode contract-additive; breaking_change=false. Packed Client runtime version, version header, package inventory and checksums passed canonical publication/readback.
 
 All33 predecessor immutable records are preserved; latest_immutable is alpha.54 and candidate is null. Artifact Release Lock is held through metadata merge/readback. Storefront adoption is a separate PR #255; its merge and Runtime Activation require subsequent Human approval. Runtime, operational Migration119, ENV/T/GTM/worker changes are zero. Errors require reviewed metadata correction, never immutable Artifact replacement.
+
+## REL-055 Stripe card alpha.55 reconciliation
+
+PR #744 squash `8696021fb45b968ff2f77aa8915e2ab967764adf` and reviewed HEAD `c0105b6f88fe88bd4acd297490a6eb2081917d1e` share tree `328645008ed48398c19f3ac1d6c7015501a220f9`. Human confirmed that squash as publication Source. The five Required Checks passed on the merged Source. Migration 000120 is permanently allocated to Stripe checkout. Operational migration applications and Runtime Activations are zero.
+
+Canonical [publication and exact-ID readback](https://github.com/ideal-sol/oripa/actions/runs/45974755687), attempt 1. Independent readback verified the outer digest, five-file inventory, Manifest, SHA256SUMS and packed contracts.
+
+- artifact_id: `15185489903`
+- artifact_name: `oripa-storefront-contract-2.0.0-alpha.55`
+- artifact_version: `2.0.0-alpha.55`
+- client_sha256: `f1cb940e1e712fc7e2d41d3a63595d289fc084d4299205454169972dd6e2e6b6`
+- manifest_sha256: `1b819d2401ef23bb19fa0747eec5419b703082809fba35853dbe9267911cca2d`
+- outer_sha256: `425d7d945f51e589d75cb49275d9a16d5149c7d6ac29c46b62dbf5d4ea746cb9`
+- public_openapi_sha256: `c6b772ec130d18e2293cd0d23b44a7aa922abcf91ffeedc868e519e58bc626a1`
+- sha256sums_sha256: `58fd9d86624c1cd6203ef8d7326510f7e76c003f2e00c8c47491ea7ecc086fa7`
+- source_commit: `8696021fb45b968ff2f77aa8915e2ab967764adf`
+- testkit_sha256: `3d94069ddeeba8fa59ccc893d07fde59731544cec8d3ad7f8a85af4f2c887cac`
+- workflow_run_id: `45974755687`
+
+Client and Testkit alpha.55, Public alpha.51 (100 operations), Admin and Webhook alpha.48. Site Schema references the prior alpha.23 bytes. All 34 predecessor records are preserved. The ledger records alpha.55 as the latest immutable release and clears its candidate. Storefront adoption uses the recorded exact Artifact. Metadata corrections require review and preserve immutable Artifact bytes.
