@@ -108,6 +108,9 @@ final class V2StripePaymentService
                 $this->payments->applyProviderStartResult($payment->id, 'START_NOT_COMPLETED', 'failed');
                 return null;
             }
+            if (! app(V2StripeConfiguration::class)->matchesPaymentMode($payment->id, config('v2_stripe.mode') === 'live')) {
+                throw $this->unavailable();
+            }
             if (! $attempt || $attempt->state !== 'pending'
                 || CarbonImmutable::parse($attempt->request_expires_at)->lt(now()->addMinutes(31))) {
                 $this->abandon($attempt);
@@ -155,7 +158,12 @@ final class V2StripePaymentService
         }
         $matched = $this->locked($view, function ($payment, $user, $session, $latest) use ($sent, $result, $params) {
             $id = $result['id'] ?? null;
-            if ($session && $session->session_id === $id) return true;
+            if ($session && $session->session_id === $id) {
+                if ($session->livemode === ($result['livemode'] ?? null)
+                    && app(V2StripeConfiguration::class)->matchesPaymentMode($payment->id, $session->livemode)) return true;
+                $this->review($payment);
+                return false;
+            }
             if (! is_string($id) || ! preg_match('/\Acs_(live|test)_[a-zA-Z0-9]+\z/', $id)
                 || ! $this->belongs($payment, $user, $result, $sent->attempt_no)) {
                 $this->review($payment);
@@ -203,7 +211,7 @@ final class V2StripePaymentService
             && ($object['metadata']['oripa-member'] ?? null) === $user->public_id
             && ($object['metadata']['oripa-attempt'] ?? null) === (string) $number
             && ($object['currency'] ?? null) === 'jpy' && ($object['amount_total'] ?? null) === (int) $payment->amount
-            && ($object['livemode'] ?? null) === (config('v2_stripe.mode') === 'live');
+            && app(V2StripeConfiguration::class)->matchesPaymentMode($payment->id, $object['livemode'] ?? null);
     }
 
     public function queueExpiry(object $payment, string $id): void

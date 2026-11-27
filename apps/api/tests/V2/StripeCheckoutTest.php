@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\DB;
 use Stripe\Exception\ApiConnectionException;
 use Tests\TestCase;
 use Tests\V2\Fixtures\UnivapayFixtures;
+use Tests\V2\Fixtures\PaidyFixtures;
 
 final class StripeCheckoutTest extends TestCase
 {
-    use DatabaseTransactions, UnivapayFixtures;
+    use DatabaseTransactions, UnivapayFixtures, PaidyFixtures;
 
     private array $session = [];
     private array $calls = [];
@@ -34,9 +35,10 @@ final class StripeCheckoutTest extends TestCase
     private function created(array $params, string $key): array
     {
         $this->calls[] = [$params, $key];
-        $id = 'cs_test_'.substr(hash('sha256', $key), 0, 20);
+        $mode = config('v2_stripe.mode');
+        $id = 'cs_'.$mode.'_'.substr(hash('sha256', $key), 0, 20);
         return $this->session = ['id' => $id, 'status' => 'open', 'payment_status' => 'unpaid', 'mode' => 'payment',
-            'livemode' => false, 'client_reference_id' => $params['client_reference_id'], 'metadata' => $params['metadata'],
+            'livemode' => $mode === 'live', 'client_reference_id' => $params['client_reference_id'], 'metadata' => $params['metadata'],
             'currency' => 'jpy', 'amount_total' => $params['line_items'][0]['price_data']['unit_amount'],
             'client_secret' => $id.'_secret_synthetic', 'expires_at' => $params['expires_at']];
     }
@@ -197,6 +199,53 @@ final class StripeCheckoutTest extends TestCase
                 'payment_intent' => 'pi_Synthetic', 'payment_method_details' => ['type' => 'card']],
         ];
         return [...$this->session, 'status' => 'complete', 'payment_status' => 'paid', 'payment_intent' => $intent];
+    }
+
+    #[\PHPUnit\Framework\Attributes\TestWith(['test', 'live'])]
+    #[\PHPUnit\Framework\Attributes\TestWith(['live', 'test'])]
+    public function test_session_recovery_lookup_and_action_require_the_original_mode(string $original, string $changed): void
+    {
+        $configure = static function (string $mode): void {
+            config(['v2_stripe.mode' => $mode, 'v2_stripe.publishable_key' => 'pk_'.$mode.'_synthetic',
+                'v2_stripe.secret_key' => 'rk_'.$mode.'_synthetic']);
+        };
+        $configure($original);
+        $user = $this->univapayUser();
+        $plan = $this->univapayPlan();
+        $client = $this->mock(V2StripeClient::class);
+        $client->shouldReceive('create')->twice()->andReturnUsing(function ($params, $key) use ($configure, $changed) {
+            if ($this->calls === []) $configure($changed);
+            return $this->created($params, $key);
+        });
+        $checkout = app(V2StripePaymentService::class);
+        // The first response agrees with the changed configuration. A retry in
+        // that mode must stop before sending a second create request.
+        for ($i = 0; $i < 2; ++$i) {
+            try {
+                $checkout->start($user, $plan->public_id, 'mode-change');
+                self::fail('Expected rejection in the other commercial mode');
+            } catch (V2FincodeException $error) {
+                self::assertSame(503, $error->status);
+            }
+        }
+        self::assertCount(1, $this->calls);
+        self::assertSame(0, DB::table('stripe_checkout_sessions')->count());
+        $configure($original);
+        $payment = $checkout->start($user, $plan->public_id, 'mode-change');
+        self::assertSame('stripe_checkout', $payment['next_action']['type']);
+        $configure($changed);
+        self::assertNull(app(V2FincodePaymentService::class)->show($user, $payment['id'])['next_action']);
+        // A pre-fix row could already match the new key mode. The immutable
+        // classification must still protect both the secret and settlement.
+        DB::table('stripe_checkout_sessions')->where('session_id', $this->session['id'])
+            ->update(['livemode' => $changed === 'live']);
+        self::assertNull(app(V2FincodePaymentService::class)->show($user, $payment['id'])['next_action']);
+        $paid = $this->paidSession();
+        $paid['livemode'] = $paid['payment_intent']['livemode'] = $changed === 'live';
+        $client->shouldReceive('session')->once()->andReturn($paid);
+        self::assertTrue(app(V2StripeReconciliationService::class)->lookup($this->session['id']));
+        self::assertSame('requires_action', DB::table('payments')->where('public_id', $payment['id'])->value('status'));
+        self::assertSame(0, DB::table('payment_point_grants')->count());
     }
 
     public function test_lookup_with_a_different_session_id_records_review_without_a_grant(): void
@@ -360,20 +409,39 @@ final class StripeCheckoutTest extends TestCase
         self::assertSame($this->calls[0], $this->calls[1]);
     }
 
+    private function purchase(string $product, string $method, string $key): \Illuminate\Http\JsonResponse
+    {
+        $request = \Illuminate\Http\Request::create('/api/v2/payments', 'POST', server: [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_IDEMPOTENCY_KEY' => $key,
+        ], content: json_encode(['point_product_id' => $product, 'payment_method' => $method], JSON_THROW_ON_ERROR));
+        return app(\App\Http\Controllers\V2\V2PaymentController::class)->store($request);
+    }
+
+    public function test_disabled_legacy_methods_still_reject_completed_purchase_keys(): void
+    {
+        $this->configurePaidy();
+        $user = $this->univapayUser();
+        $this->actingAs($user, 'v2_user');
+        $plan = $this->univapayPlan();
+        config(['v2_payment.methods_enabled' => '']);
+        foreach (['fincode' => 'credit_card', 'paidy' => 'paidy', 'techcoin' => 'netridecash'] as $provider => $method) {
+            app(\App\Domain\Payment\V2\Services\V2PaymentService::class)
+                ->createPayment($user->id, $plan->id, $provider, null, $provider, $method);
+            $response = $this->purchase($plan->public_id, $method, $provider);
+            self::assertSame(422, $response->status());
+            self::assertSame('PAYMENT_METHOD_UNAVAILABLE', $response->getData(true)['code']);
+        }
+        self::assertSame(3, DB::table('payments')->where('user_id', $user->id)->count());
+    }
+
     public function test_provider_switch_replays_the_original_purchase_and_rejects_key_reuse(): void
     {
         $user = $this->univapayUser();
         $this->actingAs($user, 'v2_user');
-        $plan = $this->univapayPlan();
+        $plan = $this->univapayPlan(100001);
         $client = $this->mock(V2StripeClient::class);
         $client->shouldReceive('create')->once()->andReturnUsing(fn ($p, $k) => $this->created($p, $k));
-        $controller = app(\App\Http\Controllers\V2\V2PaymentController::class);
-        $purchase = function ($product, $method, $key) use ($controller) {
-            $request = \Illuminate\Http\Request::create('/api/v2/payments', 'POST', server: [
-                'CONTENT_TYPE' => 'application/json', 'HTTP_IDEMPOTENCY_KEY' => $key,
-            ], content: json_encode(['point_product_id' => $product, 'payment_method' => $method], JSON_THROW_ON_ERROR));
-            return $controller->store($request);
-        };
+        $purchase = $this->purchase(...);
         $original = $purchase($plan->public_id, 'credit_card', 'checkout-key');
         self::assertSame(201, $original->status());
         config(['v2_payment.credit_card_provider' => 'univapay']);
@@ -385,10 +453,11 @@ final class StripeCheckoutTest extends TestCase
             self::assertSame(409, $error->status());
             self::assertSame('IDEMPOTENCY_KEY_REUSED', $error->getData(true)['code']);
         }
-        $other = $purchase($plan->public_id, 'credit_card', 'univapay-key');
+        $otherPlan = $this->univapayPlan();
+        $other = $purchase($otherPlan->public_id, 'credit_card', 'univapay-key');
         self::assertSame('univapay_inline', $other->getData(true)['next_action']['type']);
-        config(['v2_payment.credit_card_provider' => 'stripe']);
-        self::assertSame($other->getData(true)['id'], $purchase($plan->public_id, 'credit_card', 'univapay-key')->getData(true)['id']);
+        config(['v2_payment.credit_card_provider' => 'stripe', 'v2_stripe.secret_key' => null]);
+        self::assertSame($other->getData(true)['id'], $purchase($otherPlan->public_id, 'credit_card', 'univapay-key')->getData(true)['id']);
     }
 
     public function test_fifth_failed_attempt_ends_the_payment_and_invalid_ttl_prevents_creation(): void
@@ -443,13 +512,15 @@ final class StripeCheckoutTest extends TestCase
         $client->shouldReceive('create')->once()->andReturnUsing(fn ($p, $k) => $this->created($p, $k));
         $payment = app(V2StripePaymentService::class)->start($user, $this->univapayPlan()->public_id, 'reversals');
         $client->shouldReceive('session')->once()->andReturn($this->paidSession());
-        self::assertTrue(app(V2StripeReconciliationService::class)->lookup($this->session['id']));
         $charge = ['id' => 'ch_Synthetic', 'payment_intent' => 'pi_Synthetic', 'currency' => 'jpy', 'livemode' => false,
             'amount_refunded' => 500, 'refunds' => ['data' => [['id' => 're_Synthetic']]]];
         $dispute = ['id' => 'dp_Synthetic', 'charge' => 'ch_Synthetic', 'payment_intent' => 'pi_Synthetic',
             'currency' => 'jpy', 'livemode' => false, 'amount' => 500, 'reason' => 'duplicate', 'status' => 'needs_response'];
-        $client->shouldReceive('charge')->once()->with('ch_Synthetic')->andReturn($charge);
-        $client->shouldReceive('dispute')->twice()->with('dp_Synthetic')->andReturn($dispute, [...$dispute, 'status' => 'won']);
+        $intent = [...$this->paidSession()['payment_intent'], 'amount' => $this->session['amount_total']];
+        $client->shouldReceive('charge')->twice()->with('ch_Synthetic')->andReturn([...$charge, 'payment_intent' => $intent]);
+        $reply = [...$dispute, 'payment_intent' => $intent];
+        $closed = [...$reply, 'status' => 'won'];
+        $client->shouldReceive('dispute')->times(4)->with('dp_Synthetic')->andReturn($reply, $closed, $reply, $closed);
         $worker = app(V2StripeWorker::class);
         foreach (['charge.refunded', 'charge.dispute.created', 'charge.dispute.closed'] as $index => $type) {
             $event = ['id' => 'evt_Reversal'.$index, 'type' => $type, 'livemode' => false,
@@ -457,9 +528,15 @@ final class StripeCheckoutTest extends TestCase
             $worker->receive($event);
             $worker->receive($event);
             $worker->work(10);
-            self::assertSame('delivered', DB::table('outbox_messages')
+            self::assertSame('pending', DB::table('outbox_messages')
                 ->where('deduplication_key', 'stripe.receipt:'.$event['id'])->value('status'));
         }
+        self::assertSame(0, DB::table('payment_progress_events')->whereIn('type', ['dispute_opened','dispute_closed','provider_reversed'])->count());
+        self::assertTrue(app(V2StripeReconciliationService::class)->lookup($this->session['id']));
+        $this->travel(61)->seconds();
+        $worker->work(10);
+        self::assertSame(3, DB::table('outbox_messages')->where('deduplication_key', 'like', 'stripe.receipt:evt_Reversal%')
+            ->where('attempts', 2)->where('status', 'delivered')->count());
         $row = DB::table('payments')->where('public_id', $payment['id'])->sole();
         self::assertSame('succeeded', $row->status);
         self::assertSame(1, DB::table('payment_point_grants')->where('payment_id', $row->id)->count());
@@ -467,6 +544,8 @@ final class StripeCheckoutTest extends TestCase
         $events = DB::table('payment_progress_events')->where('payment_id', $row->id)
             ->whereIn('type', ['provider_reversed', 'dispute_opened', 'dispute_closed'])->orderBy('id')->get();
         self::assertSame(['provider_reversed', 'dispute_opened', 'dispute_closed'], $events->pluck('type')->all());
+        self::assertSame(['evt_Reversal0', 'evt_Reversal1', 'evt_Reversal2'],
+            $events->map(fn ($event) => json_decode($event->detail, true)['event_id'])->all());
         self::assertSame(['re_Synthetic'], json_decode($events[0]->detail, true)['refund_ids']);
     }
 
@@ -486,6 +565,36 @@ final class StripeCheckoutTest extends TestCase
         self::assertSame('charge.refunded', DB::table('payment_provider_events')->where('external_event_id', 'receipt:evt_Unknown')->value('event_type'));
         self::assertSame('payment.review.stripe_reference_unmatched', DB::table('payment_provider_events')->where('external_event_id', 'review:evt_Unknown')->value('event_type'));
         self::assertSame('delivered', DB::table('outbox_messages')->where('deduplication_key', 'stripe.receipt:evt_Unknown')->value('status'));
+    }
+
+    public function test_reversal_wait_is_bounded_and_member_mismatch_goes_directly_to_review(): void
+    {
+        $user = $this->univapayUser();
+        $client = $this->mock(V2StripeClient::class);
+        $client->shouldReceive('create')->once()->andReturnUsing(fn ($p, $k) => $this->created($p, $k));
+        app(V2StripePaymentService::class)->start($user, $this->univapayPlan()->public_id, 'review-window');
+        $intent = [...$this->paidSession()['payment_intent'], 'amount' => $this->session['amount_total']];
+        $charge = ['id' => 'ch_Wait', 'payment_intent' => $intent, 'currency' => 'jpy', 'livemode' => false];
+        $client->shouldReceive('charge')->with('ch_Wait')->times(15)->andReturn($charge);
+        $intent['metadata']['oripa-member'] = (string) \Illuminate\Support\Str::uuid7();
+        $client->shouldReceive('charge')->with('ch_Mismatch')->once()
+            ->andReturn([...$charge, 'id' => 'ch_Mismatch', 'payment_intent' => $intent]);
+        $worker = app(V2StripeWorker::class);
+        foreach (['Wait', 'Mismatch'] as $name) {
+            $worker->receive(['id' => 'evt_'.$name, 'type' => 'charge.refunded', 'livemode' => false,
+                'data' => ['object' => ['id' => 'ch_'.$name, 'payment_intent' => 'pi_Synthetic']]]);
+        }
+        $worker->work(10);
+        $outbox = DB::table('outbox_messages')->where('deduplication_key', 'stripe.receipt:evt_Wait');
+        self::assertSame('pending', $outbox->value('status'));
+        self::assertSame('delivered', DB::table('outbox_messages')->where('deduplication_key', 'stripe.receipt:evt_Mismatch')->value('status'));
+        for ($attempt = 2; $attempt <= 15; $attempt++) {
+            $this->travel(61)->seconds();
+            $worker->work(10);
+        }
+        self::assertSame('delivered', $outbox->value('status'));
+        self::assertSame(2, DB::table('payment_provider_events')->whereIn('external_event_id', ['review:evt_Wait', 'review:evt_Mismatch'])->count());
+        self::assertSame(0, DB::table('payment_point_grants')->count());
     }
 
     public function test_receipts_deduplicate_and_worker_releases_created_payment(): void

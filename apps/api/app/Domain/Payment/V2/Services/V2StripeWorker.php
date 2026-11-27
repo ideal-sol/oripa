@@ -11,6 +11,9 @@ use Illuminate\Support\Str;
 
 final class V2StripeWorker
 {
+    // Allow the five-minute settlement reconciliation multiple opportunities to finish.
+    private const SETTLEMENT_WAIT_ATTEMPTS = 15;
+
     private const EVENTS = [
         'checkout.session.completed' => 'session_id', 'checkout.session.expired' => 'session_id',
         'checkout.session.async_payment_succeeded' => 'session_id', 'checkout.session.async_payment_failed' => 'session_id',
@@ -65,7 +68,7 @@ final class V2StripeWorker
                         ->where('external_event_id', 'receipt:'.$message->payload['event_id'])->firstOrFail();
                     $ids = json_decode(\Illuminate\Support\Facades\Crypt::decryptString($receipt->payload_ciphertext), true, 8, JSON_THROW_ON_ERROR);
                     $ok = isset($ids['session_id']) ? $this->sync->lookup($ids['session_id'], receiptId: $receipt->id)
-                        : $this->reversal($receipt, $ids);
+                        : $this->reversal($receipt, $ids, $message->attempts);
                     if (! $ok) throw new \UnexpectedValueException();
                 }
                 $this->outbox->markDelivered($message->public_id, $worker);
@@ -96,23 +99,41 @@ final class V2StripeWorker
         if ($canExpire) $this->client->expire($id);
     }
 
-    private function reversal(object $receipt, array $ids): bool
+    private function reversal(object $receipt, array $ids, int $attempts): bool
     {
-        $type = $receipt->event_type;
         $dispute = isset($ids['dispute_id']);
         $object = $dispute ? $this->client->dispute($ids['dispute_id']) : $this->client->charge($ids['charge_id']);
-        $intentId = $object['payment_intent'] ?? null;
+        $intent = $object['payment_intent'] ?? null;
+        $intentId = is_array($intent) ? ($intent['id'] ?? null) : $intent;
         $session = is_string($intentId) ? DB::table('stripe_checkout_sessions')->where('payment_intent_id', $intentId)->first() : null;
-        if (! $session) {
+        $view = $session ? DB::table('payments')->find($session->payment_id) : null;
+        if (! $view && is_array($intent) && Str::isUuid($intent['metadata']['oripa-payment-id'] ?? '')) {
+            $view = DB::table('payments')->where('provider_code', 'stripe')
+                ->where('public_id', $intent['metadata']['oripa-payment-id'])->first();
+        }
+        if (! $view) {
             $this->checkout->reviewReceipt($receipt->id);
             return true;
         }
-        $view = DB::table('payments')->find($session->payment_id);
-        return $this->checkout->locked($view, function ($payment, $user, $current) use ($type, $ids, $dispute, $object, $intentId) {
-            if ($current?->payment_intent_id !== $intentId || ($object['id'] ?? null) !== ($ids['dispute_id'] ?? $ids['charge_id'])
-                || ($object['currency'] ?? null) !== 'jpy' || ($object['livemode'] ?? null) !== $current->livemode
+        return $this->checkout->locked($view, function ($payment, $user, $current) use ($receipt, $ids, $dispute, $object, $intent, $intentId, $attempts) {
+            if (! is_string($intentId) || ($object['id'] ?? null) !== ($ids['dispute_id'] ?? $ids['charge_id'])
+                || ($object['currency'] ?? null) !== 'jpy'
+                || ! app(V2StripeConfiguration::class)->matchesPaymentMode($payment->id, $object['livemode'] ?? null)
+                || ($current && $object['livemode'] !== $current->livemode)
                 || (isset($ids['payment_intent_id']) && $ids['payment_intent_id'] !== $intentId)
                 || ($dispute && ($object['charge'] ?? null) !== ($ids['charge_id'] ?? null))) {
+                $this->checkout->review($payment);
+                return true;
+            }
+            if ($current?->payment_intent_id !== $intentId) {
+                $awaitingSettlement = $current?->payment_intent_id === null && is_array($intent)
+                    && ($intent['metadata']['oripa-payment-id'] ?? null) === $payment->public_id
+                    && ($intent['metadata']['oripa-member'] ?? null) === $user->public_id
+                    && ($intent['livemode'] ?? null) === $object['livemode']
+                    && ($intent['currency'] ?? null) === 'jpy' && ($intent['amount'] ?? null) === (int) $payment->amount
+                    && in_array($payment->status, ['created', 'requires_action', 'processing'], true);
+                if ($awaitingSettlement && $attempts < self::SETTLEMENT_WAIT_ATTEMPTS) return false;
+                $this->checkout->reviewReceipt($receipt->id);
                 $this->checkout->review($payment);
                 return true;
             }
@@ -124,7 +145,7 @@ final class V2StripeWorker
             } else {
                 $detail['refund_ids'] = array_column($object['refunds']['data'] ?? [], 'id');
             }
-            app(V2PaymentProgressService::class)->append($payment->id, match ($type) {
+            app(V2PaymentProgressService::class)->append($payment->id, match ($receipt->event_type) {
                 'charge.refunded' => 'provider_reversed', 'charge.dispute.created' => 'dispute_opened', 'charge.dispute.closed' => 'dispute_closed',
             }, $detail);
             return true;

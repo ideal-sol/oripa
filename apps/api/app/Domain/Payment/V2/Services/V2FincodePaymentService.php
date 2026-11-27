@@ -489,7 +489,9 @@ final class V2FincodePaymentService
         $stripe = $sync ? DB::table('stripe_checkout_sessions')->where('payment_id', $payment->id)->first() : null;
         $pending = $stripe?->cancel_requested_at !== null;
         if ($includeNextAction && $payment->status === 'requires_action' && $stripe?->session_status === 'open'
-            && ! $pending && CarbonImmutable::parse($stripe->session_expires_at)->isFuture()) {
+            && ! $pending && CarbonImmutable::parse($stripe->session_expires_at)->isFuture()
+            && app(V2StripeConfiguration::class)->available()
+            && app(V2StripeConfiguration::class)->matchesPaymentMode($payment->id, $stripe->livemode)) {
             $nextAction = ['type' => 'stripe_checkout', 'publishable_key' => config('v2_stripe.publishable_key'),
                 'client_secret' => Crypt::decryptString($stripe->client_secret_ciphertext),
                 'return_url' => $this->returns->storefrontNormalForPayment($payment->public_id),

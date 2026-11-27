@@ -40,7 +40,7 @@ class V2StripeClient
     public function charge(string $id): array
     {
         $client = $this->sdk();
-        $charge = $client->charges->retrieve($id, ['expand' => ['refunds']])->toArray();
+        $charge = $client->charges->retrieve($id, ['expand' => ['refunds', 'payment_intent']])->toArray();
         if ($charge['refunds']['has_more'] ?? false) {
             $ids = [];
             foreach ($client->refunds->all(['charge' => $id, 'limit' => 100])->autoPagingIterator() as $refund) {
@@ -53,6 +53,6 @@ class V2StripeClient
 
     public function dispute(string $id): array
     {
-        return $this->sdk()->disputes->retrieve($id)->toArray();
+        return $this->sdk()->disputes->retrieve($id, ['expand' => ['payment_intent']])->toArray();
     }
 }

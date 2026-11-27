@@ -14682,3 +14682,38 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   Three supplemental synthetic payment handoff checks also passed (13
   assertions) for atomic receipt/outbox rollback, revoked SMS eligibility,
   and member rank and bonus deduplication.
+
+### PR #744 review of 544a94c4
+
+- R1. The release test validates the current source through the existing
+  governance and source validators. It checks the immediate successor of
+  alpha.54 in the candidate or historical ledger, checks the active release
+  state, and tries to reissue each immutable version. The fixed alpha.54
+  publication test remains in place. The three release tests passed locally;
+  additional disposable source fixtures passed with alpha.55 published both
+  with no candidate and with a subsequent alpha.56 candidate.
+- R2. Refund and dispute lookups expand the PaymentIntent. When the intent
+  identifier is still missing locally, the worker verifies provider metadata,
+  member, amount, currency and mode before deferring to the existing Outbox.
+  A claim retries after 60 seconds. The fifteenth unresolved claim records
+  operator review; a foreign reference or mismatch goes to review directly.
+  The regression delivers all three reversal event types before settlement,
+  reconciles the payment, then verifies the original event identities, one
+  grant, and zero adjustments. A separate case exercises the wait limit.
+- R3. The Stripe mode check reads the original commercial classification
+  and verifies it against the key mode and the provider's livemode. Creation,
+  recovery, lookup and disclosure of an existing session use that check.
+  Regressions cover both test-to-live and live-to-test, including an
+  inconsistent stored session from before this correction.
+- R4. Both new and replayed requests enforce the existing method policy with
+  the resolved provider. Tests cover disabled fincode, Paidy and Techcoin
+  methods and both directions of the Stripe/UnivaPay switch, including
+  different provider limits and configuration availability.
+- Same Strict Change, Activation deferred. Migration 000120 remains reserved
+  under the existing lock. This correction changes no migration, contract,
+  dependency, release ledger, publishing implementation or CI control.
+- Local PostgreSQL verification included 22 Stripe cases (176 assertions).
+  The focused legacy replay and provider-switch cases passed. A new negative
+  test caught the missing receipt in the operator-review callback; after
+  fixing that capture, the five affected reversal and mode cases passed
+  (52 assertions). The complete PR file inventory and credential scan passed.

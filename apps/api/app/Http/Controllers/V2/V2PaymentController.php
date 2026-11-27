@@ -61,10 +61,7 @@ final class V2PaymentController
                 throw new V2FincodeException('IDEMPOTENCY_KEY_REUSED', 409, 'The idempotency key was used for a different payment.');
             }
             $provider = $replay?->provider_code ?? $policy->provider($method);
-            if (! $replay) $policy->assertNewPayment($method, $pointProductId, $card, $request->exists('card'));
-            if ($replay && $provider !== 'fincode' && $request->exists('card')) {
-                throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'Card input is not accepted.');
-            }
+            $policy->assertNewPayment($method, $pointProductId, $card, $request->exists('card'), $provider);
             if ($provider === 'stripe') {
                 if (array_diff(array_keys($request->all()), ['point_product_id', 'payment_method'])) {
                     throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'The payment request is invalid.');

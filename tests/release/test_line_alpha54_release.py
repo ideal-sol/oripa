@@ -50,17 +50,38 @@ class LineAlpha54ReleaseTest(unittest.TestCase):
 
     def test_stripe_candidate_and_rejection_of_every_published_version(self):
         value = ARTIFACT['governance'](ROOT)
-        candidate = ARTIFACT['pending_candidate'](ROOT)
-        self.assertEqual(candidate, value['candidate'])
-        self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.55')
-        self.assertEqual(candidate['release_state'], 'pending')
-        self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.54')
-        self.assertEqual(value['latest_immutable']['bundle_version'], candidate['predecessor_bundle_version'])
-        self.assertEqual(ARTIFACT['validate_source'](ROOT)['release_state'], 'pending')
+        history = value['immutable_history']
+        versions = [row['bundle_version'] for row in history]
+        latest = versions[-1]
+        target = ARTIFACT['verification_target'](value)
+        source = ARTIFACT['validate_source'](ROOT)
+        self.assertEqual(source['bundle_version'], target['bundle_version'])
+        if value['candidate'] is None:
+            self.assertEqual(source['release_state'], 'released')
+            self.assertEqual(target['bundle_version'], latest)
+            with self.assertRaisesRegex(ARTIFACT['ArtifactError'], 'no pending Storefront artifact candidate'):
+                ARTIFACT['pending_candidate'](ROOT)
+        else:
+            self.assertEqual(source['release_state'], 'pending')
+            self.assertEqual(ARTIFACT['pending_candidate'](ROOT), target)
+            self.assertEqual(target['predecessor_bundle_version'], latest)
+            self.assertNotIn(target['bundle_version'], versions)
+
+        # The immediate successor to alpha.54 moves from candidate to history at publication.
+        successor = versions.index('2.0.0-alpha.54') + 1
+        if successor == len(history):
+            self.assertIsNotNone(value['candidate'])
+            stripe_version = target['bundle_version']
+            public_operations = target['public_api_operation_count']
+        else:
+            stripe_version = history[successor]['bundle_version']
+            public_operations = history[successor]['public_openapi']['operation_count']
+        self.assertEqual(stripe_version, '2.0.0-alpha.55')
+        self.assertEqual(public_operations, 100)
         for row in value['immutable_history']:
             version = row['bundle_version']
             with self.subTest(version=version):
-                self.assertNotEqual(version, candidate['bundle_version'])
-                reissue = {**value, 'candidate': {**candidate, 'bundle_version': version}}
+                reissue = {**value, 'candidate': {**target, 'release_state': 'pending',
+                           'predecessor_bundle_version': latest, 'bundle_version': version}}
                 with self.assertRaisesRegex(ARTIFACT['ArtifactError'], 'immutable existing version reissue prohibited'):
                     ARTIFACT['validate_governance'](reissue)

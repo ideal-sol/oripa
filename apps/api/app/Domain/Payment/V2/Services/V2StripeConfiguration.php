@@ -3,10 +3,20 @@
 namespace App\Domain\Payment\V2\Services;
 
 use App\Domain\Payment\V2\Exceptions\V2FincodeException;
+use Illuminate\Support\Facades\DB;
 
 final class V2StripeConfiguration
 {
     public const API_VERSION = '2026-11-18.endive';
+
+    public function matchesPaymentMode(int $paymentId, mixed $livemode): bool
+    {
+        if (! is_bool($livemode) || config('v2_stripe.mode') !== ($livemode ? 'live' : 'test')) {
+            return false;
+        }
+        return DB::table('payment_commercial_classifications')->where('payment_id', $paymentId)
+            ->value('classification') === ($livemode ? 'commercial' : 'test');
+    }
 
     public function assertConfigured(): void
     {

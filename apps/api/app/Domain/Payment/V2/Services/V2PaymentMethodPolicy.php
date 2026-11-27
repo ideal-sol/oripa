@@ -95,12 +95,12 @@ final class V2PaymentMethodPolicy
         return ['data' => $result];
     }
 
-    public function assertNewPayment(string $method, string $productId, ?array $card, bool $cardPresent): void
+    public function assertNewPayment(string $method, string $productId, ?array $card, bool $cardPresent, ?string $provider = null): void
     {
         if (! in_array($method, $this->enabled(), true)) {
             throw new V2FincodeException('PAYMENT_METHOD_UNAVAILABLE', 422, 'The payment method is unavailable.');
         }
-        $provider = $this->provider($method);
+        $provider ??= $this->provider($method);
         if ($provider !== 'fincode' && $cardPresent) {
             throw new V2FincodeException('PAYMENT_REQUEST_INVALID', 422, 'Card input is not accepted for this payment method.');
         }
