@@ -14667,3 +14667,11 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   purchases to univapay if needed, and reconcile existing Stripe payments.
   Browser acceptance follows phase 7 on OLD Test, including declines, 3DS,
   pagehide, bfcache and first-purchase eligibility on mobile and desktop.
+
+- Human approved binding the existing alpha.54 republication test to publication
+  record commit `776264704734e1282802ff5695c6abcab87df6ed`. The current
+  tree verifies the single pending alpha.55 candidate, its alpha.54 predecessor,
+  and rejection of every immutable bundle version as a reissue. The preceding
+  CI run passed all four database shards and identified the release test's
+  assumption about the current tree. The publication code and historical
+  release records retain their original contents.

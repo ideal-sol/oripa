@@ -1,6 +1,7 @@
 import json
 import runpy
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -31,10 +32,35 @@ class LineAlpha54ReleaseTest(unittest.TestCase):
         self.assertEqual(latest['packages']['@oripa/storefront-testkit']['sha256'], 'f98f313c3d1441f46bc66f97f4d89555a1b6f7bb74a4b89bd2f7add8eba65eb2')
         self.assertEqual(latest['publication'], {'workflow_run_id': 45406520533, 'workflow_run_attempt': 1, 'artifact_id': 14926246450, 'artifact_name': 'oripa-storefront-contract-2.0.0-alpha.54', 'github_digest': 'sha256:5c198214e0ebf989a68280897c832a06f27ecaaaf09ee18c4d07300314f6fb7a', 'sha256sums_sha256': 'b214c82d2aef8516e4e12dee6fe7f0e921694da2e7d84d0e63e8abcde80dc7ef'})
 
-    def test_current_released_source_cannot_be_republished(self):
-        value = ARTIFACT['governance'](ROOT)
+    def test_published_alpha54_source_cannot_be_republished(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        released = Path(directory.name) / 'alpha54'
+        subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout',
+                        str(ROOT), str(released)], check=True)
+        subprocess.run(['git', 'checkout', '--quiet', '--detach',
+                        '776264704734e1282802ff5695c6abcab87df6ed'], cwd=released, check=True)
+        value = ARTIFACT['governance'](released)
+        self.assertEqual(value['latest_immutable']['bundle_version'], '2.0.0-alpha.54')
         self.assertEqual(value['latest_immutable'], value['immutable_history'][-1])
         self.assertIsNone(value['candidate'])
-        self.assertEqual(ARTIFACT['validate_source'](ROOT)['release_state'], 'released')
+        self.assertEqual(ARTIFACT['validate_source'](released)['release_state'], 'released')
         with self.assertRaisesRegex(ARTIFACT['ArtifactError'], 'no pending Storefront artifact candidate'):
-            ARTIFACT['pending_candidate'](ROOT)
+            ARTIFACT['pending_candidate'](released)
+
+    def test_stripe_candidate_and_rejection_of_every_published_version(self):
+        value = ARTIFACT['governance'](ROOT)
+        candidate = ARTIFACT['pending_candidate'](ROOT)
+        self.assertEqual(candidate, value['candidate'])
+        self.assertEqual(candidate['bundle_version'], '2.0.0-alpha.55')
+        self.assertEqual(candidate['release_state'], 'pending')
+        self.assertEqual(candidate['predecessor_bundle_version'], '2.0.0-alpha.54')
+        self.assertEqual(value['latest_immutable']['bundle_version'], candidate['predecessor_bundle_version'])
+        self.assertEqual(ARTIFACT['validate_source'](ROOT)['release_state'], 'pending')
+        for row in value['immutable_history']:
+            version = row['bundle_version']
+            with self.subTest(version=version):
+                self.assertNotEqual(version, candidate['bundle_version'])
+                reissue = {**value, 'candidate': {**candidate, 'bundle_version': version}}
+                with self.assertRaisesRegex(ARTIFACT['ArtifactError'], 'immutable existing version reissue prohibited'):
+                    ARTIFACT['validate_governance'](reissue)
