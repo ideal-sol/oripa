@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "repository": "ideal-sol/oripa",
-  "source_sha": "3de56a1f145aab4b29641960cc1886c212750cee",
-  "change_id": "FIX-20261124",
-  "pr_number": 724,
-  "authority": "Human-approved exact Runtime Source: Option B, PR #724 squash 3de56a1f145aab4b29641960cc1886c212750cee, reviewed HEAD 8895fb49e6f8cbbc734dbd4003e6c781c53f734f, identical tree 21f07d708f5421f7baa573c73a38426c12a07725, Required CI 45422455231. Includes Paidy #721, LINE CV #723, scheduled publication #724, PHP 8.4.28, five approved Composer fixes, LINE delivery D1-D7 and related fixes, and #663 Admin UI. Reuse immutable Contract alpha.54, Artifact 14926246450 / run 45406520533, publication Source 457ca5edd918441368717e4974f588dcf0079bba. Protected-main workflow, agency mode, linux/arm64 API+Admin+Agency. Separate Human GO for Authority merge, formal build and cutover. Planned activation: API, Admin, Storefront #255, required API-image consumers and scheduled-publication timer. Retain Agency and independent mail/SMS workers (residual PHP 8.4.27 scope). Forward-only Ledger107 to119, exact 000108-000119 in worklog handoff. Preserve legacy BOT, LINE auth ENV, existing settings permissions and menu. No ENV import, DB credential registration, managed BOT activation, webhook/Developers changes, new delivery worker, automated notifications or D7 friend ID retrieval. Preserve login, linking, friend checks, 500-coin reward, LINE-only gacha and replies. CV start time requires separate Human decision. PHP Security HOLD until final integrated ARM64 image passes mandatory gates and effective-impact review. Reuse bounded media SEV-2 evidence under existing policy. Fence writers, retain rollback assets and verified snapshot. On unknown ledger, external effect or failed health/security gate hold for reconciliation, no automatic retry, down migration or restore.",
+  "source_sha": "40dd90ff14e692b697ad53df34100a8ae6b3911a",
+  "change_id": "TIMEZONE-FIX-20261126",
+  "pr_number": 740,
+  "authority": "Human-approved exact Runtime Source: PR #740 selected for NEWPROD-20261127 preparation. Reviewed HEAD 21444c0e82efb923a59b9a3614649c3ad8a306c6, tree 622ea7fe3ba0c7d14a8a8d1ef3dcd3b994aac9fc, Required CI 45780167198. Reuse immutable Contract alpha.54, artifact 14926246450. Canonical linux/arm64 agency mode. Release scope API, Admin and affected workers. Preserve worker and feature states, Agency, Storefront and DB settings. No migrations. Verify new image security. Activation requires separate release GO.",
   "activation_authorized": false
 }
