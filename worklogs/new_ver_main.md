@@ -14750,3 +14750,23 @@ Human confirmed this exact squash for the contract-only publication. Run 4597475
 - ⑦-R1。Stripeの離脱取消後、同一キーでの手動取消と共通取消の両経路を検証した。照会失敗中は元の商品枠を保持し、失効確認後に枠が戻る。どちらも終了履歴1件、離脱由来の取消要求1件。
 - ⑦-R2。既存の2接続・行ロック待ち検証に、承認と共通取消の両順序を追加した。承認受付先行は共通APIが409 PAYMENT_NOT_CANCELLABLE。取消先行は遅延承認の照会とcloseが各1回で、canceledを維持。旧取消との組み合わせを含む全6順序で履歴・進捗と付与件数を照合した。
 - 隔離PostgreSQLと模擬プロバイダーで対象8ケースPASS。Stripe 2件・50 assertions、ペイディ6件・74 assertions。追加のローカルBuildは0回。
+
+## REL-056 pending payment notice alpha.56 reconciliation
+
+PR #747 squash `536a02e8f600c1ee68696245f9133558601973f8` and reviewed HEAD `80a68de56de646d1a39c45a8ab63cf42ebe7ce31` share tree `c6ff3ab8465a406a8d654df491d806059c44341d`. Human confirmed that squash as publication Source. The five Required Checks passed on the merged Source. This change adds no migration. Operational migration applications and Runtime Activations are zero.
+
+Canonical [publication and exact-ID readback](https://github.com/ideal-sol/oripa/actions/runs/46023659050), attempt 1. Independent readback verified the outer digest, five-file inventory, Manifest, SHA256SUMS and packed contracts.
+
+- artifact_id: `15210212345`
+- artifact_name: `oripa-storefront-contract-2.0.0-alpha.56`
+- artifact_version: `2.0.0-alpha.56`
+- client_sha256: `86f1a7b3a4495993ba4d3c9c366d00b0f2b443eebc8cfb02dd2f0a10d4686220`
+- manifest_sha256: `ca4b577f9c25d33269a002f2899ddd72498678aaf666417e628d5ed59b12531b`
+- outer_sha256: `da317cd1c67395b9027127776fa794fd0cdc6f5eaa272d259cb8467e2231fc01`
+- public_openapi_sha256: `a880f2fb866b230c39d4781048b87dc81f511360cbdc0104e2bd135d8878d2c5`
+- sha256sums_sha256: `8bf1df43a9ba812934e031c6737d7634950cf361bff5b53d243e3aa6394f8685`
+- source_commit: `536a02e8f600c1ee68696245f9133558601973f8`
+- testkit_sha256: `91626babe41664d03a3eb6d5eca1f6a822406cc5267a48496b9dc2dc0acaeaf6`
+- workflow_run_id: `46023659050`
+
+Client and Testkit alpha.56, Public alpha.52 (101 operations), Admin and Webhook alpha.48. Site Schema references the prior alpha.23 bytes. All 35 predecessor records are preserved. The ledger records alpha.56 as the latest immutable release and clears its candidate. Storefront adoption uses the recorded exact Artifact. Metadata corrections require review and preserve immutable Artifact bytes.
