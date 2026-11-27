@@ -14724,3 +14724,9 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   test caught the missing receipt in the operator-review callback; after
   fixing that capture, the five affected reversal and mode cases passed
   (52 assertions). The complete PR file inventory and credential scan passed.
+
+## REL-055 Stripe card alpha.55 reconciliation
+
+PR #744 merged at 8696021fb45b968ff2f77aa8915e2ab967764adf. The reviewed and merged trees match, with zero content differences. All five main checks passed in run 45972449029. Migration 000120 is permanently allocated and its physical allocation lock released. Operational migrations applied: 0.
+
+Human confirmed this exact squash for the contract-only publication. Run 45974755687 attempt 1 published Artifact 15185489903. Independent exact-ID readback, Manifest, SHA256SUMS and both tarballs passed verification. REL-055 registers the measured release and preserves all 34 predecessors. Four focused release tests and local policy passed. Release details and checksums are in the [release record](../docs/operations/releases/storefront-contract-artifact.md#rel-055-stripe-card-alpha55-reconciliation). Runtime Activation: none.

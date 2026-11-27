@@ -85,3 +85,22 @@ class LineAlpha54ReleaseTest(unittest.TestCase):
                            'predecessor_bundle_version': latest, 'bundle_version': version}}
                 with self.assertRaisesRegex(ARTIFACT['ArtifactError'], 'immutable existing version reissue prohibited'):
                     ARTIFACT['validate_governance'](reissue)
+
+    def test_stripe_alpha55_matches_published_artifact_and_predecessors(self):
+        history = ARTIFACT['governance'](ROOT)['immutable_history']
+        source = json.loads(subprocess.check_output([
+            'git', 'show', '8696021fb45b968ff2f77aa8915e2ab967764adf:manifests/storefront-contract-releases.json',
+        ], cwd=ROOT))
+        index = len(source['immutable_history'])
+        self.assertEqual(history[:index], source['immutable_history'])
+        release = history[index]
+        self.assertEqual(release['bundle_version'], '2.0.0-alpha.55')
+        self.assertEqual(release['source_commit'], '8696021fb45b968ff2f77aa8915e2ab967764adf')
+        self.assertEqual(release['manifest_sha256'], '1b819d2401ef23bb19fa0747eec5419b703082809fba35853dbe9267911cca2d')
+        self.assertEqual(release['publication']['artifact_id'], 15185489903)
+        self.assertEqual(release['publication']['github_digest'], 'sha256:425d7d945f51e589d75cb49275d9a16d5149c7d6ac29c46b62dbf5d4ea746cb9')
+        self.assertEqual(release['publication']['sha256sums_sha256'], '58fd9d86624c1cd6203ef8d7326510f7e76c003f2e00c8c47491ea7ecc086fa7')
+        self.assertEqual(release['public_openapi']['sha256'], 'c6b772ec130d18e2293cd0d23b44a7aa922abcf91ffeedc868e519e58bc626a1')
+        self.assertEqual(release['packages']['@oripa/storefront-client']['sha256'], 'f1cb940e1e712fc7e2d41d3a63595d289fc084d4299205454169972dd6e2e6b6')
+        self.assertEqual(release['packages']['@oripa/storefront-testkit']['sha256'], '3d94069ddeeba8fa59ccc893d07fde59731544cec8d3ad7f8a85af4f2c887cac')
+        self.assertEqual(release['packages']['@oripa/site-schema'], source['latest_immutable']['packages']['@oripa/site-schema'])
