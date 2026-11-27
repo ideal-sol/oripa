@@ -14675,3 +14675,10 @@ Runbook v1.1 stages 1–3, multiple services without migration.
   CI run passed all four database shards and identified the release test's
   assumption about the current tree. The publication code and historical
   release records retain their original contents.
+- All three focused release tests passed, including rejection of all 34
+  recorded versions. The first push of this test reached CI before the PR
+  inventory update. Policy correctly rejected the stale 50-file inventory.
+  The Draft now declares the complete 51-file diff ahead of the next push.
+  Three supplemental synthetic payment handoff checks also passed (13
+  assertions) for atomic receipt/outbox rollback, revoked SMS eligibility,
+  and member rank and bonus deduplication.
