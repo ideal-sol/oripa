@@ -14742,3 +14742,11 @@ Human confirmed this exact squash for the contract-only publication. Run 4597475
 - 隔離PostgreSQLの指摘対象・競合テストは異なる18ケースを確認。本文なしPOSTのJSONヘッダー（当初415）と商品一覧の追加フィールドに対する厳密な期待値を修正し、該当ケースの再確認は5件・88 assertions PASS。Clientの本文・CSRF・同一キー、Testkitの101件固定一覧・案内Fixture、4件のリリース検証、公開済み35件の台帳一致、ローカルpolicy-gateを確認。
 
 - CI run 46008133511 のintegration-suiteは、テスト実行前のapt updateでMicrosoftの追加配布元がHTTP 403を返して停止。ffmpegとutil-linuxを取得する2コマンドを、同じランナーの署名付きUbuntu標準配布元に限定。両パッケージのインストール・GD/ffprobe/prlimit実行確認・全Required Checksは従来どおり実行する。
+
+## PAYMENT-PENDING-NOTICE-20261125 ⑦-R1・R2 レビュー対応
+
+レビュー済み fc0f0764319115e7d36cc7487fb6184590a03396 を基点に既存の回帰テストを拡張した。R3 / Strict Change / Activation deferred。
+
+- ⑦-R1。Stripeの離脱取消後、同一キーでの手動取消と共通取消の両経路を検証した。照会失敗中は元の商品枠を保持し、失効確認後に枠が戻る。どちらも終了履歴1件、離脱由来の取消要求1件。
+- ⑦-R2。既存の2接続・行ロック待ち検証に、承認と共通取消の両順序を追加した。承認受付先行は共通APIが409 PAYMENT_NOT_CANCELLABLE。取消先行は遅延承認の照会とcloseが各1回で、canceledを維持。旧取消との組み合わせを含む全6順序で履歴・進捗と付与件数を照合した。
+- 隔離PostgreSQLと模擬プロバイダーで対象8ケースPASS。Stripe 2件・50 assertions、ペイディ6件・74 assertions。追加のローカルBuildは0回。

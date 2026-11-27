@@ -43,7 +43,9 @@ final class StripeCheckoutTest extends TestCase
             'client_secret' => $id.'_secret_synthetic', 'expires_at' => $params['expires_at']];
     }
 
-    public function test_timeout_replays_fixed_parameters_and_cancellation_only_releases_after_verified_expiry(): void
+    #[\PHPUnit\Framework\Attributes\TestWith([false], 'leave then manual retry with the same Stripe key')]
+    #[\PHPUnit\Framework\Attributes\TestWith([true], 'leave then common cancellation')]
+    public function test_timeout_replays_fixed_parameters_and_cancellation_only_releases_after_verified_expiry(bool $commonCancel): void
     {
         $user = $this->univapayUser();
         $plan = $this->univapayPlan();
@@ -83,16 +85,28 @@ final class StripeCheckoutTest extends TestCase
         $pending = $sync->operation($user, $payment['id'], 'cancel', 'same-key', 'leave');
         self::assertTrue($pending['cancellation_pending']);
         self::assertNull($pending['next_action']);
-        $waiting = $notice()['blocking_payments'][0];
+        $offer = $notice();
+        self::assertSame('unavailable', $offer['state']);
+        $waiting = $offer['blocking_payments'][0];
+        self::assertSame($payment['id'], $waiting['id']);
+        self::assertContains($plan->public_id, $waiting['blocks_point_product_ids']);
         self::assertTrue($waiting['cancellation_pending']);
         self::assertFalse($waiting['resumable'] || $waiting['cancellable']);
         self::assertNull($waiting['auto_release_at']);
-        $done = app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)->cancel($user, $payment['id'], 'notice-retry');
+        $done = $commonCancel
+            ? app(\App\Domain\Payment\V2\Services\V2PaymentCancellationService::class)->cancel($user, $payment['id'], 'notice-retry')
+            : $sync->operation($user, $payment['id'], 'cancel', 'same-key', 'user');
         self::assertSame('active', $notice()['state']);
         self::assertSame([], $notice()['blocking_payments']);
         self::assertSame('canceled', $done['status']);
         self::assertFalse($done['provider_sync']);
-        self::assertSame(1, DB::table('payment_progress_events')->where('type', 'cancel_requested')->where('detail->trigger', 'leave')->count());
+        $id = DB::table('payments')->where('public_id', $payment['id'])->value('id');
+        self::assertSame(['leave'], DB::table('payment_progress_events')->where('payment_id', $id)
+            ->where('type', 'cancel_requested')->pluck('detail->trigger as trigger')->all());
+        self::assertSame(['canceled'], DB::table('payment_status_histories')->where('payment_id', $id)
+            ->whereIn('to_status', ['succeeded', 'failed', 'canceled', 'expired'])->pluck('to_status')->all());
+        self::assertSame(1, DB::table('idempotency_records')->where('scope', 'stripe.cancel')
+            ->where('resource_public_id', $payment['id'])->where('status', 'completed')->count());
     }
 
     public function test_late_response_after_ten_minutes_cannot_revive_payment_and_new_purchase_can_start(): void
