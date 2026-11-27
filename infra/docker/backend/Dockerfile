@@ -83,6 +83,10 @@ ENV APACHE_RUN_DIR=/tmp/apache2 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
+        libpam0g=1.5.2-6+deb12u3 \
+        libpam-modules=1.5.2-6+deb12u3 \
+        libpam-modules-bin=1.5.2-6+deb12u3 \
+        libpam-runtime=1.5.2-6+deb12u3 \
         libpq5 \
         libzip4 \
         libjpeg62-turbo \
@@ -96,6 +100,9 @@ RUN apt-get update \
         libswresample4 \
         libswscale6 \
         util-linux \
+    && for package in libpam0g libpam-modules libpam-modules-bin libpam-runtime; do \
+        test "$(dpkg-query -W -f='${Status} ${Version}' "$package")" = 'install ok installed 1.5.2-6+deb12u3' || exit 1; \
+    done \
     && rm -rf /var/lib/apt/lists/* \
     && a2enmod rewrite \
     && sed -ri 's/^Listen 80$/Listen 8000/' /etc/apache2/ports.conf
@@ -156,6 +163,10 @@ RUN apt-get update \
         bash \
         curl \
         linux-libc-dev=6.1.192-2 \
+        libpam0g=1.5.2-6+deb12u3 \
+        libpam-modules=1.5.2-6+deb12u3 \
+        libpam-modules-bin=1.5.2-6+deb12u3 \
+        libpam-runtime=1.5.2-6+deb12u3 \
         libpq5 \
         libzip4 \
         libjpeg62-turbo \
@@ -169,6 +180,9 @@ RUN apt-get update \
         libswresample4 \
         libswscale6 \
         util-linux \
+    && for package in libpam0g libpam-modules libpam-modules-bin libpam-runtime; do \
+        test "$(dpkg-query -W -f='${Status} ${Version}' "$package")" = 'install ok installed 1.5.2-6+deb12u3' || exit 1; \
+    done \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
