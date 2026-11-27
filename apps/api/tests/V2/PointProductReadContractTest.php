@@ -40,6 +40,8 @@ final class PointProductReadContractTest extends TestCase
             ->assertHeader('Vary', 'Cookie')
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('first_user_offer.state', 'unauthenticated')
+            ->assertJsonPath('first_user_offer.blocking_payments', [])
+            ->assertJsonPath('first_user_offer.blocking_payments_truncated', false)
             ->assertJsonPath('first_user_offer.expires_at', null)
             ->assertJsonPath('data.0.id', $first->public_id)
             ->assertJsonPath('data.0.audience.code', 'first_purchase_users')
@@ -68,8 +70,9 @@ final class PointProductReadContractTest extends TestCase
 
     public function test_unverified_user_gets_only_the_anonymous_public_product_projection(): void
     {
-        $this->plan('SMS-gate-first', 'first_purchase_users', 1);
+        $first = $this->plan('SMS-gate-first', 'first_purchase_users', 1);
         $user = $this->user();
+        $this->payment($user, $first, 'requires_action');
         DB::table('user_phone_numbers')->where('user_id', $user->id)->update(['revoked_at' => now()]);
         $anonymous = $this->getJson('/api/v2/point-products')->assertOk()->json();
         Auth::guard('v2_user')->setUser($user);
@@ -151,7 +154,9 @@ final class PointProductReadContractTest extends TestCase
         $this->payment($user, $second, 'succeeded');
         $this->getJson('/api/v2/point-products')->assertOk()
             ->assertJsonPath('first_user_offer.state', 'unavailable')
-            ->assertJsonPath('data.1.cta.state', 'disabled');
+            ->assertJsonPath('data.1.cta.state', 'disabled')
+            ->assertJsonPath('data.1.ineligible_reason', 'first_purchase_required')
+            ->assertJsonPath('first_user_offer.blocking_payments', []);
         Auth::guard('v2_user')->setUser($this->user(false));
         $this->getJson('/api/v2/point-products')->assertOk()
             ->assertJsonPath('first_user_offer.state', 'unavailable')
@@ -260,6 +265,7 @@ final class PointProductReadContractTest extends TestCase
             ->assertOk()
             ->assertExactJson(['data' => [], 'first_user_offer' => [
                 'state' => 'unauthenticated', 'expires_at' => null, 'as_of' => '2026-08-14T00:00:00Z',
+                'blocking_payments' => [], 'blocking_payments_truncated' => false,
             ]]);
     }
 
@@ -299,6 +305,85 @@ final class PointProductReadContractTest extends TestCase
             ->assertJsonPath('data.2.limited_bonus.presentation.is_visible', false)
             ->assertJsonPath('data.3.id', $disabled->public_id)
             ->assertJsonPath('data.3.limited_bonus.state', 'inactive');
+    }
+
+    public function test_pending_limits_apply_independently_per_product_and_to_the_unique_offer_list(): void
+    {
+        \Illuminate\Support\Facades\Http::fake();
+        config(['v2_payment.first_purchase_limit_scope' => 'per_product']);
+        Auth::guard('v2_user')->setUser($user = $this->user());
+        $other = $this->user();
+        $payments = [];
+        $products = [];
+        foreach (range(1, 11) as $index) {
+            $plan = $this->plan("Product $index", 'first_purchase_users', $index);
+            $products[] = $plan->public_id;
+            $payments[] = $this->payment($user, $plan, 'requires_action');
+        }
+        $this->payment($other, $plan, 'processing');
+        $read = fn () => $this->getJson('/api/v2/point-products')->assertOk()->json();
+        $listing = $read();
+        foreach ($listing['data'] as $i => $product) {
+            self::assertSame('first_purchase_pending', $product['ineligible_reason']);
+            self::assertFalse($product['eligible']);
+            self::assertSame([$payments[$i]], array_column($product['blocking_payments'], 'id'));
+            self::assertSame([$products[$i]], $product['blocking_payments'][0]['blocks_point_product_ids']);
+        }
+        self::assertSame(array_slice(array_reverse($payments), 0, 10), array_column($listing['first_user_offer']['blocking_payments'], 'id'));
+        self::assertTrue($listing['first_user_offer']['blocking_payments_truncated']);
+        foreach (range(1, 3) as $i) $payments[] = $this->payment($user, $plan, 'requires_action');
+        $listing = $read();
+        self::assertSame(array_slice(array_reverse($payments), 0, 3), array_column($listing['data'][10]['blocking_payments'], 'id'));
+        self::assertSame(array_slice(array_reverse($payments), 0, 10), array_column($listing['first_user_offer']['blocking_payments'], 'id'));
+        config(['v2_payment.first_purchase_limit_scope' => 'any_product']);
+        $listing = $read();
+        foreach ($listing['first_user_offer']['blocking_payments'] as $payment) self::assertSame($products, $payment['blocks_point_product_ids']);
+        self::assertCount(10, $listing['first_user_offer']['blocking_payments']);
+        \Illuminate\Support\Facades\Http::assertNothingSent();
+    }
+
+    public function test_issued_async_and_success_history_override_pending_without_releasing_the_slot(): void
+    {
+        $plan = $this->plan('限定', 'first_purchase_users', 1);
+        Auth::guard('v2_user')->setUser($owner = $this->user());
+        $this->payment($owner, $plan, 'created');
+        $async = $this->payment($owner, $plan, 'requires_action');
+        $row = DB::table('payments')->where('public_id', $async);
+        $row->update(['payment_method' => 'konbini']);
+        $history = ['payment_id' => $row->value('id'), 'from_status' => 'created', 'to_status' => 'requires_action',
+            'transition_source' => 'provider_api', 'actor_type' => 'system', 'occurred_at' => now(), 'request_id' => (string) Str::uuid()];
+        DB::table('payment_status_histories')->insert($history);
+        $read = fn () => $this->getJson('/api/v2/point-products')->assertOk();
+        $read()->assertJsonPath('data.0.ineligible_reason', 'first_purchase_pending')
+            ->assertJsonPath('data.0.blocking_payments.0.id', $async)
+            ->assertJsonPath('data.0.blocking_payments.0.cancel_restores_offer', false)
+            ->assertJsonPath('data.0.blocking_payments.0.cancel_unavailable_reason', 'provider_not_supported');
+        $row->update(['status' => 'expired']);
+        $read()->assertJsonPath('data.0.ineligible_reason', 'first_purchase_required')
+            ->assertJsonPath('data.0.blocking_payments', [])->assertJsonPath('first_user_offer.blocking_payments', []);
+        $row->update(['payment_method' => 'credit_card']);
+        $read()->assertJsonPath('data.0.ineligible_reason', 'first_purchase_pending');
+        DB::table('payment_status_histories')->insert([...$history, 'to_status' => 'succeeded', 'request_id' => (string) Str::uuid()]);
+        $read()->assertJsonPath('data.0.ineligible_reason', 'first_purchase_required')->assertJsonPath('data.0.blocking_payments', []);
+    }
+
+    public function test_notice_discloses_only_public_fields_and_never_promises_release_for_processing(): void
+    {
+        $plan = $this->plan('限定', 'first_purchase_users', 1);
+        Auth::guard('v2_user')->setUser($owner = $this->user());
+        $id = $this->payment($owner, $plan, 'processing');
+        $row = DB::table('payments')->where('public_id', $id);
+        foreach (['stripe', 'paidy', 'univapay', 'techcoin', 'fincode'] as $provider) {
+            $row->update(['provider_code' => $provider, 'payment_method' => $provider === 'paidy' ? 'paidy' : 'credit_card']);
+            $response = $this->getJson('/api/v2/point-products')->assertOk();
+            $notice = $response->json('data.0.blocking_payments.0');
+            self::assertEqualsCanonicalizing(['id', 'point_product_name', 'method', 'method_label', 'status', 'started_at',
+                'blocks_point_product_ids', 'cancellable', 'cancel_unavailable_reason', 'cancel_restores_offer',
+                'resumable', 'cancellation_pending', 'auto_release_at'], array_keys($notice));
+            self::assertFalse($notice['cancellable'] || $notice['resumable']);
+            self::assertNull($notice['auto_release_at']);
+            self::assertSame($notice, $response->json('first_user_offer.blocking_payments.0'));
+        }
     }
 
     private function plan(
@@ -406,10 +491,11 @@ final class PointProductReadContractTest extends TestCase
         ]);
     }
 
-    private function payment(User $user, object $plan, string $status): void
+    private function payment(User $user, object $plan, string $status): string
     {
+        $publicId = (string) Str::uuid7();
         DB::table('payments')->insert([
-            'public_id' => (string) Str::uuid7(),
+            'public_id' => $publicId,
             'user_id' => $user->id,
             'point_purchase_plan_id' => $plan->id,
             'provider_code' => 'synthetic',
@@ -427,5 +513,6 @@ final class PointProductReadContractTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        return $publicId;
     }
 }

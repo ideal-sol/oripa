@@ -61,10 +61,10 @@ final class V2PointPurchaseEligibilityService
         if ($targetTagId !== null && ! $this->hasTag($user->id, (int) $targetTagId)) {
             return ['eligible' => false, 'reason' => 'audience_not_eligible'];
         }
-        if ($plan->audience_code === self::AUDIENCE_FIRST_PURCHASE
-            && (! $this->isWithinFirstUserWindow($user, $asOf)
-                || $this->hasUsedOrPendingFirstPurchase($user->id, $plan->code))) {
-            return ['eligible' => false, 'reason' => 'first_purchase_required'];
+        if ($plan->audience_code === self::AUDIENCE_FIRST_PURCHASE) {
+            if (! $this->isWithinFirstUserWindow($user, $asOf)) return ['eligible' => false, 'reason' => 'first_purchase_required'];
+            $block = $this->rankedBlocks($user->id, [$plan->code])->where('position', 1)->first();
+            if ($block) return ['eligible' => false, 'reason' => self::blockReason($block)];
         }
 
         return ['eligible' => true, 'reason' => null];
@@ -85,49 +85,78 @@ final class V2PointPurchaseEligibilityService
 
     private function hasUsedOrPendingFirstPurchase(int $userId, string $planCode): bool
     {
-        return DB::table('payments as payment')
+        return $this->blockingQuery($userId, [$planCode])->exists();
+    }
+
+    public function scopeKey(string $code): string
+    {
+        return config('v2_payment.first_purchase_limit_scope') === 'per_product' ? $code : '*';
+    }
+
+    private function blockingQuery(int $userId, array $codes): Builder
+    {
+        $classified = DB::table('payments as payment')
             ->join('point_purchase_plans as plan', 'plan.id', '=', 'payment.point_purchase_plan_id')
             ->where('payment.user_id', $userId)
-            // Read the historical plan attached to the payment, including retired versions.
-            ->when(
-                config('v2_payment.first_purchase_limit_scope') === 'per_product',
-                fn (Builder $query) => $query->where('plan.code', $planCode),
-                fn (Builder $query) => $query->where('plan.audience_code', self::AUDIENCE_FIRST_PURCHASE),
-            )
-            ->where(function (Builder $blocked): void {
-                $blocked->whereNotIn('payment.status', ['failed', 'canceled', 'expired'])
-                    ->orWhereExists(function (Builder $history): void {
-                        $history->selectRaw('1')->from('payment_status_histories as history')
-                            ->whereColumn('history.payment_id', 'payment.id')
-                            ->where('history.to_status', 'succeeded');
-                    })
-                    ->orWhere(function (Builder $asynchronous): void {
-                        $asynchronous->whereIn('payment.payment_method', ['konbini', 'virtual_account'])
-                            ->where(function (Builder $started): void {
-                                $started->whereExists(function (Builder $attempt): void {
-                                    $attempt->selectRaw('1')->from('fincode_payment_attempts as attempt')
-                                        ->whereColumn('attempt.payment_id', 'payment.id')
-                                        ->whereNotNull('attempt.provider_session_id')
-                                        ->whereNotNull('attempt.redirect_url_ciphertext');
-                                })->orWhereExists(function (Builder $history): void {
-                                    $history->selectRaw('1')->from('payment_status_histories as history')
-                                        ->whereColumn('history.payment_id', 'payment.id')
-                                        ->whereIn('history.to_status', ['requires_action', 'processing'])
-                                        ->whereIn('history.transition_source', ['provider_api', 'provider_event']);
-                                });
-                            });
-                    });
-            })->exists();
+            ->when(config('v2_payment.first_purchase_limit_scope') === 'per_product',
+                fn (Builder $query) => $query->whereIn('plan.code', $codes),
+                fn (Builder $query) => $query->where('plan.audience_code', self::AUDIENCE_FIRST_PURCHASE))
+            ->select('payment.id', 'payment.public_id', 'payment.status', 'payment.created_at', 'payment.payment_method',
+                'payment.provider_code', 'payment.provider_payment_id', 'payment.expires_at', 'payment.plan_name_snapshot', 'plan.code')
+            ->selectRaw("EXISTS (SELECT 1 FROM payment_status_histories h
+                WHERE h.payment_id = payment.id AND h.to_status = 'succeeded') AS succeeded_before")
+            ->selectRaw("payment.payment_method IN ('konbini', 'virtual_account') AND
+                (EXISTS (SELECT 1 FROM fincode_payment_attempts a WHERE a.payment_id = payment.id
+                    AND a.provider_session_id IS NOT NULL AND a.redirect_url_ciphertext IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM payment_status_histories h WHERE h.payment_id = payment.id
+                    AND h.to_status IN ('requires_action', 'processing')
+                    AND h.transition_source IN ('provider_api', 'provider_event'))) AS issued");
+
+        return DB::query()->fromSub($classified, 'p')->where(function (Builder $q) {
+            $q->whereNotIn('p.status', ['failed', 'canceled', 'expired'])
+                ->orWhere('p.succeeded_before', true)->orWhere('p.issued', true);
+        });
+    }
+
+    public static function blockReason(object $payment): string
+    {
+        return $payment->permanent ? 'first_purchase_required' : 'first_purchase_pending';
+    }
+
+    /** Rank a permanent block first so an old success or issued terminal payment survives the display limit. */
+    private function rankedBlocks(int $userId, array $codes): Builder
+    {
+        $partition = config('v2_payment.first_purchase_limit_scope') === 'per_product' ? 'PARTITION BY p.code' : '';
+        $permanent = "p.succeeded_before OR p.status IN ('succeeded', 'failed', 'canceled', 'expired')";
+        $ranked = $this->blockingQuery($userId, $codes)->select('p.*')
+            ->selectRaw("($permanent) AS permanent, row_number() OVER ($partition ORDER BY
+                ($permanent) DESC, p.created_at DESC, p.id DESC) AS position");
+        return DB::query()->fromSub($ranked, 'p');
+    }
+
+    public function blockingRows(int $userId, array $codes): array
+    {
+        if ($codes === []) return [];
+        return $this->rankedBlocks($userId, $codes)->where('p.position', '<=', 11)
+            ->leftJoin('stripe_checkout_sessions as stripe', 'stripe.payment_id', '=', 'p.id')
+            ->select('p.*', 'stripe.cancel_requested_at', 'stripe.session_expires_at')
+            ->selectSub(V2PaidyPaymentService::authorizationRecords()->selectRaw('1')
+                ->whereColumn('resource_public_id', 'p.public_id')->limit(1), 'authorization_record')
+            ->selectSub(V2PaidyPaymentService::lookupRecords()->selectRaw('1')
+                ->whereColumn('aggregate_public_id', 'p.public_id')->limit(1), 'lookup_record')
+            ->orderByDesc('p.created_at')->orderByDesc('p.id')->get()->all();
     }
 
     private function isWithinFirstUserWindow(User $user, CarbonImmutable $asOf): bool
     {
-        if (app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id)) return false;
-        $qualifiedAt = $this->qualifiedAt($user);
+        return $this->withinQualifiedWindow($user, $asOf, $this->qualifiedAt($user));
+    }
 
-        return $qualifiedAt !== null
-            && $qualifiedAt->lessThanOrEqualTo($asOf)
-            && $asOf->lessThan($qualifiedAt->addHours(24));
+    public function withinQualifiedWindow(User $user, CarbonImmutable $asOf, ?CarbonImmutable $qualifiedAt): bool
+    {
+        return $qualifiedAt !== null && $qualifiedAt->lessThanOrEqualTo($asOf)
+            && $asOf->lessThan($qualifiedAt->addHours(24))
+            && ! app(\App\Domain\Identity\Services\V2PhoneBenefitEligibility::class)->reused((int) $user->id);
     }
 
     public function qualifiedAt(User $user): ?CarbonImmutable
